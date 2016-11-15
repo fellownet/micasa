@@ -41,7 +41,7 @@ namespace micasa {
 
 	}; // class LoggerInstance
 
-	class WebServer final : public Worker {
+	class WebServer final : public LoggerInstance {
 
 	public:
 		WebServer();
@@ -51,9 +51,6 @@ namespace micasa {
 		
 		void addResourceHandler( std::string resource_, int supportedMethods_, std::shared_ptr<WebServerResource> handler_ );
 		void removeResourceHandler( std::string resource_ );
-
-	protected:
-		std::chrono::milliseconds _doWork();
 
 	private:
 		std::map<std::string, std::pair<int, std::shared_ptr<WebServerResource> > > m_resources;

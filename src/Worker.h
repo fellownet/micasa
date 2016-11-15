@@ -13,35 +13,25 @@
 
 namespace micasa {
 
-	class WorkerException : public std::runtime_error {
+	class Worker {
 
 	public:
-		WorkerException( const std::string &message_, std::chrono::milliseconds wait_ ) : std::runtime_error( message_ ), m_wait( wait_ ) { };
-		
-		std::chrono::milliseconds getWait() const { return this->m_wait; }
-
-	private:
-		std::chrono::milliseconds m_wait;
-
-	}; // class Exception
-
-	class Worker : public LoggerInstance {
-
-	public:
-		Worker();
+		Worker() { };
 		~Worker();
 		
-		virtual bool start();
-		virtual bool stop();
+		bool isRunning();
 
 	protected:
-		virtual std::chrono::milliseconds _doWork() =0;
+		virtual void _begin();
+		virtual void _retire();
+		virtual std::chrono::milliseconds _work( unsigned long int iteration_ ) =0;
 
 	private:
 		std::thread m_worker;
-		volatile bool m_shutdown;
+		volatile bool m_shutdown = true;
 		std::condition_variable m_shutdownCondition;
 		std::mutex m_shutdownMutex;
+		unsigned long int m_iteration = 0;
 
 	}; // class Worker
 

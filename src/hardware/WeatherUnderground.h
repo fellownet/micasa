@@ -17,16 +17,16 @@ namespace micasa {
 	class WeatherUnderground final : public Hardware, public Worker {
 
 	public:
-		WeatherUnderground( std::string id_, std::map<std::string, std::string> settings_ );
+		WeatherUnderground( std::string id_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ );
 		~WeatherUnderground();
 		
 		std::string toString() const;
-		bool start();
-		bool stop();
+		void start() override;
+		void stop() override;
 		bool handleRequest( std::string resource_, WebServerResource::Method method_, std::map<std::string, std::string> &data_ ) { return true; /* not implemented yet */ };
 
 	protected:
-		std::chrono::milliseconds _doWork();
+		std::chrono::milliseconds _work( unsigned long int iteration_ );
 
 	}; // class WeatherUnderground
 

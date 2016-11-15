@@ -17,23 +17,21 @@
 
 namespace micasa {
 
-	class Controller final : public Worker, public WebServerResource, public std::enable_shared_from_this<Controller> {
+	class Controller final : public Worker, public LoggerInstance, public WebServerResource, public std::enable_shared_from_this<Controller> {
 
 	public:
 		Controller();
 		~Controller();
 
-		bool start();
-		bool stop();
+		void start();
+		void stop();
 		std::string toString() const;
 		bool handleRequest( std::string resource_, Method method_, std::map<std::string, std::string> &data_ ) { return true; /* not implemented yet */ }
 
-		std::shared_ptr<Hardware> declareHardware( Hardware::HardwareType hardwareType, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ );
-		std::shared_ptr<Hardware> getHardwareById( std::string id_ );
-		std::shared_ptr<Hardware> getHardwareByUnit( std::string unit_ );
+		std::shared_ptr<Hardware> declareHardware( Hardware::HardwareType hardwareType_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ );
 		
 	protected:
-		std::chrono::milliseconds _doWork();
+		std::chrono::milliseconds _work( unsigned long int iteration_ );
 
 	private:
 		std::forward_list<std::shared_ptr<Event> > m_eventQueue;

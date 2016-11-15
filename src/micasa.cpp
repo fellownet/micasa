@@ -87,13 +87,16 @@ int main( int argc_, char* argv_[] ) {
 	g_controller = std::make_shared<Controller>();
 
 	g_controller->start();
-	g_webServer->start();
+
+#ifdef _DEBUG
+	g_controller->declareHardware( Hardware::HardwareType::WEATHER_UNDERGROUND, "WU1", "Weather Underground Venray", { { "api_key", "6aeabe360416fca1" }, { "location", "Venray" }, { "scale", "celcius" } } );
+	g_controller->declareHardware( Hardware::HardwareType::WEATHER_UNDERGROUND, "WU2", "Weather Underground Mayrhofen", { { "api_key", "6aeabe360416fca1" }, { "location", "Mayrhofen" }, { "scale", "fahrenheit" } } );
+#endif // _DEBUG
 
 	while ( ! g_shutdown ) 	{
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 	}
 
-	g_webServer->stop();
 	g_controller->stop();
 	
 	g_controller = NULL;

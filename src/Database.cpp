@@ -42,11 +42,11 @@ namespace micasa {
 		this->putQuery( "VACUUM" );
 
 		int version = atoi( this->getQueryValue( "PRAGMA user_version" ).c_str() );
-		if ( version < Database::c_queries.size() ) {
-			for ( auto queryIt = Database::c_queries.begin() + version; queryIt != Database::c_queries.end(); queryIt++ ) {
+		if ( version < c_queries.size() ) {
+			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
 				this->putQuery( *queryIt );
 			}
-			this->putQuery( "PRAGMA user_version=%d", Database::c_queries.size() );
+			this->putQuery( "PRAGMA user_version=%d", c_queries.size() );
 		}
 	}
 
@@ -74,7 +74,7 @@ namespace micasa {
 		}
 
 #ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::VERBOSE, this, std::string( query ) );
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
 
 		sqlite3_free( query );
@@ -172,16 +172,20 @@ namespace micasa {
 		return result;
 	}
 
-	void Database::putQuery( std::string query_, ... ) const {
+	long Database::putQuery( std::string query_, ... ) const {
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this]( sqlite3_stmt *statement_ ) {
+		long insertId = -1;
+		this->_wrapQuery( query_, arguments, [this,&insertId]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_DONE != sqlite3_step( statement_ ) ) {
 				const char *error = sqlite3_errmsg( this->m_connection );
 				g_logger->log( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+			} else {
+				insertId = sqlite3_last_insert_rowid( this->m_connection );
 			}
 		} );
 		va_end( arguments );
+		return insertId;
 	}
-
+	
 } // namespace micasa

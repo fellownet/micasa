@@ -5,7 +5,7 @@ namespace micasa {
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
 
-	WebServer::WebServer() : Worker() {
+	WebServer::WebServer() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global WebServer instance." );
 		assert( g_logger && "Global Logger instance should be created before global WebServer instance." );
@@ -22,10 +22,6 @@ namespace micasa {
 
 	std::string WebServer::toString() const {
 		return "WebServer";
-	};
-
-	std::chrono::milliseconds WebServer::_doWork() {
-		return std::chrono::milliseconds( 1000 );
 	};
 
 	void WebServer::addResourceHandler( std::string resource_, int supportedMethods_, std::shared_ptr<WebServerResource> handler_ ) {

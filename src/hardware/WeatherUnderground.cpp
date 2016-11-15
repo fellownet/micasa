@@ -114,7 +114,7 @@ namespace micasa {
 
 	using namespace nlohmann;
 
-	WeatherUnderground::WeatherUnderground( std::string id_, std::map<std::string, std::string> settings_ ) : Hardware( id_, settings_ ), Worker() {
+	WeatherUnderground::WeatherUnderground( std::string id_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ ) : Hardware( id_, unit_, name_, settings_ ), Worker() {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before WeatherUnderground instances." );
 		assert( g_logger && "Global Logger instance should be created before WeatherUnderground instances." );
@@ -129,24 +129,22 @@ namespace micasa {
 	};
 
 	std::string WeatherUnderground::toString() const {
-		std::string hardware( "WeatherUnderground" );
-		if ( this->m_settings.find( "location" ) != this->m_settings.end() ) {
-			hardware.append( "<" + this->m_settings.at( "location" ) + ">" );
-		}
-		return hardware;
+		return this->m_name;
 	};
 
-	bool WeatherUnderground::start() {
+	void WeatherUnderground::start() {
 		g_webServer->addResourceHandler( "hardware/" + this->m_id + "/forecast_url", WebServerResource::Method::GET, this->shared_from_this() );
-		return Worker::start();
+		Hardware::start();
+		this->_begin();
 	}
 	
-	bool WeatherUnderground::stop() {
+	void WeatherUnderground::stop() {
 		g_webServer->removeResourceHandler( "hardware/" + this->m_id + "/forecast_url" );
-		return Worker::stop();
+		Hardware::stop();
+		this->_retire();
 	}
 	
-	std::chrono::milliseconds WeatherUnderground::_doWork() {
+	std::chrono::milliseconds WeatherUnderground::_work( unsigned long int iteration_ ) {
 		if (
 			this->m_settings.find( "api_key" ) == this->m_settings.end()
 			|| this->m_settings.find( "location" ) == this->m_settings.end()
@@ -197,29 +195,29 @@ namespace micasa {
 				this->m_settings.at( "scale" ) == "fahrenheit"
 				&& ! jsonData["temp_f"].empty()
 			) {
-				//device::Level* device = static_cast<device::Level*>( this->_getDevice( DEVICE_TYPE_LEVEL, "Temperature Fahrenheit", "01", "F" ) );
-				//device->updateValue( jsonData["temp_f"].get<float>() );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "1", "Temperature Fahrenheit", { } ) );
+				device->updateValue( jsonData["temp_f"].get<float>() );
 			} else if (
 				this->m_settings.at( "scale" ) == "celcius"
 				&& ! jsonData["temp_c"].empty()
 			) {
-				//device::Level* device = static_cast<device::Level*>( this->_getDevice( DEVICE_TYPE_LEVEL, "Temperature Degrees", "02", "C" ) );
-				//device->updateValue( jsonData["temp_c"].get<float>() );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "2", "Temperature Degrees", { } ) );
+				device->updateValue( jsonData["temp_c"].get<float>() );
 			}
 
 			if ( ! jsonData["relative_humidity"].empty() ) {
-				//device::Level* device = static_cast<device::Level*>( this->_getDevice( DEVICE_TYPE_LEVEL, "Humidity", "03", "%" ) );
-				//int humidity = atoi( jsonData["relative_humidity"].get<std::string>().c_str() );
-				//device->updateValue( humidity );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "3", "Humidity", { } ) );
+				int humidity = atoi( jsonData["relative_humidity"].get<std::string>().c_str() );
+				device->updateValue( humidity );
 			}
 			if ( ! jsonData["pressure_mb"].empty() ) {
-				//device::Level* device = static_cast<device::Level*>( this->_getDevice( DEVICE_TYPE_LEVEL, "Pressure", "04", "hPa" ) );
-				//int pressure = atoi( jsonData["pressure_mb"].get<std::string>().c_str() );
-				//device->updateValue( pressure );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "4", "Pressure", { } ) );
+				int pressure = atoi( jsonData["pressure_mb"].get<std::string>().c_str() );
+				device->updateValue( pressure );
 			}
 			if ( ! jsonData["wind_dir"].empty() ) {
-				//device::Text* device = static_cast<device::Text*>( this->_getDevice( DEVICE_TYPE_TEXT, "Wind Direction", "05", "" ) );
-				//device->updateValue( jsonData["wind_dir"].get<std::string>() );
+				std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction", { } ) );
+				device->updateValue( jsonData["wind_dir"].get<std::string>() );
 			}
 
 		} catch( CurlException exception_ ) {
@@ -230,10 +228,10 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Unexpected response (%s).", domainException_.what() );
 		}
 
-		g_logger->log( Logger::LogLevel::ERROR, this, "dong" );
+		g_logger->log( Logger::LogLevel::WARNING, this, "ding" );
 		
 #ifdef _DEBUG
-		return std::chrono::milliseconds( 1000 * 60 * 1 );
+		return std::chrono::milliseconds( 1000 * 60 );
 #else
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 #endif // _DEBUG

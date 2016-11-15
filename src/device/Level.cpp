@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "Level.h"
 
 namespace micasa {
