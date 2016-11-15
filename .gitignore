@@ -1,0 +1,16 @@
+INTERNAL
+
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+*.xcodeproj
+*.xcworkspace
+
+bin/*
+lib/*
+
+.DS_Store
+.AppleDouble
+
+micasa.db*
