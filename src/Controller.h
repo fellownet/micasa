@@ -15,14 +15,6 @@
 #include "Hardware.h"
 #include "Event.h"
 
-extern "C" {
-	
-	#include "lua.h"
-	#include "lualib.h"
-	#include "lauxlib.h"
-
-} // extern "C"
-
 namespace micasa {
 
 	class Controller final : public Worker, public LoggerInstance, public WebServerResource, public std::enable_shared_from_this<Controller> {

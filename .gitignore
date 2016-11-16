@@ -9,9 +9,6 @@ cmake_install.cmake
 core
 micasa
 
-bin/*
-lib/*
-
 .DS_Store
 .AppleDouble
 

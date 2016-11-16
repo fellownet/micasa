@@ -102,87 +102,18 @@ if ( WITH_OPENZWAVE )
 endif()
 
 #
-# Add and compile json project.
+# Add JSON.
 #
-ExternalProject_Add(
-	JSON
-
-	GIT_REPOSITORY "https://github.com/nlohmann/json.git"
-	GIT_TAG "v2.0.7"
-
-	UPDATE_COMMAND ""
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
-
-	SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/json"
-	PREFIX "${CMAKE_SOURCE_DIR}/lib/json-prefix"
-
-	CONFIGURE_COMMAND ""
-	BUILD_COMMAND ""
-	INSTALL_COMMAND ""
-)
-SET( JSON_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/json/src )
-include_directories( ${JSON_INCLUDE_DIR} )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 
 #
-# Add and compile mongoose project.
+# Add Mongoose.
 #
-ExternalProject_Add(
-	Mongoose
-
-	GIT_REPOSITORY "https://github.com/cesanta/mongoose.git"
-	GIT_TAG "6.6"
-
-	UPDATE_COMMAND ""
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
-
-	SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/mongoose"
-	PREFIX "${CMAKE_SOURCE_DIR}/lib/mongoose-prefix"
-
-	CONFIGURE_COMMAND ""
-	BUILD_COMMAND ""
-	INSTALL_COMMAND ""
-)
-SET( MONGOOSE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-include_directories( ${MONGOOSE_INCLUDE_DIR} )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
 IF( ENABLE_SSL )
 	add_definitions( -DMG_ENABLE_SSL )
 ENDIF( ENABLE_SSL )
 add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_THREADS )
-
-#
-# Add and compile lua project.
-#
-SET(LUA_RELEASE 5.3.3)
-
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-	SET(LUA_PLATFORM "linux")
-ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-IF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-	SET(LUA_PLATFORM "freebsd")
-ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-
-ExternalProject_Add(
-	LUA
-
-	URL "https://www.lua.org/ftp/lua-${LUA_RELEASE}.tar.gz"
-	URL_HASH SHA1=a0341bc3d1415b814cc738b2ec01ae56045d64ef
-
-	UPDATE_COMMAND ""
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
-
-	SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/lua"
-	PREFIX "${CMAKE_SOURCE_DIR}/lib/lua-prefix"
-
-	CONFIGURE_COMMAND ""
-	BUILD_COMMAND make ${LUA_PLATFORM}
-	BUILD_IN_SOURCE 1
-	INSTALL_COMMAND ""
-)
-SET( LUA_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/lua/src )
-include_directories( ${LUA_INCLUDE_DIR} )
 
 #
 # Set the target directory.
