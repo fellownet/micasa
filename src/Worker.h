@@ -20,6 +20,7 @@ namespace micasa {
 		~Worker();
 		
 		bool isRunning();
+		void notify();
 
 	protected:
 		virtual void _begin();

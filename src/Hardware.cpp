@@ -78,19 +78,22 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		
+
+		g_webServer->addResourceHandler( "hardware/" + this->m_id, WebServerResource::Method::GET | WebServerResource::Method::PUT | WebServerResource::Method::PATCH | WebServerResource::Method::DELETE, this->shared_from_this() );
+		g_webServer->addResourceHandler( "hardware/" + this->m_id + "/devices", WebServerResource::Method::GET | WebServerResource::Method::HEAD, this->shared_from_this() );
+
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery( "SELECT `id`, `unit`, `name`, `type` FROM `devices` WHERE `hardware_id`=%q", this->m_id.c_str() );
 		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
 			Device::DeviceType deviceType = static_cast<Device::DeviceType>( atoi( (*devicesIt)["type"].c_str() ) );
 			std::map<std::string, std::string> settings = g_database->getQueryMap( "SELECT `key`, `value` FROM `device_settings` WHERE `device_id`=%q", (*devicesIt).at( "id" ).c_str() );
-			
+		
 			std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), deviceType, (*devicesIt)["id"], (*devicesIt)["unit"], (*devicesIt)["name"], settings );
-			device->start();
+
+			g_webServer->addResourceHandler( "hardware/" + this->m_id + "/devices/" + device->getId(), WebServerResource::Method::GET | WebServerResource::Method::HEAD, device );
+			g_webServer->addResourceHandler( "devices/" + device->getId(), WebServerResource::Method::GET | WebServerResource::Method::PUT | WebServerResource::Method::PATCH | WebServerResource::Method::DELETE, device );
+
 			this->m_devices.push_back( device );
 		}
-
-		g_webServer->addResourceHandler( "hardware/" + this->m_id, WebServerResource::Method::GET | WebServerResource::Method::PUT | WebServerResource::Method::PATCH | WebServerResource::Method::DELETE, this->shared_from_this() );
-		g_webServer->addResourceHandler( "hardware/" + this->m_id + "/devices", WebServerResource::Method::GET | WebServerResource::Method::HEAD, this->shared_from_this() );
 
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
@@ -98,16 +101,17 @@ namespace micasa {
 	void Hardware::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		g_webServer->removeResourceHandler( "hardware/" + this->m_id );
-		g_webServer->removeResourceHandler( "hardware/" + this->m_id + "/devices" );
-
 		{
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
-				(*devicesIt)->stop();
+				g_webServer->removeResourceHandler( "hardware/" + this->m_id + "/devices/" + (*devicesIt)->getId() );
+				g_webServer->removeResourceHandler( "devices/" + (*devicesIt)->getId() );
 			}
 			this->m_devices.clear();
 		}
+
+		g_webServer->removeResourceHandler( "hardware/" + this->m_id );
+		g_webServer->removeResourceHandler( "hardware/" + this->m_id + "/devices" );
 
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
@@ -127,7 +131,10 @@ namespace micasa {
 		}
 
 		std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), deviceType_, std::to_string( id ), unit_, name_, settings_ );
-		device->start();
+
+		g_webServer->addResourceHandler( "hardware/" + this->m_id + "/devices/" + device->getId(), WebServerResource::Method::GET | WebServerResource::Method::HEAD, device );
+		g_webServer->addResourceHandler( "devices/" + device->getId(), WebServerResource::Method::GET | WebServerResource::Method::PUT | WebServerResource::Method::PATCH | WebServerResource::Method::DELETE, device );
+		
 		this->m_devices.push_back( device );
 		
 		return device;

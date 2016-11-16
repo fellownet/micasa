@@ -12,6 +12,14 @@
 #include "Logger.h"
 #include "Database.h"
 
+extern "C" {
+	
+	#include "mongoose.h"
+	
+	static void mongoose_handler( mg_connection* connection_, int event_, void* instance_ );
+	
+} // extern "C"
+
 namespace micasa {
 
 	class WebServerResource {
@@ -41,20 +49,34 @@ namespace micasa {
 
 	}; // class LoggerInstance
 
-	class WebServer final : public LoggerInstance {
+	class WebServer final : public Worker, public LoggerInstance {
 
 	public:
 		WebServer();
 		~WebServer();
 		
 		std::string toString() const;
-		
+
 		void addResourceHandler( std::string resource_, int supportedMethods_, std::shared_ptr<WebServerResource> handler_ );
 		void removeResourceHandler( std::string resource_ );
+		void touchResource( std::string resource_ ) { };
 
+		void start();
+		void stop();
+
+		
+	protected:
+		std::chrono::milliseconds _work( unsigned long int iteration_ );
+		
 	private:
+		mg_mgr m_manager;
+		mg_connection* m_connection;
+		
 		std::map<std::string, std::pair<int, std::shared_ptr<WebServerResource> > > m_resources;
 		std::mutex m_resourcesMutex;
+
+		friend void ::mongoose_handler( struct mg_connection *connection_, int event_, void* instance_ );
+		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
 
 	}; // class WebServer
 

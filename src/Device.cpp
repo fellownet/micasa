@@ -46,14 +46,4 @@ namespace micasa {
 		}
 	}
 
-	void Device::start() {
-		g_webServer->addResourceHandler( "hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id, WebServerResource::Method::GET | WebServerResource::Method::HEAD, this->shared_from_this() );
-		g_webServer->addResourceHandler( "devices/" + this->m_id, WebServerResource::Method::GET | WebServerResource::Method::PUT | WebServerResource::Method::PATCH | WebServerResource::Method::DELETE, this->shared_from_this() );
-	};
-	
-	void Device::stop() {
-		g_webServer->removeResourceHandler( "hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id );
-		g_webServer->removeResourceHandler( "devices/" + this->m_id );
-	};
-
 }; // namespace micasa

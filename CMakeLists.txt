@@ -10,6 +10,10 @@ INCLUDE( FindPackageHandleStandardArgs )
 # NOTE: for optional hardware or plugin support sources are added together later on.
 #
 set( SRC
+	# libraries
+	lib/mongoose/mongoose.c
+
+	# main
 	src/micasa.cpp
 	src/Arguments.cpp
 	src/Worker.cpp
@@ -54,6 +58,14 @@ option( DEBUG "Build debug release" NO )
 if ( DEBUG )
 	set(CMAKE_BUILD_TYPE Debug)
 	add_definitions( -D_DEBUG )
+endif()
+
+#
+# Set SSL mode.
+#
+option( ENABLE_SSL "Build with SSL" NO )
+if ( ENABLE_SSL )
+	add_definitions( -D_WITH_SSL )
 endif()
 
 #
@@ -113,9 +125,69 @@ SET( JSON_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/json/src )
 include_directories( ${JSON_INCLUDE_DIR} )
 
 #
+# Add and compile mongoose project.
+#
+ExternalProject_Add(
+	Mongoose
+
+	GIT_REPOSITORY "https://github.com/cesanta/mongoose.git"
+	GIT_TAG "6.6"
+
+	UPDATE_COMMAND ""
+	PATCH_COMMAND ""
+	TEST_COMMAND ""
+
+	SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/mongoose"
+	PREFIX "${CMAKE_SOURCE_DIR}/lib/mongoose-prefix"
+
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND ""
+	INSTALL_COMMAND ""
+)
+SET( MONGOOSE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
+include_directories( ${MONGOOSE_INCLUDE_DIR} )
+IF( ENABLE_SSL )
+	add_definitions( -DMG_ENABLE_SSL )
+ENDIF( ENABLE_SSL )
+add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_THREADS )
+
+#
+# Add and compile lua project.
+#
+SET(LUA_RELEASE 5.3.3)
+
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+	SET(LUA_PLATFORM "linux")
+ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+IF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+	SET(LUA_PLATFORM "freebsd")
+ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+
+ExternalProject_Add(
+	LUA
+
+	URL "https://www.lua.org/ftp/lua-${LUA_RELEASE}.tar.gz"
+	URL_HASH SHA1=a0341bc3d1415b814cc738b2ec01ae56045d64ef
+
+	UPDATE_COMMAND ""
+	PATCH_COMMAND ""
+	TEST_COMMAND ""
+
+	SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/lua"
+	PREFIX "${CMAKE_SOURCE_DIR}/lib/lua-prefix"
+
+	CONFIGURE_COMMAND ""
+	BUILD_COMMAND make ${LUA_PLATFORM}
+	BUILD_IN_SOURCE 1
+	INSTALL_COMMAND ""
+)
+SET( LUA_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/lua/src )
+include_directories( ${LUA_INCLUDE_DIR} )
+
+#
 # Set the target directory.
 #
-set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
+#set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
 
 #
 # Set compiler options.
@@ -172,6 +244,35 @@ else()
 ENDIF( CURL_FOUND )
 
 #
+# Check for OpenSSL
+#
+FIND_PACKAGE( OpenSSL )
+IF( OPENSSL_FOUND )
+	MESSAGE( STATUS "OpenSSL libraries found at: ${OPENSSL_LIBRARIES}" )
+	MESSAGE( STATUS "OpenSSL includes found at: ${OPENSSL_INCLUDE_DIRS}" )
+	INCLUDE_DIRECTORIES( ${OPENSSL_INCLUDE_DIRS} )
+	target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
+else()
+	MESSAGE( FATAL_ERROR "OpenSSL not found on your system." )
+ENDIF( OPENSSL_FOUND )
+
+#
+# Check for Readline.
+# TODO: this is only necessary for the lua interpreter build. Find a way to eliminate this dependency.
+#
+FIND_PATH( READLINE_INCLUDE_DIR NAMES readline )
+FIND_LIBRARY( READLINE_LIBRARY NAMES readline )
+FIND_PACKAGE_HANDLE_STANDARD_ARGS( READLINE DEFAULT_MSG READLINE_LIBRARY READLINE_INCLUDE_DIR )
+IF( READLINE_FOUND )
+	MESSAGE( STATUS "Readline libraries found at: ${READLINE_LIBRARY}" )
+	MESSAGE( STATUS "Readline includes found at: ${READLINE_INCLUDE_DIR}" )
+	INCLUDE_DIRECTORIES( ${READLINE_INCLUDE_DIR} )
+	target_link_libraries( micasa ${READLINE_LIBRARY} )
+ELSE()
+	MESSAGE( FATAL_ERROR "Readline not found on your system. Try:\nsudo apt-get install libreadline-dev" )
+ENDIF( READLINE_FOUND )
+
+#
 # Check for SQLite3
 #
 FIND_PATH( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
@@ -189,4 +290,4 @@ ENDIF( SQLITE3_FOUND )
 #
 # Add the install targets.
 #
-install( TARGETS micasa DESTINATION bin )
+#install( TARGETS micasa DESTINATION bin )

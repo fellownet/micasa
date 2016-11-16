@@ -10,7 +10,7 @@ namespace micasa {
 
 	class Hardware;
 
-	class Device : public WebServerResource, public LoggerInstance, public std::enable_shared_from_this<Device> {
+	class Device : public WebServerResource, public LoggerInstance {
 
 	public:
 		typedef enum {
@@ -25,8 +25,6 @@ namespace micasa {
 		
 		virtual std::string toString() const =0;
 
-		virtual void start();
-		virtual void stop();
 		virtual bool handleRequest( std::string resource_, WebServerResource::Method method_, std::map<std::string, std::string> &data_ ) { return true; /* not implemented yet */ };
 
 		std::string getId() { return this->m_id; };
