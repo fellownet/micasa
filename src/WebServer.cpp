@@ -9,14 +9,14 @@
 #include "json.hpp"
 
 extern "C" {
-	
+
 	static void mongoose_handler( mg_connection* connection_, int event_, void* data_ ) {
 		micasa::WebServer* webserver = reinterpret_cast<micasa::WebServer*>( connection_->user_data );
 		if ( event_ == MG_EV_HTTP_REQUEST ) {
 			webserver->_processHttpRequest( connection_, (http_message*)data_ );
 		}
 	}
-	
+
 } // extern "C"
 
 namespace micasa {
@@ -25,7 +25,7 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 
 	using namespace nlohmann;
-	
+
 	WebServer::WebServer() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global WebServer instance." );
@@ -59,7 +59,7 @@ namespace micasa {
 
 	void WebServer::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		
+
 		mg_mgr_init( &this->m_manager, NULL );
 
 		mg_bind_opts bind_opts;
@@ -71,23 +71,24 @@ namespace micasa {
 		this->m_connection = mg_bind_opt( &this->m_manager, "443", mongoose_handler, bind_opts );
 #endif // _WITH_SSL
 #ifndef _WITH_SSL
-		this->m_connection = mg_bind_opt( &this->m_manager, "8081", mongoose_handler, bind_opts );
+		this->m_connection = mg_bind_opt( &this->m_manager, "8089", mongoose_handler, bind_opts );
 #endif // _WITH_SSL
 
 		if ( false == this->m_connection ) {
 			// TODO can we be a little bit more descriptive about the error?
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to bind webserver. Port in use or user permission issue?" );
+			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to bind webserver. Port in use, user permission issue or certificate problem?" );
 			return;
 		}
-		
+
 		mg_set_protocol_http_websocket( this->m_connection );
-		mg_enable_multithreading( this->m_connection );
+		//vv TODO core dumps, find out why, fix and enable.
+		//mg_enable_multithreading( this->m_connection );
 
 		this->_begin();
-		
+
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
-	
+
 	void WebServer::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
@@ -99,9 +100,9 @@ namespace micasa {
 		mg_mgr_poll( &this->m_manager, 100 );
 		return std::chrono::milliseconds( 0 );
 	}
-	
+
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
-		
+
 		// Determine method.
 		std::string methodStr = "";
 		methodStr.assign( message_->method.p, message_->method.len );
@@ -125,27 +126,27 @@ namespace micasa {
 		if ( message_->uri.len >= 1 ) {
 			uriStr.assign( message_->uri.p + 1, message_->uri.len - 1 );
 		}
-		
+
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		
+
 		std::string result;
 		std::string contentType;
 		int code = 200;
-		
+
 		if ( this->m_resources.find( uriStr ) != this->m_resources.end() ) {
 			auto resource = this->m_resources[uriStr];
 			if ( ( resource.first & method ) == method ) {
-				
+
 				std::map<std::string, std::string> poe;
-				
+
 				resource.second->handleRequest( uriStr, method, poe );
 			}
-			
+
 			result = "resource moet dit vullen";
 			contentType = "Content-Type: text/plain";
-			
+
 		} else if ( uriStr == "api" ) {
-			
+
 			std::stringstream resultStream;
 			resultStream << "<!doctype html>" << "<html><body>";
 			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
@@ -172,25 +173,25 @@ namespace micasa {
 				if ( ( resourceIt->second.first & WebServerResource::OPTIONS ) == WebServerResource::OPTIONS ) {
 					resultStream << " OPTIONS";
 				}
-				
+
 				resultStream << "<br><br>";
 			}
 			resultStream << "</body></html>";
-			
-			
+
+
 			result = resultStream.str();
 			contentType = "Content-Type: text/html";
-			
+
 		} else {
-		
+
 			mg_serve_http_opts options;
 			memset( &options, 0, sizeof( options ) );
 			options.document_root = "www";
 			mg_serve_http( connection_, message_, options );
 			return;
-			
-			
-			
+
+
+
 			// This is an invalid API resource, show an error.
 			json resultJson;
 			resultJson["code"] = 404;
@@ -199,7 +200,7 @@ namespace micasa {
 			contentType = "Content-Type: application/json";
 			code = 404;
 		}
- 
+
 		mg_send_head( connection_, code, result.length(), contentType.c_str() );
 		mg_send( connection_, result.c_str(), result.length() );
 		connection_->flags |= MG_F_SEND_AND_CLOSE;
