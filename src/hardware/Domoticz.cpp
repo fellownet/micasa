@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string Domoticz::toString() const {
-		return "Domoticz";
+		return this->m_name;
 	}
 
 }; // namespace micasa

@@ -6,18 +6,16 @@
 
 #include <chrono>
 #include <mutex>
-#include <forward_list>
 #include <vector>
 
 #include "WebServer.h"
-#include "Database.h"
 #include "Worker.h"
 #include "Hardware.h"
-#include "Event.h"
+#include "Settings.h"
 
 namespace micasa {
 
-	class Controller final : public Worker, public LoggerInstance, public WebServerResource, public std::enable_shared_from_this<Controller> {
+	class Controller final : public Worker, public LoggerInstance, public WebServer::ResourceHandler, public std::enable_shared_from_this<Controller> {
 
 	public:
 		Controller();
@@ -26,19 +24,18 @@ namespace micasa {
 		void start();
 		void stop();
 		std::string toString() const;
-		bool handleRequest( std::string resource_, Method method_, std::map<std::string, std::string> &data_ ) { return true; /* not implemented yet */ }
+		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ );
 
-		std::shared_ptr<Hardware> declareHardware( Hardware::HardwareType hardwareType_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ );
-		
 	protected:
 		std::chrono::milliseconds _work( unsigned long int iteration_ );
 
 	private:
-		std::forward_list<std::shared_ptr<Event> > m_eventQueue;
-		std::mutex m_eventQueueMutex;
-
 		std::vector<std::shared_ptr<Hardware> > m_hardware;
 		std::mutex m_hardwareMutex;
+
+		// TODO remove this
+	public:
+		std::shared_ptr<Hardware> _declareHardware( Hardware::HardwareType hardwareType_, std::string reference_, std::string name_, std::map<std::string, std::string> settings_ );
 
 	}; // class Controller
 

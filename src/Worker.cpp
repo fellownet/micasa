@@ -17,8 +17,8 @@ namespace micasa {
 		this->m_shutdown = false;
 		this->m_worker = std::thread( [&]{
 			do {
-				std::unique_lock<std::mutex> lock( this->m_shutdownMutex );
 				std::chrono::milliseconds wait = this->_work( ++this->m_iteration );
+				std::unique_lock<std::mutex> lock( this->m_shutdownMutex );
 				this->m_shutdownCondition.wait_for( lock, wait, [&]{ return this->m_shutdown; } );
 			} while( ! this->m_shutdown );
 		} );

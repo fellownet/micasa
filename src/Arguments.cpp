@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "Arguments.h"
 
 namespace micasa {

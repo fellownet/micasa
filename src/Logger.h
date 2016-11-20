@@ -1,10 +1,7 @@
 #pragma once
 
-#include <iostream>
 #include <string>
 #include <mutex>
-#include <stdarg.h>
-#include <sstream>
 
 #define MAX_LOG_LINE_LENGTH 2048
 
@@ -33,7 +30,8 @@ namespace micasa {
 		
 		void log( const LogLevel logLevel_, std::string message_, ... ) const;
 		void log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const;
-
+		void logRaw( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const;
+		
 	private:
 		LogLevel m_logLevel;
 		mutable std::mutex m_logMutex;

@@ -5,8 +5,6 @@
 #endif // _DEBUG
 
 #include <chrono>
-#include <thread>
-#include <memory>
 
 #include "../Hardware.h"
 #include "../Worker.h"
@@ -17,17 +15,18 @@ namespace micasa {
 	class WeatherUnderground final : public Hardware, public Worker {
 
 	public:
-		WeatherUnderground( std::string id_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ );
-		~WeatherUnderground();
+		WeatherUnderground( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ), Worker() { };
+		~WeatherUnderground() { };
 		
 		std::string toString() const;
 		void start() override;
 		void stop() override;
-		bool handleRequest( std::string resource_, WebServerResource::Method method_, std::map<std::string, std::string> &data_ ) { return true; /* not implemented yet */ };
+		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ );
+		void deviceUpdated( Device::UpdateSource source_, std::shared_ptr<Device> device_ ) { };
 
 	protected:
 		std::chrono::milliseconds _work( unsigned long int iteration_ );
-
+		
 	}; // class WeatherUnderground
 
 }; // namespace micasa

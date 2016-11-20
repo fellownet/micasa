@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string RFXCom::toString() const {
-		return "RFXCom";
+		return this->m_name;
 	}
 
 }; // namespace micasa

@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string HarmonyHub::toString() const {
-		return "HarmonyHub";
+		return this->m_name;
 	};
 
 }; // namespace micasa

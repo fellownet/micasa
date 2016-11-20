@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string P1Meter::toString() const {
-		return "P1Meter";
+		return this->m_name;
 	}
 
 }; // namespace micasa

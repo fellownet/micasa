@@ -9,8 +9,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "Logger.h"
-
 namespace micasa {
 
 	class Worker {

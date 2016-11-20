@@ -6,13 +6,12 @@
 
 #include <vector>
 #include <string>
+#include <vector>
 #include <sqlite3.h>
 #include <vector>
 #include <map>
 #include <mutex>
-#include <memory>
 
-#include "Structs.h"
 #include "Logger.h"
 
 namespace micasa {

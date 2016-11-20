@@ -6,14 +6,18 @@ namespace micasa {
 
 	class Level final : public Device {
 
-	private:
-
 	public:
-		Level( std::shared_ptr<Hardware> hardware_, std::string id_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ ) : Device( hardware_, id_, unit_, name_, settings_ ) { };
+		Level( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
 
+		void start() override;
 		std::string toString() const;
-		void updateValue( float newValue_ );
-		void updateValue( int newValue_ );
+		void updateValue( Device::UpdateSource source_, float value_ );
+		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) override;
+
+		std::chrono::milliseconds _work( unsigned long int iteration_ );
+
+	private:
+		float m_value;
 
 	}; // class Level
 

@@ -1,3 +1,8 @@
+#include <cstring>
+#include <stdarg.h>
+#include <iostream>
+#include <sstream>
+
 #include "Logger.h"
 
 namespace micasa {
@@ -6,7 +11,11 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_logMutex );
 		if ( logLevel_ <= this->m_logLevel ) {
 			char buffer[MAX_LOG_LINE_LENGTH];
-			vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
+			if ( NULL == arguments_ ) {
+				strcpy( buffer, message_.c_str() );
+			} else {
+				vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
+			}
 
 			switch( logLevel_ ) {
 				case LogLevel::WARNING:
@@ -16,6 +25,7 @@ namespace micasa {
 					std::cout << "\033[0;31m" << buffer << "\033[0m\n";
 					break;
 				case LogLevel::VERBOSE:
+				case LogLevel::DEBUG:
 					std::cout << "\033[0;37m" << buffer << "\033[0m\n";
 					break;
 				default:
@@ -42,4 +52,10 @@ namespace micasa {
 		va_end( arguments );
 	};
 
+	void Logger::logRaw( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const {
+		std::stringstream message;
+		message << "[" << instance_->toString() << "] " << message_;
+		this->_doLog( logLevel_, message.str(), NULL );
+	};
+	
 } // namespace micasa

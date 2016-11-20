@@ -18,12 +18,12 @@ set( SRC
 	src/Arguments.cpp
 	src/Worker.cpp
 	src/Controller.cpp
-	src/Event.cpp
 	src/Logger.cpp
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
 	src/Curl.cpp
+	src/Settings.cpp
 	src/Database.cpp
 
 	# hardware
@@ -110,10 +110,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # Add Mongoose.
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-IF( ENABLE_SSL )
-	add_definitions( -DMG_ENABLE_SSL )
-ENDIF( ENABLE_SSL )
-add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_THREADS )
+add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
 
 #
 # Set the target directory.

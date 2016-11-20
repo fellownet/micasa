@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string PiFace::toString() const {
-		return "PiFace";
+		return this->m_name;
 	}
 
 }; // namespace micasa

@@ -6,7 +6,11 @@
 #include "../Curl.h"
 #include "../device/Level.h"
 #include "../device/Text.h"
+#include "../device/Counter.h"
+#include "../device/Switch.h"
 #include "../Logger.h"
+
+// TODO make use of mongoose instead of Curl? So that curl can be obsoleted.
 
 namespace micasa {
 
@@ -114,53 +118,43 @@ namespace micasa {
 
 	using namespace nlohmann;
 
-	WeatherUnderground::WeatherUnderground( std::string id_, std::string unit_, std::string name_, std::map<std::string, std::string> settings_ ) : Hardware( id_, unit_, name_, settings_ ), Worker() {
-#ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be created before WeatherUnderground instances." );
-		assert( g_logger && "Global Logger instance should be created before WeatherUnderground instances." );
-#endif // _DEBUG
-	};
-
-	WeatherUnderground::~WeatherUnderground() {
-#ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be destroyed after WeatherUnderground instances." );
-		assert( g_logger && "Global Logger instance should be destroyed after WeatherUnderground instances." );
-#endif // _DEBUG
-	};
-
 	std::string WeatherUnderground::toString() const {
 		return this->m_name;
 	};
 
 	void WeatherUnderground::start() {
-		g_webServer->addResourceHandler( "hardware/" + this->m_id + "/forecast_url", WebServerResource::Method::GET, this->shared_from_this() );
+		g_webServer->addResource( {
+			"api/hardware/" + this->m_id + "/forecast_url",
+			WebServer::ResourceMethod::GET,
+			"Retrieve the forecast url for hardware <i>" + this->m_name + "</i>.",
+			this->shared_from_this()
+		} );
+		
 		Hardware::start();
 		this->_begin();
 	}
 	
 	void WeatherUnderground::stop() {
-		g_webServer->removeResourceHandler( "hardware/" + this->m_id + "/forecast_url" );
+		g_webServer->removeResourceAt( "api/hardware/" + this->m_id + "/forecast_url" );
 		Hardware::stop();
 		this->_retire();
 	}
 	
 	std::chrono::milliseconds WeatherUnderground::_work( unsigned long int iteration_ ) {
-		if (
-			this->m_settings.find( "api_key" ) == this->m_settings.end()
-			|| this->m_settings.find( "location" ) == this->m_settings.end()
-		) {
+		if ( ! this->m_settings.contains( { "api_key", "location", "scale" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
 		std::stringstream url;
-		url << "http://api.wunderground.com/api/" << this->m_settings.at( "api_key" ) << "/conditions/q/" << this->m_settings.at( "location" ) << ".json";
+		url << "http://api.wunderground.com/api/" << this->m_settings["api_key"] << "/conditions/q/" << this->m_settings["location"] << ".json";
 
 		try {
 			Curl curl( url.str() );
 
 #ifdef _DEBUG
-			json jsonData = json::parse( sample );
+			//json jsonData = json::parse( sample );
+			json jsonData = json::parse( curl.fetch() );
 #else
 			json jsonData = json::parse( curl.fetch() );
 #endif // _DEBUG
@@ -192,34 +186,36 @@ namespace micasa {
 
 			// Report celcius or fahrenheit.
 			if (
-				this->m_settings.at( "scale" ) == "fahrenheit"
+				this->m_settings["scale"] == "fahrenheit"
 				&& ! jsonData["temp_f"].empty()
 			) {
-				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "1", "Temperature Fahrenheit", { } ) );
-				device->updateValue( jsonData["temp_f"].get<float>() );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "1", "Temperature in " + this->m_settings["location"], { } ) );
+				device->updateValue( Device::UpdateSource::HARDWARE, jsonData["temp_f"].get<float>() );
 			} else if (
-				this->m_settings.at( "scale" ) == "celcius"
+				this->m_settings["scale"] == "celcius"
 				&& ! jsonData["temp_c"].empty()
 			) {
-				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "2", "Temperature Degrees", { } ) );
-				device->updateValue( jsonData["temp_c"].get<float>() );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "2", "Temperature in " + this->m_settings["location"], { } ) );
+				device->updateValue( Device::UpdateSource::HARDWARE, jsonData["temp_c"].get<float>() );
 			}
 
 			if ( ! jsonData["relative_humidity"].empty() ) {
-				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "3", "Humidity", { } ) );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "3", "Humidity in " + this->m_settings["location"], { } ) );
 				int humidity = atoi( jsonData["relative_humidity"].get<std::string>().c_str() );
-				device->updateValue( humidity );
+				device->updateValue( Device::UpdateSource::HARDWARE, humidity );
 			}
+			
 			if ( ! jsonData["pressure_mb"].empty() ) {
-				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->declareDevice( Device::DeviceType::LEVEL, "4", "Pressure", { } ) );
+				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], { } ) );
 				int pressure = atoi( jsonData["pressure_mb"].get<std::string>().c_str() );
-				device->updateValue( pressure );
+				device->updateValue( Device::UpdateSource::HARDWARE, pressure );
 			}
+			
 			if ( ! jsonData["wind_dir"].empty() ) {
-				std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction", { } ) );
-				device->updateValue( jsonData["wind_dir"].get<std::string>() );
+				std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction in " + this->m_settings["location"], { } ) );
+				device->updateValue( Device::UpdateSource::HARDWARE, jsonData["wind_dir"].get<std::string>() );
 			}
-
+			
 		} catch( CurlException exception_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Error fetching data (%s).", exception_.what() );
 		} catch( std::invalid_argument invalidArgumentException_ ) {
@@ -228,13 +224,19 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Unexpected response (%s).", domainException_.what() );
 		}
 
-		g_logger->log( Logger::LogLevel::WARNING, this, "ding" );
-		
 #ifdef _DEBUG
-		return std::chrono::milliseconds( 1000 * 60 );
+		//return std::chrono::milliseconds( 1000 * 60 );
+		return std::chrono::milliseconds( 1000 * 60 * 5 );
 #else
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 #endif // _DEBUG
+	};
+
+	void WeatherUnderground::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
+		Hardware::handleResource( resource_, code_, output_ );
+		if ( resource_.uri == "api/hardware/" + this->m_id + "/forecast_url" ) {
+			output_["uri"] = "http://www.nu.nl";
+		}
 	};
 
 }; // namespace micasa

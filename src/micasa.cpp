@@ -88,13 +88,17 @@ int main( int argc_, char* argv_[] ) {
 
 	g_controller->start();
 	g_webServer->start();
-
+	
 	while ( ! g_shutdown ) 	{
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 	}
 
-	g_webServer->stop();
-	g_controller->stop();
+	if ( g_webServer->isRunning() ) {
+		g_webServer->stop();
+	}
+	if ( g_controller->isRunning() ) {
+		g_controller->stop();
+	}
 	
 	g_controller = NULL;
 	g_webServer = NULL;

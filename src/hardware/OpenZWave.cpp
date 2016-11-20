@@ -9,7 +9,7 @@
 namespace micasa {
 
 	std::string OpenZWave::toString() const {
-		return "OpenZWave";
+		return this->m_name;
 	};
 
 }; // namespace micasa

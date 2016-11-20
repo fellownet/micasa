@@ -3,7 +3,7 @@
 namespace micasa {
 
 	std::string Internal::toString() const {
-		return "Internal";
+		return this->m_name;
 	}
 
 }; // namespace micasa
