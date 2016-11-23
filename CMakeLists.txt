@@ -187,22 +187,6 @@ else()
 ENDIF( OPENSSL_FOUND )
 
 #
-# Check for Readline.
-# TODO: this is only necessary for the lua interpreter build. Find a way to eliminate this dependency.
-#
-FIND_PATH( READLINE_INCLUDE_DIR NAMES readline )
-FIND_LIBRARY( READLINE_LIBRARY NAMES readline )
-FIND_PACKAGE_HANDLE_STANDARD_ARGS( READLINE DEFAULT_MSG READLINE_LIBRARY READLINE_INCLUDE_DIR )
-IF( READLINE_FOUND )
-	MESSAGE( STATUS "Readline libraries found at: ${READLINE_LIBRARY}" )
-	MESSAGE( STATUS "Readline includes found at: ${READLINE_INCLUDE_DIR}" )
-	INCLUDE_DIRECTORIES( ${READLINE_INCLUDE_DIR} )
-	target_link_libraries( micasa ${READLINE_LIBRARY} )
-ELSE()
-	MESSAGE( FATAL_ERROR "Readline not found on your system. Try:\nsudo apt-get install libreadline-dev" )
-ENDIF( READLINE_FOUND )
-
-#
 # Check for SQLite3
 #
 FIND_PATH( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
