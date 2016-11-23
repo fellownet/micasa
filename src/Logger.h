@@ -27,16 +27,16 @@ namespace micasa {
 
 		Logger( const LogLevel logLevel_ ) : m_logLevel( logLevel_ ) { };
 		~Logger() { };
-		
+
 		void logr( const LogLevel logLevel_, std::string message_, ... ) const;
 		void logr( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const;
 		void log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const;
-		
+
 	private:
 		LogLevel m_logLevel;
 		mutable std::mutex m_logMutex;
 
-		void _doLog( const LogLevel logLevel_, std::string message_, va_list arguments_ ) const;
+		void _doLog( const LogLevel logLevel_, std::string message_, bool hasArguments_, va_list arguments_ ) const;
 
 	}; // class Logger
 
