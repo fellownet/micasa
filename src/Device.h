@@ -42,14 +42,15 @@ namespace micasa {
 
 		std::string getId() const { return this->m_id; };
 		std::string getReference() const { return this->m_reference; };
+		std::string getName() { return this->m_name; };
 		Settings& getSettings() { return this->m_settings; };
 		
 	protected:
+		std::shared_ptr<Hardware> m_hardware;
 		const std::string m_id;
 		const std::string m_reference;
 		std::string m_name;
 		Settings m_settings;
-		std::shared_ptr<Hardware> m_hardware;
 		
 		// By default only hardware updates are allowed for devices. Hardware should explicitly set other
 		// allowed update sources when they're available. A good place to do this is in deviceUpdated with
@@ -57,7 +58,7 @@ namespace micasa {
 		int m_allowedUpdateSources = UpdateSource::HARDWARE;
 
 	private:
-		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, DeviceType deviceType_, std::string id_, std::string reference_, std::string name_ );
+		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const std::string id_, const std::string reference_, std::string name_ );
 		
 	}; // class Device
 

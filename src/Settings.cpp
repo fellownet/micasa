@@ -12,11 +12,13 @@ namespace micasa {
 	
 	// TODO lock settings
 	
-	void Settings::insert( std::map<std::string, std::string> settings_ ) {
+	void Settings::insert( const std::map<std::string, std::string> settings_ ) {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( settings_.begin(), settings_.end() );
 	}
 	
-	bool Settings::contains( std::initializer_list<std::string> settings_ ) {
+	bool Settings::contains( const std::initializer_list<std::string> settings_ ) {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
 			if ( this->m_settings.find( *settingsIt ) == this->m_settings.end() ) {
 				return false;
@@ -25,7 +27,8 @@ namespace micasa {
 		return true;
 	}
 
-	unsigned int Settings::count() {
+	unsigned int Settings::count() const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		return this->m_settings.size();
 	}
 	
@@ -35,6 +38,7 @@ namespace micasa {
 			"SELECT `key`, `value` "
 			"FROM `settings` "
 		);
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( results.begin(), results.end() );
 	};
 	
@@ -46,6 +50,7 @@ namespace micasa {
 			"WHERE `hardware_id`=%q"
 			, hardware_.getId().c_str()
 		);
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( results.begin(), results.end() );
 	};
 	
@@ -57,10 +62,12 @@ namespace micasa {
 			"WHERE `device_id`=%q"
 			, device_.getId().c_str()
 		);
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( results.begin(), results.end() );
 	};
 
-	void Settings::commit() {
+	void Settings::commit() const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
 				"REPLACE INTO `settings` (`key`, `value`) "
@@ -70,7 +77,8 @@ namespace micasa {
 		}
 	}
 
-	void Settings::commit( const Hardware& hardware_ ) {
+	void Settings::commit( const Hardware& hardware_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
 				"REPLACE INTO `hardware_settings` (`key`, `value`, `hardware_id`) "
@@ -80,7 +88,8 @@ namespace micasa {
 		}
 	}
 	
-	void Settings::commit( const Device& device_ ) {
+	void Settings::commit( const Device& device_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
 				"REPLACE INTO `device_settings` (`key`, `value`, `device_id`) "
@@ -94,6 +103,7 @@ namespace micasa {
 	// matches std::string too.
 	const std::string& Settings::operator[]( const char* key_ ) const {
 		try {
+			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 			return this->m_settings.at( key_ );
 		} catch( std::out_of_range exception_ ) {
 			return Settings::NOT_FOUND;
@@ -102,6 +112,7 @@ namespace micasa {
 	 
 	const std::string& Settings::operator[]( const std::pair<std::string, std::string>& keyWithDefault_ ) const {
 		try {
+			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 			return this->m_settings.at( keyWithDefault_.first );
 		} catch( std::out_of_range exception_ ) {
 			return keyWithDefault_.second;

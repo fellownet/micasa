@@ -17,7 +17,7 @@ extern "C" {
 	
 	#include "mongoose.h"
 	
-	static void mongoose_handler( mg_connection* connection_, int event_, void* instance_ );
+	void webserver_mg_handler( mg_connection* connection_, int event_, void* instance_ );
 	
 } // extern "C"
 
@@ -25,7 +25,7 @@ namespace micasa {
 
 	class WebServer final : public Worker, public LoggerInstance {
 
-		friend void ::mongoose_handler( struct mg_connection *connection_, int event_, void* instance_ );
+		friend void ::webserver_mg_handler( struct mg_connection *connection_, int event_, void* instance_ );
 
 	public:
 		enum ResourceMethod {
@@ -74,16 +74,16 @@ namespace micasa {
 
 		void start();
 		void stop();
-
+		
 	protected:
-		std::chrono::milliseconds _work( unsigned long int iteration_ );
+		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 		
 	private:
 		mg_mgr m_manager;
 		mg_connection* m_connection;
 		
 		std::map<std::string, std::pair<Resource, std::string> > m_resources;
-		std::mutex m_resourcesMutex;
+		mutable std::mutex m_resourcesMutex;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
 

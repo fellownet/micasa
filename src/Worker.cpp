@@ -38,7 +38,7 @@ namespace micasa {
 		}
 	};
 
-	bool Worker::isRunning() {
+	bool Worker::isRunning() const {
 		return this->m_shutdown == false && this->m_worker.joinable();
 	}
 	

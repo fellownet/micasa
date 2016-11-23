@@ -15,6 +15,7 @@ set( SRC
 
 	# main
 	src/micasa.cpp
+	src/Utils.cpp
 	src/Arguments.cpp
 	src/Worker.cpp
 	src/Controller.cpp
@@ -22,7 +23,6 @@ set( SRC
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
-	src/Curl.cpp
 	src/Settings.cpp
 	src/Database.cpp
 
@@ -108,9 +108,11 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 
 #
 # Add Mongoose.
+# https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
 add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
+#set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
 # Set the target directory.
@@ -120,7 +122,7 @@ add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
 #
 # Set compiler options.
 #
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11 -pthread" )
 
 #
 # Configure executable.

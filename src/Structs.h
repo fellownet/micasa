@@ -10,6 +10,7 @@ namespace micasa {
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
 		"`name` VARCHAR(255) NOT NULL, "
+		"`enabled` INTEGER DEFAULT 1, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_hardware_reference` ON `hardware`( `reference` )",

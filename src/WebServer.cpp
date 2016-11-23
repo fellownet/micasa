@@ -16,7 +16,7 @@
 
 extern "C" {
 
-	static void mongoose_handler( mg_connection* connection_, int event_, void* data_ ) {
+	void webserver_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
 		// NOTE do not block this; store the connection instead for later use (long polling?) as adviced
 		// by an engineer of mongoose (multithreading might be obsoleted in the future due to it being
 		// very error prone).
@@ -56,7 +56,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		std::string etag = std::to_string( rand() );
 		this->m_resources[resource_.uri] = std::pair<Resource, std::string>( resource_, etag );
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Resource no. %d at " + resource_.uri + " installed.", this->m_resources.size() );
+		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Resource no. %d at " + resource_.uri + " installed.", this->m_resources.size() );
 	};
 	
 	void WebServer::removeResourceAt( std::string uri_ ) {
@@ -65,7 +65,7 @@ namespace micasa {
 		assert( this->m_resources.find( uri_ ) != this->m_resources.end() && "Resource should exist before trying to remove it." );
 #endif // _DEBUG
 		this->m_resources.erase( uri_ );
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Resource " + uri_ + " removed, %d resources left.", this->m_resources.size() );
+		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Resource " + uri_ + " removed, %d resources left.", this->m_resources.size() );
 	};
 	
 	void WebServer::touchResourceAt( std::string uri_ ) {
@@ -87,10 +87,10 @@ namespace micasa {
 #ifdef _WITH_SSL
 		bind_opts.ssl_cert = "server.pem";
 		bind_opts.ssl_key = "key.pem";
-		this->m_connection = mg_bind_opt( &this->m_manager, "443", mongoose_handler, bind_opts );
+		this->m_connection = mg_bind_opt( &this->m_manager, "443", webserver_mg_handler, bind_opts );
 #endif // _WITH_SSL
 #ifndef _WITH_SSL
-		this->m_connection = mg_bind_opt( &this->m_manager, "8081", mongoose_handler, bind_opts );
+		this->m_connection = mg_bind_opt( &this->m_manager, "8081", webserver_mg_handler, bind_opts );
 #endif // _WITH_SSL
 
 		if ( false == this->m_connection ) {
@@ -113,7 +113,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::chrono::milliseconds WebServer::_work( unsigned long int iteration_ ) {
+	std::chrono::milliseconds WebServer::_work( const unsigned long int iteration_ ) {
 		mg_mgr_poll( &this->m_manager, 100 );
 		return std::chrono::milliseconds( 0 );
 	}

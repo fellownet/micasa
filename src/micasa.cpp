@@ -44,14 +44,14 @@ int main( int argc_, char* argv_[] ) {
 		std::cout << g_usage;
 		return 0;
 	}
-
+/*
 	int port = 80;
 	if ( arguments.exists( "-p" ) ) {
 		port = atoi( arguments.get( "-p" ).c_str() );
 	} else if ( arguments.exists( "--port" ) ) {
 		port = atoi( arguments.get( "--port" ).c_str() );
 	}
-
+*/
 	int logLevel = Logger::LogLevel::NORMAL;
 	if ( arguments.exists( "-l" ) ) {
 		logLevel = atoi( arguments.get( "-l" ).c_str() );

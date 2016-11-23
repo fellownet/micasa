@@ -14,10 +14,10 @@ namespace micasa {
 
 		int result = sqlite3_open_v2( filename_.c_str(), &this->m_connection, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_WAL, NULL );
 		if ( result == SQLITE_OK ) {
-			g_logger->log( Logger::LogLevel::VERBOSE, this, "Database %s opened.", filename_.c_str() );
+			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s opened.", filename_.c_str() );
 			this->_init();
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to open database %s.", filename_.c_str() );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to open database %s.", filename_.c_str() );
 		}
 	}
 
@@ -26,11 +26,13 @@ namespace micasa {
 		assert( g_logger && "Global Logger instance should be destroyed after global Database instances." );
 #endif // _DEBUG
 
+		this->putQuery( "VACUUM" );
+
 		int result = sqlite3_close( this->m_connection );
 		if ( SQLITE_OK == result ) {
-			g_logger->log( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
+			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Database %s was not closed properly.", this->m_filename.c_str() );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly.", this->m_filename.c_str() );
 		}
 	}
 
@@ -44,7 +46,7 @@ namespace micasa {
 
 		this->putQuery( "VACUUM" );
 
-		int version = atoi( this->getQueryValue( "PRAGMA user_version" ).c_str() );
+		unsigned int version = atoi( this->getQueryValue( "PRAGMA user_version" ).c_str() );
 		if ( version < c_queries.size() ) {
 			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
 				this->putQuery( *queryIt );
@@ -55,7 +57,7 @@ namespace micasa {
 
 	void Database::_wrapQuery( std::string query_, va_list arguments_, std::function<void(sqlite3_stmt*)> process_ ) const {
 		if ( ! this->m_connection ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;
 		}
 
@@ -73,11 +75,11 @@ namespace micasa {
 			sqlite3_finalize( statement );
 		} else {
 			const char *error = sqlite3_errmsg( this->m_connection );
-			g_logger->log( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 		}
 
 #ifdef _DEBUG
-		g_logger->logRaw( Logger::LogLevel::DEBUG, this, std::string( query ) );
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
 
 		sqlite3_free( query );
@@ -179,7 +181,7 @@ namespace micasa {
 		this->_wrapQuery( query_, arguments, [this,&insertId]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_DONE != sqlite3_step( statement_ ) ) {
 				const char *error = sqlite3_errmsg( this->m_connection );
-				g_logger->log( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+				g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 			} else {
 				insertId = sqlite3_last_insert_rowid( this->m_connection );
 			}

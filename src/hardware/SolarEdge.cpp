@@ -10,7 +10,7 @@
 
 extern "C" {
 	
-	static void mongoose_handler( mg_connection* connection_, int event_, void* data_ ) {
+	void solaredge_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
 		std::pair<micasa::SolarEdge*,std::string>* userData = reinterpret_cast<std::pair<micasa::SolarEdge*,std::string>*>( connection_->user_data );
 		if ( event_ == MG_EV_HTTP_REPLY ) {
 			userData->first->_processHttpReply( connection_, (http_message*)data_ );
@@ -35,21 +35,17 @@ namespace micasa {
 	}
 
 	void SolarEdge::start() {
-		mg_mgr_init( &this->m_manager, NULL );
 		this->_begin();
 		Hardware::start();
 	}
 	
 	void SolarEdge::stop() {
-		// The order is important here. First busy needs to be set to false for the _work method to finish so
-		// that _retire can join the thread. Only then can the mongoose manager be freed.
 		this->m_busy = 0;
 		this->_retire();
-		mg_mgr_free( &this->m_manager );
 		Hardware::stop();
 	}
 	
-	std::chrono::milliseconds SolarEdge::_work( unsigned long int iteration_ ) {
+	std::chrono::milliseconds SolarEdge::_work( const unsigned long int iteration_ ) {
 		
 		// Make sure all the required settings are present.
 		if ( ! this->m_settings.contains( { "api_key", "site_id" } ) ) {
@@ -58,6 +54,10 @@ namespace micasa {
 		}
 
 		std::stringstream url;
+		int wait = 1000 * 60 * 5;
+		
+		mg_mgr manager;
+		mg_mgr_init( &manager, NULL );
 		mg_connection* connection;
 		
 		std::lock_guard<std::mutex> lock( this->m_invertersMutex );
@@ -66,27 +66,31 @@ namespace micasa {
 			// If the list of inverters is empty we should refresh it first. This list contains the inverter
 			// serials that  are needed to fetch the actual energy/power data.
 			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings["site_id"] << "/list?api_key=" << this->m_settings["api_key"];
-			connection = mg_connect_http( &this->m_manager, mongoose_handler, url.str().c_str(), "Accept: application/json\r\n", NULL );
+#ifdef _DEBUG
+			g_logger->logr( Logger::LogLevel::DEBUG, this, "Fetching from %s.", url.str().c_str() );
+#endif // _DEBUG
+			connection = mg_connect_http( &manager, solaredge_mg_handler, url.str().c_str(), "Accept: application/json\r\n", NULL );
 			if ( NULL != connection ) {
 				connection->user_data = new std::pair<SolarEdge*,std::string>( this, "" );
 				mg_set_timer( connection, mg_time() + 5 );
 				this->m_busy = 1;
 				while( this->m_busy > 0 ) {
-					mg_mgr_poll( &this->m_manager, 1000000 );
+					mg_mgr_poll( &manager, 1000 );
 				}
 				if ( this->m_inverters.empty() ) {
 					// The list is still empty, so either there are no inverters on this site or fetching them
 					// failed. Try again in 5 minutes.
-					g_logger->log( Logger::LogLevel::WARNING, this, "No inverters reported by the SolarEdge API." );
-					return std::chrono::milliseconds( 1000 * 60 * 5 );
+					g_logger->log( Logger::LogLevel::WARNING, this, "No inverters reported." );
 				} else {
 					// We've got a list of inverters, immediately fetch the data for each one of them.
-					return std::chrono::milliseconds( 0 );
+					wait = 0;
 				}
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect to SolarEdge API." );
+				g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect." );
 			}
 		} else {
+			// We're only interrested in the last reported value by the inverter, so adding a full day to the begin
+			// and end time should cover all timezones :)
 			auto dates = g_database->getQueryRow(
 				"SELECT date('now','-1 day','localtime') AS `startdate`, "
 				"time('now','-1 day','localtime') AS `starttime`, "
@@ -96,28 +100,33 @@ namespace micasa {
 			for ( auto inverterIt = this->m_inverters.begin(); inverterIt != this->m_inverters.end(); inverterIt++ ) {
 				url.str( "" );
 				url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings["site_id"] << "/" << *inverterIt << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings["api_key"];
-				connection = mg_connect_http( &this->m_manager, mongoose_handler, url.str().c_str(), "Accept: application/json\r\n", NULL );
+#ifdef _DEBUG
+				g_logger->logr( Logger::LogLevel::DEBUG, this, "Fetching from %s.", url.str().c_str() );
+#endif // _DEBUG
+				connection = mg_connect_http( &manager, solaredge_mg_handler, url.str().c_str(), "Accept: application/json\r\n", NULL );
 				if ( NULL != connection ) {
 					connection->user_data = new std::pair<SolarEdge*,std::string>( this, *inverterIt );
 					mg_set_timer( connection, mg_time() + 5 );
 					this->m_busy++;
 				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect to SolarEdge API." );
+					g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect." );
 				}
 			}
 			while( this->m_busy > 0 ) {
-				mg_mgr_poll( &this->m_manager, 1000000 );
+				mg_mgr_poll( &manager, 1000 );
 			}
 		}
 		
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
+		mg_mgr_free( &manager );
+		
+		return std::chrono::milliseconds( wait );
 	}
 
-	void SolarEdge::_processHttpReply( mg_connection* connection_, http_message* message_ ) {
-		std::pair<micasa::SolarEdge*,std::string>* userData = reinterpret_cast<std::pair<micasa::SolarEdge*,std::string>*>( connection_->user_data );
+	void SolarEdge::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
+		const std::pair<micasa::SolarEdge*,std::string>* userData = reinterpret_cast<std::pair<micasa::SolarEdge*,std::string>*>( connection_->user_data );
 		
 		if ( message_ == NULL ) {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Timeout when connecting to SolarEdge API." );
+			g_logger->log( Logger::LogLevel::WARNING, this, "Timeout when connecting." );
 		} else {
 			std::string body;
 			body.assign( message_->body.p, message_->body.len );
@@ -137,7 +146,7 @@ namespace micasa {
 						name << (*inverterIt)["manufacturer"].get<std::string>() << " " << (*inverterIt)["model"].get<std::string>();
 						name << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
 						this->m_inverters.push_front( (*inverterIt)["serialNumber"].get<std::string>() );
-						g_logger->log( Logger::LogLevel::VERBOSE, this, "Inverter %s reported by SolarEdge API.", name.str().c_str() );
+						g_logger->logr( Logger::LogLevel::VERBOSE, this, "Inverter %s reported.", name.str().c_str() );
 					}
 				}
 				
@@ -145,30 +154,39 @@ namespace micasa {
 				if (
 					! data["data"].empty()
 					&& ! data["data"]["count"].empty()
-					&& data["data"]["count"] >= 1
 				) {
-					json telemetry = *data["data"]["telemetries"].rbegin();
-					if ( ! telemetry["totalActivePower"].empty() ) {
-						std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(P)", "Power of inverter " + userData->second, { } ) );
-						device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalActivePower"].get<float>() );
-					}
-					if ( ! telemetry["totalEnergy"].empty() ) {
-						std::shared_ptr<Counter> device = std::static_pointer_cast<Counter>( this->_declareDevice( Device::DeviceType::COUNTER, userData->second + "(E)", "Energy of inverter " + userData->second, { } ) );
-						device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalEnergy"].get<float>() );
-					}
-					if ( ! telemetry["dcVoltage"].empty() ) {
-						std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(DC)", "DC voltage of inverter " + userData->second, { } ) );
-						device->updateValue( Device::UpdateSource::HARDWARE, telemetry["dcVoltage"].get<float>() );
-					}
-					if ( ! telemetry["temperature"].empty() ) {
-						std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(T)", "Temperature of inverter " + userData->second, { } ) );
-						device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<float>() );
+					if ( data["data"]["count"] >= 1 ) {
+						json telemetry = *data["data"]["telemetries"].rbegin();
+#ifdef _DEBUG
+						g_logger->logr( Logger::LogLevel::DEBUG, this, "Received %s.", telemetry.dump().c_str() );
+#endif // _DEBUG
+
+						// TODO compare the datetime of the telemetry (date property) to last received date (from settings) and
+						// see if it's new. Only declareDevices when it's new.
+						if ( ! telemetry["totalActivePower"].empty() ) {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(P)", "Power of inverter " + userData->second, { } ) );
+							device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalActivePower"].get<float>() );
+						}
+						if ( ! telemetry["totalEnergy"].empty() ) {
+							std::shared_ptr<Counter> device = std::static_pointer_cast<Counter>( this->_declareDevice( Device::DeviceType::COUNTER, userData->second + "(E)", "Energy of inverter " + userData->second, { } ) );
+							device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalEnergy"].get<float>() );
+						}
+						if ( ! telemetry["dcVoltage"].empty() ) {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(DC)", "DC voltage of inverter " + userData->second, { } ) );
+							device->updateValue( Device::UpdateSource::HARDWARE, telemetry["dcVoltage"].get<float>() );
+						}
+						if ( ! telemetry["temperature"].empty() ) {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, userData->second + "(T)", "Temperature of inverter " + userData->second, { } ) );
+							device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<float>() );
+						}
+					} else {
+						g_logger->logr( Logger::LogLevel::NORMAL, this, "No telemetries for inverter %s.", userData->second.c_str() );
 					}
 				}
 				
 			} catch( ... ) {
 				// Unfortunately the response from SolarEdge could not be parsed.
-				g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response from SolarEdge API." );
+				g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 			}
 		}
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;

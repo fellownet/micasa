@@ -11,10 +11,11 @@ namespace micasa {
 
 		void start() override;
 		std::string toString() const;
-		void updateValue( Device::UpdateSource source_, float value_ );
+		bool updateValue( const Device::UpdateSource source_, const float value_ );
+		const float getValue() const { return this->m_value; };
 		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) override;
 
-		std::chrono::milliseconds _work( unsigned long int iteration_ );
+		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 
 	private:
 		float m_value;

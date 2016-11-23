@@ -54,7 +54,7 @@ namespace micasa {
 		g_webServer->removeResourceAt( "api/devices/" + this->m_id );
 	}
 	
-	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, DeviceType deviceType_, std::string id_, std::string reference_, std::string name_ ) {
+	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const std::string id_, const std::string reference_, std::string name_ ) {
 		switch( deviceType_ ) {
 			case COUNTER:
 				return std::make_shared<Counter>( hardware_, id_, reference_, name_ );
@@ -69,6 +69,7 @@ namespace micasa {
 				return std::make_shared<Text>( hardware_, id_, reference_, name_ );
 				break;
 		}
+		return nullptr;
 	}
 	
 	void Device::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {

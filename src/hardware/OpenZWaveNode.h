@@ -13,7 +13,7 @@ namespace micasa {
 		~OpenZWaveNode() { };
 		
 		std::string toString() const;
-		void deviceUpdated( Device::UpdateSource source_, std::shared_ptr<Device> device_ ) { };
+		bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) { return true; };
 
 	}; // class OpenZWaveNode
 

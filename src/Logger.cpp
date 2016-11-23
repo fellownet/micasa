@@ -17,32 +17,38 @@ namespace micasa {
 				vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
 			}
 
+			time_t now = time( 0 );
+			struct tm tstruct;
+			char timebuf[80];
+			tstruct = *localtime(&now);
+			strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S ", &tstruct);
+			
 			switch( logLevel_ ) {
 				case LogLevel::WARNING:
-					std::cout << "\033[0;36m" << buffer << "\033[0m\n";
+					std::cout << "\033[0;36m" << timebuf << buffer << "\033[0m\n";
 					break;
 				case LogLevel::ERROR:
-					std::cout << "\033[0;31m" << buffer << "\033[0m\n";
+					std::cout << "\033[0;31m" << timebuf << buffer << "\033[0m\n";
 					break;
 				case LogLevel::VERBOSE:
 				case LogLevel::DEBUG:
-					std::cout << "\033[0;37m" << buffer << "\033[0m\n";
+					std::cout << "\033[0;37m" << timebuf << buffer << "\033[0m\n";
 					break;
 				default:
-					std::cout << buffer << "\n";
+					std::cout << timebuf << buffer << "\n";
 					break;
 			}
 		}
 	};
 
-	void Logger::log( const LogLevel logLevel_, std::string message_, ... ) const {
+	void Logger::logr( const LogLevel logLevel_, std::string message_, ... ) const {
 		va_list arguments;
 		va_start( arguments, message_ );
 		this->_doLog( logLevel_, message_.c_str(), arguments );
 		va_end( arguments );
 	};
 
-	void Logger::log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const {
+	void Logger::logr( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const {
 		std::stringstream message;
 		message << "[" << instance_->toString() << "] " << message_;
 
@@ -52,7 +58,7 @@ namespace micasa {
 		va_end( arguments );
 	};
 
-	void Logger::logRaw( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const {
+	void Logger::log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const {
 		std::stringstream message;
 		message << "[" << instance_->toString() << "] " << message_;
 		this->_doLog( logLevel_, message.str(), NULL );

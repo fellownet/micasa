@@ -27,15 +27,15 @@ namespace micasa {
 		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ );
 
 	protected:
-		std::chrono::milliseconds _work( unsigned long int iteration_ );
+		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 
 	private:
 		std::vector<std::shared_ptr<Hardware> > m_hardware;
-		std::mutex m_hardwareMutex;
+		mutable std::mutex m_hardwareMutex;
 
 		// TODO remove this
 	public:
-		std::shared_ptr<Hardware> _declareHardware( Hardware::HardwareType hardwareType_, std::string reference_, std::string name_, std::map<std::string, std::string> settings_ );
+		std::shared_ptr<Hardware> _declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 
 	}; // class Controller
 

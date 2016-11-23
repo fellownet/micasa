@@ -47,9 +47,10 @@ namespace micasa {
 		
 		std::string getId() const { return this->m_id; };
 		std::string getReference() const { return this->m_reference; };
+		std::string getName() { return this->m_name; };
 		Settings& getSettings() { return this->m_settings; };
 		
-		virtual void deviceUpdated( Device::UpdateSource source_, std::shared_ptr<Device> device_ ) =0;
+		virtual bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
 	protected:
 		const std::string m_id;
@@ -57,13 +58,14 @@ namespace micasa {
 		std::string m_name;
 		Settings m_settings;
 
-		std::shared_ptr<Device> _declareDevice( Device::DeviceType deviceType_, std::string reference_, std::string name_, std::map<std::string, std::string> settings_ );
+		std::shared_ptr<Device> _getDevice( const std::string reference_ ) const;
+		std::shared_ptr<Device> _declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 
 	private:
 		std::vector<std::shared_ptr<Device> > m_devices;
-		std::mutex m_devicesMutex;
+		mutable std::mutex m_devicesMutex;
 
-		static std::shared_ptr<Hardware> _factory( HardwareType hardwareType, std::string id_, std::string reference_, std::string name_ );
+		static std::shared_ptr<Hardware> _factory( const HardwareType hardwareType, const std::string id_, const std::string reference_, std::string name_ );
 
 	}; // class Hardware
 

@@ -37,6 +37,7 @@ namespace micasa {
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
 			"SELECT `id`, `reference`, `name`, `type` "
 			"FROM `hardware`"
+			"WHERE `enabled`=1"
 		);
 		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
 			Hardware::HardwareType hardwareType = static_cast<Hardware::HardwareType>( atoi( (*hardwareIt)["type"].c_str() ) );
@@ -80,11 +81,10 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::shared_ptr<Hardware> Controller::_declareHardware( Hardware::HardwareType hardwareType_, std::string reference_, std::string name_, std::map<std::string, std::string> settings_ ) {
+	std::shared_ptr<Hardware> Controller::_declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 #ifdef _DEBUG
 		assert( this->isRunning() && "Controller should be running when declaring hardware." );
 #endif // _DEBUG
-		
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
@@ -113,16 +113,13 @@ namespace micasa {
 		return hardware;
 	};
 
-	std::chrono::milliseconds Controller::_work( unsigned long int iteration_ ) {
-		
-		// TODO instruct all devices to generate trends every 5 minutes. This can be done by
-		// grouping around hour and store the max(hour) in the date field of the trend.
-		
+	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {
 		return std::chrono::milliseconds( 1000 );
 	};
 
 	void Controller::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
 		if ( resource_.uri == "api/hardware" ) {
+			// TODO this makes everything a string :/ use proper types for int and float
 			output_ = g_database->getQuery(
 				"SELECT `id`, `type`, `name` "
 				"FROM `hardware`"

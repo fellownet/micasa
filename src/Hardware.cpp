@@ -38,7 +38,7 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::shared_ptr<Hardware> Hardware::_factory( HardwareType hardwareType_, std::string id_, std::string reference_, std::string name_ ) {
+	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const std::string id_, const std::string reference_, std::string name_ ) {
 		switch( hardwareType_ ) {
 			case INTERNAL:
 				return std::make_shared<Internal>( id_, reference_, name_ );
@@ -77,6 +77,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( true && "Hardware types should be defined in the HardwareType enum." );
 #endif // _DEBUG
+		return nullptr;
 	}
 
 	void Hardware::start() {
@@ -133,12 +134,21 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::shared_ptr<Device> Hardware::_declareDevice( Device::DeviceType deviceType_, std::string reference_, std::string name_, std::map<std::string, std::string> settings_ ) {
+	std::shared_ptr<Device> Hardware::_getDevice( const std::string reference_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+			if ( (*devicesIt)->getReference() == reference_ ) {
+				return *devicesIt;
+			}
+		}
+		return nullptr;
+	}
+	
+	std::shared_ptr<Device> Hardware::_declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
 		// can be altered at will by the client (maybe they want temperature and pressure).
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( (*devicesIt)->getReference() == reference_ ) {
 				return *devicesIt;
@@ -167,6 +177,7 @@ namespace micasa {
 	
 	void Hardware::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
 		if ( resource_.uri == "api/hardware/" + this->m_id ) {
+			// TODO this makes everything a string :/ use proper types for int and float
 			output_ = g_database->getQuery(
 				"SELECT `id`, `type`, `name` "
 				"FROM `hardware`"
