@@ -137,8 +137,8 @@ namespace micasa {
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
-			int columns = sqlite3_column_count( statement_ );
 #ifdef _DEBUG
+			int columns = sqlite3_column_count( statement_ );
 			assert( 2 == columns && "Query result should contain exactly two columns." );
 #endif // _DEBUG
 			while ( true ) {

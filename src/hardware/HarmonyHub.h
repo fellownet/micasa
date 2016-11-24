@@ -23,7 +23,6 @@ namespace micasa {
 			WAIT_FOR_CURRENT_ACTIVITY,
 			WAIT_FOR_ACTIVITIES,
 			IDLE,
-			WAIT_FOR_PING,
 		};
 		
 		HarmonyHub( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
@@ -38,8 +37,7 @@ namespace micasa {
 	private:
 		mg_mgr m_manager;
 		mg_connection* m_connection;
-		ConnectionState m_state = CLOSED;
-		time_t m_stateTime;
+		volatile ConnectionState m_state = CLOSED;
 		std::string m_currentActivityId = "-1";
 		// TODO use notify with std::condition_variable in addition to the lock below because the lock will be
 		// held and unlocked from different threads.
@@ -47,8 +45,6 @@ namespace micasa {
 		volatile bool m_commandBusy = false;
 	
 		void _disconnect( const std::string message_ );
-		void _setState( const ConnectionState state_ );
-		void _sendPing();
 		void _processConnection( const bool ready_ );
 		
 	}; // class HarmonyHub

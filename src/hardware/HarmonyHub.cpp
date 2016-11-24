@@ -55,7 +55,7 @@ namespace micasa {
 	}
 	
 	void HarmonyHub::stop() {
-		this->_setState( CLOSED );
+		this->m_state = CLOSED;
 		this->_retire();
 		mg_mgr_free( &this->m_manager );
 		Hardware::stop();
@@ -64,7 +64,7 @@ namespace micasa {
 	std::chrono::milliseconds HarmonyHub::_work( const unsigned long int iteration_ ) {
 		if ( ! this->m_settings.contains( { "address", "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			return std::chrono::milliseconds( 60 * 1000 );
+			return std::chrono::milliseconds( 1000 * 60 * 5 );
 		}
 		
 		std::stringstream url;
@@ -78,24 +78,26 @@ namespace micasa {
 			this->m_connection->user_data = this;
 			mg_set_timer( this->m_connection, mg_time() + 5 );
 
-			this->_setState( CONNECTING );
-
+			this->m_state = CONNECTING;
 			while( this->m_state != CLOSED ) {
-				time_t pollTime = mg_mgr_poll( &this->m_manager, 100 );
-				long int duration = pollTime - this->m_stateTime;
-				if ( this->m_state == IDLE ) {
-					if ( duration > 30 ) {
-						this->_sendPing(); // resets duration due to temp state switch
-					}
-				} else {
-					// Only the IDLE state can be active for a prolonged period of time. All other states
-					// that are active for longer than xx seconds indicate an error state.
-					if ( duration > 15 ) {
-						this->_disconnect( "Invalid connection state." );
-					}
+				mg_mgr_poll( &this->m_manager, 100 );
+				
+				// Send a ping when in IDLE every 30 seconds. Note that the Harmony Hub will disconnect pretty quick
+				// if no ping is received, which will happen if we're getting stuck in an unexpected state.
+				static unsigned long iteration = 0;
+				if (
+					this->m_state == IDLE
+					&& ++iteration % ( 10 * 30 ) == 0
+				) {
+#ifdef _DEBUG
+					g_logger->log( Logger::LogLevel::DEBUG, this, "Sending ping." );
+#endif // _DEBUG
+					std::stringstream send;
+					send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+					send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
+					mg_send( this->m_connection, send.str().c_str(), send.str().size() );
 				}
 			}
-			
 		} else {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect." );
 		}
@@ -130,10 +132,6 @@ namespace micasa {
 			
 			if ( startActivityId != "" ) {
 
-				// Before sending a command we're sending a ping because sometimes (in my personal case) the
-				// chaning of activities takes quite some time and the hub disconnects very quickly).
-				this->_sendPing();
-
 				// If the Harmony Hub is currently busy switching to an activity, the command should fail.
 				if ( ! this->m_commandMutex.try_lock_for( std::chrono::milliseconds( 1000 * 3 ) ) ) {
 					return false;
@@ -159,30 +157,9 @@ namespace micasa {
 	void HarmonyHub::_disconnect( const std::string message_ ) {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		this->_setState( CLOSED );
+		this->m_state = CLOSED;
 	}
 	
-	void HarmonyHub::_setState( const ConnectionState state_ ) {
-		// The static mutex is used to make sure that stateDuration and state are set synchroniously.
-		static std::mutex stateMutex;
-		std::lock_guard<std::mutex> lock( stateMutex );
-		this->m_state = state_;
-		this->m_stateTime = time( 0 );
-	}
-	
-	void HarmonyHub::_sendPing() {
-		if ( this->m_commandMutex.try_lock() ) {
-#ifdef _DEBUG
-			g_logger->log( Logger::LogLevel::DEBUG, this, "Sending ping." );
-#endif // _DEBUG
-			std::stringstream response;
-			response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-			response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
-			mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-			this->_setState( WAIT_FOR_PING );
-		}
-	}
-
 	void HarmonyHub::_processConnection( const bool ready_ ) {
 		if ( ready_ ) {
 			
@@ -215,7 +192,7 @@ namespace micasa {
 					response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
 					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
 					mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-					this->_setState( WAIT_FOR_CURRENT_ACTIVITY );
+					this->m_state = WAIT_FOR_CURRENT_ACTIVITY;
 					break;
 				}
 
@@ -229,7 +206,8 @@ namespace micasa {
 						std::stringstream response;
 						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
 						mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-						this->_setState( WAIT_FOR_ACTIVITIES );
+						this->m_state = WAIT_FOR_ACTIVITIES;
+						
 					}
 					break;
 				}
@@ -272,7 +250,7 @@ namespace micasa {
 							
 							// After the activities have been recieved we're putting the connection in idle state. At this
 							// point changes in activities can be received and processed.
-							this->_setState( IDLE );
+							this->m_state = IDLE;
 						} else {
 							this->_disconnect( "Malformed activities data." );
 							break;
@@ -281,6 +259,15 @@ namespace micasa {
 				}
 					
 				case IDLE: {
+					// Detect and analyze ping responses.
+					if (
+						received.find( "vnd.logitech.ping" ) != std::string::npos
+						&& received.find( "errorcode='200'" ) == std::string::npos
+					) {
+						this->_disconnect( "Invalid ping response." );
+						break;
+					}
+					
 					// When the first notification of an activity change comes int we're going to lock the command mutex
 					// to prevent other commands from being sent during the change.
 					std::string raw;
@@ -310,6 +297,8 @@ namespace micasa {
 							}
 						}
 					}
+					
+					
 					
 					// Detect "startActivityFinished" events which indicate a finalized activity change. The command mutex
 					// is released so that new commands can be issued.
@@ -345,20 +334,6 @@ namespace micasa {
 							this->m_commandMutex.unlock();
 						}
 					}
-					break;
-				}
-					
-				case WAIT_FOR_PING: {
-					if (
-						received.find( "vnd.logitech.ping" ) != std::string::npos
-						&& received.find( "errorcode='200'" ) != std::string::npos
-					) {
-						this->_setState( IDLE );
-					} else {
-						this->_disconnect( "Invalid ping response." );
-						break;
-					}
-					this->m_commandMutex.unlock();
 					break;
 				}
 			}
