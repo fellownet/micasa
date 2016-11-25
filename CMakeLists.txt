@@ -20,6 +20,7 @@ set( SRC
 	src/Worker.cpp
 	src/Controller.cpp
 	src/Logger.cpp
+	src/Network.cpp
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
@@ -35,6 +36,7 @@ set( SRC
 	src/hardware/PiFaceBoard.cpp
 	src/hardware/P1Meter.cpp
 	src/hardware/SolarEdge.cpp
+	src/hardware/SolarEdgeInverter.cpp	
 	src/hardware/WeatherUnderground.cpp
 	src/hardware/HarmonyHub.cpp
 	src/hardware/Domoticz.cpp

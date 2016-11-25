@@ -13,6 +13,7 @@
 #include "hardware/P1Meter.h"
 #include "hardware/RFXCom.h"
 #include "hardware/SolarEdge.h"
+#include "hardware/SolarEdgeInverter.h"
 #include "hardware/Domoticz.h"
  
 namespace micasa {
@@ -67,6 +68,9 @@ namespace micasa {
 			case SOLAREDGE:
 				return std::make_shared<SolarEdge>( id_, reference_, name_ );
 				break;
+			case SOLAREDGE_INVERTER:
+				return std::make_shared<SolarEdgeInverter>( id_, reference_, name_ );
+				break;
 			case WEATHER_UNDERGROUND:
 				return std::make_shared<WeatherUnderground>( id_, reference_, name_ );
 				break;
@@ -87,12 +91,6 @@ namespace micasa {
 			"api/hardware/" + this->m_id,
 			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::PUT | WebServer::ResourceMethod::PATCH | WebServer::ResourceMethod::DELETE,
 			"Retrieve the details of hardware <i>" + this->m_name + "</i>.",
-			this->shared_from_this()
-		} );
-		g_webServer->addResource( {
-			"api/hardware/" + this->m_id + "/devices",
-			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::GET | WebServer::ResourceMethod::HEAD,
-			"Retrieve a list of devices belonging to hardware <i>" + this->m_name + "</i>.",
 			this->shared_from_this()
 		} );
 
@@ -129,7 +127,6 @@ namespace micasa {
 		}
 
 		g_webServer->removeResourceAt( "api/hardware/" + this->m_id );
-		g_webServer->removeResourceAt( "api/hardware/" + this->m_id + "/devices" );
 
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
@@ -170,7 +167,7 @@ namespace micasa {
 		this->m_devices.push_back( device );
 
 		g_webServer->touchResourceAt( "api/hardware/" + this->m_id );
-		g_webServer->touchResourceAt( "api/hardware/" + this->m_id + "/devices" );
+		g_webServer->touchResourceAt( "api/devices" );
 		
 		return device;
 	};

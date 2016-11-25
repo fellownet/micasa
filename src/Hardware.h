@@ -16,7 +16,7 @@
 
 namespace micasa {
 
-	class Hardware : public WebServer::ResourceHandler, public LoggerInstance, public std::enable_shared_from_this<Hardware> {
+	class Hardware : public WebServer::ResourceHandler, public std::enable_shared_from_this<Hardware> {
 		
 		friend class Controller;
 
@@ -31,15 +31,15 @@ namespace micasa {
 			PIFACE_BOARD,
 			RFXCOM,
 			SOLAREDGE,
+			SOLAREDGE_INVERTER,
 			WEATHER_UNDERGROUND,
 			DOMOTICZ,
 		};
 		
 		Hardware( const std::string id_, const std::string reference_, std::string name_ );
 		virtual ~Hardware();
+		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->m_name; return out_; }
 
-		virtual std::string toString() const =0;
-		
 		virtual void start();
 		virtual void stop();
 		
@@ -47,7 +47,7 @@ namespace micasa {
 		
 		std::string getId() const { return this->m_id; };
 		std::string getReference() const { return this->m_reference; };
-		std::string getName() { return this->m_name; };
+		std::string getName() const { return this->m_name; };
 		Settings& getSettings() { return this->m_settings; };
 		
 		virtual bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;

@@ -10,22 +10,13 @@
 
 #include "Worker.h"
 #include "Logger.h"
+#include "Network.h"
 
 #include "json.hpp"
 
-extern "C" {
-	
-	#include "mongoose.h"
-	
-	void webserver_mg_handler( mg_connection* connection_, int event_, void* instance_ );
-	
-} // extern "C"
-
 namespace micasa {
 
-	class WebServer final : public Worker, public LoggerInstance {
-
-		friend void ::webserver_mg_handler( struct mg_connection *connection_, int event_, void* instance_ );
+	class WebServer final : public Worker {
 
 	public:
 		enum ResourceMethod {
@@ -65,9 +56,8 @@ namespace micasa {
 
 		WebServer();
 		~WebServer();
+		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
-		std::string toString() const;
-
 		void addResource( Resource resource_ );
 		void removeResourceAt( std::string uri_ );
 		void touchResourceAt( std::string uri_ );
@@ -79,9 +69,6 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 		
 	private:
-		mg_mgr m_manager;
-		mg_connection* m_connection;
-		
 		std::map<std::string, std::pair<Resource, std::string> > m_resources;
 		mutable std::mutex m_resourcesMutex;
 

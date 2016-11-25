@@ -18,7 +18,7 @@ namespace micasa {
 		~Worker();
 		
 		bool isRunning() const;
-		void notify();
+		void wakeUp();
 
 	protected:
 		volatile bool m_shutdown = true;
@@ -26,13 +26,15 @@ namespace micasa {
 		virtual void _begin();
 		virtual void _retire();
 		virtual std::chrono::milliseconds _work( const unsigned long int iteration_ ) =0;
+		void _synchronize( std::function<void()> func_ );
 
 	private:
 		std::thread m_worker;
 		std::condition_variable m_shutdownCondition;
 		mutable std::mutex m_shutdownMutex;
+		mutable std::mutex m_workMutex;
 		unsigned long int m_iteration = 0;
-
+		
 	}; // class Worker
 
 }; // namespace micasa

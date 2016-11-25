@@ -2,17 +2,12 @@
 
 #include <string>
 #include <mutex>
+#include <sstream>
+#include <stdarg.h>
 
 #define MAX_LOG_LINE_LENGTH 2048
 
 namespace micasa {
-
-	class LoggerInstance {
-
-	public:
-		virtual std::string toString() const =0;
-
-	}; // class LoggerInstance
 
 	class Logger final {
 
@@ -29,8 +24,23 @@ namespace micasa {
 		~Logger() { };
 
 		void logr( const LogLevel logLevel_, std::string message_, ... ) const;
-		void logr( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const;
-		void log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const;
+		
+		// Unfortunately template based methods need to be implemented in the header file for it to accept *all*
+		// types of classes.
+		template<class T> void logr( const LogLevel logLevel_, const T& instance_, std::string message_, ... ) const {
+			std::stringstream message;
+			message << "[" << instance_ << "] " << message_;
+			va_list arguments;
+			va_start( arguments, message_ );
+			this->_doLog( logLevel_, message.str(), true, arguments );
+			va_end( arguments );
+		};
+		template<class T> void log( const LogLevel logLevel_, const T& instance_, std::string message_ ) const {
+			std::stringstream message;
+			message << "[" << instance_ << "] " << message_;
+			va_list empty;
+			this->_doLog( logLevel_, message.str(), false, empty );
+		};
 
 	private:
 		LogLevel m_logLevel;
