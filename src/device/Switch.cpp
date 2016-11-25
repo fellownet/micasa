@@ -28,7 +28,36 @@ namespace micasa {
 			, this->m_id.c_str()
 		);
 		this->m_value = atoi( value.c_str() );
+		
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_ += {
+					{ "id", atoi( this->m_id.c_str() ) },
+					{ "name", this->m_name },
+					{ "value", Switch::OptionsText.at( this->m_value ) }
+				};
+			} )
+		} ) );
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices/" + this->m_id,
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_["id"] = atoi( this->m_id.c_str() );
+				output_["name"] = this->m_name;
+				output_["value"] = Switch::OptionsText.at( this->m_value );
+			} )
+		} ) );
+		
 		Device::start();
+	};
+
+	void Switch::stop() {
+		g_webServer->removeResource( "device-" + this->m_id ); // gets freed by webserver
+		Device::stop();
 	};
 
 	bool Switch::updateValue( const Device::UpdateSource source_, const Options value_ ) {
@@ -45,21 +74,12 @@ namespace micasa {
 				"VALUES (%q, %d)"
 				, this->m_id.c_str(), (unsigned int)value_
 			);
-
-			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
-			g_webServer->touchResourceAt( "api/devices" );
-
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionsText.at( value_ ).c_str() );
 		} else {
 			this->m_value = currentValue;
 		}
 		return success;
 	}
-
-	void Switch::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
-		output_["value"] = Switch::OptionsText.at( this->m_value );
-		Device::handleResource( resource_, code_, output_ );
-	};
 
 	std::chrono::milliseconds Switch::_work( const unsigned long int iteration_ ) {
 		if ( iteration_ > 0 ) {

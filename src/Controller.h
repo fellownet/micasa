@@ -12,7 +12,7 @@
 
 namespace micasa {
 
-	class Controller final : public Worker, public WebServer::ResourceHandler, public std::enable_shared_from_this<Controller> {
+	class Controller final : public Worker, public std::enable_shared_from_this<Controller> {
 
 	public:
 		Controller();
@@ -21,7 +21,6 @@ namespace micasa {
 
 		void start();
 		void stop();
-		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 		

@@ -19,9 +19,39 @@ namespace micasa {
 			, this->m_id.c_str()
 		);
 		this->m_value = atof( databaseValue.c_str() );
+
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_ += {
+					{ "id", atoi( this->m_id.c_str() ) },
+					{ "name", this->m_name },
+					{ "value", this->m_value }
+				};
+			} )
+		} ) );
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices/" + this->m_id,
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_["id"] = atoi( this->m_id.c_str() );
+				output_["name"] = this->m_name;
+				output_["value"] = this->m_value;
+				output_["trends"] = g_database->getQuery( "SELECT `date`, `min`, `max`, `average` FROM `device_level_trends` WHERE `device_id`=%q ORDER BY `date` ASC LIMIT 48", this->m_id.c_str() );
+			} )
+		} ) );
+
 		Device::start();
 	};
 	
+	void Level::stop() {
+		g_webServer->removeResource( "device-" + this->m_id ); // gets freed by webserver
+		Device::stop();
+	};
+
 	bool Level::updateValue( const Device::UpdateSource source_, const float value_ ) {
 		bool apply = true;
 		float currentValue = this->m_value;
@@ -33,10 +63,6 @@ namespace micasa {
 				"VALUES (%q, %.3f)"
 				, this->m_id.c_str(), value_
 			);
-
-			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
-			g_webServer->touchResourceAt( "api/devices" );
-			
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
 		} else {
 			this->m_value = currentValue;
@@ -44,11 +70,6 @@ namespace micasa {
 		return success;
 	};
 
-	void Level::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
-		output_["value"] = this->m_value;
-		Device::handleResource( resource_, code_, output_ );
-	};
-	
 	std::chrono::milliseconds Level::_work( const unsigned long int iteration_ ) {
 		if ( iteration_ > 0 ) {
 			std::string hourFormat = "%Y-%m-%d %H:00:00";

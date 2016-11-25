@@ -11,7 +11,7 @@ namespace micasa {
 
 	class Hardware;
 
-	class Device : public WebServer::ResourceHandler, public Worker, public std::enable_shared_from_this<Device> {
+	class Device : public Worker, public std::enable_shared_from_this<Device> {
 		
 		friend class Hardware;
 		
@@ -37,8 +37,6 @@ namespace micasa {
 		
 		virtual void start();
 		virtual void stop();
-
-		virtual void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ );
 
 		std::string getId() const { return this->m_id; };
 		std::string getReference() const { return this->m_reference; };

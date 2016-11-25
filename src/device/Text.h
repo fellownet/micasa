@@ -10,9 +10,9 @@ namespace micasa {
 		Text( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
 		
 		void start() override;
+		void stop() override;
 		bool updateValue( const Device::UpdateSource source_, const std::string value_ );
 		const std::string getValue() const { return this->m_value; };
-		void handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) override;
 		
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 

@@ -87,13 +87,36 @@ namespace micasa {
 	void Hardware::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
+		/*
 		g_webServer->addResource( {
 			"api/hardware/" + this->m_id,
 			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::PUT | WebServer::ResourceMethod::PATCH | WebServer::ResourceMethod::DELETE,
 			"Retrieve the details of hardware <i>" + this->m_name + "</i>.",
 			this->shared_from_this()
 		} );
+		*/
 
+		g_webServer->addResource( new WebServer::Resource( {
+			"hardware-" + this->m_id,
+			"api/hardware",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_ += {
+					{ "id", atoi( this->m_id.c_str() ) },
+					{ "name", this->m_name },
+				};
+			} )
+		} ) );
+		g_webServer->addResource( new WebServer::Resource( {
+			"hardware-" + this->m_id,
+			"api/hardware/" + this->m_id,
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_["id"] = atoi( this->m_id.c_str() );
+				output_["name"] = this->m_name;
+			} )
+		} ) );
+		
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
@@ -118,6 +141,8 @@ namespace micasa {
 	void Hardware::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
+		g_webServer->removeResource( "hardware-" + this->m_id ); // gets freed by webserver
+		
 		{
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
@@ -125,8 +150,6 @@ namespace micasa {
 			}
 			this->m_devices.clear();
 		}
-
-		g_webServer->removeResourceAt( "api/hardware/" + this->m_id );
 
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
@@ -166,12 +189,13 @@ namespace micasa {
 		device->start();
 		this->m_devices.push_back( device );
 
-		g_webServer->touchResourceAt( "api/hardware/" + this->m_id );
-		g_webServer->touchResourceAt( "api/devices" );
+		//g_webServer->touchResourceAt( "api/hardware/" + this->m_id );
+		//g_webServer->touchResourceAt( "api/devices" );
 		
 		return device;
 	};
 	
+	/*
 	void Hardware::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
 		if ( resource_.uri == "api/hardware/" + this->m_id ) {
 			// TODO this makes everything a string :/ use proper types for int and float
@@ -190,5 +214,6 @@ namespace micasa {
 			);
 		}
 	};
+	*/
 	
 } // namespace micasa

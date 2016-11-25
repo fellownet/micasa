@@ -48,7 +48,8 @@ namespace micasa {
 			hardware->start();
 			this->m_hardware.push_back( hardware );
 		}
-
+		
+		/*
 		g_webServer->addResource( {
 			"api/hardware",
 			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::HEAD | WebServer::ResourceMethod::POST,
@@ -61,7 +62,8 @@ namespace micasa {
 			"Retrieve a list of available devices.",
 			this->shared_from_this()
 		} );
-
+		*/
+		
 		this->_begin();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
@@ -70,8 +72,8 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
 
-		g_webServer->removeResourceAt( "api/hardware" );
-		g_webServer->removeResourceAt( "api/devices" );
+		//g_webServer->removeResourceAt( "api/hardware" );
+		//g_webServer->removeResourceAt( "api/devices" );
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
@@ -124,7 +126,7 @@ namespace micasa {
 		hardware->start();
 		this->m_hardware.push_back( hardware );
 		
-		g_webServer->touchResourceAt( "api/hardware" );
+		//g_webServer->touchResourceAt( "api/hardware" );
 		
 		return hardware;
 	};
@@ -132,7 +134,8 @@ namespace micasa {
 	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {
 		return std::chrono::milliseconds( 1000 );
 	};
-
+	
+	/*
 	void Controller::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
 		if ( resource_.uri == "api/hardware" ) {
 			// TODO this makes everything a string :/ use proper types for int and float
@@ -147,5 +150,6 @@ namespace micasa {
 			);
 		}
 	};
+	*/
 
 }; // namespace micasa
