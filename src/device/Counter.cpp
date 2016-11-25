@@ -35,6 +35,7 @@ namespace micasa {
 			);
 			
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
+			g_webServer->touchResourceAt( "api/devices" );
 			
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {

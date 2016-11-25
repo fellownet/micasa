@@ -11,6 +11,7 @@
 #include <cstdlib>
 
 #include "WebServer.h"
+#include "Utils.h"
 
 #include "json.hpp"
 
@@ -62,7 +63,9 @@ namespace micasa {
 	};
 	
 	std::chrono::milliseconds WebServer::_work( const unsigned long int iteration_ ) {
-		return std::chrono::milliseconds( 0 );
+		// TODO if it turns out that the webserver instance doesn't need to do stuff periodically, remove the
+		// extend from Worker.
+		return std::chrono::milliseconds( 5000 );
 	}
 
 	void WebServer::addResource( Resource resource_ ) {
@@ -91,9 +94,13 @@ namespace micasa {
 
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 
-		// Determine method.
 		std::string methodStr = "";
 		methodStr.assign( message_->method.p, message_->method.len );
+		std::string queryStr = "";
+		queryStr.assign( message_->query_string.p, message_->query_string.len );
+		stringIsolate( queryStr, "_method=", "&", false, methodStr );
+		
+		// Determine method.
 		ResourceMethod method = ResourceMethod::GET;
 		if ( methodStr == "HEAD" ) {
 			method = ResourceMethod::HEAD;
@@ -121,6 +128,9 @@ namespace micasa {
 			resource != this->m_resources.end()
 			&& ( resource->second.first.methods & method ) == method
 		) {
+			std::stringstream headers;
+			headers << "Content-Type: Content-type: application/json\r\n";
+			headers << "Access-Control-Allow-Origin: *\r\n";
 			
 			std::string etag;
 			int i = 0;
@@ -133,37 +143,22 @@ namespace micasa {
 				i++;
 			}
 			if ( etag == resource->second.second ) {
-				
 				// Resource here is the same as client, send not-changed header (=304).
-				// TODO test this with ajax calls (in relation to a missing access-control header
-				// when caching).
-				mg_send_head( connection_, 304, 0, "" );
-				mg_send( connection_, "", 0 );
-				connection_->flags |= MG_F_SEND_AND_CLOSE;
-				
+				mg_send_head( connection_, 304, 0, headers.str().c_str() );
 			} else {
-				
 				// We've got a newer version of the resource here, send it to the client.
 				json outputJson;
 				int code = 200;
 				resource->second.first.handler->handleResource( resource->second.first, code, outputJson );
 
-				std::string output = outputJson.dump( 4 );
-				std::stringstream headers;
-#ifdef _DEBUG
-				headers << "Content-Type: Content-type: text/plain\r\n";
-#endif // _DEBUG
-#ifndef _DEBUG
-				headers << "Content-Type: Content-type: application/json\r\n";
-#endif // _DEBUG
-				headers << "Access-Control-Allow-Origin: *\r\n";
 				headers << "ETag: " << resource->second.second;
-				
+				std::string output = outputJson.dump( 4 );
 				mg_send_head( connection_, 200, output.length(), headers.str().c_str() );
 				mg_send( connection_, output.c_str(), output.length() );
-				connection_->flags |= MG_F_SEND_AND_CLOSE;
 			}
-			
+
+			connection_->flags |= MG_F_SEND_AND_CLOSE;
+		
 		} else if (
 			uriStr == "api"
 			&& method == ResourceMethod::GET
@@ -214,6 +209,7 @@ namespace micasa {
 			mg_serve_http_opts options;
 			memset( &options, 0, sizeof( options ) );
 			options.document_root = "www";
+			options.index_files = "index.html";
 			options.enable_directory_listing = "no";
 			mg_serve_http( connection_, message_, options );
 		}
