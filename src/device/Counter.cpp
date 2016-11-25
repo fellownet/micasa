@@ -19,9 +19,39 @@ namespace micasa {
 		   , this->m_id.c_str()
 		);
 		this->m_value = atoi( databaseValue.c_str() );
+
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_ += {
+					{ "id", atoi( this->m_id.c_str() ) },
+					{ "name", this->m_name },
+					{ "value", this->m_value }
+				};
+			} )
+		} ) );
+		g_webServer->addResource( new WebServer::Resource( {
+			"device-" + this->m_id,
+			"api/devices/" + this->m_id,
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+				output_["id"] = atoi( this->m_id.c_str() );
+				output_["name"] = this->m_name;
+				output_["value"] = this->m_value;
+				output_["trends"] = g_database->getQuery( "SELECT `date`, `diff`, `last` FROM `device_counter_trends` WHERE `device_id`=%q ORDER BY `date` ASC LIMIT 48", this->m_id.c_str() );
+			} )
+		} ) );
+
 		Device::start();
 	};
 
+	void Counter::stop() {
+		g_webServer->removeResource( "device-" + this->m_id ); // gets freed by webserver
+		Device::stop();
+	};
+	
 	bool Counter::updateValue( const Device::UpdateSource source_, const int value_ ) {
 		bool apply = true;
 		int currentValue = this->m_value;
@@ -33,21 +63,12 @@ namespace micasa {
 				"VALUES (%q, %d)"
 				, this->m_id.c_str(), value_
 			);
-			
-			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
-			g_webServer->touchResourceAt( "api/devices" );
-			
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
 			this->m_value = currentValue;
 		}
 		return success;
 	}
-	
-	void Counter::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
-		output_["value"] = this->m_value;
-		Device::handleResource( resource_, code_, output_ );
-	};
 	
 	std::chrono::milliseconds Counter::_work( const unsigned long int iteration_ ) {
 		if ( iteration_ > 0 ) {

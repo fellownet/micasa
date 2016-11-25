@@ -68,6 +68,44 @@ namespace micasa {
 		return std::chrono::milliseconds( 5000 );
 	}
 
+	void WebServer::addResource( Resource* resource_ ) {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		auto resourceIt = this->m_resources.find( resource_->uri );
+		if ( resourceIt != this->m_resources.end() ) {
+			resourceIt->second.push_back( resource_ );
+		} else {
+			this->m_resources[resource_->uri] = { resource_ };
+		}
+#ifdef _DEBUG
+		g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource installed at %s.", resource_->uri.c_str() );
+#endif // _DEBUG
+	}
+	
+	void WebServer::removeResource( const std::string reference_ ) {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
+			for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); ) {
+				if ( (*callbackIt)->reference == reference_ ) {
+#ifdef _DEBUG
+					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource removed at %s.", (*callbackIt)->uri.c_str() );
+#endif // _DEBUG
+					delete( *callbackIt );
+					callbackIt = resourceIt->second.erase( callbackIt );
+				} else {
+					callbackIt++;
+				}
+			}
+			if ( resourceIt->second.size() == 0 ) {
+				resourceIt = this->m_resources.erase( resourceIt );
+			} else {
+				resourceIt++;
+			}
+		}
+	}
+
+	
+	
+	/*
 	void WebServer::addResource( Resource resource_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		std::string etag = std::to_string( rand() );
@@ -91,46 +129,58 @@ namespace micasa {
 		std::string etag = std::to_string( rand() );
 		this->m_resources[uri_].second = etag;
 	};
+	*/
 
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
-
+		
 		std::string methodStr = "";
 		methodStr.assign( message_->method.p, message_->method.len );
 		std::string queryStr = "";
 		queryStr.assign( message_->query_string.p, message_->query_string.len );
 		stringIsolate( queryStr, "_method=", "&", false, methodStr );
-		
-		// Determine method.
-		ResourceMethod method = ResourceMethod::GET;
-		if ( methodStr == "HEAD" ) {
-			method = ResourceMethod::HEAD;
-		} else if ( methodStr == "POST" ) {
-			method = ResourceMethod::POST;
-		} else if ( methodStr == "PUT" ) {
-			method = ResourceMethod::PUT;
-		} else if ( methodStr == "PATCH" ) {
-			method = ResourceMethod::PATCH;
-		} else if ( methodStr == "DELETE" ) {
-			method = ResourceMethod::DELETE;
-		} else if ( methodStr == "OPTIONS" ) {
-			method = ResourceMethod::OPTIONS;
-		}
-
-		// Determine resource (the leading / is stripped, our resources start without it) and see if
-		// a resource handler has been added for it.
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		std::string uriStr = "";
 		if ( message_->uri.len >= 1 ) {
 			uriStr.assign( message_->uri.p + 1, message_->uri.len - 1 );
 		}
+		
+		// Determine method.
+		Method method = Method::GET;
+		if ( methodStr == "HEAD" ) {
+			method = Method::HEAD;
+		} else if ( methodStr == "POST" ) {
+			method = Method::POST;
+		} else if ( methodStr == "PUT" ) {
+			method = Method::PUT;
+		} else if ( methodStr == "PATCH" ) {
+			method = Method::PATCH;
+		} else if ( methodStr == "DELETE" ) {
+			method = Method::DELETE;
+		} else if ( methodStr == "OPTIONS" ) {
+			method = Method::OPTIONS;
+		}
+
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		auto resource = this->m_resources.find( uriStr );
-		if (
-			resource != this->m_resources.end()
-			&& ( resource->second.first.methods & method ) == method
-		) {
+		if ( resource != this->m_resources.end() ) {
+
 			std::stringstream headers;
 			headers << "Content-Type: Content-type: application/json\r\n";
-			headers << "Access-Control-Allow-Origin: *\r\n";
+			headers << "Access-Control-Allow-Origin: *";
+
+			json data;
+			int code = 200;
+			for ( auto callbackIt = resource->second.begin(); callbackIt != resource->second.end(); callbackIt++ ) {
+				(*callbackIt)->callback( uriStr, code, data );
+			}
+			
+			std::string output = data.dump( 4 );
+			mg_send_head( connection_, 200, output.length(), headers.str().c_str() );
+			mg_send( connection_, output.c_str(), output.length() );
+			connection_->flags |= MG_F_SEND_AND_CLOSE;
+			
+			
+			
+			/*
 			
 			std::string etag;
 			int i = 0;
@@ -156,20 +206,20 @@ namespace micasa {
 				mg_send_head( connection_, 200, output.length(), headers.str().c_str() );
 				mg_send( connection_, output.c_str(), output.length() );
 			}
-
-			connection_->flags |= MG_F_SEND_AND_CLOSE;
+			*/
 		
 		} else if (
 			uriStr == "api"
-			&& method == ResourceMethod::GET
+			&& method == Method::GET
 		) {
-			
+
 			// Build a standard documentation page if the api uri is requested directly using get.
 			std::stringstream outputStream;
 			outputStream << "<!doctype html>" << "<html><body style=\"font-family:sans-serif;\">";
 			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-				outputStream << "<strong>Title:</strong> " << resourceIt->second.first.title << "<br>";
+				//outputStream << "<strong>Title:</strong> " << resourceIt->second.first.title << "<br>";
 				outputStream << "<strong>Uri:</strong> <a href=\"/" << resourceIt->first << "\">" << resourceIt->first << "</a><br>";
+				/*
 				outputStream << "<strong>Methods:</strong>";
 				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::GET ) == WebServer::ResourceMethod::GET ) {
 					outputStream << " GET";
@@ -192,6 +242,7 @@ namespace micasa {
 				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::OPTIONS ) == WebServer::ResourceMethod::OPTIONS ) {
 					outputStream << " OPTIONS";
 				}
+				*/
 				outputStream << "<br><br>";
 			}
 			

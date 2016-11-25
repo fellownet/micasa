@@ -7,6 +7,7 @@
 #include <mutex>
 #include <chrono>
 #include <map>
+#include <vector>
 
 #include "Worker.h"
 #include "Logger.h"
@@ -19,7 +20,7 @@ namespace micasa {
 	class WebServer final : public Worker {
 
 	public:
-		enum ResourceMethod {
+		enum Method {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
 			GET = 1,
@@ -37,30 +38,22 @@ namespace micasa {
 			// v Return available methods for resource or collection
 			OPTIONS = 64
 		}; // enum Method
-
-		class ResourceHandler; // forward declaration
+		
+		typedef std::function<void( const std::string uri_, int& code_, nlohmann::json& output_ )> t_callback;
 		
 		struct Resource {
-			std::string uri;
-			int methods;
-			std::string title;
-			std::shared_ptr<ResourceHandler> handler;
+			const std::string reference;
+			const std::string uri;
+			const unsigned int methods;
+			const t_callback callback;
 		};
-
-		class ResourceHandler {
-			
-		public:
-			virtual void handleResource( const Resource& resource_, int& code_, nlohmann::json& output_ ) =0;
 		
-		}; // class ResourceHandler
-
 		WebServer();
 		~WebServer();
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
-		void addResource( Resource resource_ );
-		void removeResourceAt( std::string uri_ );
-		void touchResourceAt( std::string uri_ );
+		void addResource( Resource* resource_ );
+		void removeResource( const std::string reference_ );
 
 		void start();
 		void stop();
@@ -69,7 +62,7 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 		
 	private:
-		std::map<std::string, std::pair<Resource, std::string> > m_resources;
+		std::map<std::string, std::vector<Resource*> > m_resources;
 		mutable std::mutex m_resourcesMutex;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
