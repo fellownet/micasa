@@ -14,24 +14,11 @@
 
 #include "json.hpp"
 
-extern "C" {
-
-	void webserver_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
-		// NOTE do not block this; store the connection instead for later use (long polling?) as adviced
-		// by an engineer of mongoose (multithreading might be obsoleted in the future due to it being
-		// very error prone).
-		micasa::WebServer* webserver = reinterpret_cast<micasa::WebServer*>( connection_->user_data );
-		if ( event_ == MG_EV_HTTP_REQUEST ) {
-			webserver->_processHttpRequest( connection_, (http_message*)data_ );
-		}
-	}
-
-} // extern "C"
-
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-
+	extern std::shared_ptr<Network> g_network;
+	
 	using namespace nlohmann;
 
 	WebServer::WebServer() {
@@ -48,9 +35,35 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::string WebServer::toString() const {
-		return "WebServer";
+	void WebServer::start() {
+#ifdef _DEBUG
+		assert( g_network->isRunning() && "Network should be running before WebServer is started." );
+#endif // _DEBUG
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+
+		g_network->bind( "8081", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+			if ( event_ == MG_EV_HTTP_REQUEST ) {
+				this->_processHttpRequest( connection_, (http_message*)data_ );
+			}
+		} ) );
+		
+		this->_begin();
+		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
+	
+	void WebServer::stop() {
+#ifdef _DEBUG
+		assert( g_network->isRunning() && "Network should be running before WebServer is stopped." );
+#endif // _DEBUG
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+
+		this->_retire();
+		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
+	};
+	
+	std::chrono::milliseconds WebServer::_work( const unsigned long int iteration_ ) {
+		return std::chrono::milliseconds( 0 );
+	}
 
 	void WebServer::addResource( Resource resource_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
@@ -75,48 +88,6 @@ namespace micasa {
 		std::string etag = std::to_string( rand() );
 		this->m_resources[uri_].second = etag;
 	};
-
-	void WebServer::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-
-		mg_mgr_init( &this->m_manager, NULL );
-
-		mg_bind_opts bind_opts;
-		memset( &bind_opts, 0, sizeof( bind_opts ) );
-		bind_opts.user_data = this;
-#ifdef _WITH_SSL
-		bind_opts.ssl_cert = "server.pem";
-		bind_opts.ssl_key = "key.pem";
-		this->m_connection = mg_bind_opt( &this->m_manager, "443", webserver_mg_handler, bind_opts );
-#endif // _WITH_SSL
-#ifndef _WITH_SSL
-		this->m_connection = mg_bind_opt( &this->m_manager, "8081", webserver_mg_handler, bind_opts );
-#endif // _WITH_SSL
-
-		if ( false == this->m_connection ) {
-			// TODO can we be a little bit more descriptive about the error?
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to bind webserver. Port in use, user permission issue or certificate problem?" );
-			return;
-		}
-
-		mg_set_protocol_http_websocket( this->m_connection );
-
-		this->_begin();
-
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
-	};
-
-	void WebServer::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire();
-		mg_mgr_free( &this->m_manager );
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
-	};
-
-	std::chrono::milliseconds WebServer::_work( const unsigned long int iteration_ ) {
-		mg_mgr_poll( &this->m_manager, 100 );
-		return std::chrono::milliseconds( 0 );
-	}
 
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 

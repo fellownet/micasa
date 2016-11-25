@@ -32,13 +32,6 @@ namespace micasa {
 	};
 
 	void Device::start() {
-		// TODO Check the m_allowedUpdateSources variable to see of a PATCH method is available.
-		g_webServer->addResource( {
-			"api/hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id,
-			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::HEAD,
-			"Retrieve the details of device <i>" + this->m_name + "</i>.",
-			this->shared_from_this()
-		} );
 		g_webServer->addResource( {
 			"api/devices/" + this->m_id,
 			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::PUT | WebServer::ResourceMethod::PATCH | WebServer::ResourceMethod::DELETE,
@@ -50,7 +43,6 @@ namespace micasa {
 	
 	void Device::stop() {
 		this->_retire();
-		g_webServer->removeResourceAt( "api/hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id );
 		g_webServer->removeResourceAt( "api/devices/" + this->m_id );
 	}
 	

@@ -3,6 +3,10 @@
 #include "Controller.h"
 #include "Database.h"
 
+#ifdef _DEBUG
+#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 
 	extern std::shared_ptr<WebServer> g_webServer;
@@ -25,13 +29,12 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::string Controller::toString() const {
-		return "Controller";
-	};
-
 	void Controller::start() {
+#ifdef _DEBUG
+		assert( g_webServer->isRunning() && "WebServer should be running before Controller is started." );
+#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-
+		
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
@@ -81,7 +84,11 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::shared_ptr<Hardware> Controller::_declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
+		return this->declareHardware( hardwareType_, std::shared_ptr<Hardware>(), reference_, name_, settings_ );
+	};
+
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 #ifdef _DEBUG
 		assert( this->isRunning() && "Controller should be running when declaring hardware." );
 #endif // _DEBUG
@@ -93,26 +100,35 @@ namespace micasa {
 			}
 		}
 
-		long id = g_database->putQuery(
-			"INSERT INTO `hardware` ( `reference`, `type`, `name` ) "
-			"VALUES ( %Q, %d, %Q )"
-			, reference_.c_str(), static_cast<int>( hardwareType_ ), name_.c_str()
-		);
+		long id;
+		if ( parent_ ) {
+			id = g_database->putQuery(
+				"INSERT INTO `hardware` ( `hardware_id`, `reference`, `type`, `name` ) "
+				"VALUES ( %q, %Q, %d, %Q )"
+				, parent_->getId().c_str(), reference_.c_str(), static_cast<int>( hardwareType_ ), name_.c_str()
+			);
+		} else {
+			id = g_database->putQuery(
+				"INSERT INTO `hardware` ( `reference`, `type`, `name` ) "
+				"VALUES ( %Q, %d, %Q )"
+				, reference_.c_str(), static_cast<int>( hardwareType_ ), name_.c_str()
+			);
+		}
 		
 		std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType_, std::to_string( id ), reference_, name_ );
-
+		
 		Settings& settings = hardware->getSettings();
 		settings.insert( settings_ );
 		settings.commit( *hardware );
 		
 		hardware->start();
 		this->m_hardware.push_back( hardware );
-
+		
 		g_webServer->touchResourceAt( "api/hardware" );
 		
 		return hardware;
 	};
-
+	
 	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {
 		return std::chrono::milliseconds( 1000 );
 	};

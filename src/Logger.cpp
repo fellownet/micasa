@@ -1,7 +1,5 @@
 #include <cstring>
-#include <stdarg.h>
 #include <iostream>
-#include <sstream>
 
 #include "Logger.h"
 
@@ -46,23 +44,6 @@ namespace micasa {
 		va_start( arguments, message_ );
 		this->_doLog( logLevel_, message_.c_str(), true, arguments );
 		va_end( arguments );
-	};
-
-	void Logger::logr( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_, ... ) const {
-		std::stringstream message;
-		message << "[" << instance_->toString() << "] " << message_;
-
-		va_list arguments;
-		va_start( arguments, message_ );
-		this->_doLog( logLevel_, message.str(), true, arguments );
-		va_end( arguments );
-	};
-
-	void Logger::log( const LogLevel logLevel_, const LoggerInstance* instance_, std::string message_ ) const {
-		std::stringstream message;
-		message << "[" << instance_->toString() << "] " << message_;
-		va_list empty;
-		this->_doLog( logLevel_, message.str(), false, empty );
 	};
 
 } // namespace micasa

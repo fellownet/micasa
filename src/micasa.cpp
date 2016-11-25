@@ -5,16 +5,18 @@
 
 #include "Arguments.h"
 #include "Logger.h"
-#include "Controller.h"
 #include "Database.h"
+#include "Network.h"
 #include "WebServer.h"
+#include "Controller.h"
 
 namespace micasa {
 	
-	std::shared_ptr<Controller> g_controller;
-	std::shared_ptr<Database> g_database;
 	std::shared_ptr<Logger> g_logger;
+	std::shared_ptr<Database> g_database;
+	std::shared_ptr<Network> g_network;
 	std::shared_ptr<WebServer> g_webServer;
+	std::shared_ptr<Controller> g_controller;
 
 	const char g_usage[] = "Usage: micasa -p|--port <port> [-l|--loglevel <loglevel>] [-d|--daemonize] [-db|--database <filename>]\n";
 
@@ -83,25 +85,25 @@ int main( int argc_, char* argv_[] ) {
 
 	g_logger = std::make_shared<Logger>( static_cast<Logger::LogLevel>( logLevel ) );
 	g_database = std::make_shared<Database>( database );
+	g_network = std::make_shared<Network>();
 	g_webServer = std::make_shared<WebServer>();
 	g_controller = std::make_shared<Controller>();
 
-	g_controller->start();
+	g_network->start();
 	g_webServer->start();
-	
+	g_controller->start();
+
 	while ( ! g_shutdown ) 	{
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 	}
 
-	if ( g_webServer->isRunning() ) {
-		g_webServer->stop();
-	}
-	if ( g_controller->isRunning() ) {
-		g_controller->stop();
-	}
+	g_webServer->stop();
+	g_network->stop();
+	g_controller->stop();
 	
 	g_controller = NULL;
 	g_webServer = NULL;
+	g_network = NULL;
 	g_database = NULL;
 	g_logger = NULL;
 	

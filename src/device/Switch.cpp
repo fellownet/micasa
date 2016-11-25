@@ -18,10 +18,6 @@ namespace micasa {
 		{ Switch::Options::STARTED, "Started" },
 	};
 	
-	std::string Switch::toString() const {
-		return this->m_name;
-	};
-
 	void Switch::start() {
 		std::string value = g_database->getQueryValue(
 			"SELECT `value` "
@@ -50,7 +46,6 @@ namespace micasa {
 				, this->m_id.c_str(), (unsigned int)value_
 			);
 
-			g_webServer->touchResourceAt( "api/hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id );
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionsText.at( value_ ).c_str() );

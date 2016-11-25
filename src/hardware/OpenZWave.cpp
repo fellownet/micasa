@@ -8,10 +8,6 @@
 
 namespace micasa {
 
-	std::string OpenZWave::toString() const {
-		return this->m_name;
-	};
-
 }; // namespace micasa
 
 #endif // WITH_OPENZWAVE

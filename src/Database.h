@@ -16,12 +16,12 @@
 
 namespace micasa {
 
-	class Database final : public LoggerInstance {
+	class Database final {
 
 	public:
 		Database( std::string filename_ );
 		~Database();
-		std::string toString() const;
+		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }
 
 		std::vector<std::map<std::string, std::string> > getQuery( std::string query_, ... ) const;
 		std::map<std::string, std::string> getQueryRow( std::string query_, ... ) const ;

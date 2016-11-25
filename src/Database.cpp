@@ -36,10 +36,6 @@ namespace micasa {
 		}
 	}
 
-	std::string Database::toString() const {
-		return "Database";
-	};
-
 	void Database::_init() const {
 		this->putQuery( "PRAGMA synchronous=NORMAL" );
 		this->putQuery( "PRAGMA foreign_keys=ON" );

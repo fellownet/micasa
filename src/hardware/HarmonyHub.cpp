@@ -4,60 +4,25 @@
 
 #include "../Utils.h"
 #include "../device/Switch.h"
+#include "../Network.h"
 
 #define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
-
-extern "C" {
-	
-	void hhub_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
-		micasa::HarmonyHub* hardware = reinterpret_cast<micasa::HarmonyHub*>( connection_->user_data );
-		switch( event_ ) {
-			case MG_EV_CONNECT: {
-				int status = *(int*) data_;
-				if ( status == 0 ) {
-					mg_set_timer( connection_, 0 ); // clear timeout timer
-					hardware->_processConnection( true );
-				} else {
-					hardware->_processConnection( false );
-				}
-				break;
-			}
-			case MG_EV_RECV:
-				hardware->_processConnection( true );
-				break;
-
-			case MG_EV_POLL:
-			case MG_EV_SEND:
-				break;
-
-			default:
-				hardware->_processConnection( false );
-				break;
-		}
-	}
-	
-} // extern "C"
+#define HARMONY_HUB_PING_INTERVAL_SEC	30
 
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
+	extern std::shared_ptr<Network> g_network;
 
 	using namespace nlohmann;
 	
-	std::string HarmonyHub::toString() const {
-		return this->m_name;
-	};
-
 	void HarmonyHub::start() {
-		mg_mgr_init( &this->m_manager, NULL );
 		this->_begin();
 		Hardware::start();
 	}
 	
 	void HarmonyHub::stop() {
-		this->m_state = CLOSED;
 		this->_retire();
-		mg_mgr_free( &this->m_manager );
 		Hardware::stop();
 	}
 
@@ -66,42 +31,51 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			return std::chrono::milliseconds( 1000 * 60 * 5 );
 		}
-		
-		std::stringstream url;
-		url << this->m_settings["address"] << ":" << this->m_settings["port"];
-#ifdef _DEBUG
-		g_logger->logr( Logger::LogLevel::DEBUG, this, "Connecting to %s.", url.str().c_str() );
-#endif // _DEBUG
 
-		this->m_connection = mg_connect( &this->m_manager, url.str().c_str(), hhub_mg_handler );
-		if ( NULL != this->m_connection ) {
-			this->m_connection->user_data = this;
-			mg_set_timer( this->m_connection, mg_time() + 5 );
-
+		if ( this->m_state == CLOSED ) {
+			std::string uri = this->m_settings["address"] + ':' + this->m_settings["port"];
 			this->m_state = CONNECTING;
-			while( this->m_state != CLOSED ) {
-				mg_mgr_poll( &this->m_manager, 100 );
-				
-				// Send a ping when in IDLE every 30 seconds. Note that the Harmony Hub will disconnect pretty quick
-				// if no ping is received, which will happen if we're getting stuck in an unexpected state.
-				static unsigned long iteration = 0;
-				if (
-					this->m_state == IDLE
-					&& ++iteration % ( 10 * 30 ) == 0
-				) {
+			this->m_connection = g_network->connect( uri, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				switch( event_ ) {
+					case MG_EV_CONNECT: {
+						int status = *(int*) data_;
+						if ( status == 0 ) {
+							mg_set_timer( connection_, 0 ); // clear timeout timer
+							this->_processConnection( true );
+						} else {
+							this->_processConnection( false );
+						}
+						mg_set_timer( this->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						break;
+					}
+					case MG_EV_RECV:
+						this->_processConnection( true );
+						break;
+						
+					case MG_EV_POLL:
+					case MG_EV_SEND:
+					case MG_EV_SHUTDOWN:
+						break;
+						
+					case MG_EV_TIMER: {
 #ifdef _DEBUG
-					g_logger->log( Logger::LogLevel::DEBUG, this, "Sending ping." );
+						g_logger->log( Logger::LogLevel::DEBUG, this, "Sending ping." );
 #endif // _DEBUG
-					std::stringstream send;
-					send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-					send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
-					mg_send( this->m_connection, send.str().c_str(), send.str().size() );
+						std::stringstream send;
+						send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+						send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
+						mg_send( this->m_connection, send.str().c_str(), send.str().size() );
+						mg_set_timer( this->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						break;
+					}
+						
+					default:
+						this->_processConnection( false );
+						break;
 				}
-			}
-		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to connect." );
+			} ) );
 		}
-
+		
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	}
 	

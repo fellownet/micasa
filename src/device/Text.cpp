@@ -9,10 +9,6 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<WebServer> g_webServer;
 
-	std::string Text::toString() const {
-		return this->m_name;
-	};
-
 	void Text::start() {
 		this->m_value = g_database->getQueryValue(
 			"SELECT `value` "
@@ -37,7 +33,6 @@ namespace micasa {
 				, this->m_id.c_str(), value_.c_str()
 			);
 
-			g_webServer->touchResourceAt( "api/hardware/" + this->m_hardware->getId() + "/devices/" + this->m_id );
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
