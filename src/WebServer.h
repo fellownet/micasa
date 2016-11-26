@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "Worker.h"
-#include "Logger.h"
 #include "Network.h"
 
 #include "json.hpp"
@@ -41,19 +40,27 @@ namespace micasa {
 		
 		typedef std::function<void( const std::string uri_, int& code_, nlohmann::json& output_ )> t_callback;
 		
-		struct Resource {
+		struct ResourceCallback {
 			const std::string reference;
+			const std::string title;
 			const std::string uri;
 			const unsigned int methods;
 			const t_callback callback;
+		};
+		
+		struct ResourceCache {
+			const std::string content;
+			const std::string etag;
+			const std::string modified;
 		};
 		
 		WebServer();
 		~WebServer();
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
-		void addResource( Resource* resource_ );
-		void removeResource( const std::string reference_ );
+		void addResourceCallback( std::shared_ptr<ResourceCallback> callback_ );
+		void removeResourceCallback( const std::string reference_ );
+		void touchResourceAt( const std::string uri_ );
 
 		void start();
 		void stop();
@@ -62,9 +69,11 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 		
 	private:
-		std::map<std::string, std::vector<Resource*> > m_resources;
+		std::map<std::string, std::vector<std::shared_ptr<ResourceCallback> > > m_resources;
+		std::map<std::string, ResourceCache> m_resourceCache;
 		mutable std::mutex m_resourcesMutex;
 
+		void _removeResourceCache( const std::string uri_ );
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
 
 	}; // class WebServer

@@ -19,23 +19,9 @@ namespace micasa {
 			, this->m_id.c_str()
 		);
 
-		/*
-		g_webServer->addResource( new WebServer::Resource( {
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
-			"api/devices-test",
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
-				output_[this->m_id.c_str()] = {
-					{ "id", atoi( this->m_id.c_str() ) },
-					{ "name", this->m_name },
-					{ "value", this->m_value }
-				};
-			} )
-		} ) );
-		*/
-		
-		g_webServer->addResource( new WebServer::Resource( {
-			"device-" + this->m_id,
+			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
@@ -45,23 +31,24 @@ namespace micasa {
 					{ "value", this->m_value }
 				};
 			} )
-		} ) );
-		g_webServer->addResource( new WebServer::Resource( {
+		} ) ) );
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
+			"Returns detailed information for " + this->m_name,
 			"api/devices/" + this->m_id,
-			WebServer::Method::GET,
+			WebServer::Method::GET | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
 				output_["id"] = atoi( this->m_id.c_str() );
 				output_["name"] = this->m_name;
 				output_["value"] = this->m_value;
 			} )
-		} ) );
+		} ) ) );
 
 		Device::start();
 	};
 
 	void Text::stop() {
-		g_webServer->removeResource( "device-" + this->m_id ); // gets freed by webserver
+		g_webServer->removeResourceCallback( "device-" + this->m_id );
 		Device::stop();
 	};
 	
@@ -76,6 +63,8 @@ namespace micasa {
 				"VALUES (%q, %Q)"
 				, this->m_id.c_str(), value_.c_str()
 			);
+			g_webServer->touchResourceAt( "api/devices" );
+			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
 		} else {
 			this->m_value = currentValue;

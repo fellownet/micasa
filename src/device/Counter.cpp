@@ -20,8 +20,9 @@ namespace micasa {
 		);
 		this->m_value = atoi( databaseValue.c_str() );
 
-		g_webServer->addResource( new WebServer::Resource( {
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
+			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
@@ -31,24 +32,25 @@ namespace micasa {
 					{ "value", this->m_value }
 				};
 			} )
-		} ) );
-		g_webServer->addResource( new WebServer::Resource( {
+		} ) ) );
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
+			"Returns detailed information for " + this->m_name,
 			"api/devices/" + this->m_id,
-			WebServer::Method::GET,
+			WebServer::Method::GET | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
 				output_["id"] = atoi( this->m_id.c_str() );
 				output_["name"] = this->m_name;
 				output_["value"] = this->m_value;
 				output_["trends"] = g_database->getQuery( "SELECT `date`, `diff`, `last` FROM `device_counter_trends` WHERE `device_id`=%q ORDER BY `date` ASC LIMIT 48", this->m_id.c_str() );
 			} )
-		} ) );
+		} ) ) );
 
 		Device::start();
 	};
 
 	void Counter::stop() {
-		g_webServer->removeResource( "device-" + this->m_id ); // gets freed by webserver
+		g_webServer->removeResourceCallback( "device-" + this->m_id );
 		Device::stop();
 	};
 	
@@ -63,6 +65,8 @@ namespace micasa {
 				"VALUES (%q, %d)"
 				, this->m_id.c_str(), value_
 			);
+			g_webServer->touchResourceAt( "api/devices" );
+			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
 			this->m_value = currentValue;
