@@ -49,21 +49,6 @@ namespace micasa {
 			this->m_hardware.push_back( hardware );
 		}
 		
-		/*
-		g_webServer->addResource( {
-			"api/hardware",
-			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::HEAD | WebServer::ResourceMethod::POST,
-			"Retrieve a list of available hardware.",
-			this->shared_from_this()
-		} );
-		g_webServer->addResource( {
-			"api/devices",
-			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::HEAD,
-			"Retrieve a list of available devices.",
-			this->shared_from_this()
-		} );
-		*/
-		
 		this->_begin();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
@@ -71,9 +56,6 @@ namespace micasa {
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
-
-		//g_webServer->removeResourceAt( "api/hardware" );
-		//g_webServer->removeResourceAt( "api/devices" );
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
@@ -91,9 +73,6 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
-#ifdef _DEBUG
-		assert( this->isRunning() && "Controller should be running when declaring hardware." );
-#endif // _DEBUG
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
@@ -126,8 +105,6 @@ namespace micasa {
 		hardware->start();
 		this->m_hardware.push_back( hardware );
 		
-		//g_webServer->touchResourceAt( "api/hardware" );
-		
 		return hardware;
 	};
 	
@@ -135,21 +112,4 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 );
 	};
 	
-	/*
-	void Controller::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
-		if ( resource_.uri == "api/hardware" ) {
-			// TODO this makes everything a string :/ use proper types for int and float
-			output_ = g_database->getQuery(
-				"SELECT `id`, `type`, `name` "
-				"FROM `hardware`"
-			);
-		} else if ( resource_.uri == "api/devices" ) {
-			output_ = g_database->getQuery(
-				"SELECT `id`, `hardware_id`, `type`, `name` "
-				"FROM `devices`"
-			);
-		}
-	};
-	*/
-
 }; // namespace micasa

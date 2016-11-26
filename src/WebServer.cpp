@@ -11,6 +11,8 @@
 #include <cstdlib>
 
 #include "WebServer.h"
+#include "Database.h"
+#include "Logger.h"
 #include "Utils.h"
 
 #include "json.hpp"
@@ -19,12 +21,15 @@ namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
+	extern std::shared_ptr<Database> g_database;
 	
 	using namespace nlohmann;
 
 	WebServer::WebServer() {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be created before global WebServer instance." );
+		assert( g_logger && "Global Network instance should be created before global WebServer instance." );
+		assert( g_logger && "Global Database instance should be created before global WebServer instance." );
 #endif // _DEBUG
 		srand ( time( NULL ) );
 	};
@@ -32,7 +37,10 @@ namespace micasa {
 	WebServer::~WebServer() {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be destroyed after global WebServer instance." );
+		assert( g_logger && "Global Network instance should be destroyed after global WebServer instance." );
+		assert( g_logger && "Global Database instance should be destroyed after global WebServer instance." );
 		assert( this->m_resources.size() == 0 && "All resources should be removed before the global WebServer instance is destroyed." );
+		assert( this->m_resourceCache.size() == 0 && "All resource tags should be removed before the global WebServer instance is destroyed." );
 #endif // _DEBUG
 	};
 
@@ -66,31 +74,32 @@ namespace micasa {
 		// TODO if it turns out that the webserver instance doesn't need to do stuff periodically, remove the
 		// extend from Worker.
 		return std::chrono::milliseconds( 5000 );
-	}
+	};
 
-	void WebServer::addResource( Resource* resource_ ) {
+	void WebServer::addResourceCallback( std::shared_ptr<ResourceCallback> callback_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		auto resourceIt = this->m_resources.find( resource_->uri );
+		auto resourceIt = this->m_resources.find( callback_->uri );
 		if ( resourceIt != this->m_resources.end() ) {
-			resourceIt->second.push_back( resource_ );
+			resourceIt->second.push_back( callback_ );
 		} else {
-			this->m_resources[resource_->uri] = { resource_ };
+			this->m_resources[callback_->uri] = { callback_ };
 		}
+		this->m_resourceCache.erase( callback_->uri );
 #ifdef _DEBUG
-		g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource installed at %s.", resource_->uri.c_str() );
+		g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback installed at %s.", callback_->uri.c_str() );
 #endif // _DEBUG
-	}
+	};
 	
-	void WebServer::removeResource( const std::string reference_ ) {
+	void WebServer::removeResourceCallback( const std::string reference_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
 			for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); ) {
 				if ( (*callbackIt)->reference == reference_ ) {
-#ifdef _DEBUG
-					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource removed at %s.", (*callbackIt)->uri.c_str() );
-#endif // _DEBUG
-					delete( *callbackIt );
 					callbackIt = resourceIt->second.erase( callbackIt );
+					this->m_resourceCache.erase( (*callbackIt)->uri );
+#ifdef _DEBUG
+					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback removed at %s.", (*callbackIt)->uri.c_str() );
+#endif // _DEBUG
 				} else {
 					callbackIt++;
 				}
@@ -101,8 +110,14 @@ namespace micasa {
 				resourceIt++;
 			}
 		}
-	}
+	};
 
+	void WebServer::touchResourceAt( const std::string uri_ ) {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resourceCache.erase( uri_ );
+	};
+	
+	
 	
 	
 	/*
@@ -137,13 +152,13 @@ namespace micasa {
 		methodStr.assign( message_->method.p, message_->method.len );
 		std::string queryStr = "";
 		queryStr.assign( message_->query_string.p, message_->query_string.len );
-		stringIsolate( queryStr, "_method=", "&", false, methodStr );
 		std::string uriStr = "";
 		if ( message_->uri.len >= 1 ) {
 			uriStr.assign( message_->uri.p + 1, message_->uri.len - 1 );
 		}
 		
-		// Determine method.
+		// Determine method (note that the method can be overridden by adding _method=xx to the query).
+		stringIsolate( queryStr, "_method=", "&", false, methodStr );
 		Method method = Method::GET;
 		if ( methodStr == "HEAD" ) {
 			method = Method::HEAD;
@@ -160,54 +175,62 @@ namespace micasa {
 		}
 
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		
 		auto resource = this->m_resources.find( uriStr );
 		if ( resource != this->m_resources.end() ) {
 
 			std::stringstream headers;
 			headers << "Content-Type: Content-type: application/json\r\n";
-			headers << "Access-Control-Allow-Origin: *";
+			headers << "Access-Control-Allow-Origin: *\r\n";
 
-			json data;
-			int code = 200;
-			for ( auto callbackIt = resource->second.begin(); callbackIt != resource->second.end(); callbackIt++ ) {
-				(*callbackIt)->callback( uriStr, code, data );
-			}
-			
-			std::string output = data.dump( 4 );
-			mg_send_head( connection_, 200, output.length(), headers.str().c_str() );
-			mg_send( connection_, output.c_str(), output.length() );
-			connection_->flags |= MG_F_SEND_AND_CLOSE;
-			
-			
-			
-			/*
-			
-			std::string etag;
-			int i = 0;
-			for ( const mg_str &headerName : message_->header_names ) {
-				std::string header;
-				header.assign( headerName.p, headerName.len );
-				if ( header == "If-None-Match" ) {
-					etag.assign( message_->header_values[i].p, message_->header_values[i].len );
+			auto cacheHit = this->m_resourceCache.find( uriStr );
+			if ( cacheHit != this->m_resourceCache.end() ) {
+				headers << "ETag: " << cacheHit->second.etag;
+				
+				// There's a cache entry available for the requested resource. If the client provided an
+				// etag header that matches the one in the cache, nothing is being send. Otherwise the
+				// cache is send.
+				std::string etag;
+				int i = 0;
+				for ( const mg_str &headerName : message_->header_names ) {
+					std::string header;
+					header.assign( headerName.p, headerName.len );
+					if ( header == "If-None-Match" ) {
+						etag.assign( message_->header_values[i].p, message_->header_values[i].len );
+					}
+					i++;
 				}
-				i++;
-			}
-			if ( etag == resource->second.second ) {
-				// Resource here is the same as client, send not-changed header (=304).
-				mg_send_head( connection_, 304, 0, headers.str().c_str() );
+				if ( etag == cacheHit->second.etag ) {
+					mg_send_head( connection_, 304, 0, headers.str().c_str() );
+				} else {
+					mg_send_head( connection_, 200, cacheHit->second.content.length(), headers.str().c_str() );
+					mg_send( connection_, cacheHit->second.content.c_str(), cacheHit->second.content.length() );
+				}
 			} else {
-				// We've got a newer version of the resource here, send it to the client.
-				json outputJson;
-				int code = 200;
-				resource->second.first.handler->handleResource( resource->second.first, code, outputJson );
 
-				headers << "ETag: " << resource->second.second;
-				std::string output = outputJson.dump( 4 );
-				mg_send_head( connection_, 200, output.length(), headers.str().c_str() );
-				mg_send( connection_, output.c_str(), output.length() );
+				// There's no cache entry available so we need to invoke all callbacks to generate the
+				// content for this resource and populate the cache.
+				json data;
+				int code = 200;
+				for ( auto callbackIt = resource->second.begin(); callbackIt != resource->second.end(); callbackIt++ ) {
+					(*callbackIt)->callback( uriStr, code, data );
+				}
+				
+				const std::string content = data.dump( 4 );
+				const std::string etag = "W/\"" + std::to_string( rand() ) + "\"";
+				const std::string modified = g_database->getQueryValue( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
+				this->m_resourceCache.insert( { uriStr, WebServer::ResourceCache( { content, etag, modified } ) } );
+
+				headers << "ETag: " << etag << "\r\n";
+				headers << "Last-Modified: " << modified;
+				
+				mg_send_head( connection_, 200, content.length(), headers.str().c_str() );
+				mg_send( connection_, content.c_str(), content.length() );
 			}
-			*/
-		
+			
+			connection_->flags |= MG_F_SEND_AND_CLOSE;
+
+#ifdef _DEBUG
 		} else if (
 			uriStr == "api"
 			&& method == Method::GET
@@ -217,32 +240,29 @@ namespace micasa {
 			std::stringstream outputStream;
 			outputStream << "<!doctype html>" << "<html><body style=\"font-family:sans-serif;\">";
 			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-				//outputStream << "<strong>Title:</strong> " << resourceIt->second.first.title << "<br>";
+				outputStream << "<strong>Title:</strong> " << (*resourceIt->second.begin())->title << "<br>";
 				outputStream << "<strong>Uri:</strong> <a href=\"/" << resourceIt->first << "\">" << resourceIt->first << "</a><br>";
-				/*
 				outputStream << "<strong>Methods:</strong>";
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::GET ) == WebServer::ResourceMethod::GET ) {
-					outputStream << " GET";
+				
+				unsigned int methods = 0;
+				for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); callbackIt++ ) {
+					methods |= (*callbackIt)->methods;
 				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::HEAD ) == WebServer::ResourceMethod::HEAD ) {
-					outputStream << " HEAD";
+				std::map<Method,std::string> availableMethods = {
+					{ Method::GET, "GET" },
+					{ Method::HEAD, "HEAD" },
+					{ Method::POST, "POST" },
+					{ Method::PUT, "PUT" },
+					{ Method::PATCH, "PATCH" },
+					{ Method::DELETE, "DELETE" },
+					{ Method::OPTIONS, "OPTIONS" },
+				};
+				for ( auto methodIt = availableMethods.begin(); methodIt != availableMethods.end(); methodIt++ ) {
+					if ( ( methods & methodIt->first ) == methodIt->first ) {
+						outputStream << " " << methodIt->second;
+					}
 				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::POST ) == WebServer::ResourceMethod::POST ) {
-					outputStream << " POST";
-				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::PUT ) == WebServer::ResourceMethod::PUT ) {
-					outputStream << " PUT";
-				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::PATCH ) == WebServer::ResourceMethod::PATCH ) {
-					outputStream << " PATCH";
-				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::DELETE ) == WebServer::ResourceMethod::DELETE ) {
-					outputStream << " DELETE";
-				}
-				if ( ( resourceIt->second.first.methods & WebServer::ResourceMethod::OPTIONS ) == WebServer::ResourceMethod::OPTIONS ) {
-					outputStream << " OPTIONS";
-				}
-				*/
+
 				outputStream << "<br><br>";
 			}
 			
@@ -250,7 +270,8 @@ namespace micasa {
 			mg_send_head( connection_, 200, output.length(), "Content-Type: text/html" );
 			mg_send( connection_, output.c_str(), output.length() );
 			connection_->flags |= MG_F_SEND_AND_CLOSE;
-			
+#endif // _DEBUG
+
 		} else {
 			
 			// If some other resource was accessed, serve static files instead.
