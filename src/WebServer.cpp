@@ -218,7 +218,7 @@ namespace micasa {
 				
 				const std::string content = data.dump( 4 );
 				const std::string etag = "W/\"" + std::to_string( rand() ) + "\"";
-				const std::string modified = g_database->getQueryValue( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
+				const std::string modified = g_database->getQueryValue<std::string>( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
 				this->m_resourceCache.insert( { uriStr, WebServer::ResourceCache( { content, etag, modified } ) } );
 
 				headers << "ETag: " << etag << "\r\n";

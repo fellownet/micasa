@@ -21,7 +21,7 @@ namespace micasa {
 	};
 	
 	void Switch::start() {
-		std::string value = g_database->getQueryValue(
+		std::string value = g_database->getQueryValue<std::string>(
 			"SELECT `value` "
 			"FROM `device_switch_history` "
 			"WHERE `device_id`=%q "

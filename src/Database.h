@@ -23,15 +23,15 @@ namespace micasa {
 		~Database();
 		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }
 
-		std::vector<std::map<std::string, std::string> > getQuery( std::string query_, ... ) const;
-		std::map<std::string, std::string> getQueryRow( std::string query_, ... ) const ;
-		std::map<std::string, std::string> getQueryMap( std::string query_, ... ) const ;
-		std::string getQueryValue( std::string query_, ... ) const;
-		long putQuery( std::string query_, ... ) const;
+		std::vector<std::map<std::string, std::string> > getQuery( const std::string& query_, ... ) const;
+		std::map<std::string, std::string> getQueryRow( const std::string& query_, ... ) const ;
+		std::map<std::string, std::string> getQueryMap( const std::string& query_, ... ) const ;
+		template<typename T> T getQueryValue( const std::string& query_, ... ) const;
+		long putQuery( const std::string& query_, ... ) const;
 
 	private:
 		void _init() const;
-		void _wrapQuery( std::string query_, va_list arguments_, std::function<void(sqlite3_stmt*)> process_ ) const;
+		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)> process_ ) const;
 
 		const std::string m_filename;
 		sqlite3 *m_connection;

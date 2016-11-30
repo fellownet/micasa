@@ -12,7 +12,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 
 	void Counter::start() {
-		auto databaseValue = g_database->getQueryValue(
+		this->m_value = g_database->getQueryValue<int>(
 		   "SELECT `value` "
 		   "FROM `device_counter_history` "
 		   "WHERE `device_id`=%q "
@@ -20,7 +20,6 @@ namespace micasa {
 		   "LIMIT 1"
 		   , this->m_id.c_str()
 		);
-		this->m_value = atoi( databaseValue.c_str() );
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
@@ -92,7 +91,7 @@ namespace micasa {
 				, hourFormat.c_str(), this->m_id.c_str(), groupFormat.c_str()
 			);
 			for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
-				auto value = g_database->getQueryValue(
+				auto value = g_database->getQueryValue<std::string>(
 					"SELECT `value` "
 					"FROM `device_counter_history` "
 					"WHERE `device_id`=%q AND `date`=%Q"

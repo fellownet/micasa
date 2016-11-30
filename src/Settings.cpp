@@ -109,6 +109,8 @@ namespace micasa {
 	template Settings* Settings::put( const std::string& key_, const std::string& value_ );
 	template Settings* Settings::put( const std::string& key_, const int& value_ );
 	template Settings* Settings::put( const std::string& key_, const unsigned int& value_ );
+	template Settings* Settings::put( const std::string& key_, const float& value_ );
+	template Settings* Settings::put( const std::string& key_, const double& value_ );
 	
 	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
@@ -126,7 +128,9 @@ namespace micasa {
 	template std::string Settings::get( const std::string& key_, const std::string& default_ );
 	template int Settings::get( const std::string& key_, const int& default_ );
 	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ );
-
+	template float Settings::get( const std::string& key_, const float& default_ );
+	template double Settings::get( const std::string& key_, const double& default_ );
+	
 	const std::string& Settings::operator[]( const std::string& key_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {

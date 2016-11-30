@@ -29,7 +29,7 @@ namespace micasa {
 	protected:
 		
 	private:
-		std::mutex m_managerMutex;
+		static std::mutex s_managerMutex;
 		
 	}; // class OpenZWave
 

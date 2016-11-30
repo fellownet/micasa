@@ -12,7 +12,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 	
 	void Level::start() {
-		auto databaseValue = g_database->getQueryValue(
+		this->m_value = g_database->getQueryValue<float>(
 			"SELECT `value` "
 			"FROM `device_level_history` "
 			"WHERE `device_id`=%q "
@@ -20,7 +20,6 @@ namespace micasa {
 			"LIMIT 1"
 			, this->m_id.c_str()
 		);
-		this->m_value = atof( databaseValue.c_str() );
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,

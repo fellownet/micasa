@@ -42,7 +42,7 @@ namespace micasa {
 
 		this->putQuery( "VACUUM" );
 
-		unsigned int version = atoi( this->getQueryValue( "PRAGMA user_version" ).c_str() );
+		unsigned int version = this->getQueryValue<unsigned int>( "PRAGMA user_version" );
 		if ( version < c_queries.size() ) {
 			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
 				this->putQuery( *queryIt );
@@ -51,7 +51,7 @@ namespace micasa {
 		}
 	}
 
-	void Database::_wrapQuery( std::string query_, va_list arguments_, std::function<void(sqlite3_stmt*)> process_ ) const {
+	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)> process_ ) const {
 		if ( ! this->m_connection ) {
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;
@@ -81,7 +81,7 @@ namespace micasa {
 		sqlite3_free( query );
 	}
 
-	std::vector<std::map<std::string, std::string> > Database::getQuery( std::string query_, ... ) const {
+	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string& query_, ... ) const {
 		std::vector<std::map<std::string, std::string> > result;
 
 		va_list arguments;
@@ -107,7 +107,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::map<std::string, std::string> Database::getQueryRow( std::string query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryRow( const std::string& query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -127,7 +127,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::map<std::string, std::string> Database::getQueryMap( std::string query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryMap( const std::string& query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -152,7 +152,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::string Database::getQueryValue( std::string query_, ... ) const {
+	template<typename T> T Database::getQueryValue( const std::string& query_, ... ) const {
 		std::string result;
 
 		va_list arguments;
@@ -167,10 +167,16 @@ namespace micasa {
 		} );
 		va_end( arguments );
 
-		return result;
+		T value;
+		std::istringstream( result ) >> value;
+		return value;
 	}
-
-	long Database::putQuery( std::string query_, ... ) const {
+	template std::string Database::getQueryValue( const std::string& query_, ... ) const;
+	template int Database::getQueryValue( const std::string& query_, ... ) const;
+	template unsigned int Database::getQueryValue( const std::string& query_, ... ) const;
+	template float Database::getQueryValue( const std::string& query_, ... ) const;
+	
+	long Database::putQuery( const std::string& query_, ... ) const {
 		va_list arguments;
 		va_start( arguments, query_ );
 		long insertId = -1;

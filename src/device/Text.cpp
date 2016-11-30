@@ -12,7 +12,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 
 	void Text::start() {
-		this->m_value = g_database->getQueryValue(
+		this->m_value = g_database->getQueryValue<std::string>(
 			"SELECT `value` "
 			"FROM `device_text_history` "
 			"WHERE `device_id`=%q "
