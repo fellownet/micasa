@@ -22,7 +22,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Hardware::Hardware( const std::string id_, const std::string reference_, std::string name_ ) : m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
+	Hardware::Hardware( const std::string id_, const std::string reference_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
 		assert( g_webServer && "Global Database instance should be created before Hardware instances." );
@@ -126,6 +126,7 @@ namespace micasa {
 			this->m_devices.push_back( device );
 		}
 
+		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -140,6 +141,7 @@ namespace micasa {
 			this->m_devices.clear();
 		}
 
+		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 

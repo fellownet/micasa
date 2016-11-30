@@ -27,6 +27,7 @@ namespace micasa {
 		void handleNotification( const ::OpenZWave::Notification* notification_ );
 
 	protected:
+		std::chrono::milliseconds _work( const unsigned long int iteration_ ) { return std::chrono::milliseconds( 1000 ); }
 		
 	private:
 		static std::mutex s_managerMutex;

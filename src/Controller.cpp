@@ -49,13 +49,13 @@ namespace micasa {
 			this->m_hardware.push_back( hardware );
 		}
 		
-		this->_begin();
+		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire();
+		Worker::stop();
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );

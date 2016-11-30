@@ -181,7 +181,6 @@ namespace micasa {
 			}
 				
 			case ::OpenZWave::Notification::Type_NodeNew: {
-				
 				break;
 			}
 				

@@ -18,13 +18,11 @@ namespace micasa {
 	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		this->_begin();
 		Hardware::start();
 	}
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire();
 		Hardware::stop();
 	}
 

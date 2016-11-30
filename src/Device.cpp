@@ -32,11 +32,11 @@ namespace micasa {
 	};
 
 	void Device::start() {
-		this->_begin();
+		Worker::start();
 	};
 	
 	void Device::stop() {
-		this->_retire();
+		Worker::stop();
 	};
 	
 	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const std::string id_, const std::string reference_, std::string name_ ) {

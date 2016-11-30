@@ -21,13 +21,11 @@ namespace micasa {
 	
 	void SolarEdgeInverter::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		this->_begin();
 		Hardware::start();
 	}
 	
 	void SolarEdgeInverter::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire();
 		Hardware::stop();
 	}
 	

@@ -56,7 +56,7 @@ namespace micasa {
 			}
 		} ) );
 		
-		this->_begin();
+		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -66,7 +66,7 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		this->_retire();
+		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	

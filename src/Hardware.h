@@ -16,7 +16,7 @@
 
 namespace micasa {
 
-	class Hardware : public std::enable_shared_from_this<Hardware> {
+	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
 		
 		friend class Controller;
 
@@ -56,6 +56,7 @@ namespace micasa {
 		std::string m_name;
 		Settings m_settings;
 
+		std::chrono::milliseconds _work( const unsigned long int iteration_ ) =0;
 		std::shared_ptr<Device> _getDevice( const std::string reference_ ) const;
 		std::shared_ptr<Device> _declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 

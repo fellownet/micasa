@@ -4,7 +4,7 @@
 
 namespace micasa {
 
-	class HarmonyHub final : public Hardware, public Worker {
+	class HarmonyHub final : public Hardware {
 		
 	public:
 		enum ConnectionState {

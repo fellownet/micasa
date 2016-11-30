@@ -23,8 +23,8 @@ namespace micasa {
 	protected:
 		volatile bool m_shutdown = true;
 		
-		virtual void _begin();
-		virtual void _retire();
+		virtual void start();
+		virtual void stop();
 		virtual std::chrono::milliseconds _work( const unsigned long int iteration_ ) =0;
 		void _synchronize( std::function<void()> func_ );
 
