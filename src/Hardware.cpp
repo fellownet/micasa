@@ -85,8 +85,6 @@ namespace micasa {
 	}
 
 	void Hardware::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + this->m_id,
 			"Returns a list of available hardware.",
@@ -132,8 +130,6 @@ namespace micasa {
 	};
 	
 	void Hardware::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-
 		g_webServer->removeResourceCallback( "hardware-" + this->m_id );
 		
 		{

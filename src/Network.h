@@ -10,11 +10,7 @@
 #include "Worker.h"
 
 extern "C" {
-	
 	#include "mongoose.h"
-	
-	void micasa_mg_handler( mg_connection* connection_, int event_, void* data_ );
-	
 } // extern "C"
 
 #define MG_EV_SHUTDOWN 999
@@ -29,9 +25,11 @@ namespace micasa {
 	
 	class Network final : public Worker {
 		
-		friend void ::micasa_mg_handler( struct mg_connection *connection_, int event_, void* data_ );
+		//friend void ::micasa_mg_handler( struct mg_connection *connection_, int event_, void* data_ );
 		
 	public:
+		typedef std::function<bool( mg_connection* connection_, int event_, void* data_ )> t_handler;
+		
 		enum Event {
 			SUCCESS = 1,
 			FAILURE,
@@ -57,8 +55,6 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 		
 	private:
-		typedef std::function<bool( mg_connection* connection_, int event_, void* data_ )> t_handler;
-		
 		mg_mgr m_manager;
 		std::thread m_worker;
 		std::set<mg_connection*> m_bindings;

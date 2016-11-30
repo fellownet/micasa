@@ -75,8 +75,8 @@ namespace micasa {
 				, settingsIt->first.c_str(), settingsIt->second.c_str()
 			);
 		}
-	}
-
+	};
+	
 	void Settings::commit( const Hardware& hardware_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
@@ -86,7 +86,7 @@ namespace micasa {
 				, settingsIt->first.c_str(), settingsIt->second.c_str(), hardware_.getId().c_str()
 			);
 		}
-	}
+	};
 	
 	void Settings::commit( const Device& device_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
@@ -97,26 +97,43 @@ namespace micasa {
 				, settingsIt->first.c_str(), settingsIt->second.c_str(), device_.getId().c_str()
 			);
 		}
-	}
+	};
+
+	template<typename T> Settings* Settings::put( const std::string& key_, const T& value_ ) {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::stringstream ss;
+		ss << value_;
+		this->m_settings[key_] = ss.str();
+		return this;
+	};
+	template Settings* Settings::put( const std::string& key_, const std::string& value_ );
+	template Settings* Settings::put( const std::string& key_, const int& value_ );
+	template Settings* Settings::put( const std::string& key_, const unsigned int& value_ );
 	
-	// NOTE: a const char* is used here because the notation for the [] operator with default is ambigious and
-	// matches std::string too.
-	const std::string& Settings::operator[]( const char* key_ ) const {
+	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+			T value;
+			std::istringstream( this->m_settings.at( key_ ) ) >> value;
+			return value;
+		} catch( std::out_of_range exception_ ) {
+			std::stringstream ss;
+			ss << default_;
+			this->m_settings[key_] = ss.str();
+			return default_;
+		}
+	};
+	template std::string Settings::get( const std::string& key_, const std::string& default_ );
+	template int Settings::get( const std::string& key_, const int& default_ );
+	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ );
+
+	const std::string& Settings::operator[]( const std::string& key_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		try {
 			return this->m_settings.at( key_ );
 		} catch( std::out_of_range exception_ ) {
-			return Settings::NOT_FOUND;
+			return NOT_FOUND;
 		}
-	}
-	 
-	const std::string& Settings::operator[]( const std::pair<std::string, std::string>& keyWithDefault_ ) const {
-		try {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
-			return this->m_settings.at( keyWithDefault_.first );
-		} catch( std::out_of_range exception_ ) {
-			return keyWithDefault_.second;
-		}
-	}
+	};
 	
 }; // namespace micasa

@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <sstream>
 
 namespace micasa {
 
@@ -31,8 +32,9 @@ namespace micasa {
 		void commit( const Hardware& hardware_ ) const;
 		void commit( const Device& device_ ) const;
 		
-		const std::string& operator[]( const char* key_ ) const;
-		const std::string& operator[]( const std::pair<std::string, std::string>& keyWithDefault_ ) const;
+		template<typename T> Settings* put( const std::string& key_, const T& value_ );
+		template<typename T> T get( const std::string& key_, const T& default_ );
+		const std::string& operator[]( const std::string& key_ ) const;
 		
 	}; // class Settings
 	

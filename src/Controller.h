@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <iostream>
+#include <list>
 
 #include "WebServer.h"
 #include "Worker.h"
@@ -15,6 +16,19 @@ namespace micasa {
 	class Controller final : public Worker, public std::enable_shared_from_this<Controller> {
 
 	public:
+		typedef std::chrono::time_point<std::chrono::system_clock> t_scheduled;
+		
+		struct Event {
+			std::shared_ptr<Device> device;
+			Device::UpdateSource source;
+		};
+
+		struct Task {
+			std::shared_ptr<Device> device;
+			Device::UpdateSource source;
+			t_scheduled scheduled;
+		};
+		
 		Controller();
 		~Controller();
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
@@ -23,6 +37,7 @@ namespace micasa {
 		void stop();
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
+		void addTask( const std::shared_ptr<Task> task_ );
 		
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
@@ -30,7 +45,9 @@ namespace micasa {
 	private:
 		std::vector<std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
-
+		std::list<std::shared_ptr<Task> > m_taskQueue;
+		mutable std::mutex m_taskQueueMutex;
+		
 	}; // class Controller
 
 }; // namespace micasa

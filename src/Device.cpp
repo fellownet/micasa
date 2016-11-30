@@ -32,21 +32,12 @@ namespace micasa {
 	};
 
 	void Device::start() {
-		/*
-		g_webServer->addResource( {
-			"api/devices/" + this->m_id,
-			WebServer::ResourceMethod::GET | WebServer::ResourceMethod::PUT | WebServer::ResourceMethod::PATCH | WebServer::ResourceMethod::DELETE,
-			"Retrieve or update the details of device <i>" + this->m_name + "</i>.",
-			this->shared_from_this()
-		} );
-		*/
 		this->_begin();
 	};
 	
 	void Device::stop() {
 		this->_retire();
-		//g_webServer->removeResourceAt( "api/devices/" + this->m_id );
-	}
+	};
 	
 	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const std::string id_, const std::string reference_, std::string name_ ) {
 		switch( deviceType_ ) {
@@ -64,12 +55,6 @@ namespace micasa {
 				break;
 		}
 		return nullptr;
-	}
-	/*
-	void Device::handleResource( const WebServer::Resource& resource_, int& code_, nlohmann::json& output_ ) {
-		output_["id"] = this->m_id;
-		output_["name"] = this->m_name;
 	};
-	*/
 
 }; // namespace micasa

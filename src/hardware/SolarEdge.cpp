@@ -16,11 +16,13 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	void SolarEdge::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		this->_begin();
 		Hardware::start();
 	}
 	
 	void SolarEdge::stop() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
 		Hardware::stop();
 	}
@@ -59,7 +61,7 @@ namespace micasa {
 				for ( auto inverterIt = list.begin(); inverterIt != list.end(); inverterIt++ ) {
 					std::stringstream name;
 					name << (*inverterIt)["manufacturer"].get<std::string>() << " " << (*inverterIt)["model"].get<std::string>();
-					name << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
+					//name << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
 					
 					g_controller->declareHardware(
 						Hardware::HardwareType::SOLAREDGE_INVERTER,

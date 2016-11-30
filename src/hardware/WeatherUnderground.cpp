@@ -19,11 +19,13 @@ namespace micasa {
 	using namespace nlohmann;
 
 	void WeatherUnderground::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		this->_begin();
 		Hardware::start();
 	}
 	
 	void WeatherUnderground::stop() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
 		Hardware::stop();
 	}
@@ -66,30 +68,44 @@ namespace micasa {
 							this->m_settings["scale"] == "fahrenheit"
 							&& ! data["temp_f"].is_null()
 						) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "1", "Temperature in " + this->m_settings["location"], { } ) );
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "1", "Temperature in " + this->m_settings["location"], {
+								{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
+								{ "unit", std::to_string( Level::Unit::DEGREES ) }
+							} ) );
 							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_f"].get<float>() );
 						} else if (
 						   this->m_settings["scale"] == "celcius"
 						   && ! data["temp_c"].is_null()
 					   ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "2", "Temperature in " + this->m_settings["location"], { } ) );
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "2", "Temperature in " + this->m_settings["location"], {
+								{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
+								{ "unit", std::to_string( Level::Unit::DEGREES ) }
+							} ) );
 							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_c"].get<float>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "3", "Humidity in " + this->m_settings["location"], { } ) );
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "3", "Humidity in " + this->m_settings["location"], {
+								{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
+								{ "unit", std::to_string( Level::Unit::PERCENT ) }
+							} ) );
 							int humidity = atoi( data["relative_humidity"].get<std::string>().c_str() );
 							device->updateValue( Device::UpdateSource::HARDWARE, humidity );
 						}
 						
 						if ( ! data["pressure_mb"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], { } ) );
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], {
+								{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
+								{ "unit", std::to_string( Level::Unit::PASCAL ) }
+							} ) );
 							int pressure = atoi( data["pressure_mb"].get<std::string>().c_str() );
 							device->updateValue( Device::UpdateSource::HARDWARE, pressure );
 						}
 						
 						if ( ! data["wind_dir"].is_null() ) {
-							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction in " + this->m_settings["location"], { } ) );
+							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction in " + this->m_settings["location"], {
+								{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
+							} ) );
 							device->updateValue( Device::UpdateSource::HARDWARE, data["wind_dir"].get<std::string>() );
 						}
 					}
