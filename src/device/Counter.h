@@ -7,6 +7,11 @@ namespace micasa {
 	class Counter final : public Device {
 
 	public:
+		enum Unit {
+			
+			WATTHOUR = 1,
+		}; // enum Unit
+
 		Counter( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
 		
 		void start() override;

@@ -19,10 +19,11 @@ namespace micasa {
 			do {
 				std::unique_lock<std::mutex> workLock( this->m_workMutex );
 				std::chrono::milliseconds wait = this->_work( ++this->m_iteration );
-				workLock.unlock();
+				//workLock.unlock();
 				
-				std::unique_lock<std::mutex> shutdownLock( this->m_shutdownMutex );
-				this->m_shutdownCondition.wait_for( shutdownLock, wait, [&]{ return this->m_shutdown; } );
+				//std::unique_lock<std::mutex> shutdownLock( this->m_shutdownMutex );
+				this->m_continueCondition.wait_for( workLock, wait, [&]{ return this->m_shutdown || this->m_hasWork; } );
+				this->m_hasWork = false;
 			} while( ! this->m_shutdown );
 		} );
 	};
@@ -31,11 +32,13 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( ! this->m_shutdown && "Worker instance should be running when invoking retire-method." );
 #endif // _DEBUG
-		std::unique_lock<std::mutex> shutdownLock( this->m_shutdownMutex );
+	   //std::unique_lock<std::mutex> shutdownLock( this->m_shutdownMutex );
+		std::unique_lock<std::mutex> workLock( this->m_workMutex );
 		this->m_shutdown = true;
-		shutdownLock.unlock();
+		//shutdownLock.unlock();
+		workLock.unlock();
 
-		this->m_shutdownCondition.notify_all();
+		this->m_continueCondition.notify_all();
 		if ( this->m_worker.joinable() ) {
 			this->m_worker.join();
 		}
@@ -52,7 +55,10 @@ namespace micasa {
 	};
 	
 	void Worker::wakeUp() {
-		this->m_shutdownCondition.notify_all();
+		std::unique_lock<std::mutex> workLock( this->m_workMutex );
+		this->m_hasWork = true;
+		workLock.unlock();
+		this->m_continueCondition.notify_all();
 	};
 	
 }; // namespace micasa

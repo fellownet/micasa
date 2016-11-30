@@ -112,7 +112,7 @@ namespace micasa {
 		"`key` VARCHAR(64) NOT NULL, "
 		"`value` TEXT NOT NULL, "
 		"`last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `device` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
 	
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_settings_device_id_key` ON `device_settings`( `device_id`, `key` )",
 	};

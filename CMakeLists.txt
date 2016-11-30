@@ -12,6 +12,7 @@ INCLUDE( FindPackageHandleStandardArgs )
 set( SRC
 	# libraries
 	lib/mongoose/mongoose.c
+	lib/v7/v7.c
 
 	# main
 	src/micasa.cpp
@@ -36,7 +37,7 @@ set( SRC
 	src/hardware/PiFaceBoard.cpp
 	src/hardware/P1Meter.cpp
 	src/hardware/SolarEdge.cpp
-	src/hardware/SolarEdgeInverter.cpp	
+	src/hardware/SolarEdgeInverter.cpp
 	src/hardware/WeatherUnderground.cpp
 	src/hardware/HarmonyHub.cpp
 	src/hardware/Domoticz.cpp
@@ -109,12 +110,18 @@ endif()
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 
 #
-# Add Mongoose.
+# Add Mongoose Network Library.
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
 add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
-#set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
+set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
+
+#
+# Add v7 Javascript Engine.
+# https://github.com/cesanta/v7
+#
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
 
 #
 # Set the target directory.
@@ -146,12 +153,12 @@ if ( WITH_OPENZWAVE )
 		find_library( UDEV NAMES libudev.a )
 		IF( UDEV )
 			message( STATUS ${UDEV} )
-			target_link_libraries( micasa ${UDEV} -lrt )
+			#target_link_libraries( micasa ${UDEV} -lrt )
 		else()
 			find_library( UDEV NAMES libudev.so )
 			IF( UDEV )
 				message( STATUS ${UDEV} )
-				target_link_libraries( micasa ${UDEV} -lrt )
+				#target_link_libraries( micasa ${UDEV} -lrt )
 			else()
 				MESSAGE( FATAL_ERROR "Library libudev not found on your system. Try:\nsudo apt-get install libudev-dev" )
 			ENDIF(UDEV)
@@ -159,7 +166,7 @@ if ( WITH_OPENZWAVE )
 	ENDIF()
 	include_directories( ${OPENZWAVE_INCLUDE_DIR} )
 	add_dependencies( micasa OpenZWave )
-	target_link_libraries( micasa OpenZWaveLib )
+	target_link_libraries( micasa OpenZWaveLib ${UDEV} -lrt )
 endif()
 
 #

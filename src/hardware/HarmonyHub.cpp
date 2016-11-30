@@ -17,11 +17,13 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	void HarmonyHub::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		this->_begin();
 		Hardware::start();
 	}
 	
 	void HarmonyHub::stop() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->_retire();
 		Hardware::stop();
 	}
@@ -211,7 +213,9 @@ namespace micasa {
 									std::string name = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
 										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>(
-											this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, { } )
+											this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
+												{ "allowed_methods", std::to_string( WebServer::Method::GET | WebServer::Method::PATCH ) }
+											} )
 										);
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT, Switch::Options::ON );

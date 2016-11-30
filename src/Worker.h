@@ -30,10 +30,11 @@ namespace micasa {
 
 	private:
 		std::thread m_worker;
-		std::condition_variable m_shutdownCondition;
-		mutable std::mutex m_shutdownMutex;
+		std::condition_variable m_continueCondition;
+		//mutable std::mutex m_shutdownMutex; <-- remove permanently if sharing workMutex with synchronize works
 		mutable std::mutex m_workMutex;
 		unsigned long int m_iteration = 0;
+		volatile bool m_hasWork = false;
 		
 	}; // class Worker
 

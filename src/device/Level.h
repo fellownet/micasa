@@ -7,6 +7,15 @@ namespace micasa {
 	class Level final : public Device {
 
 	public:
+		enum Unit {
+			TICKS = 1,
+			PERCENT,
+			WATT,
+			VOLT,
+			DEGREES,
+			PASCAL
+		}; // enum Unit
+
 		Level( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
 		
 		void start() override;

@@ -16,7 +16,6 @@
 #endif // _DEBUG
 
 extern "C" {
-	
 	void micasa_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
 		if ( MG_EV_POLL != event_ ) {
 			micasa::Network::t_handler* handler = reinterpret_cast<micasa::Network::t_handler*>( connection_->user_data );
@@ -26,7 +25,6 @@ extern "C" {
 			}
 		}
 	}
-	
 } // extern "C"
 
 namespace micasa {

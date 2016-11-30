@@ -2,12 +2,14 @@
 
 #include "../Database.h"
 #include "../Hardware.h"
+#include "../Controller.h"
 
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<WebServer> g_webServer;
+	extern std::shared_ptr<Controller> g_controller;
 
 	void Text::start() {
 		this->m_value = g_database->getQueryValue(

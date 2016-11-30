@@ -95,11 +95,11 @@ namespace micasa {
 		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
 			for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); ) {
 				if ( (*callbackIt)->reference == reference_ ) {
-					callbackIt = resourceIt->second.erase( callbackIt );
-					this->m_resourceCache.erase( (*callbackIt)->uri );
 #ifdef _DEBUG
 					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback removed at %s.", (*callbackIt)->uri.c_str() );
 #endif // _DEBUG
+					callbackIt = resourceIt->second.erase( callbackIt );
+					this->m_resourceCache.erase( (*callbackIt)->uri );
 				} else {
 					callbackIt++;
 				}
