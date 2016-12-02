@@ -22,7 +22,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Hardware::Hardware( const std::string id_, const std::string reference_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
+	Hardware::Hardware( const unsigned int id_, const std::string reference_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
 		assert( g_webServer && "Global Database instance should be created before Hardware instances." );
@@ -39,7 +39,7 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const std::string id_, const std::string reference_, std::string name_ ) {
+	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const unsigned int id_, const std::string reference_, std::string name_ ) {
 		switch( hardwareType_ ) {
 			case INTERNAL:
 				return std::make_shared<Internal>( id_, reference_, name_ );
@@ -86,24 +86,24 @@ namespace micasa {
 
 	void Hardware::start() {
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"hardware-" + this->m_id,
+			"hardware-" + std::to_string( this->m_id ),
 			"Returns a list of available hardware.",
 			"api/hardware",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
-					{ "id", atoi( this->m_id.c_str() ) },
+					{ "id", this->m_id },
 					{ "name", this->m_name },
 				};
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"hardware-" + this->m_id,
+			"hardware-" + std::to_string( this->m_id ),
 			"Returns detailed information for " + this->m_name,
-			"api/hardware/" + this->m_id,
+			"api/hardware/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = atoi( this->m_id.c_str() );
+				output_["id"] = this->m_id;
 				output_["name"] = this->m_name;
 			} )
 		} ) ) );
@@ -113,15 +113,15 @@ namespace micasa {
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `name`, `type` "
 			"FROM `devices` "
-			"WHERE `hardware_id`=%q"
-			, this->m_id.c_str()
+			"WHERE `hardware_id`=%d"
+			, this->m_id
 		);
 		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
 			Device::DeviceType deviceType = static_cast<Device::DeviceType>( atoi( (*devicesIt)["type"].c_str() ) );
 #ifdef _DEBUG
 			assert( deviceType >= 1 && deviceType <= 4 && "Device types should be defined in the DeviceType enum." );
 #endif // _DEBUG
-			std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType, (*devicesIt)["id"], (*devicesIt)["reference"], (*devicesIt)["name"] );
+			std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["name"] );
 			device->start();
 			this->m_devices.push_back( device );
 		}
@@ -131,7 +131,7 @@ namespace micasa {
 	};
 	
 	void Hardware::stop() {
-		g_webServer->removeResourceCallback( "hardware-" + this->m_id );
+		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
 		
 		{
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
@@ -158,6 +158,16 @@ namespace micasa {
 		return nullptr;
 	}
 	
+	std::shared_ptr<Device> Hardware::_getDeviceById( const unsigned int id_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+			if ( (*devicesIt)->getId() == id_ ) {
+				return *devicesIt;
+			}
+		}
+		return nullptr;
+	}
+	
 	std::shared_ptr<Device> Hardware::_declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
@@ -171,10 +181,10 @@ namespace micasa {
 
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `name` ) "
-			"VALUES ( %q, %Q, %d, %Q )"
-			, this->m_id.c_str(), reference_.c_str(), static_cast<int>( deviceType_ ), name_.c_str()
+			"VALUES ( %d, %Q, %d, %Q )"
+			, this->m_id, reference_.c_str(), static_cast<int>( deviceType_ ), name_.c_str()
 		);
-		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType_, std::to_string( id ), reference_, name_ );
+		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType_, id, reference_, name_ );
 
 		Settings& settings = device->getSettings();
 		settings.insert( settings_ );

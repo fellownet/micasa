@@ -144,7 +144,7 @@ namespace micasa {
 					) {
 						// TODO differentiate between blinds, switches etc (like open close on of etc).
 						std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-						bool value = device->getValue() == Switch::Options::ON ? true : false;
+						bool value = device->getValueOption() == Switch::Option::ON ? true : false;
 						::OpenZWave::Manager::Get()->SetValue( valueId, value );
 					}
 				}
@@ -213,7 +213,7 @@ namespace micasa {
 					std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::DeviceType::SWITCH, reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
 					} ) );
-					device->updateValue( source_, boolValue ? Switch::Options::ON : Switch::Options::OFF );
+					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
 				}
 				if (
 					valueId_.GetType() == ::OpenZWave::ValueID::ValueType_Byte
@@ -223,7 +223,7 @@ namespace micasa {
 					std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::DeviceType::SWITCH, reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
 					} ) );
-					device->updateValue( source_, byteValue ? Switch::Options::ON : Switch::Options::OFF );
+					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 				}
 			}
 				

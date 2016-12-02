@@ -25,6 +25,7 @@ namespace micasa {
 	
 	class Network final : public Worker {
 		
+		//  TODO working with std::function is painstakingly slow so reinstate this friend handler.
 		//friend void ::micasa_mg_handler( struct mg_connection *connection_, int event_, void* data_ );
 		
 	public:

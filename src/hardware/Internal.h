@@ -7,7 +7,7 @@ namespace micasa {
 	class Internal final : public Hardware {
 
 	public:
-		Internal( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		Internal( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
 		~Internal() { };
 		
 		bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) { return true; };

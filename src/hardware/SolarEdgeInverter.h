@@ -8,7 +8,7 @@ namespace micasa {
 	class SolarEdgeInverter final : public Hardware {
 		
 	public:
-		SolarEdgeInverter( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		SolarEdgeInverter( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
 		~SolarEdgeInverter() { };
 		
 		void start() override;

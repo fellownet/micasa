@@ -17,7 +17,7 @@ namespace micasa {
 		friend void ::micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 		
 	public:
-		OpenZWave( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		OpenZWave( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
 		~OpenZWave() { };
 		
 		void start() override;

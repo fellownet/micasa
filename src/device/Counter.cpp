@@ -15,35 +15,35 @@ namespace micasa {
 		this->m_value = g_database->getQueryValue<int>(
 		   "SELECT `value` "
 		   "FROM `device_counter_history` "
-		   "WHERE `device_id`=%q "
+		   "WHERE `device_id`=%d "
 		   "ORDER BY `date` DESC "
 		   "LIMIT 1"
-		   , this->m_id.c_str()
+		   , this->m_id
 		);
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + this->m_id,
+			"device-" + std::to_string( this->m_id ),
 			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
-					{ "id", atoi( this->m_id.c_str() ) },
+					{ "id", this->m_id },
 					{ "name", this->m_name },
 					{ "value", this->m_value }
 				};
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + this->m_id,
+			"device-" + std::to_string( this->m_id ),
 			"Returns detailed information for " + this->m_name,
-			"api/devices/" + this->m_id,
+			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = atoi( this->m_id.c_str() );
+				output_["id"] = this->m_id;
 				output_["name"] = this->m_name;
 				output_["value"] = this->m_value;
-				output_["trends"] = g_database->getQuery( "SELECT `date`, `diff`, `last` FROM `device_counter_trends` WHERE `device_id`=%q ORDER BY `date` ASC LIMIT 48", this->m_id.c_str() );
+				output_["trends"] = g_database->getQuery( "SELECT `date`, `diff`, `last` FROM `device_counter_trends` WHERE `device_id`=%d ORDER BY `date` ASC LIMIT 48", this->m_id );
 			} )
 		} ) ) );
 
@@ -51,7 +51,7 @@ namespace micasa {
 	};
 
 	void Counter::stop() {
-		g_webServer->removeResourceCallback( "device-" + this->m_id );
+		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) );
 		Device::stop();
 	};
 	
@@ -68,12 +68,12 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_counter_history` (`device_id`, `value`) "
-				"VALUES (%q, %d)"
-				, this->m_id.c_str(), value_
+				"VALUES (%d, %d)"
+				, this->m_id, value_
 			);
 			g_controller->newEvent<Counter>( *this, source_ );
 			g_webServer->touchResourceAt( "api/devices" );
-			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
+			g_webServer->touchResourceAt( "api/devices/" + std::to_string( this->m_id ) );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
 			this->m_value = currentValue;
@@ -92,21 +92,21 @@ namespace micasa {
 			auto trends = g_database->getQuery(
 				"SELECT MAX(`date`) AS `date1`, strftime(%Q, MAX(`date`)) AS `date2`, MAX(`value`)-MIN(`value`) AS `diff` "
 				"FROM `device_counter_history` "
-				"WHERE `device_id`=%q AND `Date` > datetime('now','-1 hour') "
+				"WHERE `device_id`=%d AND `Date` > datetime('now','-1 hour') "
 				"GROUP BY strftime(%Q, `date`)"
-				, hourFormat.c_str(), this->m_id.c_str(), groupFormat.c_str()
+				, hourFormat.c_str(), this->m_id, groupFormat.c_str()
 			);
 			for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
-				auto value = g_database->getQueryValue<std::string>(
+				auto value = g_database->getQueryValue<int>(
 					"SELECT `value` "
 					"FROM `device_counter_history` "
-					"WHERE `device_id`=%q AND `date`=%Q"
-					, this->m_id.c_str(), (*trendsIt)["date1"].c_str()
+					"WHERE `device_id`=%d AND `date`=%Q"
+					, this->m_id, (*trendsIt)["date1"].c_str()
 				);
 				g_database->putQuery(
 					"REPLACE INTO `device_counter_trends` (`device_id`, `last`, `diff`, `date`) "
-					"VALUES (%q, %q, %q, %Q)"
-					, this->m_id.c_str(), value.c_str(), (*trendsIt)["diff"].c_str(), (*trendsIt)["date2"].c_str()
+					"VALUES (%d, %d, %q, %Q)"
+					, this->m_id, value, (*trendsIt)["diff"].c_str(), (*trendsIt)["date2"].c_str()
 				);
 			}
 
@@ -114,8 +114,8 @@ namespace micasa {
 			// separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_counter_history` "
-				"WHERE `device_id`=%q AND `Date` < datetime('now','-%d day')"
-				, this->m_id.c_str(), this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
+				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
 		}
 		return std::chrono::milliseconds( 1000 * 60 * 5 );

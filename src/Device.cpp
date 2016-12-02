@@ -14,7 +14,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Device::Device( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
+	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string name_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Device instances." );
 		assert( g_webServer && "Global Database instance should be created before Device instances." );
@@ -42,7 +42,7 @@ namespace micasa {
 		Worker::stop();
 	};
 	
-	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const std::string id_, const std::string reference_, std::string name_ ) {
+	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const unsigned int id_, const std::string reference_, std::string name_ ) {
 		switch( deviceType_ ) {
 			case COUNTER:
 				return std::make_shared<Counter>( hardware_, id_, reference_, name_ );

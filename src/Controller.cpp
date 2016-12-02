@@ -1,4 +1,11 @@
+// v7
+// https://docs.cesanta.com/v7/master/
+
 #include <iostream>
+#include <fstream>
+
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "Controller.h"
 #include "Database.h"
@@ -11,6 +18,29 @@
 #ifdef _DEBUG
 #include <cassert>
 #endif // _DEBUG
+
+v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
+	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+
+	v7_val_t arg0 = v7_arg( js_, 0 );
+	if ( ! v7_is_number( arg0 ) ) {
+		return V7_EXEC_EXCEPTION;
+	}
+	int deviceId = v7_get_int( js_, arg0 );
+	
+	v7_val_t arg1 = v7_arg( js_, 1 );
+	if ( v7_is_number( arg1 ) ) {
+		double value = v7_get_double( js_, arg1 );
+		*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( deviceId, value ) );
+	} else if ( v7_is_string( arg1 ) ) {
+		std::string value = v7_get_string( js_, &arg1, NULL );
+		*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( deviceId, value ) );
+	} else {
+		return V7_EXEC_EXCEPTION;
+	}
+
+	return V7_OK;
+};
 
 namespace micasa {
 
@@ -51,7 +81,7 @@ namespace micasa {
 		);
 		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
 			Hardware::HardwareType hardwareType = static_cast<Hardware::HardwareType>( atoi( (*hardwareIt)["type"].c_str() ) );
-			std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType, (*hardwareIt)["id"], (*hardwareIt)["reference"], (*hardwareIt)["name"] );
+			std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], (*hardwareIt)["name"] );
 			hardware->start();
 			this->m_hardware.push_back( hardware );
 		}
@@ -90,6 +120,11 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
+#ifdef _DEBUG
+		assert( this->isRunning() && "Controller should be running before declaring hardware." );
+		assert( g_webServer->isRunning() && "WebServer should be running before declaring hardware." );
+#endif // _DEBUG
+		
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
@@ -102,8 +137,8 @@ namespace micasa {
 		if ( parent_ ) {
 			id = g_database->putQuery(
 				"INSERT INTO `hardware` ( `hardware_id`, `reference`, `type`, `name` ) "
-				"VALUES ( %q, %Q, %d, %Q )"
-				, parent_->getId().c_str(), reference_.c_str(), static_cast<int>( hardwareType_ ), name_.c_str()
+				"VALUES ( %d, %Q, %d, %Q )"
+				, parent_->getId(), reference_.c_str(), static_cast<int>( hardwareType_ ), name_.c_str()
 			);
 		} else {
 			id = g_database->putQuery(
@@ -113,7 +148,7 @@ namespace micasa {
 			);
 		}
 		
-		std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType_, std::to_string( id ), reference_, name_ );
+		std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType_, id, reference_, name_ );
 		
 		Settings& settings = hardware->getSettings();
 		settings.insert( settings_ );
@@ -147,8 +182,12 @@ namespace micasa {
 	template<class D> void Controller::newEvent( const D& device_, const Device::UpdateSource& source_ ) {
 		// Events originating from scripts should not cause another script run.
 		// TODO make this configurable per device?
-		if ( source_ != Device::UpdateSource::SCRIPT ) {
+		if (
+			source_ != Device::UpdateSource::SCRIPT
+			&& source_ != Device::UpdateSource::INIT
+		) {
 			json event;
+			// TODO for switches this sets the value to an ackward numeric value, use strings instead?
 			event["value"] = device_.getValue();
 			event["source"] = source_;
 
@@ -178,12 +217,101 @@ namespace micasa {
 		// we don't detach and keep track of the thread.
 		auto thread = std::thread( [this,event_]{
 			
-			// TODO make the bin folder comfigurable?
-			
-			
-			std::cout << event_.dump( 4 ) << "\n";
+			// TODO make the var/scripts folder comfigurable?
+			// TODO make this cross platform?
+			// TODO cache the listing of files?
+			// TODO configure the scripts to execute per device instead of all scripts for all device events
+			auto directory = opendir( "./var/scripts" );
+			while( auto entry = readdir( directory ) ) {
+				if ( entry->d_type == DT_REG ) {
+					std::string filename = entry->d_name;
+					std::string extension = ".js";
+					
+					if (
+						extension.size() < filename.size()
+						&& std::equal( extension.rbegin(), extension.rend(), filename.rbegin() )
+					) {
+						
+						std::ifstream filestream( "./var/scripts/" + filename );
+						std::string script( ( std::istreambuf_iterator<char>( filestream ) ), ( std::istreambuf_iterator<char>() ) );
+						
+						script = "event = " + event_.dump() + "; " + script;
+						
+						v7_val_t js_result;
+						v7* js = v7_create();
+						
+						v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
+						v7_set_user_data( js, v7_get_global( js ), this );
+						
+						v7_err js_error = v7_exec( js, script.c_str(), &js_result );
+
+						switch( js_error ) {
+							case V7_SYNTAX_ERROR:
+								g_logger->logr( Logger::LogLevel::ERROR, this, "Syntax error in %s.", filename.c_str() );
+								break;
+							case V7_EXEC_EXCEPTION:
+								g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in %s.", filename.c_str() );
+								break;
+							case V7_AST_TOO_LARGE:
+							case V7_INTERNAL_ERROR:
+								g_logger->logr( Logger::LogLevel::ERROR, this, "Internal error in in %s.", filename.c_str() );
+								break;
+							case V7_OK:
+								g_logger->logr( Logger::LogLevel::VERBOSE, this, "Script %s executed.", filename.c_str() );
+								break;
+						}
+
+						v7_destroy( js );
+					}
+				}
+			}
+
+			closedir( directory );
+
 		} );
-		thread.detach();
+		thread.join();
+	}
+
+	const bool Controller::_updateDeviceFromScript( const unsigned int& deviceId_, const std::string& value_ ) {
+		auto device = this->_getDeviceById( deviceId_ );
+		if ( device != nullptr ) {
+			// TODO optionally convert strings to floats or ints and accept those too?
+			if ( device->getType() == Device::DeviceType::TEXT ) {
+				std::static_pointer_cast<Text>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
+				return true;
+			} else if ( device->getType() == Device::DeviceType::SWITCH ) {
+				std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
+				return true;
+			}
+		}
+		g_logger->log( Logger::LogLevel::ERROR, this, "Invalid value for device." );
+		return false;
+	};
+	
+	const bool Controller::_updateDeviceFromScript( const unsigned int& deviceId_, const double& value_ ) {
+		auto device = this->_getDeviceById( deviceId_ );
+		if ( device != nullptr ) {
+			// TODO optionally convert value to strings and accept those too?
+			if ( device->getType() == Device::DeviceType::COUNTER ) {
+				return std::static_pointer_cast<Counter>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
+			} else if ( device->getType() == Device::DeviceType::LEVEL ) {
+				return std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
+			}
+		}
+		g_logger->log( Logger::LogLevel::ERROR, this, "Invalid value for device." );
+		return false;
+	};
+	
+	std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int id_ ) const {
+		// TODO iterating through both the hardware and device maps seems a bit heavy, can this be done more efficiently?
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->_getDeviceById( id_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
 	}
 	
 	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {

@@ -47,8 +47,8 @@ namespace micasa {
 		auto results = g_database->getQueryMap(
 			"SELECT `key`, `value` "
 			"FROM `hardware_settings` "
-			"WHERE `hardware_id`=%q"
-			, hardware_.getId().c_str()
+			"WHERE `hardware_id`=%d"
+			, hardware_.getId()
 		);
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( results.begin(), results.end() );
@@ -59,8 +59,8 @@ namespace micasa {
 		auto results = g_database->getQueryMap(
 			"SELECT `key`, `value` "
 			"FROM `device_settings` "
-			"WHERE `device_id`=%q"
-			, device_.getId().c_str()
+			"WHERE `device_id`=%d"
+			, device_.getId()
 		);
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( results.begin(), results.end() );
@@ -83,8 +83,8 @@ namespace micasa {
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
 				"REPLACE INTO `hardware_settings` (`key`, `value`, `hardware_id`) "
-				"VALUES (%Q, %Q, %q)"
-				, settingsIt->first.c_str(), settingsIt->second.c_str(), hardware_.getId().c_str()
+				"VALUES (%Q, %Q, %d)"
+				, settingsIt->first.c_str(), settingsIt->second.c_str(), hardware_.getId()
 			);
 		}
 		this->m_dirty = false;
@@ -95,8 +95,8 @@ namespace micasa {
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
 				"REPLACE INTO `device_settings` (`key`, `value`, `device_id`) "
-				"VALUES (%Q, %Q, %q)"
-				, settingsIt->first.c_str(), settingsIt->second.c_str(), device_.getId().c_str()
+				"VALUES (%Q, %Q, %d)"
+				, settingsIt->first.c_str(), settingsIt->second.c_str(), device_.getId()
 			);
 		}
 		this->m_dirty = false;
