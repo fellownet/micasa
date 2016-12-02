@@ -47,6 +47,7 @@ namespace micasa {
 		std::string getReference() const { return this->m_reference; };
 		std::string getName() const { return this->m_name; };
 		Settings& getSettings() { return this->m_settings; };
+		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
 
 	protected:
 		std::shared_ptr<Hardware> m_hardware;

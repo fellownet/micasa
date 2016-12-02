@@ -108,6 +108,7 @@ namespace micasa {
 				"VALUES (%q, %d)"
 				, this->m_id.c_str(), (unsigned int)value_
 			);
+			g_controller->newEvent<Switch>( *this, source_ );
 			g_webServer->touchResourceAt( "api/devices" );
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionsText.at( value_ ).c_str() );

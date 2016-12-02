@@ -71,6 +71,7 @@ namespace micasa {
 				"VALUES (%q, %Q)"
 				, this->m_id.c_str(), value_.c_str()
 			);
+			g_controller->newEvent<Text>( *this, source_ );
 			g_webServer->touchResourceAt( "api/devices" );
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );

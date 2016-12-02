@@ -3,6 +3,11 @@
 #include "Controller.h"
 #include "Database.h"
 
+#include "device/Counter.h"
+#include "device/Level.h"
+#include "device/Switch.h"
+#include "device/Text.h"
+
 #ifdef _DEBUG
 #include <cassert>
 #endif // _DEBUG
@@ -12,6 +17,8 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
+
+	using namespace nlohmann;
 
 	Controller::Controller() {
 #ifdef _DEBUG
@@ -136,6 +143,48 @@ namespace micasa {
 		// Immediately wake up the worker to have it start processing scheduled items.
 		this->wakeUp();
 	};
+	
+	template<class D> void Controller::newEvent( const D& device_, const Device::UpdateSource& source_ ) {
+		// Events originating from scripts should not cause another script run.
+		// TODO make this configurable per device?
+		if ( source_ != Device::UpdateSource::SCRIPT ) {
+			json event;
+			event["value"] = device_.getValue();
+			event["source"] = source_;
+
+			event["device"] = {
+				{ "id", device_.getId() },
+				{ "name", device_.getName() },
+				{ "type", device_.getType() }
+			};
+			event["hardware"] = {
+				{ "id", device_.getHardware()->getId() },
+				{ "name", device_.getHardware()->getName() },
+			};
+			
+			// The processing of the event is deliberatly done in a separate method because this method is templated
+			// and is essentially copied for each specialization.
+			this->_processEvent( event );
+		}
+	};
+	template void Controller::newEvent( const Switch& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Level& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Counter& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Text& device_, const Device::UpdateSource& source_ );
+	
+	void Controller::_processEvent( const json& event_ ) {
+		// Event processing is done in a separate thread to prevent scripts from blocking hardare updates.
+		// TODO insert a task that checks if the script isn't running for more than xx seconds? This requires that
+		// we don't detach and keep track of the thread.
+		auto thread = std::thread( [this,event_]{
+			
+			// TODO make the bin folder comfigurable?
+			
+			
+			std::cout << event_.dump( 4 ) << "\n";
+		} );
+		thread.detach();
+	}
 	
 	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {
 		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );

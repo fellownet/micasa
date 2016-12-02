@@ -72,6 +72,7 @@ namespace micasa {
 				"VALUES (%q, %.3f)"
 				, this->m_id.c_str(), value_
 			);
+			g_controller->newEvent<Level>( *this, source_ );
 			g_webServer->touchResourceAt( "api/devices" );
 			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );

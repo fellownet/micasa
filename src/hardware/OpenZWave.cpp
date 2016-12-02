@@ -47,7 +47,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( OpenZWave::s_managerMutex );
 		
 		// TODO reliably detect the location of the user folder.
-		::OpenZWave::Options::Create( "./lib/open-zwave/config", "./usr", "" );
+		::OpenZWave::Options::Create( "./lib/open-zwave/config", "./var", "" );
 		
 #ifdef _DEBUG
 		::OpenZWave::Options::Get()->AddOptionInt( "SaveLogLevel", ::OpenZWave::LogLevel_Detail );
