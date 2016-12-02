@@ -81,7 +81,8 @@ if ( WITH_OPENZWAVE )
 		OpenZWave
 
 		GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-		GIT_TAG "v1.4"
+		# just fetch the most recent configs
+		#GIT_TAG "v1.4"
 
 		UPDATE_COMMAND ""
 		PATCH_COMMAND ""

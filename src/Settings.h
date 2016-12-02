@@ -12,10 +12,6 @@ namespace micasa {
 	
 	class Settings final {
 		
-	private:
-		std::map<std::string, std::string> m_settings;
-		mutable std::mutex m_settingsMutex;
-		
 	public:
 		Settings() { };
 		~Settings() { };
@@ -31,10 +27,16 @@ namespace micasa {
 		void commit() const;
 		void commit( const Hardware& hardware_ ) const;
 		void commit( const Device& device_ ) const;
+		bool isDirty() const { return this->m_dirty; }
 		
-		template<typename T> Settings* put( const std::string& key_, const T& value_ );
 		template<typename T> T get( const std::string& key_, const T& default_ );
 		const std::string& operator[]( const std::string& key_ ) const;
+		template<typename T> Settings* put( const std::string& key_, const T& value_ );
+		
+	private:
+		mutable bool m_dirty = false;
+		std::map<std::string, std::string> m_settings;
+		mutable std::mutex m_settingsMutex;
 		
 	}; // class Settings
 	

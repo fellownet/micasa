@@ -36,6 +36,9 @@ namespace micasa {
 	};
 	
 	void Device::stop() {
+		if ( this->m_settings.isDirty() ) {
+			this->m_settings.commit( *this );
+		}
 		Worker::stop();
 	};
 	

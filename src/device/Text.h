@@ -8,6 +8,7 @@ namespace micasa {
 
 	public:
 		Text( std::shared_ptr<Hardware> hardware_, const std::string id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
+		const Device::DeviceType getType() const { return Device::DeviceType::TEXT; };
 		
 		void start() override;
 		void stop() override;

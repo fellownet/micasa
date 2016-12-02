@@ -70,29 +70,29 @@ namespace micasa {
 				json telemetry = *data["data"]["telemetries"].rbegin();
 				if ( ! telemetry["totalActivePower"].empty() ) {
 					std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, this->getReference() + "(P)", "Power", {
-						{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
-						{ "unit", std::to_string( Level::Unit::WATT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::WATT ) }
 					} ) );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalActivePower"].get<float>() );
 				}
 				if ( ! telemetry["totalEnergy"].empty() ) {
 					std::shared_ptr<Counter> device = std::static_pointer_cast<Counter>( this->_declareDevice( Device::DeviceType::COUNTER, this->getReference() + "(E)", "Energy", {
-						{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
-						{ "unit", std::to_string( Counter::Unit::WATTHOUR ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Counter::Unit::WATTHOUR ) }
 					} ) );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["totalEnergy"].get<float>() );
 				}
 				if ( ! telemetry["dcVoltage"].empty() ) {
 					std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, this->getReference() + "(DC)", "DC voltage", {
-						{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
-						{ "unit", std::to_string( Level::Unit::VOLT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::VOLT ) }
 					} ) );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["dcVoltage"].get<float>() );
 				}
 				if ( ! telemetry["temperature"].empty() ) {
 					std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, this->getReference() + "(T)", "Temperature", {
-						{ "allowed_methods", std::to_string( WebServer::Method::GET ) },
-						{ "unit", std::to_string( Level::Unit::DEGREES ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
 					} ) );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<float>() );
 				}

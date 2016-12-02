@@ -36,7 +36,7 @@ namespace micasa {
 			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
 					{ "id", atoi( this->m_id.c_str() ) },
 					{ "name", this->m_name },
@@ -44,15 +44,38 @@ namespace micasa {
 				};
 			} )
 		} ) ) );
+		
+		// If the switch can be operated by the user through the API (defined by the hardware) an additionl method
+		// should be added.
+		unsigned int methods = WebServer::Method::GET;
+		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & Device::UpdateSource::API ) == Device::UpdateSource::API ) {
+			methods |= WebServer::Method::PATCH;
+		}
+		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + this->m_id,
 			"Returns detailed information for " + this->m_name,
 			"api/devices/" + this->m_id,
-			WebServer::Method::GET | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = atoi( this->m_id.c_str() );
-				output_["name"] = this->m_name;
-				output_["value"] = Switch::OptionsText.at( this->m_value );
+			methods,
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				switch( method_ ) {
+					case WebServer::Method::GET:
+						output_["id"] = atoi( this->m_id.c_str() );
+						output_["name"] = this->m_name;
+						output_["value"] = Switch::OptionsText.at( this->m_value );
+						break;
+					case WebServer::Method::PATCH:
+						// TODO implement patch method, for now it toggles between on and off.
+						if ( this->m_value == Switch::Options::ON ) {
+							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Options::OFF ) ? "OK" : "ERROR";
+						} else {
+							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Options::ON ) ? "OK" : "ERROR";
+						}
+						break;
+					default:
+						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid API method." );
+						break;
+				}
 			} )
 		} ) ) );
 		
@@ -68,6 +91,13 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( Switch::OptionsText.find( value_ ) != Switch::OptionsText.end() && "Switch should be defined." );
 #endif // _DEBUG
+		
+	   // The update source should be defined in settings by the declaring hardware.
+		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
+			return false;
+		}
+
 		bool apply = true;
 		unsigned int currentValue = this->m_value;
 		this->m_value = value_;
@@ -93,8 +123,8 @@ namespace micasa {
 			// lack a separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_switch_history` "
-				"WHERE `device_id`=%q AND `Date` < datetime('now','-%q day')"
-				, this->m_id.c_str(), this->m_settings[{ "keep_history_period", "31" }].c_str()
+				"WHERE `device_id`=%q AND `Date` < datetime('now','-%d day')"
+				, this->m_id.c_str(), this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 			);
 		}
 		return std::chrono::milliseconds( 1000 * 60 * 60 );

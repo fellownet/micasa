@@ -68,6 +68,16 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
+	std::shared_ptr<Hardware> Controller::getHardware( const std::string reference_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			if ( (*hardwareIt)->getReference() == reference_ ) {
+				return *hardwareIt;
+			}
+		}
+		return nullptr;
+	};
+	
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 		return this->declareHardware( hardwareType_, std::shared_ptr<Hardware>(), reference_, name_, settings_ );
 	};

@@ -4,6 +4,7 @@
 #ifdef WITH_OPENZWAVE
 
 #include "OpenZWave.h"
+#include "OpenZWaveNode.h"
 
 #include "../Logger.h"
 #include "../Controller.h"
@@ -23,7 +24,7 @@
 
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ ) {
 	auto target = reinterpret_cast<micasa::OpenZWave*>( handler_ );
-	target->handleNotification( notification_ );
+	target->_handleNotification( notification_ );
 }
 
 namespace micasa {
@@ -90,18 +91,72 @@ namespace micasa {
 		Hardware::stop();
 	}
 	
-	void OpenZWave::handleNotification( const ::OpenZWave::Notification* notification_ ) {
+	std::chrono::milliseconds OpenZWave::_work( const unsigned long int iteration_ ) {
+		return std::chrono::milliseconds( 1000 * 60 * 60 );
+	}
+	
+	void OpenZWave::_handleNotification( const ::OpenZWave::Notification* notification_ ) {
 		std::lock_guard<std::mutex> lock( OpenZWave::s_managerMutex );
 
 #ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+		//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
 #endif // _DEBUG
 		
-		//unsigned int homeId = notification_->GetHomeId();
-		//unsigned char nodeId = notification_->GetNodeId();
-		//::OpenZWave::ValueID valueId = notification_->GetValueID();
-		//int commandClass = valueId.GetCommandClassId();
-	
+		unsigned int homeId = notification_->GetHomeId();
+		unsigned char nodeId = notification_->GetNodeId();
+
+		std::stringstream reference;
+		reference << homeId << "/" << (unsigned int)nodeId;
+		auto node = std::static_pointer_cast<OpenZWaveNode>( g_controller->getHardware( reference.str() ) );
+		if ( node != nullptr ) {
+			
+			// This notification belongs to one of the zwave nodes and should be handled directly by this hardware.
+			node->_handleNotification( notification_ );
+
+		} else {
+			
+			// No hardware is available for this node which means that the notification is for the controller (us).
+			g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+			
+			switch( notification_->GetType() ) {
+				case ::OpenZWave::Notification::Type_DriverReady: {
+					this->m_homeId = homeId;
+					this->m_controllerNodeId = nodeId;
+					g_logger->log( Logger::LogLevel::NORMAL, this, "Driver initialized." );
+					break;
+				}
+
+				case ::OpenZWave::Notification::Type_NodeProtocolInfo: {
+					if (
+						this->m_controllerNodeId > 0
+						&& nodeId != this->m_controllerNodeId
+						&& homeId == this->m_homeId
+					) {
+						std::map<std::string, std::string> settings;
+						
+						//std::string name = ::OpenZWave::Manager::Get()->GetNodeType( homeId, nodeId );
+						std::stringstream name;
+						name << ::OpenZWave::Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
+						name << " " << ::OpenZWave::Manager::Get()->GetNodeProductName( homeId, nodeId );
+						
+						g_controller->declareHardware( Hardware::HardwareType::OPEN_ZWAVE_NODE, this->shared_from_this(), reference.str(), name.str(), {
+							{ "home_id", std::to_string( homeId ) }
+						} );
+					}
+				}
+					
+				default: {
+					break;
+				}
+
+			}
+			
+			
+		}
+		
+		
+		
+/*
 		switch( notification_->GetType() ) {
 			case ::OpenZWave::Notification::Type_ValueAdded: {
 				break;
@@ -120,6 +175,25 @@ namespace micasa {
 			}
 				
 			case ::OpenZWave::Notification::Type_NodeAdded: {
+				// The controller is itself a node but it is not added as separate hardware.
+				unsigned int nodeId = notification_->GetNodeId();
+				if ( nodeId != this->m_controllerNodeId ) {
+
+					std::map<std::string, std::string> settings;
+					
+					
+					std::stringstream name;
+					name << ::OpenZWave::Manager::Get()->GetNodeManufacturerName( this->m_homeId, nodeId );
+					name << " " << ::OpenZWave::Manager::Get()->GetNodeProductName( this->m_homeId, nodeId );
+					
+					g_controller->declareHardware(
+						Hardware::HardwareType::OPEN_ZWAVE_NODE,
+						this->shared_from_this(),
+						reference.str(),
+						name.str(),
+						settings
+					);
+				}
 				break;
 			}
 				
@@ -140,6 +214,9 @@ namespace micasa {
 			}
 				
 			case ::OpenZWave::Notification::Type_DriverReady: {
+				this->m_homeId = notification_->GetHomeId();
+				this->m_controllerNodeId = notification_->GetNodeId();
+				g_logger->log( Logger::LogLevel::NORMAL, this, "Driver initialized." );
 				break;
 			}
 				
@@ -225,6 +302,7 @@ namespace micasa {
 			}
 				
 		}
+*/
 	}
 	
 }; // namespace micasa

@@ -210,11 +210,9 @@ namespace micasa {
 									std::string activityId = activity["id"].get<std::string>();
 									std::string name = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>(
-											this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
-												{ "allowed_methods", std::to_string( WebServer::Method::GET | WebServer::Method::PATCH ) }
-											} )
-										);
+										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+										} ) );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT, Switch::Options::ON );
 										} else {

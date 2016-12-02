@@ -90,7 +90,7 @@ namespace micasa {
 			"Returns a list of available hardware.",
 			"api/hardware",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
 					{ "id", atoi( this->m_id.c_str() ) },
 					{ "name", this->m_name },
@@ -102,7 +102,7 @@ namespace micasa {
 			"Returns detailed information for " + this->m_name,
 			"api/hardware/" + this->m_id,
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_["id"] = atoi( this->m_id.c_str() );
 				output_["name"] = this->m_name;
 			} )
@@ -141,6 +141,9 @@ namespace micasa {
 			this->m_devices.clear();
 		}
 
+		if ( this->m_settings.isDirty() ) {
+			this->m_settings.commit( *this );
+		}
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
@@ -165,14 +168,14 @@ namespace micasa {
 				return *devicesIt;
 			}
 		}
-		
+
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `name` ) "
 			"VALUES ( %q, %Q, %d, %Q )"
 			, this->m_id.c_str(), reference_.c_str(), static_cast<int>( deviceType_ ), name_.c_str()
 		);
 		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType_, std::to_string( id ), reference_, name_ );
-		
+
 		Settings& settings = device->getSettings();
 		settings.insert( settings_ );
 		settings.commit( *device );

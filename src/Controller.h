@@ -35,6 +35,8 @@ namespace micasa {
 
 		void start();
 		void stop();
+		
+		std::shared_ptr<Hardware> getHardware( const std::string reference_ ) const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ );
 		void addTask( const std::shared_ptr<Task> task_ );

@@ -26,7 +26,7 @@ namespace micasa {
 			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
 					{ "id", atoi( this->m_id.c_str() ) },
 					{ "name", this->m_name },
@@ -38,8 +38,8 @@ namespace micasa {
 			"device-" + this->m_id,
 			"Returns detailed information for " + this->m_name,
 			"api/devices/" + this->m_id,
-			WebServer::Method::GET | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_["id"] = atoi( this->m_id.c_str() );
 				output_["name"] = this->m_name;
 				output_["value"] = this->m_value;
@@ -56,6 +56,12 @@ namespace micasa {
 	};
 
 	bool Level::updateValue( const Device::UpdateSource source_, const float value_ ) {
+		// The update source should be defined in settings by the declaring hardware.
+		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
+			return false;
+		}
+
 		bool apply = true;
 		float currentValue = this->m_value;
 		this->m_value = value_;
@@ -100,8 +106,8 @@ namespace micasa {
 			// separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_level_history` "
-				"WHERE `device_id`=%q AND `Date` < datetime('now','-%q day')"
-				, this->m_id.c_str(), this->m_settings[{ "keep_history_period", "7" }].c_str()
+				"WHERE `device_id`=%q AND `Date` < datetime('now','-%d day')"
+				, this->m_id.c_str(), this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
 		}
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
