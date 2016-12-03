@@ -38,7 +38,7 @@ namespace micasa {
 			OPTIONS = 64
 		}; // enum Method
 		
-		typedef std::function<void( const std::string uri_, int& code_, nlohmann::json& output_ )> t_callback;
+		typedef std::function<void( const std::string uri_, const Method& method_, int& code_, nlohmann::json& output_ )> t_callback;
 		
 		struct ResourceCallback {
 			const std::string reference;

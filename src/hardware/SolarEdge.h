@@ -5,10 +5,10 @@
 
 namespace micasa {
 
-	class SolarEdge final : public Hardware, public Worker {
+	class SolarEdge final : public Hardware {
 
 	public:
-		SolarEdge( const std::string id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		SolarEdge( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
 		~SolarEdge() { };
 
 		void start() override;

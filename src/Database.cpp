@@ -36,52 +36,7 @@ namespace micasa {
 		}
 	}
 
-	void Database::_init() const {
-		this->putQuery( "PRAGMA synchronous=NORMAL" );
-		this->putQuery( "PRAGMA foreign_keys=ON" );
-
-		this->putQuery( "VACUUM" );
-
-		unsigned int version = atoi( this->getQueryValue( "PRAGMA user_version" ).c_str() );
-		if ( version < c_queries.size() ) {
-			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
-				this->putQuery( *queryIt );
-			}
-			this->putQuery( "PRAGMA user_version=%d", c_queries.size() );
-		}
-	}
-
-	void Database::_wrapQuery( std::string query_, va_list arguments_, std::function<void(sqlite3_stmt*)> process_ ) const {
-		if ( ! this->m_connection ) {
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
-			return;
-		}
-
-		char *query = sqlite3_vmprintf( query_.c_str(), arguments_ );
-		if ( ! query ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
-			return;
-		}
-
-		std::lock_guard<std::mutex> lock( this->m_queryMutex );
-
-		sqlite3_stmt *statement;
-		if ( SQLITE_OK == sqlite3_prepare_v2( this->m_connection, query, -1, &statement, NULL ) ) {
-			process_( statement );
-			sqlite3_finalize( statement );
-		} else {
-			const char *error = sqlite3_errmsg( this->m_connection );
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
-		}
-
-#ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
-#endif // _DEBUG
-
-		sqlite3_free( query );
-	}
-
-	std::vector<std::map<std::string, std::string> > Database::getQuery( std::string query_, ... ) const {
+	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string& query_, ... ) const {
 		std::vector<std::map<std::string, std::string> > result;
 
 		va_list arguments;
@@ -107,7 +62,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::map<std::string, std::string> Database::getQueryRow( std::string query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryRow( const std::string& query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -127,7 +82,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::map<std::string, std::string> Database::getQueryMap( std::string query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryMap( const std::string& query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -152,7 +107,7 @@ namespace micasa {
 		return result;
 	}
 
-	std::string Database::getQueryValue( std::string query_, ... ) const {
+	template<typename T> T Database::getQueryValue( const std::string& query_, ... ) const {
 		std::string result;
 
 		va_list arguments;
@@ -167,10 +122,37 @@ namespace micasa {
 		} );
 		va_end( arguments );
 
-		return result;
+		T value;
+		std::istringstream( result ) >> value;
+		return value;
 	}
+	
+	// The above template is specialized for the types listed below.
+	template int Database::getQueryValue( const std::string& query_, ... ) const;
+	template unsigned int Database::getQueryValue( const std::string& query_, ... ) const;
+	template float Database::getQueryValue( const std::string& query_, ... ) const;
 
-	long Database::putQuery( std::string query_, ... ) const {
+	// The string variant of the above template doesn't require string streams and has it's own
+	// specialized implementation.
+	template<> std::string Database::getQueryValue<std::string>( const std::string& query_, ... ) const {
+		std::string result;
+		
+		va_list arguments;
+		va_start( arguments, query_ );
+		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
+#ifdef _DEBUG
+				assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 value." );
+#endif // _DEBUG
+				result = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
+			}
+		} );
+		va_end( arguments );
+		
+		return result;
+	};
+	
+	long Database::putQuery( const std::string& query_, ... ) const {
 		va_list arguments;
 		va_start( arguments, query_ );
 		long insertId = -1;
@@ -186,4 +168,49 @@ namespace micasa {
 		return insertId;
 	}
 
+	void Database::_init() const {
+		this->putQuery( "PRAGMA synchronous=NORMAL" );
+		this->putQuery( "PRAGMA foreign_keys=ON" );
+		
+		this->putQuery( "VACUUM" );
+		
+		unsigned int version = this->getQueryValue<unsigned int>( "PRAGMA user_version" );
+		if ( version < c_queries.size() ) {
+			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
+				this->putQuery( *queryIt );
+			}
+			this->putQuery( "PRAGMA user_version=%d", c_queries.size() );
+		}
+	}
+	
+	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)> process_ ) const {
+		if ( ! this->m_connection ) {
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
+			return;
+		}
+		
+		char *query = sqlite3_vmprintf( query_.c_str(), arguments_ );
+		if ( ! query ) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
+			return;
+		}
+		
+		std::lock_guard<std::mutex> lock( this->m_queryMutex );
+		
+		sqlite3_stmt *statement;
+		if ( SQLITE_OK == sqlite3_prepare_v2( this->m_connection, query, -1, &statement, NULL ) ) {
+			process_( statement );
+			sqlite3_finalize( statement );
+		} else {
+			const char *error = sqlite3_errmsg( this->m_connection );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+		}
+		
+#ifdef _DEBUG
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+#endif // _DEBUG
+		
+		sqlite3_free( query );
+	}
+	
 } // namespace micasa

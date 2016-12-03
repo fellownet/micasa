@@ -10,7 +10,7 @@ namespace micasa {
 #endif // _DEBUG
 	};
 	
-	void Worker::_begin() {
+	void Worker::start() {
 #ifdef _DEBUG
 		assert( this->m_shutdown && "Worker instance should not be running when invoking begin-method." );
 #endif // _DEBUG
@@ -28,7 +28,7 @@ namespace micasa {
 		} );
 	};
 
-	void Worker::_retire() {
+	void Worker::stop() {
 #ifdef _DEBUG
 		assert( ! this->m_shutdown && "Worker instance should be running when invoking retire-method." );
 #endif // _DEBUG

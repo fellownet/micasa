@@ -56,7 +56,7 @@ namespace micasa {
 			}
 		} ) );
 		
-		this->_begin();
+		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -66,7 +66,7 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		this->_retire();
+		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
@@ -183,8 +183,12 @@ namespace micasa {
 			headers << "Content-Type: Content-type: application/json\r\n";
 			headers << "Access-Control-Allow-Origin: *\r\n";
 
+			// TODO if method is something other than GET don't search cache for nothing.
 			auto cacheHit = this->m_resourceCache.find( uriStr );
-			if ( cacheHit != this->m_resourceCache.end() ) {
+			if (
+				method == Method::GET
+				&& cacheHit != this->m_resourceCache.end()
+			) {
 				headers << "ETag: " << cacheHit->second.etag;
 				
 				// There's a cache entry available for the requested resource. If the client provided an
@@ -209,20 +213,24 @@ namespace micasa {
 			} else {
 
 				// There's no cache entry available so we need to invoke all callbacks to generate the
-				// content for this resource and populate the cache.
+				// content for this resource and populate the cache (only if method == GET).
 				json data;
 				int code = 200;
 				for ( auto callbackIt = resource->second.begin(); callbackIt != resource->second.end(); callbackIt++ ) {
-					(*callbackIt)->callback( uriStr, code, data );
+					(*callbackIt)->callback( uriStr, method, code, data );
 				}
-				
 				const std::string content = data.dump( 4 );
-				const std::string etag = "W/\"" + std::to_string( rand() ) + "\"";
-				const std::string modified = g_database->getQueryValue( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
-				this->m_resourceCache.insert( { uriStr, WebServer::ResourceCache( { content, etag, modified } ) } );
+				
+				if ( method == Method::GET ) {
+					const std::string etag = "W/\"" + std::to_string( rand() ) + "\"";
+					const std::string modified = g_database->getQueryValue<std::string>( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
+					this->m_resourceCache.insert( { uriStr, WebServer::ResourceCache( { content, etag, modified } ) } );
 
-				headers << "ETag: " << etag << "\r\n";
-				headers << "Last-Modified: " << modified;
+					headers << "ETag: " << etag << "\r\n";
+					headers << "Last-Modified: " << modified;
+				} else {
+					headers << "Cache-Control: no-cache, no-store, must-revalidate";
+				}
 				
 				mg_send_head( connection_, 200, content.length(), headers.str().c_str() );
 				mg_send( connection_, content.c_str(), content.length() );
@@ -253,7 +261,7 @@ namespace micasa {
 					{ Method::HEAD, "HEAD" },
 					{ Method::POST, "POST" },
 					{ Method::PUT, "PUT" },
-					{ Method::PATCH, "PATCH" },
+					{ Method::PATCH, "<a href=\"" + resourceIt->first + "?_method=PATCH\">PATCH</a>" },
 					{ Method::DELETE, "DELETE" },
 					{ Method::OPTIONS, "OPTIONS" },
 				};

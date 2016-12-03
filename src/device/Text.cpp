@@ -12,35 +12,35 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 
 	void Text::start() {
-		this->m_value = g_database->getQueryValue(
+		this->m_value = g_database->getQueryValue<std::string>(
 			"SELECT `value` "
 			"FROM `device_text_history` "
-			"WHERE `device_id`=%q "
+			"WHERE `device_id`=%d "
 			"ORDER BY `date` DESC "
 			"LIMIT 1"
-			, this->m_id.c_str()
+			, this->m_id
 		);
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + this->m_id,
+			"device-" + std::to_string( this->m_id ),
 			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ += {
-					{ "id", atoi( this->m_id.c_str() ) },
+					{ "id", this->m_id },
 					{ "name", this->m_name },
 					{ "value", this->m_value }
 				};
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + this->m_id,
+			"device-" + std::to_string( this->m_id ),
 			"Returns detailed information for " + this->m_name,
-			"api/devices/" + this->m_id,
-			WebServer::Method::GET | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string uri_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = atoi( this->m_id.c_str() );
+			"api/devices/" + std::to_string( this->m_id ),
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				output_["id"] = this->m_id;
 				output_["name"] = this->m_name;
 				output_["value"] = this->m_value;
 			} )
@@ -50,11 +50,17 @@ namespace micasa {
 	};
 
 	void Text::stop() {
-		g_webServer->removeResourceCallback( "device-" + this->m_id );
+		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) );
 		Device::stop();
 	};
 	
 	bool Text::updateValue( const Device::UpdateSource source_, const std::string value_ ) {
+		// The update source should be defined in settings by the declaring hardware.
+		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
+			return false;
+		}
+
 		bool apply = true;
 		std::string currentValue = this->m_value;
 		this->m_value = value_;
@@ -62,11 +68,12 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_text_history` (`device_id`, `value`) "
-				"VALUES (%q, %Q)"
-				, this->m_id.c_str(), value_.c_str()
+				"VALUES (%d, %Q)"
+				, this->m_id, value_.c_str()
 			);
+			g_controller->newEvent<Text>( *this, source_ );
 			g_webServer->touchResourceAt( "api/devices" );
-			g_webServer->touchResourceAt( "api/devices/" + this->m_id );
+			g_webServer->touchResourceAt( "api/devices/" + std::to_string( this->m_id ) );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
 		} else {
 			this->m_value = currentValue;
@@ -80,8 +87,8 @@ namespace micasa {
 			// lack a separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_text_history` "
-				"WHERE `device_id`=%q AND `Date` < datetime('now','-%q day')"
-				, this->m_id.c_str(), this->m_settings[{ "keep_history_period", "31" }].c_str()
+				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
+				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 			);
 		}
 		return std::chrono::milliseconds( 1000 * 60 * 60 );

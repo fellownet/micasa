@@ -18,13 +18,11 @@ namespace micasa {
 	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		this->_begin();
 		Hardware::start();
 	}
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire();
 		Hardware::stop();
 	}
 
@@ -94,13 +92,13 @@ namespace micasa {
 			
 			std::string startActivityId = "";
 			if (
-				device->getValue() == Switch::Options::OFF
+				device->getValueOption() == Switch::Option::OFF
 				&& device->getReference() == this->m_currentActivityId
 			) {
 				startActivityId = "-1"; // PowerOff
 			}
 			if (
-				device->getValue() == Switch::Options::ON
+				device->getValueOption() == Switch::Option::ON
 				&& device->getReference() != this->m_currentActivityId
 			) {
 				startActivityId = device_->getReference();
@@ -114,7 +112,7 @@ namespace micasa {
 				}
 				this->m_commandBusy = true;
 			
-				if ( device->getValue() == Switch::Options::ON ) {
+				if ( device->getValueOption() == Switch::Option::ON ) {
 					g_logger->logr( Logger::LogLevel::NORMAL, this, "Starting activity %s.", device_->getName().c_str() );
 				} else {
 					g_logger->logr( Logger::LogLevel::NORMAL, this, "Stopping activity %s.", device_->getName().c_str() );
@@ -212,15 +210,13 @@ namespace micasa {
 									std::string activityId = activity["id"].get<std::string>();
 									std::string name = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>(
-											this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
-												{ "allowed_methods", std::to_string( WebServer::Method::GET | WebServer::Method::PATCH ) }
-											} )
-										);
+										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+										} ) );
 										if ( activityId == this->m_currentActivityId ) {
-											device->updateValue( Device::UpdateSource::INIT, Switch::Options::ON );
+											device->updateValue( Device::UpdateSource::INIT, Switch::Option::ON );
 										} else {
-											device->updateValue( Device::UpdateSource::INIT, Switch::Options::OFF );
+											device->updateValue( Device::UpdateSource::INIT, Switch::Option::OFF );
 										}
 									}
 								}
@@ -295,14 +291,14 @@ namespace micasa {
 						) {
 							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_getDevice( this->m_currentActivityId ) );
 							if ( device != nullptr ) {
-								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Options::OFF );
+								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 							}
 							this->m_currentActivityId = "-1";
 						}
 						if ( activityId != "-1" ) {
 							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_getDevice( activityId ) );
 							if ( device != nullptr ) {
-								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Options::ON );
+								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
 							}
 							this->m_currentActivityId = activityId;
 						}

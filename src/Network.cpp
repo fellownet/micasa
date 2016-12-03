@@ -46,13 +46,13 @@ namespace micasa {
 	void Network::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		mg_mgr_init( &this->m_manager, NULL );
-		this->_begin(); // starts polling on the manager
+		Worker::start(); // starts polling on the manager
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
 	void Network::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->_retire(); // makes sure the last _work call is finished
+		Worker::stop(); // makes sure the last _work call is finished
 		mg_mgr_free( &this->m_manager ); // disconnects all open connections (with the MG_EV_SHUTDOWN event)
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
