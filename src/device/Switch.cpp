@@ -98,6 +98,11 @@ namespace micasa {
 			return false;
 		}
 
+		// Setting a switch to it's current value shouldn't do anything by default.
+		if ( this->m_value == value_ ) {
+			return false;
+		}
+		
 		bool apply = true;
 		Option currentValue = this->m_value;
 		this->m_value = value_;
