@@ -9,6 +9,7 @@
 // https://github.com/nlohmann/json
 
 #include <cstdlib>
+#include <regex>
 
 #include "WebServer.h"
 #include "Database.h"
@@ -84,7 +85,7 @@ namespace micasa {
 		} else {
 			this->m_resources[callback_->uri] = { callback_ };
 		}
-		this->m_resourceCache.erase( callback_->uri );
+		this->_removeResourceCache( callback_->uri );
 #ifdef _DEBUG
 		g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback installed at %s.", callback_->uri.c_str() );
 #endif // _DEBUG
@@ -99,7 +100,7 @@ namespace micasa {
 					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback removed at %s.", (*callbackIt)->uri.c_str() );
 #endif // _DEBUG
 					callbackIt = resourceIt->second.erase( callbackIt );
-					this->m_resourceCache.erase( (*callbackIt)->uri );
+					this->_removeResourceCache( (*callbackIt)->uri );
 				} else {
 					callbackIt++;
 				}
@@ -112,40 +113,35 @@ namespace micasa {
 		}
 	};
 
+	void WebServer::touchResourceCallback( const std::string reference_ ) {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
+			for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); ) {
+				if ( (*callbackIt)->reference == reference_ ) {
+					this->_removeResourceCache( (*callbackIt)->uri );
+					break;
+				}
+				callbackIt++;
+			}
+			resourceIt++;
+		}
+	}
+	
 	void WebServer::touchResourceAt( const std::string uri_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		this->m_resourceCache.erase( uri_ );
+		this->_removeResourceCache( uri_ );
 	};
-	
-	
-	
-	
-	/*
-	void WebServer::addResource( Resource resource_ ) {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		std::string etag = std::to_string( rand() );
-		this->m_resources[resource_.uri] = std::pair<Resource, std::string>( resource_, etag );
-		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Resource no. %d at " + resource_.uri + " installed.", this->m_resources.size() );
-	};
-	
-	void WebServer::removeResourceAt( std::string uri_ ) {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-#ifdef _DEBUG
-		assert( this->m_resources.find( uri_ ) != this->m_resources.end() && "Resource should exist before trying to remove it." );
-#endif // _DEBUG
-		this->m_resources.erase( uri_ );
-		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Resource " + uri_ + " removed, %d resources left.", this->m_resources.size() );
-	};
-	
-	void WebServer::touchResourceAt( std::string uri_ ) {
-#ifdef _DEBUG
-		assert( this->m_resources.find( uri_ ) != this->m_resources.end() && "Resource should exist before trying to touch it." );
-#endif // _DEBUG
-		std::string etag = std::to_string( rand() );
-		this->m_resources[uri_].second = etag;
-	};
-	*/
 
+	void WebServer::_removeResourceCache( const std::string uri_ ) {
+		for ( auto cacheIt = this->m_resourceCache.begin(); cacheIt != this->m_resourceCache.end(); ) {
+			if ( stringStartsWith( cacheIt->first, uri_ ) ) {
+				cacheIt = this->m_resourceCache.erase( cacheIt );
+			} else {
+				cacheIt++;
+			}
+		}
+	};
+	
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 		
 		std::string methodStr = "";
@@ -157,6 +153,22 @@ namespace micasa {
 			uriStr.assign( message_->uri.p + 1, message_->uri.len - 1 );
 		}
 		
+		// TODO maybe construct some sort of cache key which would be a combination of uriStr and all
+		// unknown query parameters (strip page and count so for pagination the cache would still be
+		// valid).
+		
+
+		// Parse the query string.
+		std::map<std::string, std::string> input;
+		std::regex pattern( "([\\w+%]+)=([^&]*)" );
+		auto wordsBegin = std::sregex_iterator( queryStr.begin(), queryStr.end(), pattern );
+		auto wordsEnd = std::sregex_iterator();
+		for ( std::sregex_iterator it = wordsBegin; it != wordsEnd; it++ ) {
+			std::string key = (*it)[1].str();
+			std::string value = (*it)[2].str();
+			input[key] = value;
+		}
+
 		// Determine method (note that the method can be overridden by adding _method=xx to the query).
 		stringIsolate( queryStr, "_method=", "&", false, methodStr );
 		Method method = Method::GET;
@@ -174,7 +186,23 @@ namespace micasa {
 			method = Method::OPTIONS;
 		}
 
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		// Create a cacheKey for GET requests. Note that a std::map is sorted by default, hence the order
+		// of parameters doesn't bypass the cache. Also, some parameters should not also not cause the
+		// cache to be bypassed.
+		std::stringstream cacheKey;
+		if ( method == Method::GET ) {
+			cacheKey << uriStr;
+			for ( auto inputIt = input.begin(); inputIt != input.end(); inputIt++ ) {
+				if (
+					inputIt->first != "page"
+					&& inputIt->first != "count"
+				) {
+					cacheKey << "/" << inputIt->first << "=" << inputIt->second;
+				}
+			}
+		}
+
+		std::unique_lock<std::mutex> resourceLock( this->m_resourcesMutex );
 		
 		auto resource = this->m_resources.find( uriStr );
 		if ( resource != this->m_resources.end() ) {
@@ -183,12 +211,15 @@ namespace micasa {
 			headers << "Content-Type: Content-type: application/json\r\n";
 			headers << "Access-Control-Allow-Origin: *\r\n";
 
-			// TODO if method is something other than GET don't search cache for nothing.
-			auto cacheHit = this->m_resourceCache.find( uriStr );
+			// TODO combine the cache with the query string (this already fails). Take care of pagination?
+			std::map<std::string, ResourceCache>::iterator cacheHit;
 			if (
 				method == Method::GET
-				&& cacheHit != this->m_resourceCache.end()
+				&& ( cacheHit = this->m_resourceCache.find( cacheKey.str() ) ) != this->m_resourceCache.end()
 			) {
+				// Release the lock on the resource callbacks as soon as possible.
+				resourceLock.unlock();
+				
 				headers << "ETag: " << cacheHit->second.etag;
 				
 				// There's a cache entry available for the requested resource. If the client provided an
@@ -214,17 +245,31 @@ namespace micasa {
 
 				// There's no cache entry available so we need to invoke all callbacks to generate the
 				// content for this resource and populate the cache (only if method == GET).
-				json data;
+				json output;
 				int code = 200;
-				for ( auto callbackIt = resource->second.begin(); callbackIt != resource->second.end(); callbackIt++ ) {
-					(*callbackIt)->callback( uriStr, method, code, data );
-				}
-				const std::string content = data.dump( 4 );
 				
+				// Make a local copy of the callbacks to allow the lock to be released. This way callbacks can touch
+				// resources which otherwise would cause a deadlock.
+				auto callbacks = resource->second;
+				resourceLock.unlock();
+
+				// TODO combine the data with POST data (json in body?).
+				// TODO take care of pagination here? can be efficient in combination with cache.
+				
+				// Call all callbacks configured for this uri.
+				for ( auto callbackIt = callbacks.begin(); callbackIt != callbacks.end(); callbackIt++ ) {
+					if ( ( (*callbackIt)->methods & method ) == method ) {
+						(*callbackIt)->callback( uriStr, input, method, code, output );
+					}
+				}
+
+				const std::string content = output.dump( 4 );
+				
+				// Only store the content in the cache if it's a get method. All other methods should not be cached.
 				if ( method == Method::GET ) {
 					const std::string etag = "W/\"" + std::to_string( rand() ) + "\"";
 					const std::string modified = g_database->getQueryValue<std::string>( "SELECT strftime('%%Y-%%m-%%d %%H:%%M:%%S GMT')" );
-					this->m_resourceCache.insert( { uriStr, WebServer::ResourceCache( { content, etag, modified } ) } );
+					this->m_resourceCache.insert( { cacheKey.str(), WebServer::ResourceCache( { content, etag, modified } ) } );
 
 					headers << "ETag: " << etag << "\r\n";
 					headers << "Last-Modified: " << modified;
@@ -232,7 +277,7 @@ namespace micasa {
 					headers << "Cache-Control: no-cache, no-store, must-revalidate";
 				}
 				
-				mg_send_head( connection_, 200, content.length(), headers.str().c_str() );
+				mg_send_head( connection_, code, content.length(), headers.str().c_str() );
 				mg_send( connection_, content.c_str(), content.length() );
 			}
 			
@@ -249,7 +294,7 @@ namespace micasa {
 			outputStream << "<!doctype html>" << "<html><body style=\"font-family:sans-serif;\">";
 			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
 				outputStream << "<strong>Title:</strong> " << (*resourceIt->second.begin())->title << "<br>";
-				outputStream << "<strong>Uri:</strong> <a href=\"/" << resourceIt->first << "\">" << resourceIt->first << "</a><br>";
+				outputStream << "<strong>Uri:</strong> " << resourceIt->first << "<br>";
 				outputStream << "<strong>Methods:</strong>";
 				
 				unsigned int methods = 0;
@@ -257,12 +302,12 @@ namespace micasa {
 					methods |= (*callbackIt)->methods;
 				}
 				std::map<Method,std::string> availableMethods = {
-					{ Method::GET, "GET" },
+					{ Method::GET, "<a href=\"" + resourceIt->first + "\">GET</a>" },
 					{ Method::HEAD, "HEAD" },
 					{ Method::POST, "POST" },
-					{ Method::PUT, "PUT" },
+					{ Method::PUT, "<a href=\"" + resourceIt->first + "?_method=PUT\">PUT</a>" },
 					{ Method::PATCH, "<a href=\"" + resourceIt->first + "?_method=PATCH\">PATCH</a>" },
-					{ Method::DELETE, "DELETE" },
+					{ Method::DELETE, "<a href=\"" + resourceIt->first + "?_method=DELETE\">DELETE</a>" },
 					{ Method::OPTIONS, "OPTIONS" },
 				};
 				for ( auto methodIt = availableMethods.begin(); methodIt != availableMethods.end(); methodIt++ ) {

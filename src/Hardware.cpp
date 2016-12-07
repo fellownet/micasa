@@ -3,7 +3,6 @@
 #include "Hardware.h"
 #include "Database.h"
 
-#include "hardware/Internal.h"
 #include "hardware/OpenZWave.h"
 #include "hardware/OpenZWaveNode.h"
 #include "hardware/WeatherUnderground.h"
@@ -14,7 +13,6 @@
 #include "hardware/RFXCom.h"
 #include "hardware/SolarEdge.h"
 #include "hardware/SolarEdgeInverter.h"
-#include "hardware/Domoticz.h"
  
 namespace micasa {
 
@@ -22,7 +20,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Hardware::Hardware( const unsigned int id_, const std::string reference_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
+	Hardware::Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_parent( parent_ ), m_name( name_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
 		assert( g_webServer && "Global Database instance should be created before Hardware instances." );
@@ -39,43 +37,37 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const unsigned int id_, const std::string reference_, std::string name_ ) {
+	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) {
 		switch( hardwareType_ ) {
-			case INTERNAL:
-				return std::make_shared<Internal>( id_, reference_, name_ );
-				break;
 			case HARMONY_HUB:
-				return std::make_shared<HarmonyHub>( id_, reference_, name_ );
+				return std::make_shared<HarmonyHub>( id_, reference_, parent_, name_ );
 				break;
 			case OPEN_ZWAVE:
-				return std::make_shared<OpenZWave>( id_, reference_, name_ );
+				return std::make_shared<OpenZWave>( id_, reference_, parent_, name_ );
 				break;
 			case OPEN_ZWAVE_NODE:
-				return std::make_shared<OpenZWaveNode>( id_, reference_, name_ );
+				return std::make_shared<OpenZWaveNode>( id_, reference_, parent_, name_ );
 				break;
 			case P1_METER:
-				return std::make_shared<P1Meter>( id_, reference_, name_ );
+				return std::make_shared<P1Meter>( id_, reference_, parent_, name_ );
 				break;
 			case PIFACE:
-				return std::make_shared<PiFace>( id_, reference_, name_ );
+				return std::make_shared<PiFace>( id_, reference_, parent_, name_ );
 				break;
 			case PIFACE_BOARD:
-				return std::make_shared<PiFaceBoard>( id_, reference_, name_ );
+				return std::make_shared<PiFaceBoard>( id_, reference_, parent_, name_ );
 				break;
 			case RFXCOM:
-				return std::make_shared<RFXCom>( id_, reference_, name_ );
+				return std::make_shared<RFXCom>( id_, reference_, parent_, name_ );
 				break;
 			case SOLAREDGE:
-				return std::make_shared<SolarEdge>( id_, reference_, name_ );
+				return std::make_shared<SolarEdge>( id_, reference_, parent_, name_ );
 				break;
 			case SOLAREDGE_INVERTER:
-				return std::make_shared<SolarEdgeInverter>( id_, reference_, name_ );
+				return std::make_shared<SolarEdgeInverter>( id_, reference_, parent_, name_ );
 				break;
 			case WEATHER_UNDERGROUND:
-				return std::make_shared<WeatherUnderground>( id_, reference_, name_ );
-				break;
-			case DOMOTICZ:
-				return std::make_shared<Domoticz>( id_, reference_, name_ );
+				return std::make_shared<WeatherUnderground>( id_, reference_, parent_, name_ );
 				break;
 		}
 #ifdef _DEBUG
@@ -90,11 +82,11 @@ namespace micasa {
 			"Returns a list of available hardware.",
 			"api/hardware",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ += {
-					{ "id", this->m_id },
-					{ "name", this->m_name },
-				};
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( output_.is_null() ) {
+					output_ = nlohmann::json::array();
+				}
+				output_ += this->_getResourceJson();
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
@@ -102,9 +94,8 @@ namespace micasa {
 			"Returns detailed information for " + this->m_name,
 			"api/hardware/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = this->m_id;
-				output_["name"] = this->m_name;
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				output_ = this->_getResourceJson();
 			} )
 		} ) ) );
 		
@@ -148,6 +139,17 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
+	const nlohmann::json Hardware::_getResourceJson() const {
+		nlohmann::json result = {
+			{ "id", this->m_id },
+			{ "name", this->m_name },
+		};
+		if ( this->m_parent ) {
+			result["parent"] = this->m_parent->_getResourceJson();
+		}
+		return result;
+	};
+	
 	std::shared_ptr<Device> Hardware::_getDevice( const std::string reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
@@ -156,7 +158,7 @@ namespace micasa {
 			}
 		}
 		return nullptr;
-	}
+	};
 	
 	std::shared_ptr<Device> Hardware::_getDeviceById( const unsigned int id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
@@ -166,7 +168,7 @@ namespace micasa {
 			}
 		}
 		return nullptr;
-	}
+	};
 	
 	std::shared_ptr<Device> Hardware::_declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature

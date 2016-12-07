@@ -15,10 +15,14 @@ namespace micasa {
 			}
 		}
 		return false;
-	}
+	};
 
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, std::string& result_ ) {
 		return stringIsolate( haystack_, start_, end_, true, result_ );
-	}
+	};
+	
+	bool stringStartsWith( const std::string& haystack_, const std::string& search_ ) {
+		return std::equal( search_.begin(), search_.end(), haystack_.begin() );
+	};
 	
 } // namespace micasa

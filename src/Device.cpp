@@ -31,6 +31,10 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
+	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
+		out_ << device_->m_hardware->getName() << " / " << device_->m_name; return out_;
+	}
+	
 	void Device::start() {
 		Worker::start();
 	};
@@ -58,6 +62,15 @@ namespace micasa {
 				break;
 		}
 		return nullptr;
+	};
+
+	const nlohmann::json Device::_getResourceJson() const {
+		nlohmann::json result = {
+			{ "id", this->m_id },
+			{ "name", this->m_name },
+			{ "hardware", this->m_hardware->_getResourceJson() }
+		};
+		return result;
 	};
 
 }; // namespace micasa

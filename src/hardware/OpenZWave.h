@@ -8,16 +8,27 @@
 
 #include "Notification.h"
 
+#define OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC	250 // how long to wait for a busy manager
+
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 
 namespace micasa {
 
 	class OpenZWave final : public Hardware {
 		
+		friend class OpenZWaveNode;
 		friend void ::micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 		
 	public:
-		OpenZWave( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		enum State {
+			STARTING = 1,
+			IDLE,
+			HEALING,
+			INCLUSION_MODE,
+			EXCLUSION_MODE
+		}; // enum State
+		
+		OpenZWave( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Hardware( id_, reference_, parent_, name_ ) { };
 		~OpenZWave() { };
 		
 		void start() override;
@@ -30,7 +41,7 @@ namespace micasa {
 	private:
 		unsigned int m_homeId;
 		unsigned char m_controllerNodeId;
-		static std::mutex s_managerMutex;
+		State m_controllerState = STARTING;
 
 		void _handleNotification( const ::OpenZWave::Notification* notification_ );
 

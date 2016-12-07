@@ -134,24 +134,50 @@ namespace micasa {
 			&& source_ != Device::UpdateSource::INIT
 		) {
 			apply_ = false;
-			
-			::OpenZWave::ValueID valueId( this->m_settings.get<unsigned int>( "home_id", 0 ), std::stoull( device_->getReference() ) );
-			switch( valueId.GetCommandClassId() ) {
-				case COMMAND_CLASS_SWITCH_BINARY: {
-					if (
-						valueId.GetType() == ::OpenZWave::ValueID::ValueType_Bool
-						&& device_->getType() == Device::DeviceType::SWITCH
-					) {
-						// TODO differentiate between blinds, switches etc (like open close on of etc).
-						std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-						bool value = device->getValueOption() == Switch::Option::ON ? true : false;
-						::OpenZWave::Manager::Get()->SetValue( valueId, value );
+
+			std::shared_ptr<OpenZWave> parent = std::static_pointer_cast<OpenZWave>( this->m_parent );
+			if ( parent->m_hardwareMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+				
+				// Obtain the lock created above. This allows for return statements without explicitly releasing the lock, this
+				// is done in the lock_guard destructor.
+				std::lock_guard<std::timed_mutex> lock( parent->m_hardwareMutex, std::adopt_lock );
+				
+				if ( parent->m_controllerState == OpenZWave::State::IDLE ) {
+				
+					// If the node has been reported dead do not try to send the command.
+					if ( this->m_dead ) {
+						return false;
 					}
-				}
 					
-				default: {
+					// TODO Create lock and release when the node has set the value? Must be temporary though, so better is to
+					// sleep and use a notifiaction variable such as in worker class?
+					
+					// Reconstruct the value id which is needed to send a command to a node.
+					::OpenZWave::ValueID valueId( this->m_settings.get<unsigned int>( "home_id", 0 ), std::stoull( device_->getReference() ) );
+					switch( valueId.GetCommandClassId() ) {
+						case COMMAND_CLASS_SWITCH_BINARY: {
+							if (
+								valueId.GetType() == ::OpenZWave::ValueID::ValueType_Bool
+								&& device_->getType() == Device::DeviceType::SWITCH
+							) {
+								// TODO differentiate between blinds, switches etc (like open close on of etc).
+								std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+								bool value = device->getValueOption() == Switch::Option::ON ? true : false;
+								return ::OpenZWave::Manager::Get()->SetValue( valueId, value );
+							}
+						}
+							
+						default: {
+						}
+					}
+					
+				} else {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
 				}
+			} else {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
 			}
+			return false;
 		}
 		return true;
 	};
@@ -160,6 +186,9 @@ namespace micasa {
 	void OpenZWaveNode::_handleNotification( const ::OpenZWave::Notification* notification_ ) {
 		// This method is proxied from the OpenZWave class which still holds the OpenZWave manager lock. This
 		// is required when processing notifications.
+		g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+
+		
 		switch( notification_->GetType() ) {
 			case ::OpenZWave::Notification::Type_ValueAdded: {
 				::OpenZWave::ValueID valueId = notification_->GetValueID();
@@ -175,6 +204,30 @@ namespace micasa {
 				
 			case ::OpenZWave::Notification::Type_ValueRemoved: {
 				// TODO remove device? an what about history and trends that the user might want to keep?
+				break;
+			}
+				
+			case ::OpenZWave::Notification::Type_Notification: {
+				switch( notification_->GetNotification() ) {
+					case ::OpenZWave::Notification::Code_Alive: {
+						if ( this->m_dead ) {
+							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is alive again." );
+							this->m_dead = false;
+						}
+						break;
+					}
+					case ::OpenZWave::Notification::Code_Dead: {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
+						this->m_dead = true;
+						break;
+					}
+						
+				}
+				break;
+			}
+				
+			case ::OpenZWave::Notification::Type_NodeEvent: {
+				std::cout << "NODE EVENT, UNHANDLED?\n";
 				break;
 			}
 				
@@ -197,14 +250,13 @@ namespace micasa {
 			return;
 		}
 
-		bool boolValue = false;
-		unsigned char byteValue = 0;
-		float value = 0;
-
 		// Process all other values by command class.
-		switch( valueId_.GetCommandClassId() ) {
+		unsigned int commandClass = valueId_.GetCommandClassId();
+		switch( commandClass ) {
 				
 			case COMMAND_CLASS_SWITCH_BINARY: {
+				bool boolValue = false;
+				unsigned char byteValue = 0;
 				if (
 					valueId_.GetType() == ::OpenZWave::ValueID::ValueType_Bool
 					&& false != ::OpenZWave::Manager::Get()->GetValueAsBool( valueId_, &boolValue )
@@ -225,16 +277,21 @@ namespace micasa {
 					} ) );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 				}
+				break;
 			}
 				
 			case COMMAND_CLASS_SENSOR_BINARY: {
-				
+				//g_logger->log( Logger::LogLevel::WARNING, this, label );
+				std::cout << "HIER DAN? " << label << "\n";
+				break;
 			}
 				
 			case COMMAND_CLASS_METER: {
+				
+				float floatValue = 0;
 				if (
 					valueId_.GetType() == ::OpenZWave::ValueID::ValueType_Decimal
-					&& false != ::OpenZWave::Manager::Get()->GetValueAsFloat( valueId_, &value )
+					&& false != ::OpenZWave::Manager::Get()->GetValueAsFloat( valueId_, &floatValue )
 				) {
 					if (
 						"Energy" == label
@@ -244,17 +301,19 @@ namespace micasa {
 						std::shared_ptr<Counter> device = std::static_pointer_cast<Counter>( this->_declareDevice( Device::DeviceType::COUNTER, reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
 						} ) );
-						device->updateValue( source_, value );
+						device->updateValue( source_, floatValue );
 					} else {
 						std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
 						} ) );
-						device->updateValue( source_, value );
+						device->updateValue( source_, floatValue );
 					}
 				}
+				break;
 			}
 				
 			case COMMAND_CLASS_BATTERY: {
+				unsigned char byteValue = 0;
 				if (
 					valueId_.GetType() == ::OpenZWave::ValueID::ValueType_Byte
 					&& false != ::OpenZWave::Manager::Get()->GetValueAsByte( valueId_, &byteValue )
@@ -262,12 +321,20 @@ namespace micasa {
 					std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
 					} ) );
-					device->updateValue( source_, (unsigned int)value );
+					device->updateValue( source_, (unsigned int)byteValue );
 				}
+				break;
+			}
+				
+			case COMMAND_CLASS_CONFIGURATION: {
+				// ignore for now
+				break;
 			}
 				
 			default: {
+				//g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x.", commandClass );
 				// not implemented (yet?)
+				break;
 			}
 		}
 	};

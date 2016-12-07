@@ -21,7 +21,7 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const Device::UpdateSource source_, const float value_ );
+		bool updateValue( const Device::UpdateSource& source_, const float& value_ );
 		const float getValue() const { return this->m_value; };
 
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );

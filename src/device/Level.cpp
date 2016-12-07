@@ -26,12 +26,19 @@ namespace micasa {
 			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ += {
-					{ "id", this->m_id },
-					{ "name", this->m_name },
-					{ "value", this->m_value }
-				};
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( output_.is_null() ) {
+					output_ = nlohmann::json::array();
+				}
+				auto inputIt = input_.find( "hardware_id" );
+				if (
+					inputIt == input_.end()
+					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				) {
+					auto json = this->_getResourceJson();
+					json["value"] = this->m_value;
+					output_ += json;
+				}
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
@@ -39,11 +46,10 @@ namespace micasa {
 			"Returns detailed information for " + this->m_name,
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = this->m_id;
-				output_["name"] = this->m_name;
-				output_["value"] = this->m_value;
-				output_["trends"] = g_database->getQuery( "SELECT `date`, `min`, `max`, `average` FROM `device_level_trends` WHERE `device_id`=%d ORDER BY `date` ASC LIMIT 48", this->m_id );
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				auto json = this->_getResourceJson();
+				json["value"] = this->m_value;
+				output_ = json;
 			} )
 		} ) ) );
 
@@ -55,7 +61,7 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Level::updateValue( const Device::UpdateSource source_, const float value_ ) {
+	bool Level::updateValue( const Device::UpdateSource& source_, const float& value_ ) {
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
@@ -73,8 +79,7 @@ namespace micasa {
 				, this->m_id, value_
 			);
 			g_controller->newEvent<Level>( *this, source_ );
-			g_webServer->touchResourceAt( "api/devices" );
-			g_webServer->touchResourceAt( "api/devices/" + std::to_string( this->m_id ) );
+			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
 		} else {
 			this->m_value = currentValue;

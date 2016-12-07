@@ -15,7 +15,7 @@ namespace micasa {
 			IDLE,
 		};
 		
-		HarmonyHub( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		HarmonyHub( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Hardware( id_, reference_, parent_, name_ ) { };
 		~HarmonyHub() { };
 		
 		void start() override;

@@ -75,13 +75,26 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
-			"SELECT `id`, `reference`, `name`, `type` "
-			"FROM `hardware`"
-			"WHERE `enabled`=1"
+			"SELECT `id`, `hardware_id`, `reference`, `name`, `type` "
+			"FROM `hardware` "
+			"WHERE `enabled`=1 "
+			"ORDER BY `id` ASC " // child hardware should come *after* parents
 		);
 		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
+			
+			unsigned int parentId = atoi( (*hardwareIt)["hardware_id"].c_str() );
+			std::shared_ptr<Hardware> parent = nullptr;
+			if ( parentId > 0 ) {
+				for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+					if ( (*hardwareIt)->getId() == parentId ) {
+						parent = (*hardwareIt);
+						break;
+					}
+				}
+			}
+			
 			Hardware::HardwareType hardwareType = static_cast<Hardware::HardwareType>( atoi( (*hardwareIt)["type"].c_str() ) );
-			std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], (*hardwareIt)["name"] );
+			std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent, (*hardwareIt)["name"] );
 			hardware->start();
 			this->m_hardware.push_back( hardware );
 		}
@@ -114,18 +127,18 @@ namespace micasa {
 		}
 		return nullptr;
 	};
-	
+
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
-		return this->declareHardware( hardwareType_, std::shared_ptr<Hardware>(), reference_, name_, settings_ );
+		return this->declareHardware( hardwareType_, reference_, nullptr, name_, settings_ );
 	};
 
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::shared_ptr<Hardware> parent_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::HardwareType hardwareType_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
 #ifdef _DEBUG
 		assert( this->isRunning() && "Controller should be running before declaring hardware." );
 		assert( g_webServer->isRunning() && "WebServer should be running before declaring hardware." );
 #endif // _DEBUG
 		
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
 		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
@@ -148,7 +161,11 @@ namespace micasa {
 			);
 		}
 		
-		std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType_, id, reference_, name_ );
+		// The lock is released while instantiating hardware because some hardware need to lookup their parent with
+		// the getHardware* methods which also use the lock.
+		lock.unlock();
+		std::shared_ptr<Hardware> hardware = Hardware::_factory( hardwareType_, id, reference_, parent_, name_ );
+		//lock.lock();
 		
 		Settings& settings = hardware->getSettings();
 		settings.insert( settings_ );
@@ -276,6 +293,7 @@ namespace micasa {
 		auto device = this->_getDeviceById( deviceId_ );
 		if ( device != nullptr ) {
 			// TODO optionally convert strings to floats or ints and accept those too?
+			// TODO use the task manager even for tasks that should be executed immediately
 			if ( device->getType() == Device::DeviceType::TEXT ) {
 				std::static_pointer_cast<Text>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
 				return true;
@@ -292,6 +310,7 @@ namespace micasa {
 		auto device = this->_getDeviceById( deviceId_ );
 		if ( device != nullptr ) {
 			// TODO optionally convert value to strings and accept those too?
+			// TODO use the task manager even for tasks that should be executed immediately
 			if ( device->getType() == Device::DeviceType::COUNTER ) {
 				return std::static_pointer_cast<Counter>( device )->updateValue( Device::UpdateSource::SCRIPT, value_ );
 			} else if ( device->getType() == Device::DeviceType::LEVEL ) {

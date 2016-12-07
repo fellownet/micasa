@@ -1,3 +1,4 @@
+/*
 if ( event.device.id == 9 ) {
 	if ( event.value == "On" ) {
 		updateDevice( 1, "On" );
@@ -5,3 +6,4 @@ if ( event.device.id == 9 ) {
 		updateDevice( 1, "Off" );
 	}
 }
+*/

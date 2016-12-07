@@ -19,11 +19,11 @@ namespace micasa {
 	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
 		
 		friend class Controller;
+		friend class Device;
 
 	public:
 		enum HardwareType {
-			INTERNAL = 1,
-			HARMONY_HUB = 11,
+			HARMONY_HUB = 1,
 			OPEN_ZWAVE,
 			OPEN_ZWAVE_NODE,
 			P1_METER,
@@ -32,11 +32,10 @@ namespace micasa {
 			RFXCOM,
 			SOLAREDGE,
 			SOLAREDGE_INVERTER,
-			WEATHER_UNDERGROUND,
-			DOMOTICZ,
+			WEATHER_UNDERGROUND
 		};
 		
-		Hardware( const unsigned int id_, const std::string reference_, std::string name_ );
+		Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ );
 		virtual ~Hardware();
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->m_name; return out_; }
 
@@ -51,8 +50,10 @@ namespace micasa {
 		virtual bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
 	protected:
+		mutable std::timed_mutex m_hardwareMutex;
 		const unsigned int m_id;
 		const std::string m_reference;
+		const std::shared_ptr<Hardware> m_parent;
 		std::string m_name;
 		Settings m_settings;
 
@@ -65,7 +66,8 @@ namespace micasa {
 		std::vector<std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
 
-		static std::shared_ptr<Hardware> _factory( const HardwareType hardwareType, const unsigned int id_, const std::string reference_, std::string name_ );
+		static std::shared_ptr<Hardware> _factory( const HardwareType hardwareType, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ );
+		const nlohmann::json _getResourceJson() const;
 
 	}; // class Hardware
 

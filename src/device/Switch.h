@@ -25,8 +25,8 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const Device::UpdateSource source_, const Option value_ );
-		bool updateValue( const Device::UpdateSource source_, const std::string& value_ );
+		bool updateValue( const Device::UpdateSource& source_, const Option& value_ );
+		bool updateValue( const Device::UpdateSource& source_, const std::string& value_ );
 		const unsigned int getValueOption() const { return this->m_value; };
 		const std::string& getValue() const { return OptionText.at( this->m_value ); };
 		

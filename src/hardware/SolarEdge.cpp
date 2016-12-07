@@ -63,8 +63,8 @@ namespace micasa {
 					
 					g_controller->declareHardware(
 						Hardware::HardwareType::SOLAREDGE_INVERTER,
-						this->shared_from_this(),
 						(*inverterIt)["serialNumber"].get<std::string>(),
+						this->shared_from_this(),
 						name.str(),
 						{
 							{ "api_key", this->m_settings["api_key"] },

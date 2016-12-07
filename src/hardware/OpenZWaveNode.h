@@ -3,6 +3,7 @@
 #ifdef WITH_OPENZWAVE
 
 #include "../Hardware.h"
+#include "OpenZWave.h"
 
 #include "Notification.h"
 
@@ -13,7 +14,7 @@ namespace micasa {
 		friend class OpenZWave;
 		
 	public:
-		OpenZWaveNode( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		OpenZWaveNode( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Hardware( id_, reference_, parent_, name_ ) { };
 		~OpenZWaveNode() { };
 		
 		bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ );
@@ -22,6 +23,8 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int iteration_ ) { return std::chrono::milliseconds( 1000 ); }
 
 	private:
+		bool m_dead = false;
+		
 		void _handleNotification( const ::OpenZWave::Notification* notification_ );
 		void _processValue( const ::OpenZWave::ValueID& valueId_, const Device::UpdateSource& source_ );
 		

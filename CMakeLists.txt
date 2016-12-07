@@ -29,7 +29,6 @@ set( SRC
 	src/Database.cpp
 
 	# hardware
-	src/hardware/Internal.cpp
 	src/hardware/OpenZWave.cpp
 	src/hardware/OpenZWaveNode.cpp
 	src/hardware/RFXCom.cpp
@@ -40,7 +39,6 @@ set( SRC
 	src/hardware/SolarEdgeInverter.cpp
 	src/hardware/WeatherUnderground.cpp
 	src/hardware/HarmonyHub.cpp
-	src/hardware/Domoticz.cpp
 
 	# devices
 	src/device/Switch.cpp

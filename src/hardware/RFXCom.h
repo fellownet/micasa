@@ -7,7 +7,7 @@ namespace micasa {
 	class RFXCom final : public Hardware {
 
 	public:
-		RFXCom( const unsigned int id_, const std::string reference_, std::string name_ ) : Hardware( id_, reference_, name_ ) { };
+		RFXCom( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Hardware( id_, reference_, parent_, name_ ) { };
 		~RFXCom() { };
 		
 		bool updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) { return true; };
