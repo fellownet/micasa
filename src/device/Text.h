@@ -7,18 +7,20 @@ namespace micasa {
 	class Text final : public Device {
 
 	public:
-		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string name_ ) : Device( hardware_, id_, reference_, name_ ) { };
-		const Device::DeviceType getType() const { return Device::DeviceType::TEXT; };
+		typedef std::string t_value;
+		
+		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
+		const Device::Type getType() const { return Device::Type::TEXT; };
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const Device::UpdateSource& source_, const std::string& value_ );
-		const std::string getValue() const { return this->m_value; };
+		bool updateValue( const unsigned int& source_, const t_value& value_ );
+		const t_value& getValue() const { return this->m_value; };
 		
 		std::chrono::milliseconds _work( const unsigned long int iteration_ );
 
 	private:
-		std::string m_value;
+		t_value m_value;
 
 	}; // class Text
 

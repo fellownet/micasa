@@ -35,7 +35,7 @@ namespace micasa {
 					inputIt == input_.end()
 					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
 				) {
-					auto json = this->_getResourceJson();
+					auto json = this->getJson();
 					json["value"] = this->m_value;
 					output_ += json;
 				}
@@ -43,11 +43,11 @@ namespace micasa {
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_name,
+			"Returns detailed text information for " + this->m_hardware->getName() + " " + this->getName(),
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				auto json = this->_getResourceJson();
+				auto json = this->getJson();
 				json["value"] = this->m_value;
 				output_ = json;
 			} )
@@ -61,17 +61,24 @@ namespace micasa {
 		Device::stop();
 	};
 	
-	bool Text::updateValue( const Device::UpdateSource& source_, const std::string& value_ ) {
+	bool Text::updateValue( const unsigned int& source_, const t_value& value_ ) {
+		
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
 
-		bool apply = true;
-		std::string currentValue = this->m_value;
+		// Make a local backup of the original value (the hardware might want to revert it).
+		t_value currentValue = this->m_value;
 		this->m_value = value_;
-		bool success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		
+		// If the update originates from the hardware, do not send it to the hardware again!
+		bool success = true;
+		bool apply = true;
+		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
+			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		}
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_text_history` (`device_id`, `value`) "

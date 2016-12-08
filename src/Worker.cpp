@@ -15,7 +15,7 @@ namespace micasa {
 		assert( this->m_shutdown && "Worker instance should not be running when invoking begin-method." );
 #endif // _DEBUG
 		this->m_shutdown = false;
-		this->m_worker = std::thread( [this]{
+		this->m_worker = std::thread( [this] {
 			do {
 				std::unique_lock<std::mutex> workLock( this->m_workMutex );
 				std::chrono::milliseconds wait = this->_work( ++this->m_iteration );

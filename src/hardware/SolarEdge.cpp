@@ -57,15 +57,15 @@ namespace micasa {
 			) {
 				json list = data["reporters"]["list"];
 				for ( auto inverterIt = list.begin(); inverterIt != list.end(); inverterIt++ ) {
-					std::stringstream name;
-					name << (*inverterIt)["manufacturer"].get<std::string>() << " " << (*inverterIt)["model"].get<std::string>();
-					//name << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
+					std::stringstream label;
+					label << (*inverterIt)["manufacturer"].get<std::string>() << " " << (*inverterIt)["model"].get<std::string>();
+					//label << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
 					
 					g_controller->declareHardware(
-						Hardware::HardwareType::SOLAREDGE_INVERTER,
+						Hardware::Type::SOLAREDGE_INVERTER,
 						(*inverterIt)["serialNumber"].get<std::string>(),
 						this->shared_from_this(),
-						name.str(),
+						label.str(),
 						{
 							{ "api_key", this->m_settings["api_key"] },
 							{ "site_id", this->m_settings["site_id"] },

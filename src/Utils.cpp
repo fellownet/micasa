@@ -25,4 +25,16 @@ namespace micasa {
 		return std::equal( search_.begin(), search_.end(), haystack_.begin() );
 	};
 	
+	void stringSplit( std::string input_, const std::string& delim_, std::vector<std::string>& results_ ) {
+		results_.clear();
+		size_t cutAt;
+		while( ( cutAt = input_.find( delim_ ) ) != std::string::npos ) {
+			results_.push_back( input_.substr( 0, cutAt ) );
+			input_ = input_.substr( cutAt + delim_.size() );
+		}
+		if ( ! input_.empty() ) {
+			results_.push_back( input_ );
+		}
+	};
+	
 } // namespace micasa

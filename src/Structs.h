@@ -10,7 +10,7 @@ namespace micasa {
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`name` VARCHAR(255) NOT NULL, "
+		"`label` VARCHAR(255) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
@@ -23,7 +23,7 @@ namespace micasa {
 		"`hardware_id` INTEGER NOT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`name` VARCHAR(255) NOT NULL, "
+		"`label` VARCHAR(255) NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
 

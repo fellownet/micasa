@@ -20,7 +20,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Hardware::Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_parent( parent_ ), m_name( name_ ) {
+	Hardware::Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_parent( parent_ ), m_label( label_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
 		assert( g_webServer && "Global Database instance should be created before Hardware instances." );
@@ -37,41 +37,41 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
-	std::shared_ptr<Hardware> Hardware::_factory( const HardwareType hardwareType_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string name_ ) {
-		switch( hardwareType_ ) {
+	std::shared_ptr<Hardware> Hardware::_factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) {
+		switch( type_ ) {
 			case HARMONY_HUB:
-				return std::make_shared<HarmonyHub>( id_, reference_, parent_, name_ );
+				return std::make_shared<HarmonyHub>( id_, reference_, parent_, label_ );
 				break;
 			case OPEN_ZWAVE:
-				return std::make_shared<OpenZWave>( id_, reference_, parent_, name_ );
+				return std::make_shared<OpenZWave>( id_, reference_, parent_, label_ );
 				break;
 			case OPEN_ZWAVE_NODE:
-				return std::make_shared<OpenZWaveNode>( id_, reference_, parent_, name_ );
+				return std::make_shared<OpenZWaveNode>( id_, reference_, parent_, label_ );
 				break;
 			case P1_METER:
-				return std::make_shared<P1Meter>( id_, reference_, parent_, name_ );
+				return std::make_shared<P1Meter>( id_, reference_, parent_, label_ );
 				break;
 			case PIFACE:
-				return std::make_shared<PiFace>( id_, reference_, parent_, name_ );
+				return std::make_shared<PiFace>( id_, reference_, parent_, label_ );
 				break;
 			case PIFACE_BOARD:
-				return std::make_shared<PiFaceBoard>( id_, reference_, parent_, name_ );
+				return std::make_shared<PiFaceBoard>( id_, reference_, parent_, label_ );
 				break;
 			case RFXCOM:
-				return std::make_shared<RFXCom>( id_, reference_, parent_, name_ );
+				return std::make_shared<RFXCom>( id_, reference_, parent_, label_ );
 				break;
 			case SOLAREDGE:
-				return std::make_shared<SolarEdge>( id_, reference_, parent_, name_ );
+				return std::make_shared<SolarEdge>( id_, reference_, parent_, label_ );
 				break;
 			case SOLAREDGE_INVERTER:
-				return std::make_shared<SolarEdgeInverter>( id_, reference_, parent_, name_ );
+				return std::make_shared<SolarEdgeInverter>( id_, reference_, parent_, label_ );
 				break;
 			case WEATHER_UNDERGROUND:
-				return std::make_shared<WeatherUnderground>( id_, reference_, parent_, name_ );
+				return std::make_shared<WeatherUnderground>( id_, reference_, parent_, label_ );
 				break;
 		}
 #ifdef _DEBUG
-		assert( true && "Hardware types should be defined in the HardwareType enum." );
+		assert( true && "Hardware types should be defined in the Type enum." );
 #endif // _DEBUG
 		return nullptr;
 	}
@@ -86,33 +86,33 @@ namespace micasa {
 				if ( output_.is_null() ) {
 					output_ = nlohmann::json::array();
 				}
-				output_ += this->_getResourceJson();
+				output_ += this->getJson();
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_name,
+			"Returns detailed information for " + this->m_label,
 			"api/hardware/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ = this->_getResourceJson();
+				output_ = this->getJson();
 			} )
 		} ) ) );
 		
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
-			"SELECT `id`, `reference`, `name`, `type` "
+			"SELECT `id`, `reference`, `label`, `type` "
 			"FROM `devices` "
 			"WHERE `hardware_id`=%d"
 			, this->m_id
 		);
 		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
-			Device::DeviceType deviceType = static_cast<Device::DeviceType>( atoi( (*devicesIt)["type"].c_str() ) );
+			Device::Type type = static_cast<Device::Type>( atoi( (*devicesIt)["type"].c_str() ) );
 #ifdef _DEBUG
-			assert( deviceType >= 1 && deviceType <= 4 && "Device types should be defined in the DeviceType enum." );
+			assert( type >= 1 && type <= 4 && "Device types should be defined in the Type enum." );
 #endif // _DEBUG
-			std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["name"] );
+			std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), type, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["label"] );
 			device->start();
 			this->m_devices.push_back( device );
 		}
@@ -139,13 +139,30 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	const nlohmann::json Hardware::_getResourceJson() const {
+	const std::string Hardware::getName() const {
+		return this->m_settings.get( "name", this->m_label );
+	};
+	
+	void Hardware::setLabel( const std::string& label_ ) {
+		if ( label_ != this->m_label ) {
+			this->m_label = label_;
+			g_database->putQuery(
+				"UPDATE `hardware` "
+				"SET `label`=%Q "
+				"WHERE `id`=%d"
+				, label_.c_str(), this->m_id
+			);
+		}
+	};
+	
+	const nlohmann::json Hardware::getJson() const {
 		nlohmann::json result = {
 			{ "id", this->m_id },
-			{ "name", this->m_name },
+			{ "label", this->getLabel() },
+			{ "name", this->getName() },
 		};
 		if ( this->m_parent ) {
-			result["parent"] = this->m_parent->_getResourceJson();
+			result["parent"] = this->m_parent->getJson();
 		}
 		return result;
 	};
@@ -170,7 +187,7 @@ namespace micasa {
 		return nullptr;
 	};
 	
-	std::shared_ptr<Device> Hardware::_declareDevice( const Device::DeviceType deviceType_, const std::string reference_, const std::string name_, const std::map<std::string, std::string> settings_ ) {
+	std::shared_ptr<Device> Hardware::_declareDevice( const Device::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
 		// can be altered at will by the client (maybe they want temperature and pressure).
@@ -182,11 +199,11 @@ namespace micasa {
 		}
 
 		long id = g_database->putQuery(
-			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `name` ) "
+			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `label` ) "
 			"VALUES ( %d, %Q, %d, %Q )"
-			, this->m_id, reference_.c_str(), static_cast<int>( deviceType_ ), name_.c_str()
+			, this->m_id, reference_.c_str(), static_cast<int>( type_ ), label_.c_str()
 		);
-		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), deviceType_, id, reference_, name_ );
+		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), type_, id, reference_, label_ );
 
 		Settings& settings = device->getSettings();
 		settings.insert( settings_ );

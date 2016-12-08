@@ -45,7 +45,7 @@ namespace micasa {
 					inputIt == input_.end()
 					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
 				) {
-					auto json = this->_getResourceJson();
+					auto json = this->getJson();
 					json["value"] = Switch::OptionText.at( this->m_value );
 					output_ += json;
 				}
@@ -61,13 +61,13 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_name,
+			"Returns detailed switch information for " + this->m_hardware->getName() + " " + this->getName(),
 			"api/devices/" + std::to_string( this->m_id ),
 			methods,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
-						auto json = this->_getResourceJson();
+						auto json = this->getJson();
 						json["value"] = Switch::OptionText.at( this->m_value );
 						output_ = json;
 						break;
@@ -96,7 +96,7 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
+	bool Switch::updateValue( const unsigned int& source_, const Option& value_ ) {
 #ifdef _DEBUG
 		assert( Switch::OptionText.find( value_ ) != Switch::OptionText.end() && "Switch should be defined." );
 #endif // _DEBUG
@@ -107,15 +107,16 @@ namespace micasa {
 			return false;
 		}
 
-		// Setting a switch to it's current value shouldn't do anything by default.
-		if ( this->m_value == value_ ) {
-			return false;
-		}
-		
-		bool apply = true;
+		// Make a local backup of the original value (the hardware might want to revert it).
 		Option currentValue = this->m_value;
 		this->m_value = value_;
-		bool success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		
+		// If the update originates from the hardware, do not send it to the hardware again!
+		bool success = true;
+		bool apply = true;
+		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
+			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		}
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_switch_history` (`device_id`, `value`) "
@@ -131,7 +132,7 @@ namespace micasa {
 		return success;
 	};
 	
-	bool Switch::updateValue( const Device::UpdateSource& source_, const std::string& value_ ) {
+	bool Switch::updateValue( const unsigned int& source_, const t_value& value_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );

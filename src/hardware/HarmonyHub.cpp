@@ -79,52 +79,46 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	}
 	
-	bool HarmonyHub::updateDevice( const Device::UpdateSource source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		// Updates that do NOT originate from the hardware itself are accepted but not yet applied. The command
-		// is send to the hardware which should eventually report the new state.
+	bool HarmonyHub::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		apply_ = false;
+
+		std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+		
+		std::string startActivityId = "";
 		if (
-			source_ != Device::UpdateSource::HARDWARE
-			&& source_ != Device::UpdateSource::INIT
+			device->getValueOption() == Switch::Option::OFF
+			&& device->getReference() == this->m_currentActivityId
 		) {
-			apply_ = false;
-
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			
-			std::string startActivityId = "";
-			if (
-				device->getValueOption() == Switch::Option::OFF
-				&& device->getReference() == this->m_currentActivityId
-			) {
-				startActivityId = "-1"; // PowerOff
-			}
-			if (
-				device->getValueOption() == Switch::Option::ON
-				&& device->getReference() != this->m_currentActivityId
-			) {
-				startActivityId = device_->getReference();
-			}
-			
-			if ( startActivityId != "" ) {
-
-				// If the Harmony Hub is currently busy switching to an activity, the command should fail.
-				if ( ! this->m_commandMutex.try_lock_for( std::chrono::milliseconds( 1000 * 3 ) ) ) {
-					return false;
-				}
-				this->m_commandBusy = true;
-			
-				if ( device->getValueOption() == Switch::Option::ON ) {
-					g_logger->logr( Logger::LogLevel::NORMAL, this, "Starting activity %s.", device_->getName().c_str() );
-				} else {
-					g_logger->logr( Logger::LogLevel::NORMAL, this, "Stopping activity %s.", device_->getName().c_str() );
-				}
-				
-				std::stringstream response;
-				response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-				response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
-				response << startActivityId << ":timestamp=0</oa></iq>";
-				mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-			}
+			startActivityId = "-1"; // PowerOff
 		}
+		if (
+			device->getValueOption() == Switch::Option::ON
+			&& device->getReference() != this->m_currentActivityId
+		) {
+			startActivityId = device_->getReference();
+		}
+		
+		if ( startActivityId != "" ) {
+
+			// If the Harmony Hub is currently busy switching to an activity, the command should fail.
+			if ( ! this->m_commandMutex.try_lock_for( std::chrono::milliseconds( 1000 * 3 ) ) ) {
+				return false;
+			}
+			this->m_commandBusy = true;
+		
+			if ( device->getValueOption() == Switch::Option::ON ) {
+				g_logger->logr( Logger::LogLevel::NORMAL, this, "Starting activity %s.", device_->getLabel().c_str() );
+			} else {
+				g_logger->logr( Logger::LogLevel::NORMAL, this, "Stopping activity %s.", device_->getLabel().c_str() );
+			}
+			
+			std::stringstream response;
+			response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+			response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
+			response << startActivityId << ":timestamp=0</oa></iq>";
+			mg_send( this->m_connection, response.str().c_str(), response.str().size() );
+		}
+		
 		return true;
 	}
 	
@@ -208,15 +202,15 @@ namespace micasa {
 									&& ! activity["label"].is_null()
 								) {
 									std::string activityId = activity["id"].get<std::string>();
-									std::string name = activity["label"].get<std::string>();
+									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::DeviceType::SWITCH, activityId, name, {
+										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::Type::SWITCH, activityId, label, {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
 										} ) );
 										if ( activityId == this->m_currentActivityId ) {
-											device->updateValue( Device::UpdateSource::INIT, Switch::Option::ON );
+											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );
 										} else {
-											device->updateValue( Device::UpdateSource::INIT, Switch::Option::OFF );
+											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 										}
 									}
 								}
