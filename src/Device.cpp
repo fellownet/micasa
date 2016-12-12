@@ -14,7 +14,7 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
-	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string name_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_name( name_ ) {
+	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Device instances." );
 		assert( g_webServer && "Global Database instance should be created before Device instances." );
@@ -31,6 +31,10 @@ namespace micasa {
 #endif // _DEBUG
 	};
 
+	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
+		out_ << device_->m_hardware->getName() << " / " << device_->getName(); return out_;
+	}
+	
 	void Device::start() {
 		Worker::start();
 	};
@@ -42,22 +46,48 @@ namespace micasa {
 		Worker::stop();
 	};
 	
-	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const unsigned int id_, const std::string reference_, std::string name_ ) {
-		switch( deviceType_ ) {
+	const std::string Device::getName() const {
+		return this->m_settings.get( "name", this->m_label );
+	};
+
+	void Device::setLabel( const std::string& label_ ) {
+		if ( label_ != this->m_label ) {
+			this->m_label = label_;
+			g_database->putQuery(
+				"UPDATE `devices` "
+				"SET `label`=%Q "
+				"WHERE `id`=%d"
+				, label_.c_str(), this->m_id
+			);
+		}
+	};
+
+	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
+		switch( type_ ) {
 			case COUNTER:
-				return std::make_shared<Counter>( hardware_, id_, reference_, name_ );
+				return std::make_shared<Counter>( hardware_, id_, reference_, label_ );
 				break;
 			case LEVEL:
-				return std::make_shared<Level>( hardware_, id_, reference_, name_ );
+				return std::make_shared<Level>( hardware_, id_, reference_, label_ );
 				break;
 			case SWITCH:
-				return std::make_shared<Switch>( hardware_, id_, reference_, name_ );
+				return std::make_shared<Switch>( hardware_, id_, reference_, label_ );
 				break;
 			case TEXT:
-				return std::make_shared<Text>( hardware_, id_, reference_, name_ );
+				return std::make_shared<Text>( hardware_, id_, reference_, label_ );
 				break;
 		}
 		return nullptr;
+	};
+
+	const nlohmann::json Device::getJson() const {
+		nlohmann::json result = {
+			{ "id", this->m_id },
+			{ "label", this->getLabel() },
+			{ "name", this->getName() },
+			{ "hardware", this->m_hardware->getJson() }
+		};
+		return result;
 	};
 
 }; // namespace micasa

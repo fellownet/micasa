@@ -10,10 +10,10 @@ namespace micasa {
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`name` VARCHAR(255) NOT NULL, "
+		"`label` VARCHAR(255) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_hardware_reference` ON `hardware`( `reference` )",
 
@@ -23,9 +23,9 @@ namespace micasa {
 		"`hardware_id` INTEGER NOT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`name` VARCHAR(255) NOT NULL, "
+		"`label` VARCHAR(255) NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_devices_hardware_id_reference` ON `devices`( `hardware_id`, `reference` )",
 
@@ -34,7 +34,7 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` TEXT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 		
 		"CREATE INDEX IF NOT EXISTS `ix_device_text_history_device_id` ON `device_text_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_text_history_date` ON `device_text_history`( `date` )",
@@ -43,7 +43,7 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` BIGINT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE INDEX IF NOT EXISTS `ix_device_counter_history_device_id` ON `device_counter_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_counter_history_date` ON `device_counter_history`( `date` )",
@@ -52,7 +52,7 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` FLOAT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_history_device_id` ON `device_level_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_history_date` ON `device_level_history`( `date` )",
@@ -61,7 +61,7 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` VARCHAR(32) NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE INDEX IF NOT EXISTS `ix_device_switch_history_device_id` ON `device_switch_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_switch_history_date` ON `device_switch_history`( `date` )",
@@ -72,7 +72,7 @@ namespace micasa {
 		"`last` BIGINT NOT NULL, "
 		"`diff` BIGINT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_counter_trends_device_id_date` ON `device_counter_trends`( `device_id`, `date` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_counter_trends_device_id` ON `device_counter_trends`( `device_id` )",
@@ -84,7 +84,7 @@ namespace micasa {
 		"`max` FLOAT NOT NULL, "
 		"`average` FLOAT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_level_trends_device_id_date` ON `device_level_trends`( `device_id`, `date` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_trends_device_id` ON `device_level_trends`( `device_id` )",
@@ -103,7 +103,7 @@ namespace micasa {
 		"`key` VARCHAR(64) NOT NULL, "
 		"`value` TEXT NOT NULL, "
 		"`last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_hardware_settings_hardware_id_key` ON `hardware_settings`( `hardware_id`, `key` )",
 		
@@ -112,7 +112,7 @@ namespace micasa {
 		"`key` VARCHAR(64) NOT NULL, "
 		"`value` TEXT NOT NULL, "
 		"`last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE RESTRICT ON UPDATE RESTRICT )",
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 	
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_settings_device_id_key` ON `device_settings`( `device_id`, `key` )",
 	};

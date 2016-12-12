@@ -102,33 +102,32 @@ namespace micasa {
 		this->m_dirty = false;
 	};
 
-	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) {
+	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
 			T value;
 			std::istringstream( this->m_settings.at( key_ ) ) >> value;
 			return value;
 		} catch( std::out_of_range exception_ ) {
-			std::stringstream ss;
-			ss << default_;
-			this->m_settings[key_] = ss.str();
-			this->m_dirty = true;
+			//std::stringstream ss;
+			//ss << default_;
+			//this->m_settings[key_] = ss.str();
+			//this->m_dirty = true;
 			return default_;
 		}
 	};
-	template int Settings::get( const std::string& key_, const int& default_ );
-	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ );
-	template float Settings::get( const std::string& key_, const float& default_ );
-	template double Settings::get( const std::string& key_, const double& default_ );
+	template int Settings::get( const std::string& key_, const int& default_ ) const ;
+	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ ) const ;
+	template double Settings::get( const std::string& key_, const double& default_ ) const ;
 
 	// The string variant of the template specification is separate because it can be done more efficiently.
-	template<> std::string Settings::get<std::string>( const std::string& key_, const std::string& default_ ) {
+	template<> std::string Settings::get<std::string>( const std::string& key_, const std::string& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
 			return this->m_settings.at( key_ );
 		} catch( std::out_of_range exception_ ) {
-			this->m_settings[key_] = default_;
-			this->m_dirty = true;
+			//this->m_settings[key_] = default_;
+			//this->m_dirty = true;
 			return default_;
 		}
 	}
@@ -143,10 +142,13 @@ namespace micasa {
 	};
 	
 	template<typename T> Settings* Settings::put( const std::string& key_, const T& value_ ) {
-		if ( value_ != this->get( key_, value_ ) ) {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
-			std::stringstream ss;
-			ss << value_;
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::stringstream ss;
+		ss << value_;
+		if (
+			this->m_settings.find( key_ ) == this->m_settings.end() // does not exist
+			|| ss.str() != this->m_settings.at( key_ ) // is not the same
+		) {
 			this->m_settings[key_] = ss.str();
 			this->m_dirty = true;
 		}
@@ -154,13 +156,15 @@ namespace micasa {
 	};
 	template Settings* Settings::put( const std::string& key_, const int& value_ );
 	template Settings* Settings::put( const std::string& key_, const unsigned int& value_ );
-	template Settings* Settings::put( const std::string& key_, const float& value_ );
 	template Settings* Settings::put( const std::string& key_, const double& value_ );
 	
 	// The string variant of the template specification is separate because it can be done more efficiently.
 	template<> Settings* Settings::put<std::string>( const std::string& key_, const std::string& value_ ) {
-		if ( value_ != this->get( key_, value_ ) ) {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		if (
+			this->m_settings.find( key_ ) == this->m_settings.end() // does not exist
+			|| value_ != this->m_settings.at( key_ ) // is not the same
+		) {
 			this->m_settings[key_] = value_;
 			this->m_dirty = true;
 		}

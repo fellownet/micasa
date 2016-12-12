@@ -28,7 +28,7 @@ namespace micasa {
 		Hardware::stop();
 	}
 	
-	std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
 		
 		if ( ! this->m_settings.contains( { "api_key", "location", "scale" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
@@ -66,40 +66,38 @@ namespace micasa {
 							this->m_settings["scale"] == "fahrenheit"
 							&& ! data["temp_f"].is_null()
 						) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "1", "Temperature in " + this->m_settings["location"], {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "1", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_f"].get<float>() );
+							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_f"].get<double>() );
 						} else if (
 						   this->m_settings["scale"] == "celcius"
 						   && ! data["temp_c"].is_null()
 					   ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "2", "Temperature in " + this->m_settings["location"], {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "2", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_c"].get<float>() );
+							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "3", "Humidity in " + this->m_settings["location"], {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "3", "Humidity in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["relative_humidity"].get<int>() );
+							device->updateValue( Device::UpdateSource::HARDWARE, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
-						
 						if ( ! data["pressure_mb"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::DeviceType::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PASCAL ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["pressure_mb"].get<int>() );
+							device->updateValue( Device::UpdateSource::HARDWARE, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
-						
 						if ( ! data["wind_dir"].is_null() ) {
-							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::DeviceType::TEXT, "5", "Wind Direction in " + this->m_settings["location"], {
+							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::Type::TEXT, "5", "Wind Direction in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 							} ) );
 							device->updateValue( Device::UpdateSource::HARDWARE, data["wind_dir"].get<std::string>() );

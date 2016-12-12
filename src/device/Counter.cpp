@@ -23,27 +23,31 @@ namespace micasa {
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ += {
-					{ "id", this->m_id },
-					{ "name", this->m_name },
-					{ "value", this->m_value }
-				};
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( output_.is_null() ) {
+					output_ = nlohmann::json::array();
+				}
+				auto inputIt = input_.find( "hardware_id" );
+				if (
+					inputIt == input_.end()
+					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				) {
+					auto json = this->getJson();
+					json["value"] = this->m_value;
+					output_ += json;
+				}
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_name,
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_["id"] = this->m_id;
-				output_["name"] = this->m_name;
-				output_["value"] = this->m_value;
-				output_["trends"] = g_database->getQuery( "SELECT `date`, `diff`, `last` FROM `device_counter_trends` WHERE `device_id`=%d ORDER BY `date` ASC LIMIT 48", this->m_id );
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				auto json = this->getJson();
+				json["value"] = this->m_value;
+				output_ = json;
 			} )
 		} ) ) );
 
@@ -55,16 +59,24 @@ namespace micasa {
 		Device::stop();
 	};
 	
-	bool Counter::updateValue( const Device::UpdateSource source_, const int value_ ) {
+	bool Counter::updateValue( const unsigned int& source_, const t_value& value_ ) {
+
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
-		bool apply = true;
-		int currentValue = this->m_value;
+		
+		// Make a local backup of the original value (the hardware might want to revert it).
+		t_value currentValue = this->m_value;
 		this->m_value = value_;
-		bool success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		
+		// If the update originates from the hardware, do not send it to the hardware again!
+		bool success = true;
+		bool apply = true;
+		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
+			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		}
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_counter_history` (`device_id`, `value`) "
@@ -72,8 +84,7 @@ namespace micasa {
 				, this->m_id, value_
 			);
 			g_controller->newEvent<Counter>( *this, source_ );
-			g_webServer->touchResourceAt( "api/devices" );
-			g_webServer->touchResourceAt( "api/devices/" + std::to_string( this->m_id ) );
+			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
 			this->m_value = currentValue;
@@ -81,7 +92,7 @@ namespace micasa {
 		return success;
 	}
 	
-	std::chrono::milliseconds Counter::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			std::string hourFormat = "%Y-%m-%d %H:00:00";
 			std::string groupFormat = "%Y-%m-%d-%H";

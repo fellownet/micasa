@@ -10,7 +10,7 @@ namespace micasa {
 		if ( logLevel_ <= this->m_logLevel ) {
 			char buffer[MAX_LOG_LINE_LENGTH];
 			if ( ! hasArguments_ ) {
-				strcpy( buffer, message_.c_str() );
+				strncpy( buffer, message_.c_str(), sizeof( buffer ) );
 			} else {
 				vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
 			}

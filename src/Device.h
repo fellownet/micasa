@@ -10,6 +10,7 @@
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES	"_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD		"_keep_history_period"
 #define DEVICE_SETTING_UNITS						"_units"
+#define DEVICE_SETTING_FLAGS						"_flags"
 
 namespace micasa {
 
@@ -20,12 +21,12 @@ namespace micasa {
 		friend class Hardware;
 		
 	public:
-		enum DeviceType {
+		enum Type {
 			COUNTER = 1,
 			LEVEL,
 			SWITCH,
 			TEXT,
-		}; // enum DeviceType
+		}; // enum Type
 		
 		enum UpdateSource {
 			INIT = 1,
@@ -34,31 +35,34 @@ namespace micasa {
 			SCRIPT = 8,
 			API = 16,
 		}; // enum UpdateSource
-
-		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string name_ );
+		
+		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
 		virtual ~Device();
-		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ ) { out_ << device_->m_name; return out_; }
-		virtual const Device::DeviceType getType() const =0;
+		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
+		virtual const Type getType() const =0;
 		
 		virtual void start();
 		virtual void stop();
 
 		const unsigned int getId() const { return this->m_id; };
 		const std::string getReference() const { return this->m_reference; };
-		std::string getName() const { return this->m_name; };
+		const std::string& getLabel() const { return this->m_label; };
+		const std::string getName() const;
+		void setLabel( const std::string& label_ );
 		Settings& getSettings() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
-
+		const nlohmann::json getJson() const;
+		
 	protected:
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;
 		const std::string m_reference;
-		std::string m_name;
+		std::string m_label;
 		Settings m_settings;
 		
 	private:
-		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, const DeviceType deviceType_, const unsigned int id_, const std::string reference_, std::string name_ );
-		
+		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
+
 	}; // class Device
 
 }; // namespace micasa

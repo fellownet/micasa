@@ -33,15 +33,21 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ += {
-					{ "id", this->m_id },
-					{ "name", this->m_name },
-					{ "value", Switch::OptionText.at( this->m_value ) }
-				};
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( output_.is_null() ) {
+					output_ = nlohmann::json::array();
+				}
+				auto inputIt = input_.find( "hardware_id" );
+				if (
+					inputIt == input_.end()
+					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				) {
+					auto json = this->getJson();
+					json["value"] = Switch::OptionText.at( this->m_value );
+					output_ += json;
+				}
 			} )
 		} ) ) );
 		
@@ -54,18 +60,19 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_name,
 			"api/devices/" + std::to_string( this->m_id ),
 			methods,
-			WebServer::t_callback( [this]( const std::string uri_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
-					case WebServer::Method::GET:
-						output_["id"] = this->m_id;
-						output_["name"] = this->m_name;
-						output_["value"] = Switch::OptionText.at( this->m_value );
+					case WebServer::Method::GET: {
+						auto json = this->getJson();
+						json["value"] = Switch::OptionText.at( this->m_value );
+						output_ = json;
 						break;
+					}
 					case WebServer::Method::PATCH:
 						// TODO implement patch method, for now it toggles between on and off.
+						// TODO pass error and set code on failure, but what message and what code?
 						if ( this->m_value == Switch::Option::ON ) {
 							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::OFF ) ? "OK" : "ERROR";
 						} else {
@@ -87,7 +94,7 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Switch::updateValue( const Device::UpdateSource source_, const Option value_ ) {
+	bool Switch::updateValue( const unsigned int& source_, const Option& value_ ) {
 #ifdef _DEBUG
 		assert( Switch::OptionText.find( value_ ) != Switch::OptionText.end() && "Switch should be defined." );
 #endif // _DEBUG
@@ -98,15 +105,16 @@ namespace micasa {
 			return false;
 		}
 
-		// Setting a switch to it's current value shouldn't do anything by default.
-		if ( this->m_value == value_ ) {
-			return false;
-		}
-		
-		bool apply = true;
+		// Make a local backup of the original value (the hardware might want to revert it).
 		Option currentValue = this->m_value;
 		this->m_value = value_;
-		bool success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		
+		// If the update originates from the hardware, do not send it to the hardware again!
+		bool success = true;
+		bool apply = true;
+		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
+			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+		}
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_switch_history` (`device_id`, `value`) "
@@ -114,8 +122,7 @@ namespace micasa {
 				, this->m_id, (unsigned int)value_
 			);
 			g_controller->newEvent<Switch>( *this, source_ );
-			g_webServer->touchResourceAt( "api/devices" );
-			g_webServer->touchResourceAt( "api/devices/" + std::to_string( this->m_id ) );
+			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {
 			this->m_value = currentValue;
@@ -123,7 +130,7 @@ namespace micasa {
 		return success;
 	};
 	
-	bool Switch::updateValue( const Device::UpdateSource source_, const std::string& value_ ) {
+	bool Switch::updateValue( const unsigned int& source_, const t_value& value_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );
@@ -132,7 +139,7 @@ namespace micasa {
 		return false;
 	};
 
-	std::chrono::milliseconds Switch::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			// Purge history after a configured period (defaults to 31 days for switch devices because these
 			// lack a separate trends table).

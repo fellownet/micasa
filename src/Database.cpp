@@ -48,8 +48,13 @@ namespace micasa {
 					std::map<std::string, std::string> row;
 					for ( int column = 0; column < columns; column++ ) {
 						std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_name( statement_, column ) ) );
-						std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, column ) ) );
-						row[key] = value;
+						const unsigned char* valueC = sqlite3_column_text( statement_, column );
+						if ( valueC != NULL ) {
+							std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, column ) ) );
+							row[key] = value;
+						} else {
+							row[key] = "";
+						}
 					}
 					result.push_back( row );
 				} else {
@@ -72,8 +77,13 @@ namespace micasa {
 				int columns = sqlite3_column_count( statement_ );
 				for ( int column = 0; column < columns; column++ ) {
 					std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_name( statement_, column ) ) );
-					std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, column ) ) );
-					result[key] = value;
+					const unsigned char* valueC = sqlite3_column_text( statement_, column );
+					if ( valueC != NULL ) {
+						std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, column ) ) );
+						result[key] = value;
+					} else {
+						result[key] = "";
+					}
 				}
 			}
 		} );
@@ -95,8 +105,13 @@ namespace micasa {
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 					std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
-					std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 1 ) ) );
-					result[key] = value;
+					const unsigned char* valueC = sqlite3_column_text( statement_, 1 );
+					if ( valueC != NULL ) {
+						std::string value = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 1 ) ) );
+						result[key] = value;
+					} else {
+						result[key] = "";
+					}
 				} else {
 					break;
 				}
@@ -117,7 +132,10 @@ namespace micasa {
 #ifdef _DEBUG
 				assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 value." );
 #endif // _DEBUG
-				result = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
+				const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
+				if ( valueC != NULL ) {
+					result = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
+				}
 			}
 		} );
 		va_end( arguments );
@@ -130,7 +148,7 @@ namespace micasa {
 	// The above template is specialized for the types listed below.
 	template int Database::getQueryValue( const std::string& query_, ... ) const;
 	template unsigned int Database::getQueryValue( const std::string& query_, ... ) const;
-	template float Database::getQueryValue( const std::string& query_, ... ) const;
+	template double Database::getQueryValue( const std::string& query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
 	// specialized implementation.
@@ -144,7 +162,10 @@ namespace micasa {
 #ifdef _DEBUG
 				assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 value." );
 #endif // _DEBUG
-				result = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
+				const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
+				if ( valueC != NULL ) {
+					result = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
+				}
 			}
 		} );
 		va_end( arguments );
