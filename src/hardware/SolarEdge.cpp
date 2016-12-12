@@ -25,7 +25,7 @@ namespace micasa {
 		Hardware::stop();
 	}
 	
-	std::chrono::milliseconds SolarEdge::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds SolarEdge::_work( const unsigned long int& iteration_ ) {
 		
 		if ( ! this->m_settings.contains( { "api_key", "site_id" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );

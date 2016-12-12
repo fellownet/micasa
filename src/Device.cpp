@@ -50,6 +50,18 @@ namespace micasa {
 		return this->m_settings.get( "name", this->m_label );
 	};
 
+	void Device::setLabel( const std::string& label_ ) {
+		if ( label_ != this->m_label ) {
+			this->m_label = label_;
+			g_database->putQuery(
+				"UPDATE `devices` "
+				"SET `label`=%Q "
+				"WHERE `id`=%d"
+				, label_.c_str(), this->m_id
+			);
+		}
+	};
+
 	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
 		switch( type_ ) {
 			case COUNTER:

@@ -33,7 +33,6 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
@@ -61,7 +60,6 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed switch information for " + this->m_hardware->getName() + " " + this->getName(),
 			"api/devices/" + std::to_string( this->m_id ),
 			methods,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
@@ -141,7 +139,7 @@ namespace micasa {
 		return false;
 	};
 
-	std::chrono::milliseconds Switch::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			// Purge history after a configured period (defaults to 31 days for switch devices because these
 			// lack a separate trends table).

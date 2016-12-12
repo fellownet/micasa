@@ -23,7 +23,7 @@ namespace micasa {
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) { return true; };
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		
 	private:
 		void _processHttpReply( mg_connection* connection_, const http_message* message_ );

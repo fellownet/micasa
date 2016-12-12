@@ -25,8 +25,8 @@ namespace micasa {
 		
 		virtual void start();
 		virtual void stop();
-		virtual std::chrono::milliseconds _work( const unsigned long int iteration_ ) =0;
-		void _synchronize( std::function<void()> func_ );
+		virtual const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) =0;
+		void _synchronize( std::function<void()> func_ ) const;
 
 	private:
 		std::thread m_worker;

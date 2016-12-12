@@ -94,7 +94,7 @@ namespace micasa {
 		Hardware::stop();
 	}
 	
-	std::chrono::milliseconds OpenZWave::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds OpenZWave::_work( const unsigned long int& iteration_ ) {
 		return std::chrono::milliseconds( 1000 * 60 * 60 );
 	}
 	
@@ -121,24 +121,23 @@ namespace micasa {
 		} else {
 			
 			// No hardware is available for this node which means that the notification is for the controller (us).
-			g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+			//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
 			
 			switch( notification_->GetType() ) {
 				case ::OpenZWave::Notification::Type_DriverReady: {
 					this->m_homeId = homeId;
 					this->m_controllerNodeId = nodeId;
-					this->m_controllerState = IDLE;
+					this->m_controllerState = READY;
 					g_logger->log( Logger::LogLevel::NORMAL, this, "Driver initialized." );
 					
 					// Add resource handlers for network heal.
 					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 						"openzwave-" + std::to_string( this->m_id ),
-						"Initiate network heal.",
 						"api/hardware/" + std::to_string( this->m_id ) + "/heal",
 						WebServer::Method::PUT,
 						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-								if ( this->m_controllerState == IDLE ) {
+								if ( this->m_controllerState == READY ) {
 									::OpenZWave::Manager::Get()->HealNetwork( this->m_homeId, true );
 									this->m_controllerState = HEALING;
 									output_["result"] = "OK";
@@ -160,7 +159,6 @@ namespace micasa {
 					// Add resource handler for inclusion mode.
 					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 						"openzwave-" + std::to_string( this->m_id ),
-						"Enable inclusion mode.",
 						"api/hardware/" + std::to_string( this->m_id ) + "/include",
 						WebServer::Method::PUT | WebServer::Method::DELETE,
 						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
@@ -168,7 +166,7 @@ namespace micasa {
 							// TODO cancel inclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( method_ == WebServer::Method::PUT ) {
-									if ( this->m_controllerState == IDLE ) {
+									if ( this->m_controllerState == READY ) {
 										if ( ::OpenZWave::Manager::Get()->AddNode( this->m_homeId, false ) ) {
 											this->m_controllerState = INCLUSION_MODE;
 											output_["result"] = "OK";
@@ -212,14 +210,13 @@ namespace micasa {
 					// Add resource handler for exclusion mode.
 					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 						"openzwave-" + std::to_string( this->m_id ),
-						"Enable exclusion mode.",
 						"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
 						WebServer::Method::PUT | WebServer::Method::DELETE,
 						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							// TODO cancel exclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( method_ == WebServer::Method::PUT ) {
-									if ( this->m_controllerState == IDLE ) {
+									if ( this->m_controllerState == READY ) {
 										if ( ::OpenZWave::Manager::Get()->RemoveNode( this->m_homeId ) ) {
 											this->m_controllerState = EXCLUSION_MODE;
 											output_["result"] = "OK";
@@ -270,19 +267,19 @@ namespace micasa {
 							} else if ( this->m_controllerState == EXCLUSION_MODE ) {
 								g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode deactivated." );
 							}
-							this->m_controllerState = IDLE;
+							this->m_controllerState = READY;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Error: {
-							this->m_controllerState = IDLE;
+							this->m_controllerState = READY;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Completed: {
-							this->m_controllerState = IDLE;
+							this->m_controllerState = READY;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Failed: {
-							this->m_controllerState = IDLE;
+							this->m_controllerState = READY;
 							break;
 						}
 					}

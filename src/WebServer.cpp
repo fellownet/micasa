@@ -1,5 +1,7 @@
-// mongoose
+// restful
 // http://www.vinaysahni.com/best-practices-for-a-pragmatic-restful-api
+
+// mongoose
 // https://docs.cesanta.com/mongoose/master/
 // https://github.com/Gregwar/mongoose-cpp/blob/master/mongoose/Server.cpp
 // http://stackoverflow.com/questions/7698488/turn-a-simple-socket-into-an-ssl-socket
@@ -71,7 +73,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
-	std::chrono::milliseconds WebServer::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds WebServer::_work( const unsigned long int& iteration_ ) {
 		// TODO if it turns out that the webserver instance doesn't need to do stuff periodically, remove the
 		// extend from Worker.
 		return std::chrono::milliseconds( 5000 );
@@ -165,7 +167,7 @@ namespace micasa {
 		auto wordsEnd = std::sregex_iterator();
 		for ( std::sregex_iterator it = wordsBegin; it != wordsEnd; it++ ) {
 			std::string key = (*it)[1].str();
-			std::string value = (*it)[2].str();
+			std::string value = stringUriDecode( (*it)[2].str() );
 			input[key] = value;
 		}
 
@@ -263,6 +265,16 @@ namespace micasa {
 					}
 				}
 
+				// If the output is still null no callback has altered it's content and and error should be given
+				// to the client.
+				if ( output.is_null() ) {
+					output = {
+						{ "result", "ERROR" },
+						{ "message", "Invalid resource." }
+					};
+				}
+				
+				// Format the json output (intent with 4 spaces).
 				const std::string content = output.dump( 4 );
 				
 				// Only store the content in the cache if it's a get method. All other methods should not be cached.
@@ -293,7 +305,6 @@ namespace micasa {
 			std::stringstream outputStream;
 			outputStream << "<!doctype html>" << "<html><body style=\"font-family:sans-serif;\">";
 			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-				outputStream << "<strong>Title:</strong> " << (*resourceIt->second.begin())->title << "<br>";
 				outputStream << "<strong>Uri:</strong> " << resourceIt->first << "<br>";
 				outputStream << "<strong>Methods:</strong>";
 				

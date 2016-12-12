@@ -22,6 +22,7 @@ extern "C" {
 	#include "v7.h"
 	
 	v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ );
+	v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ );
 } // extern "C"
 
 namespace micasa {
@@ -30,6 +31,7 @@ namespace micasa {
 
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
 		friend v7_err (::micasa_v7_update_device)( struct v7* js_, v7_val_t* res_ );
+		friend v7_err (::micasa_v7_get_device)( struct v7* js_, v7_val_t* res_ );
 
 	public:
 		typedef std::chrono::time_point<std::chrono::system_clock> t_scheduled;
@@ -51,10 +53,10 @@ namespace micasa {
 		}; // struct Task
 		
 		struct TaskOptions {
-			float forSec;
-			float afterSec;
+			double forSec;
+			double afterSec;
 			int repeat;
-			float repeatSec;
+			double repeatSec;
 			bool clear;
 		}; // struct TaskOptions
 		
@@ -67,10 +69,11 @@ namespace micasa {
 		std::shared_ptr<Hardware> getHardware( const std::string reference_ ) const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::string label_, const std::map<std::string, std::string> settings_ );
+		void removeHardware( std::shared_ptr<Hardware> hardware_ );
 		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:
 		std::vector<std::shared_ptr<Hardware> > m_hardware;

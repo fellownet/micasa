@@ -44,7 +44,7 @@ namespace micasa {
 		}
 	};
 
-	void Worker::_synchronize( std::function<void()> func_ ) {
+	void Worker::_synchronize( std::function<void()> func_ ) const {
 		std::unique_lock<std::mutex> workLock( this->m_workMutex );
 		func_();
 		workLock.unlock();

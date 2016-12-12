@@ -23,7 +23,6 @@ namespace micasa {
 
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns a list of available devices.",
 			"api/devices",
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
@@ -43,7 +42,6 @@ namespace micasa {
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"Returns detailed counter information for " + this->m_hardware->getName() + " " + this->getName(),
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
@@ -94,7 +92,7 @@ namespace micasa {
 		return success;
 	}
 	
-	std::chrono::milliseconds Counter::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			std::string hourFormat = "%Y-%m-%d %H:00:00";
 			std::string groupFormat = "%Y-%m-%d-%H";

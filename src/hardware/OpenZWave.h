@@ -9,7 +9,6 @@
 #include "Notification.h"
 
 #define OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC	250 // how long to wait for a busy manager
-#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC		3000 // how long to block node while waiting for result
 
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 
@@ -23,7 +22,7 @@ namespace micasa {
 	public:
 		enum State {
 			STARTING = 1,
-			IDLE,
+			READY,
 			HEALING,
 			INCLUSION_MODE,
 			EXCLUSION_MODE
@@ -37,13 +36,13 @@ namespace micasa {
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) { return false; };
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		
 	private:
 		mutable std::timed_mutex m_managerMutex;
 		unsigned int m_homeId;
 		unsigned char m_controllerNodeId;
-		State m_controllerState = STARTING;
+		volatile State m_controllerState = STARTING;
 
 		void _handleNotification( const ::OpenZWave::Notification* notification_ );
 

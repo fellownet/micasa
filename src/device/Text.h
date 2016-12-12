@@ -17,7 +17,7 @@ namespace micasa {
 		bool updateValue( const unsigned int& source_, const t_value& value_ );
 		const t_value& getValue() const { return this->m_value; };
 		
-		std::chrono::milliseconds _work( const unsigned long int iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:
 		t_value m_value;

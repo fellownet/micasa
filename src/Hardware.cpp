@@ -2,6 +2,7 @@
 
 #include "Hardware.h"
 #include "Database.h"
+#include "Controller.h"
 
 #include "hardware/OpenZWave.h"
 #include "hardware/OpenZWaveNode.h"
@@ -17,6 +18,7 @@
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
+	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
@@ -79,23 +81,43 @@ namespace micasa {
 	void Hardware::start() {
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"Returns a list of available hardware.",
 			"api/hardware",
-			WebServer::Method::GET,
+			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				if ( output_.is_null() ) {
-					output_ = nlohmann::json::array();
+				switch( method_ ) {
+					case WebServer::Method::GET: {
+						if ( output_.is_null() ) {
+							output_ = nlohmann::json::array();
+						}
+						output_ += this->getJson();
+						break;
+					}
+					default: break;
 				}
-				output_ += this->getJson();
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"Returns detailed information for " + this->m_label,
 			"api/hardware/" + std::to_string( this->m_id ),
-			WebServer::Method::GET,
+			WebServer::Method::GET | WebServer::Method::DELETE | WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				output_ = this->getJson();
+				switch( method_ ) {
+					case WebServer::Method::GET: {
+						output_ = this->getJson();
+						break;
+					}
+					case WebServer::Method::DELETE: {
+						g_controller->removeHardware( this->shared_from_this() );
+						output_["result"] = "OK";
+						break;
+						
+					}
+					case WebServer::Method::PUT:
+					case WebServer::Method::PATCH: {
+						break;
+					}
+					default: break;
+				}
 			} )
 		} ) ) );
 		
@@ -213,6 +235,53 @@ namespace micasa {
 		this->m_devices.push_back( device );
 
 		return device;
+	};
+	
+	const bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+		// See if there's already a pending update present, in which case we need to use it to start locking.
+		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		auto search = this->m_pendingUpdates.find( reference_ );
+		if ( search == this->m_pendingUpdates.end() ) {
+			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_ );
+		}
+		std::shared_ptr<PendingUpdate>& pendingUpdate = this->m_pendingUpdates[reference_];
+		pendingUpdatesLock.unlock();
+		
+		if ( pendingUpdate->updateMutex.try_lock_for( std::chrono::milliseconds( blockNewUpdate_ ) ) ) {
+			std::thread( [this,pendingUpdate,reference_,waitForResult_] { // pendingUpdate and valueId_ are copied into the thread
+				
+				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
+				pendingUpdate->condition.wait_for( notifyLock, std::chrono::milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
+				// Spurious wakeups are someting we have to live with; there's no way to determine if the amount
+				// of time was passed or if a spurious wakeup occured.
+				
+				std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+				auto search = this->m_pendingUpdates.find( reference_ );
+				if ( search != this->m_pendingUpdates.end() ) {
+					this->m_pendingUpdates.erase( search );
+				}
+				pendingUpdatesLock.unlock();
+				
+				pendingUpdate->updateMutex.unlock();
+			} ).detach();
+			return true;
+		} else {
+			return false;
+		}
+	};
+	
+	const unsigned int Hardware::_releasePendingUpdate( const std::string& reference_ ) {
+		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		auto search = this->m_pendingUpdates.find( reference_ );
+		if ( search != this->m_pendingUpdates.end() ) {
+			auto pendingUpdate = search->second;
+			std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
+			pendingUpdate->done = true;
+			notifyLock.unlock();
+			pendingUpdate->condition.notify_all();
+			return pendingUpdate->source;
+		}
+		return 0;
 	};
 	
 } // namespace micasa

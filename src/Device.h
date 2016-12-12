@@ -48,6 +48,7 @@ namespace micasa {
 		const std::string getReference() const { return this->m_reference; };
 		const std::string& getLabel() const { return this->m_label; };
 		const std::string getName() const;
+		void setLabel( const std::string& label_ );
 		Settings& getSettings() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
 		const nlohmann::json getJson() const;

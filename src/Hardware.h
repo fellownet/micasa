@@ -32,7 +32,16 @@ namespace micasa {
 			SOLAREDGE,
 			SOLAREDGE_INVERTER,
 			WEATHER_UNDERGROUND
-		};
+		}; // enum Type
+
+		struct PendingUpdate {
+			std::timed_mutex updateMutex;
+			std::condition_variable condition;
+			std::mutex conditionMutex;
+			bool done = false;
+			unsigned int source;
+			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
+		}; // struct PendingUpdate
 		
 		Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
 		virtual ~Hardware();
@@ -57,15 +66,22 @@ namespace micasa {
 		const std::shared_ptr<Hardware> m_parent;
 		Settings m_settings;
 
-		std::chrono::milliseconds _work( const unsigned long int iteration_ ) =0;
 		std::shared_ptr<Device> _getDevice( const std::string reference_ ) const;
 		std::shared_ptr<Device> _getDeviceById( const unsigned int id_ ) const;
 		std::shared_ptr<Device> _declareDevice( const Device::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+		
+		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
+		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
+		// It also makes sure that the source of the update is remembered during this time.
+		const bool _queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_ = 3000, const unsigned int& waitForResult_ = 30000 );
+		const unsigned int _releasePendingUpdate( const std::string& reference_ );
 
 	private:
+		std::string m_label;
 		std::vector<std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
-		std::string m_label;
+		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
+		mutable std::mutex m_pendingUpdatesMutex;
 
 		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
 

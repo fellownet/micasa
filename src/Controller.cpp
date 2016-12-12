@@ -62,6 +62,20 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 	return V7_OK;
 };
 
+v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
+	//micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+
+	v7_val_t arg0 = v7_arg( js_, 0 );
+	if ( v7_is_number( arg0 ) ) {
+		
+		
+	} else {
+		return V7_EXEC_EXCEPTION;
+	}
+	
+	return V7_OK;
+};
+
 namespace micasa {
 
 	extern std::shared_ptr<WebServer> g_webServer;
@@ -103,10 +117,9 @@ namespace micasa {
 			"SELECT `id`, `hardware_id`, `reference`, `label`, `type` "
 			"FROM `hardware` "
 			"WHERE `enabled`=1 "
-			"ORDER BY `id` ASC " // child hardware should come *after* parents
+			"ORDER BY `id` ASC" // child hardware should come *after* parents
 		);
 		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
-			
 			unsigned int parentId = atoi( (*hardwareIt)["hardware_id"].c_str() );
 			std::shared_ptr<Hardware> parent = nullptr;
 			if ( parentId > 0 ) {
@@ -202,6 +215,29 @@ namespace micasa {
 		return hardware;
 	};
 	
+	void Controller::removeHardware( std::shared_ptr<Hardware> hardware_ ) {
+		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
+
+		if ( hardware_->isRunning() ) {
+			hardware_->stop();
+		}
+		
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			if ( (*hardwareIt) == hardware_ ) {
+				std::cout << "GEVONDEN JAJA\n";
+				this->m_hardware.erase( hardwareIt );
+				break;
+			}
+		}
+		
+		// The query below should also remove all related devices and settings due to foreign keys being active.
+		g_database->putQuery(
+			"DELETE FROM `hardware` "
+			"WHERE `id`=%d"
+			, hardware_->getId()
+		);
+	};
+	
 	template<class D> void Controller::newEvent( const D& device_, const unsigned int& source_ ) {
 		// Events originating from scripts should not cause another script run.
 		// TODO make this configurable per device?
@@ -251,12 +287,14 @@ namespace micasa {
 						
 						script = "event = " + event_.dump() + "; " + script;
 						
-						v7_val_t js_result;
 						v7* js = v7_create();
-						
-						v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
 						v7_set_user_data( js, v7_get_global( js ), this );
 						
+						// Install javascript hooks.
+						v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
+						v7_set_method( js, v7_get_global( js ), "getDevice", &micasa_v7_get_device );
+						
+						v7_val_t js_result;
 						v7_err js_error = v7_exec( js, script.c_str(), &js_result );
 
 						switch( js_error ) {
@@ -307,7 +345,7 @@ namespace micasa {
 		
 		typename D::t_value previousValue = device_->getValue();
 		for ( int i = 0; i < abs( options.repeat ); i++ ) {
-			float delaySec = options.afterSec + ( i * options.forSec ) + ( i * options.repeatSec );
+			double delaySec = options.afterSec + ( i * options.forSec ) + ( i * options.repeatSec );
 			
 			// TODO implement "recur" task option > if set do not set source to script so that the result of the
 			// task will also be executed by scripts. There needs to be some detection though to prevent a loop.
@@ -316,7 +354,6 @@ namespace micasa {
 			this->_scheduleTask( std::make_shared<Task>( task ) );
 			
 			if (
-				// TODO how to determine minimum for duration? avoid rounding errors for floats.
 				options.forSec > 0.05
 				&& (
 					options.repeat > 0
@@ -367,7 +404,7 @@ namespace micasa {
 		this->wakeUp();
 	};
 
-	std::chrono::milliseconds Controller::_work( const unsigned long int iteration_ ) {
+	const std::chrono::milliseconds Controller::_work( const unsigned long int& iteration_ ) {
 		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
 		
 		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
@@ -450,16 +487,16 @@ namespace micasa {
 			} else {
 				switch( lastTokenType ) {
 					case 1:
-						result.forSec = 1.f * static_cast<float>( atof( part.c_str() ) );
+						result.forSec = std::stod( part );
 						break;
 					case 2:
-						result.afterSec = 1.f * static_cast<float>( atof( part.c_str() ) );
+						result.afterSec = std::stod( part );
 						break;
 					case 3:
-						result.repeat = atoi( part.c_str() );
+						result.repeat = std::stoi( part );
 						break;
 					case 4:
-						result.repeatSec = 1.f * static_cast<float>( atof( part.c_str() ) );
+						result.repeatSec = std::stod( part );
 						break;
 				}
 			}

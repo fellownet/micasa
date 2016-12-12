@@ -118,7 +118,6 @@ namespace micasa {
 	};
 	template int Settings::get( const std::string& key_, const int& default_ ) const ;
 	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ ) const ;
-	template float Settings::get( const std::string& key_, const float& default_ ) const ;
 	template double Settings::get( const std::string& key_, const double& default_ ) const ;
 
 	// The string variant of the template specification is separate because it can be done more efficiently.
@@ -143,10 +142,13 @@ namespace micasa {
 	};
 	
 	template<typename T> Settings* Settings::put( const std::string& key_, const T& value_ ) {
-		if ( value_ != this->get( key_, value_ ) ) {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
-			std::stringstream ss;
-			ss << value_;
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::stringstream ss;
+		ss << value_;
+		if (
+			this->m_settings.find( key_ ) == this->m_settings.end() // does not exist
+			|| ss.str() != this->m_settings.at( key_ ) // is not the same
+		) {
 			this->m_settings[key_] = ss.str();
 			this->m_dirty = true;
 		}
@@ -154,13 +156,15 @@ namespace micasa {
 	};
 	template Settings* Settings::put( const std::string& key_, const int& value_ );
 	template Settings* Settings::put( const std::string& key_, const unsigned int& value_ );
-	template Settings* Settings::put( const std::string& key_, const float& value_ );
 	template Settings* Settings::put( const std::string& key_, const double& value_ );
 	
 	// The string variant of the template specification is separate because it can be done more efficiently.
 	template<> Settings* Settings::put<std::string>( const std::string& key_, const std::string& value_ ) {
-		if ( value_ != this->get( key_, value_ ) ) {
-			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		if (
+			this->m_settings.find( key_ ) == this->m_settings.end() // does not exist
+			|| value_ != this->m_settings.at( key_ ) // is not the same
+		) {
 			this->m_settings[key_] = value_;
 			this->m_dirty = true;
 		}

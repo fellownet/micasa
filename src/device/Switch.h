@@ -34,7 +34,7 @@ namespace micasa {
 		const unsigned int getValueOption() const { return this->m_value; };
 		const t_value& getValue() const { return OptionText.at( this->m_value ); };
 		
-		std::chrono::milliseconds _work( const unsigned long int iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:
 		Option m_value;
