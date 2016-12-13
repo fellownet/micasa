@@ -33,7 +33,7 @@ namespace micasa {
 		bool updateValue( const unsigned int& source_, const t_value& value_ );
 		const unsigned int getValueOption() const { return this->m_value; };
 		const t_value& getValue() const { return OptionText.at( this->m_value ); };
-		
+		json getJson() const override;
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:

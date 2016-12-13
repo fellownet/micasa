@@ -21,6 +21,7 @@ namespace micasa {
 		assert( g_logger && "Global Logger instance should be created before Device instances." );
 #endif // _DEBUG
 		this->m_settings.populate( *this );
+		this->m_lastUpdate = std::chrono::system_clock::now();
 	};
 	
 	Device::~Device() {
@@ -33,7 +34,7 @@ namespace micasa {
 
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
 		out_ << device_->m_hardware->getName() << " / " << device_->getName(); return out_;
-	}
+	};
 	
 	void Device::start() {
 		Worker::start();
@@ -59,6 +60,7 @@ namespace micasa {
 				"WHERE `id`=%d"
 				, label_.c_str(), this->m_id
 			);
+			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 		}
 	};
 
@@ -80,12 +82,16 @@ namespace micasa {
 		return nullptr;
 	};
 
-	const nlohmann::json Device::getJson() const {
-		nlohmann::json result = {
+	json Device::getJson() const {
+		auto age = std::chrono::system_clock::now() - this->m_lastUpdate;
+		json result = {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
-			{ "hardware", this->m_hardware->getJson() }
+			{ "hardware", this->m_hardware->getJson() },
+			// TODO the age on resources on the webpage doesn't update if the device doesn't, so lastUpdate might
+			// be better somehow.
+			{ "age", std::chrono::duration_cast<std::chrono::milliseconds>( age ).count() / 1000. }
 		};
 		return result;
 	};

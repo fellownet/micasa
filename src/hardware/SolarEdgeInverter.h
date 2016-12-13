@@ -19,6 +19,8 @@ namespace micasa {
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		
 	private:
+		bool m_first = true;
+		
 		void _processHttpReply( mg_connection* connection_, const http_message* message_ );
 		
 	}; // class SolarEdgeInverter

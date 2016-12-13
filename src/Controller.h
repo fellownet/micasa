@@ -27,6 +27,8 @@ extern "C" {
 
 namespace micasa {
 
+	using namespace nlohmann;
+
 	class Controller final : public Worker, public std::enable_shared_from_this<Controller> {
 
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
@@ -58,6 +60,7 @@ namespace micasa {
 			int repeat;
 			double repeatSec;
 			bool clear;
+			bool recur;
 		}; // struct TaskOptions
 		
 		Controller();
@@ -82,7 +85,8 @@ namespace micasa {
 		mutable std::mutex m_taskQueueMutex;
 		
 		void _processEvent( const nlohmann::json& event_ );
-		const std::shared_ptr<Device> _getDeviceById( const unsigned int id_ ) const;
+		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
+		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );

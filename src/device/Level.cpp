@@ -34,9 +34,7 @@ namespace micasa {
 					inputIt == input_.end()
 					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
 				) {
-					auto json = this->getJson();
-					json["value"] = this->m_value;
-					output_ += json;
+					output_ += this->getJson();
 				}
 			} )
 		} ) ) );
@@ -45,9 +43,7 @@ namespace micasa {
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				auto json = this->getJson();
-				json["value"] = this->m_value;
-				output_ = json;
+				output_ = this->getJson();
 			} )
 		} ) ) );
 
@@ -85,11 +81,19 @@ namespace micasa {
 			);
 			g_controller->newEvent<Level>( *this, source_ );
 			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
+			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
 		} else {
 			this->m_value = currentValue;
 		}
 		return success;
+	};
+
+	json Level::getJson() const {
+		json result = Device::getJson();
+		result["value"] = this->getValue();
+		result["type"] = "level";
+		return result;
 	};
 
 	const std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {

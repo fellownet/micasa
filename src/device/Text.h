@@ -16,7 +16,7 @@ namespace micasa {
 		void stop() override;
 		bool updateValue( const unsigned int& source_, const t_value& value_ );
 		const t_value& getValue() const { return this->m_value; };
-		
+		json getJson() const override;
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:

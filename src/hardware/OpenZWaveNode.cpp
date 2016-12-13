@@ -247,7 +247,7 @@ namespace micasa {
 												::OpenZWave::Manager::Get()->SetValueListSelection( valueId, (*inputIt).second );
 												output_["result"] = "OK";
 											} catch( ... ) {
-												g_logger->log( Logger::LogLevel::ERROR, this, "Niet gelukt :(." );
+												g_logger->log( Logger::LogLevel::ERROR, this, "Failed to update config." );
 											}
 										}
 										break;
@@ -366,6 +366,9 @@ namespace micasa {
 				
 			case COMMAND_CLASS_SWITCH_BINARY:
 			case COMMAND_CLASS_SENSOR_BINARY: {
+				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
+				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
+				// instruction.
 				unsigned int updateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
 					updateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;

@@ -63,13 +63,37 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
-	//micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
+	std::shared_ptr<micasa::Device> device = nullptr;
+	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		
-		
-	} else {
+		device = controller->_getDeviceById( v7_get_int( js_, arg0 ) );
+	} else if ( v7_is_string( arg0 ) ) {
+		device = controller->_getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+	}
+	if ( device == nullptr ) {
+		return V7_EXEC_EXCEPTION;
+	}
+	
+	v7_err js_error;
+	switch( device->getType() ) {
+		case micasa::Device::Type::SWITCH:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::TEXT:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::LEVEL:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::COUNTER:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson().dump().c_str(), res_ );
+			break;
+	}
+
+	if ( V7_OK != js_error ) {
 		return V7_EXEC_EXCEPTION;
 	}
 	
@@ -81,8 +105,6 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-
-	using namespace nlohmann;
 
 	template<> void Controller::Task::setValue<Level>( const typename Level::t_value& value_ ) { this->levelValue = value_; };
 	template<> void Controller::Task::setValue<Counter>( const typename Counter::t_value& value_ ) { this->counterValue = value_; };
@@ -324,11 +346,21 @@ namespace micasa {
 		thread.detach();
 	};
 
-	const std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int id_ ) const {
-		// TODO iterating through both the hardware and device maps seems a bit heavy, can this be done more efficiently?
+	std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			auto device = (*hardwareIt)->_getDeviceById( id_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
+	
+	std::shared_ptr<Device> Controller::_getDeviceByLabel( const std::string& label_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->_getDeviceByLabel( label_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -349,7 +381,7 @@ namespace micasa {
 			
 			// TODO implement "recur" task option > if set do not set source to script so that the result of the
 			// task will also be executed by scripts. There needs to be some detection though to prevent a loop.
-			Task task = { device_, Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
+			Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
 			task.setValue<D>( value_ );
 			this->_scheduleTask( std::make_shared<Task>( task ) );
 			
@@ -361,11 +393,12 @@ namespace micasa {
 				)
 			) {
 				delaySec += options.forSec;
-				Task task = { device_, Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
+				Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
 				task.setValue<D>( previousValue );
 				this->_scheduleTask( std::make_shared<Task>( task ) );
 			}
 		}
+		
 		return true;
 	};
 	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level>& device_, const typename Level::t_value& value_, const std::string& options_ );
@@ -431,6 +464,8 @@ namespace micasa {
 					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
 					break;
 			}
+			
+			
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
 		
@@ -449,7 +484,7 @@ namespace micasa {
 	const Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
 		int lastTokenType = 0;
 		std::vector<std::string> optionParts;
-		TaskOptions result = { 0, 0, 1, 0, false };
+		TaskOptions result = { 0, 0, 1, 0, false, false };
 
 		stringSplit( options_, " ", optionParts );
 		for ( auto partsIt = optionParts.begin(); partsIt != optionParts.end(); ++partsIt ) {
@@ -467,6 +502,9 @@ namespace micasa {
 			} else if ( part == "CLEAR" ) {
 				result.clear = true;
 				lastTokenType = 0;
+			} else if ( part == "RECUR" ) {
+				result.recur = true;
+				lastTokenType = 0;
 			} else if ( part.find( "SECOND" ) != std::string::npos ) {
 				// Do nothing, seconds are the default.
 				lastTokenType = 0;
@@ -474,14 +512,14 @@ namespace micasa {
 				switch( lastTokenType ) {
 					case 1: result.forSec *= 60.; break;
 					case 2: result.afterSec *= 60.; break;
-					case 3: result.repeatSec *= 60.; break;
+					case 4: result.repeatSec *= 60.; break;
 				}
 				lastTokenType = 0;
 			} else if ( part.find( "HOUR" ) != std::string::npos ) {
 				switch( lastTokenType ) {
 					case 1: result.forSec *= 3600.; break;
 					case 2: result.afterSec *= 3600.; break;
-					case 3: result.repeatSec *= 3600.; break;
+					case 4: result.repeatSec *= 3600.; break;
 				}
 				lastTokenType = 0;
 			} else {
