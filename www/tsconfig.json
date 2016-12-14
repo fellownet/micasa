@@ -8,6 +8,16 @@
 		"experimentalDecorators": true,
 		"lib": [ "es2015", "dom" ],
 		"noImplicitAny": true,
-		"suppressImplicitAnyIndexErrors": true
-	}
+		"suppressImplicitAnyIndexErrors": true,
+		"removeComments": true,
+		"allowUnusedLabels": false,
+		"allowUnreachableCode": false,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitUseStrict": false,
+		"outDir": "app"
+	},
+	"include": [
+		"src/*"
+	]
 }
