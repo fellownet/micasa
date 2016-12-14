@@ -3,7 +3,9 @@
 	"version"							: "0.0.1",
 	"description"						: "Micasa is a software domotica controller designed to interconnect various types of hardware.",
 	"scripts"							: {
-		"start"								: "tsc -w"
+		"start"								: "tsc -w",
+		"build"								: "tsc",
+		"postinstall"						: "tsc"
 	},
 	"keywords"							: [],
 	"author"							: "Bob Kersten // Fellownet",
