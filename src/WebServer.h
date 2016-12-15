@@ -38,7 +38,7 @@ namespace micasa {
 			OPTIONS = 64
 		}; // enum Method
 		
-		typedef std::function<void( const std::string& uri_, const std::map<std::string, std::string>& input_, const Method& method_, int& code_, nlohmann::json& output_ )> t_callback;
+		typedef std::function<void( const std::string& uri_, const nlohmann::json& input_, const Method& method_, int& code_, nlohmann::json& output_ )> t_callback;
 		
 		struct ResourceCallback {
 			const std::string reference;
@@ -59,6 +59,7 @@ namespace micasa {
 		
 		void addResourceCallback( std::shared_ptr<ResourceCallback> callback_ );
 		void removeResourceCallback( const std::string reference_ );
+		void removeResourceCallbackAt( const std::string uri_ );
 		void touchResourceCallback( const std::string reference_ );
 		// TODO remove vv
 		void touchResourceAt( const std::string uri_ );

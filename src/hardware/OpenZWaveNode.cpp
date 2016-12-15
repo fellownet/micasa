@@ -224,7 +224,7 @@ namespace micasa {
 						"openzwavenode-" + std::to_string( this->m_id ),
 						"api/hardware/" + std::to_string( this->m_id ) + "/configuration",
 						WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH,
-						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							switch( method_ ) {
 								case WebServer::Method::GET: {
 									std::lock_guard<std::mutex> lock( this->m_configurationMutex );
@@ -234,6 +234,7 @@ namespace micasa {
 								
 								case WebServer::Method::PUT:
 								case WebServer::Method::PATCH: {
+									/*
 									std::lock_guard<std::mutex> lock( this->m_configurationMutex );
 									for ( auto inputIt = input_.begin(); inputIt != input_.end(); inputIt++ ) {
 										if ( ! this->m_configuration[(*inputIt).first].is_null() ) {
@@ -247,11 +248,12 @@ namespace micasa {
 												::OpenZWave::Manager::Get()->SetValueListSelection( valueId, (*inputIt).second );
 												output_["result"] = "OK";
 											} catch( ... ) {
-												g_logger->log( Logger::LogLevel::ERROR, this, "Niet gelukt :(." );
+												g_logger->log( Logger::LogLevel::ERROR, this, "Failed to update config." );
 											}
 										}
 										break;
 									}
+									*/
 								}
 									
 								default:
@@ -366,6 +368,9 @@ namespace micasa {
 				
 			case COMMAND_CLASS_SWITCH_BINARY:
 			case COMMAND_CLASS_SENSOR_BINARY: {
+				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
+				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
+				// instruction.
 				unsigned int updateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
 					updateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;

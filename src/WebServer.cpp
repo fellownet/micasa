@@ -115,6 +115,15 @@ namespace micasa {
 		}
 	};
 
+	void WebServer::removeResourceCallbackAt( const std::string uri_ ) {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
+			// TODO implement
+			
+			
+		}
+	};
+	
 	void WebServer::touchResourceCallback( const std::string reference_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
@@ -155,22 +164,6 @@ namespace micasa {
 			uriStr.assign( message_->uri.p + 1, message_->uri.len - 1 );
 		}
 		
-		// TODO maybe construct some sort of cache key which would be a combination of uriStr and all
-		// unknown query parameters (strip page and count so for pagination the cache would still be
-		// valid).
-		
-
-		// Parse the query string.
-		std::map<std::string, std::string> input;
-		std::regex pattern( "([\\w+%]+)=([^&]*)" );
-		auto wordsBegin = std::sregex_iterator( queryStr.begin(), queryStr.end(), pattern );
-		auto wordsEnd = std::sregex_iterator();
-		for ( std::sregex_iterator it = wordsBegin; it != wordsEnd; it++ ) {
-			std::string key = (*it)[1].str();
-			std::string value = stringUriDecode( (*it)[2].str() );
-			input[key] = value;
-		}
-
 		// Determine method (note that the method can be overridden by adding _method=xx to the query).
 		stringIsolate( queryStr, "_method=", "&", false, methodStr );
 		Method method = Method::GET;
@@ -188,12 +181,39 @@ namespace micasa {
 			method = Method::OPTIONS;
 		}
 
+		// Create the input map which should consist of the parsed body and any parameter passed in the
+		// query string.
+		json input;
+		if ( ( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0 ) {
+			std::string bodyStr = "";
+			bodyStr.assign( message_->body.p, message_->body.len );
+			if ( bodyStr.size() > 0 ) {
+				try {
+					input = json::parse( bodyStr );
+				} catch( ... ) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Invalid input json." );
+				}
+			}
+		}
+		
+		// Parse the qyery string and put it's content into the input object.
+		std::regex pattern( "([\\w+%]+)=([^&]*)" );
+		auto wordsBegin = std::sregex_iterator( queryStr.begin(), queryStr.end(), pattern );
+		auto wordsEnd = std::sregex_iterator();
+		for ( std::sregex_iterator it = wordsBegin; it != wordsEnd; it++ ) {
+			std::string key = (*it)[1].str();
+			std::string value = stringUriDecode( (*it)[2].str() );
+			input[key] = value;
+		}
+
+		
 		// Create a cacheKey for GET requests. Note that a std::map is sorted by default, hence the order
 		// of parameters doesn't bypass the cache. Also, some parameters should not also not cause the
 		// cache to be bypassed.
 		std::stringstream cacheKey;
 		if ( method == Method::GET ) {
 			cacheKey << uriStr;
+			/*
 			for ( auto inputIt = input.begin(); inputIt != input.end(); inputIt++ ) {
 				if (
 					inputIt->first != "page"
@@ -202,6 +222,7 @@ namespace micasa {
 					cacheKey << "/" << inputIt->first << "=" << inputIt->second;
 				}
 			}
+			*/
 		}
 
 		std::unique_lock<std::mutex> resourceLock( this->m_resourcesMutex );

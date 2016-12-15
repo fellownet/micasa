@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <map>
+#include <chrono>
 
 #include "WebServer.h"
 #include "Settings.h"
@@ -13,6 +14,8 @@
 #define DEVICE_SETTING_FLAGS						"_flags"
 
 namespace micasa {
+
+	using namespace nlohmann;
 
 	class Hardware;
 
@@ -51,7 +54,7 @@ namespace micasa {
 		void setLabel( const std::string& label_ );
 		Settings& getSettings() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
-		const nlohmann::json getJson() const;
+		virtual json getJson() const;
 		
 	protected:
 		std::shared_ptr<Hardware> m_hardware;
@@ -59,6 +62,7 @@ namespace micasa {
 		const std::string m_reference;
 		std::string m_label;
 		Settings m_settings;
+		std::chrono::time_point<std::chrono::system_clock> m_lastUpdate;
 		
 	private:
 		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );

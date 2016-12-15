@@ -62,6 +62,12 @@ namespace micasa {
 					) {
 						data = data["current_observation"];
 						
+						unsigned int source = Device::UpdateSource::HARDWARE;
+						if ( this->m_first ) {
+							source |= Device::UpdateSource::INIT;
+							this->m_first = false;
+						}
+						
 						if (
 							this->m_settings["scale"] == "fahrenheit"
 							&& ! data["temp_f"].is_null()
@@ -70,7 +76,7 @@ namespace micasa {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_f"].get<double>() );
+							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
 						   this->m_settings["scale"] == "celcius"
 						   && ! data["temp_c"].is_null()
@@ -79,7 +85,7 @@ namespace micasa {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["temp_c"].get<double>() );
+							device->updateValue( source, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
@@ -87,20 +93,20 @@ namespace micasa {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, std::stod( data["relative_humidity"].get<std::string>() ) );
+							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
 							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PASCAL ) }
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, std::stod( data["pressure_mb"].get<std::string>() ) );
+							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
 							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::Type::TEXT, "5", "Wind Direction in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 							} ) );
-							device->updateValue( Device::UpdateSource::HARDWARE, data["wind_dir"].get<std::string>() );
+							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}
 					}
 				} else {

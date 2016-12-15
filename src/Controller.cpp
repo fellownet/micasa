@@ -63,13 +63,37 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
-	//micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
+	std::shared_ptr<micasa::Device> device = nullptr;
+	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		
-		
-	} else {
+		device = controller->_getDeviceById( v7_get_int( js_, arg0 ) );
+	} else if ( v7_is_string( arg0 ) ) {
+		device = controller->_getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+	}
+	if ( device == nullptr ) {
+		return V7_EXEC_EXCEPTION;
+	}
+	
+	v7_err js_error;
+	switch( device->getType() ) {
+		case micasa::Device::Type::SWITCH:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::TEXT:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::LEVEL:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson().dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::COUNTER:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson().dump().c_str(), res_ );
+			break;
+	}
+
+	if ( V7_OK != js_error ) {
 		return V7_EXEC_EXCEPTION;
 	}
 	
@@ -81,8 +105,6 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-
-	using namespace nlohmann;
 
 	template<> void Controller::Task::setValue<Level>( const typename Level::t_value& value_ ) { this->levelValue = value_; };
 	template<> void Controller::Task::setValue<Counter>( const typename Counter::t_value& value_ ) { this->counterValue = value_; };
@@ -111,8 +133,8 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-
+		// Fetch all the hardware from the database to initialize our local map of hardware instances.
+		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
 			"SELECT `id`, `hardware_id`, `reference`, `label`, `type` "
 			"FROM `hardware` "
@@ -136,6 +158,140 @@ namespace micasa {
 			hardware->start();
 			this->m_hardware.push_back( hardware );
 		}
+		hardwareLock.unlock();
+
+		// Install resource handlers to edit and/or remove scripts and assign/remove these scripts to devices.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"controller-scripts",
+			"api/scripts",
+			WebServer::Method::GET | WebServer::Method::POST,
+			WebServer::t_callback( []( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				switch( method_ ) {
+					case WebServer::Method::GET: {
+						std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
+							"SELECT `id`, `name`, `code`, `status`, `runs` "
+							"FROM `scripts` "
+							"ORDER BY `id` ASC"
+						);
+						output_ = scriptsData;
+						break;
+					}
+					case WebServer::Method::POST: {
+						
+						std::cout << input_.dump( 4 ) << "\n";
+						
+						try {
+							if (
+								input_.find( "name") != input_.end()
+								&& input_.find( "code") != input_.end()
+							) {
+								g_database->putQuery(
+									"INSERT INTO `scripts` (`name`, `code`) "
+									"VALUES (%Q, %Q) ",
+									input_["name"].get<std::string>().c_str(),
+									input_["code"].get<std::string>().c_str()
+								);
+								g_webServer->touchResourceCallback( "controller-scripts" );
+								output_["result"] = "OK";
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Missing parameters.";
+								code_ = 400; // bad request
+							}
+						} catch( ... ) {
+							output_["result"] = "ERROR";
+							output_["message"] = "Unable to save script.";
+							code_ = 400; // bad request
+						}
+						break;
+					}
+					default: break;
+				}
+			} )
+		} ) ) );
+		
+		std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
+			"SELECT `id`, `name`, `code`, `status`, `runs` "
+			"FROM `scripts` "
+			"ORDER BY `id` ASC"
+		);
+		for ( auto scriptsIt = scriptsData.begin(); scriptsIt != scriptsData.end(); scriptsIt++ ) {
+			auto script = (*scriptsIt); // copy constructor, is to be captured
+			g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+				"controller-scripts",
+				"api/scripts/" + script.at( "id" ),
+				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH  | WebServer::Method::DELETE,
+				WebServer::t_callback( [script]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+					switch( method_ ) {
+						case WebServer::Method::GET: {
+							output_ = script;
+							break;
+						}
+						case WebServer::Method::PATCH:
+						case WebServer::Method::PUT: {
+							try {
+								if (
+									input_.find( "id") != input_.end()
+									&& input_.find( "name") != input_.end()
+									&& input_.find( "code") != input_.end()
+									&& input_["id"].get<std::string>() == script.at( "id" )
+								) {
+									g_database->putQuery(
+										"UPDATE `scripts` "
+										"SET `name`=%Q, `code`=%Q, `status`=1 "
+										"WHERE `id`=%d",
+										input_["name"].get<std::string>().c_str(),
+										input_["code"].get<std::string>().c_str(),
+										atoi( input_["id"].get<std::string>().c_str() )
+									);
+									g_webServer->touchResourceCallback( "controller-scripts" );
+									output_["result"] = "OK";
+									// TODO send new script along as output, just like post?
+								} else {
+									output_["result"] = "ERROR";
+									output_["message"] = "Missing parameters.";
+									code_ = 400; // bad request
+								}
+							} catch( ... ) {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to save script.";
+								code_ = 400; // bad request
+							}
+							break;
+						}
+						case WebServer::Method::DELETE: {
+							try {
+								g_database->putQuery(
+									"DELETE FROM `scripts` "
+									"WHERE `id`=%d",
+									atoi( script.at( "id" ).c_str() )
+								);
+								g_webServer->touchResourceCallback( "controller-scripts" );
+								output_["result"] = "OK";
+							} catch( ... ) {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to save script.";
+								code_ = 400; // bad request
+							}
+							break;
+						}
+						default: break;
+					}
+				} )
+			} ) ) );
+		}
+		
+		// Install resource to receive version number. This resource is also used by the client to determine if
+		// the server is available at the current url (hence being served by micasa or a 3rd party webserver).
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"controller",
+			"api/controller",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				// TODO introduce some sort of central place where the version number comes from
+				output_["version"] = "0.0.1";
+			} )
+		} ) ) );
 		
 		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
@@ -143,6 +299,10 @@ namespace micasa {
 
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		
+		g_webServer->removeResourceCallback( "controller" );
+		g_webServer->removeResourceCallback( "controller-scripts" );
+		
 		Worker::stop();
 
 		{
@@ -267,68 +427,78 @@ namespace micasa {
 		// we don't detach and keep track of the thread.
 		auto thread = std::thread( [this,event_]{
 			
-			// TODO make the var/scripts folder comfigurable?
-			// TODO make this cross platform?
-			// TODO cache the listing of files?
-			// TODO configure the scripts to execute per device instead of all scripts for all device events
-			auto directory = opendir( "./var/scripts" );
-			while( auto entry = readdir( directory ) ) {
-				if ( entry->d_type == DT_REG ) {
-					std::string filename = entry->d_name;
-					std::string extension = ".js";
-					
-					if (
-						extension.size() < filename.size()
-						&& std::equal( extension.rbegin(), extension.rend(), filename.rbegin() )
-					) {
-						
-						std::ifstream filestream( "./var/scripts/" + filename );
-						std::string script( ( std::istreambuf_iterator<char>( filestream ) ), ( std::istreambuf_iterator<char>() ) );
-						
-						script = "event = " + event_.dump() + "; " + script;
-						
-						v7* js = v7_create();
-						v7_set_user_data( js, v7_get_global( js ), this );
-						
-						// Install javascript hooks.
-						v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
-						v7_set_method( js, v7_get_global( js ), "getDevice", &micasa_v7_get_device );
-						
-						v7_val_t js_result;
-						v7_err js_error = v7_exec( js, script.c_str(), &js_result );
+			// Fetch all the scripts.
+			// TODO Only fetch those scripts that are present in the script / device crosstable.
+			std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
+				"SELECT `id`, `name`, `code`, `status`, `runs` "
+				"FROM `scripts` "
+				"WHERE `status`=1 " 
+				"ORDER BY `id` ASC"
+			);
+			for ( auto scriptsIt = scriptsData.begin(); scriptsIt != scriptsData.end(); scriptsIt++ ) {
+				std::string script = "event = " + event_.dump() + "; " + (*scriptsIt)["code"];
 
-						switch( js_error ) {
-							case V7_SYNTAX_ERROR:
-								g_logger->logr( Logger::LogLevel::ERROR, this, "Syntax error in %s.", filename.c_str() );
-								break;
-							case V7_EXEC_EXCEPTION:
-								g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in %s.", filename.c_str() );
-								break;
-							case V7_AST_TOO_LARGE:
-							case V7_INTERNAL_ERROR:
-								g_logger->logr( Logger::LogLevel::ERROR, this, "Internal error in in %s.", filename.c_str() );
-								break;
-							case V7_OK:
-								g_logger->logr( Logger::LogLevel::VERBOSE, this, "Script %s executed.", filename.c_str() );
-								break;
-						}
+				v7* js = v7_create();
+				v7_set_user_data( js, v7_get_global( js ), this );
+				
+				// Install javascript hooks.
+				v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
+				v7_set_method( js, v7_get_global( js ), "getDevice", &micasa_v7_get_device );
+				
+				v7_val_t js_result;
+				v7_err js_error = v7_exec( js, script.c_str(), &js_result );
 
-						v7_destroy( js );
-					}
+				unsigned int status = 1;
+				
+				switch( js_error ) {
+					case V7_SYNTAX_ERROR:
+						g_logger->logr( Logger::LogLevel::ERROR, this, "Syntax error in \"%s\".", (*scriptsIt)["name"].c_str() );
+						status = 3; // TODO make an enum out of this
+						break;
+					case V7_EXEC_EXCEPTION:
+						g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\".", (*scriptsIt)["name"].c_str() );
+						status = 3; // TODO make an enum out of this
+						break;
+					case V7_AST_TOO_LARGE:
+					case V7_INTERNAL_ERROR:
+						g_logger->logr( Logger::LogLevel::ERROR, this, "Internal error in in \"%s\".", (*scriptsIt)["name"].c_str() );
+						status = 3; // TODO make an enum out of this
+						break;
+					case V7_OK:
+						g_logger->logr( Logger::LogLevel::VERBOSE, this, "Script \"%s\" executed.", (*scriptsIt)["name"].c_str() );
+						break;
 				}
+				
+				v7_destroy( js );
+				
+				g_database->putQuery(
+					"UPDATE `scripts` "
+					"SET `runs`=`runs`+1, `status`=%d "
+					"WHERE `id`=%q",
+					status,
+					(*scriptsIt)["id"].c_str()
+				);
+				g_webServer->touchResourceCallback( "controller-scripts" );
 			}
-
-			closedir( directory );
-
 		} );
 		thread.detach();
 	};
 
-	const std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int id_ ) const {
-		// TODO iterating through both the hardware and device maps seems a bit heavy, can this be done more efficiently?
+	std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			auto device = (*hardwareIt)->_getDeviceById( id_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
+	
+	std::shared_ptr<Device> Controller::_getDeviceByLabel( const std::string& label_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->_getDeviceByLabel( label_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -349,7 +519,7 @@ namespace micasa {
 			
 			// TODO implement "recur" task option > if set do not set source to script so that the result of the
 			// task will also be executed by scripts. There needs to be some detection though to prevent a loop.
-			Task task = { device_, Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
+			Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
 			task.setValue<D>( value_ );
 			this->_scheduleTask( std::make_shared<Task>( task ) );
 			
@@ -361,11 +531,12 @@ namespace micasa {
 				)
 			) {
 				delaySec += options.forSec;
-				Task task = { device_, Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
+				Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, std::chrono::system_clock::now() + std::chrono::milliseconds( (int)( delaySec * 1000 ) ) };
 				task.setValue<D>( previousValue );
 				this->_scheduleTask( std::make_shared<Task>( task ) );
 			}
 		}
+		
 		return true;
 	};
 	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level>& device_, const typename Level::t_value& value_, const std::string& options_ );
@@ -431,6 +602,8 @@ namespace micasa {
 					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
 					break;
 			}
+			
+			
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
 		
@@ -449,7 +622,7 @@ namespace micasa {
 	const Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
 		int lastTokenType = 0;
 		std::vector<std::string> optionParts;
-		TaskOptions result = { 0, 0, 1, 0, false };
+		TaskOptions result = { 0, 0, 1, 0, false, false };
 
 		stringSplit( options_, " ", optionParts );
 		for ( auto partsIt = optionParts.begin(); partsIt != optionParts.end(); ++partsIt ) {
@@ -467,6 +640,9 @@ namespace micasa {
 			} else if ( part == "CLEAR" ) {
 				result.clear = true;
 				lastTokenType = 0;
+			} else if ( part == "RECUR" ) {
+				result.recur = true;
+				lastTokenType = 0;
 			} else if ( part.find( "SECOND" ) != std::string::npos ) {
 				// Do nothing, seconds are the default.
 				lastTokenType = 0;
@@ -474,14 +650,14 @@ namespace micasa {
 				switch( lastTokenType ) {
 					case 1: result.forSec *= 60.; break;
 					case 2: result.afterSec *= 60.; break;
-					case 3: result.repeatSec *= 60.; break;
+					case 4: result.repeatSec *= 60.; break;
 				}
 				lastTokenType = 0;
 			} else if ( part.find( "HOUR" ) != std::string::npos ) {
 				switch( lastTokenType ) {
 					case 1: result.forSec *= 3600.; break;
 					case 2: result.afterSec *= 3600.; break;
-					case 3: result.repeatSec *= 3600.; break;
+					case 4: result.repeatSec *= 3600.; break;
 				}
 				lastTokenType = 0;
 			} else {

@@ -33,7 +33,17 @@ namespace micasa {
 			SOLAREDGE_INVERTER,
 			WEATHER_UNDERGROUND
 		}; // enum Type
+		static const std::map<Type, std::string> TypeText;
 
+		enum Status {
+			INIT = 1,
+			READY,
+			DISABLED,
+			FAILED,
+			SLEEPING
+		}; // enum Status
+		static const std::map<Status, std::string> StatusText;
+		
 		struct PendingUpdate {
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
@@ -66,8 +76,9 @@ namespace micasa {
 		const std::shared_ptr<Hardware> m_parent;
 		Settings m_settings;
 
-		std::shared_ptr<Device> _getDevice( const std::string reference_ ) const;
-		std::shared_ptr<Device> _getDeviceById( const unsigned int id_ ) const;
+		std::shared_ptr<Device> _getDevice( const std::string& reference_ ) const;
+		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
+		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		std::shared_ptr<Device> _declareDevice( const Device::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 		
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an

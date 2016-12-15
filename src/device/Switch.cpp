@@ -35,19 +35,17 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				if ( output_.is_null() ) {
 					output_ = nlohmann::json::array();
 				}
-				auto inputIt = input_.find( "hardware_id" );
-				if (
-					inputIt == input_.end()
-					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
-				) {
-					auto json = this->getJson();
-					json["value"] = Switch::OptionText.at( this->m_value );
-					output_ += json;
-				}
+				//auto inputIt = input_.find( "hardware_id" );
+				//if (
+				//	inputIt == input_.end()
+				//	|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				//) {
+					output_ += this->getJson();
+				//}
 			} )
 		} ) ) );
 		
@@ -62,15 +60,14 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ),
 			methods,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
-						auto json = this->getJson();
-						json["value"] = Switch::OptionText.at( this->m_value );
-						output_ = json;
+						output_ = this->getJson();
 						break;
 					}
 					case WebServer::Method::PATCH:
+						/*
 						// TODO implement patch method, for now it toggles between on and off.
 						// TODO pass error and set code on failure, but what message and what code?
 						if ( this->m_value == Switch::Option::ON ) {
@@ -78,6 +75,7 @@ namespace micasa {
 						} else {
 							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::ON ) ? "OK" : "ERROR";
 						}
+						*/
 						break;
 					default:
 						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid API method." );
@@ -104,7 +102,13 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
-
+		
+		// TODO does this make sense?
+		// Prevent the same updates.
+		if ( this->m_value == value_ ) {
+			return true; // update was successful but nothing has to happen
+		}
+		
 		// Make a local backup of the original value (the hardware might want to revert it).
 		Option currentValue = this->m_value;
 		this->m_value = value_;
@@ -123,6 +127,7 @@ namespace micasa {
 			);
 			g_controller->newEvent<Switch>( *this, source_ );
 			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
+			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {
 			this->m_value = currentValue;
@@ -137,6 +142,14 @@ namespace micasa {
 			}
 		}
 		return false;
+	};
+
+	json Switch::getJson() const {
+		json result = Device::getJson();
+		result["value"] = this->getValue();
+		result["type"] = "switch";
+		// TODO also populate with possible switch options?
+		return result;
 	};
 
 	const std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {

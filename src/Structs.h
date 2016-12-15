@@ -115,6 +115,27 @@ namespace micasa {
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 	
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_settings_device_id_key` ON `device_settings`( `device_id`, `key` )",
+
+		// Scripts
+		"CREATE TABLE IF NOT EXISTS `scripts` ( "
+		"`id` INTEGER PRIMARY KEY, "
+		"`name` VARCHAR(255) NOT NULL, "
+		"`code` TEXT, "
+		"`language` VARCHAR(64) NOT NULL DEFAULT 'javascript', "
+		"`status` TINYINT DEFAULT 1, " // 1 = enabled, 2 = disabled, 3 = error
+		"`runs` BIGINT DEFAULT 0, "
+		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`last_device_id` INTEGER, "
+		"`last_run` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+		"FOREIGN KEY ( `last_device_id` ) REFERENCES `devices` ( `id` ) ON DELETE SET NULL ON UPDATE CASCADE )",
+		
+		"CREATE TABLE IF NOT EXISTS `x_device_scripts` ( "
+		"`device_id` INTEGER NOT NULL, "
+		"`script_id` INTEGER NOT NULL, "
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT, "
+		"FOREIGN KEY ( `script_id` ) REFERENCES `scripts` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
+	
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_scripts_device_id_script_id` ON `x_device_scripts`( `device_id`, `script_id` )",
 	};
 	
 }; // namespace micasa
