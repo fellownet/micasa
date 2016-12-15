@@ -224,7 +224,7 @@ namespace micasa {
 						"openzwavenode-" + std::to_string( this->m_id ),
 						"api/hardware/" + std::to_string( this->m_id ) + "/configuration",
 						WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH,
-						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							switch( method_ ) {
 								case WebServer::Method::GET: {
 									std::lock_guard<std::mutex> lock( this->m_configurationMutex );
@@ -234,6 +234,7 @@ namespace micasa {
 								
 								case WebServer::Method::PUT:
 								case WebServer::Method::PATCH: {
+									/*
 									std::lock_guard<std::mutex> lock( this->m_configurationMutex );
 									for ( auto inputIt = input_.begin(); inputIt != input_.end(); inputIt++ ) {
 										if ( ! this->m_configuration[(*inputIt).first].is_null() ) {
@@ -252,6 +253,7 @@ namespace micasa {
 										}
 										break;
 									}
+									*/
 								}
 									
 								default:

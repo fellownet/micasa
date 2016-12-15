@@ -135,7 +135,7 @@ namespace micasa {
 						"openzwave-" + std::to_string( this->m_id ),
 						"api/hardware/" + std::to_string( this->m_id ) + "/heal",
 						WebServer::Method::PUT,
-						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( this->m_controllerState == READY ) {
 									::OpenZWave::Manager::Get()->HealNetwork( this->m_homeId, true );
@@ -161,7 +161,7 @@ namespace micasa {
 						"openzwave-" + std::to_string( this->m_id ),
 						"api/hardware/" + std::to_string( this->m_id ) + "/include",
 						WebServer::Method::PUT | WebServer::Method::DELETE,
-						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							// TODO also accept secure inclusion mode
 							// TODO cancel inclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
@@ -212,7 +212,7 @@ namespace micasa {
 						"openzwave-" + std::to_string( this->m_id ),
 						"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
 						WebServer::Method::PUT | WebServer::Method::DELETE,
-						WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							// TODO cancel exclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( method_ == WebServer::Method::PUT ) {

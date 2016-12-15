@@ -25,24 +25,24 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				if ( output_.is_null() ) {
 					output_ = nlohmann::json::array();
 				}
-				auto inputIt = input_.find( "hardware_id" );
-				if (
-					inputIt == input_.end()
-					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
-				) {
+				//auto inputIt = input_.find( "hardware_id" );
+				//if (
+				//	inputIt == input_.end()
+				//	|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				//) {
 					output_ += this->getJson();
-				}
+				//}
 			} )
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ),
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				output_ = this->getJson();
 			} )
 		} ) ) );

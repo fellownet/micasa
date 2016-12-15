@@ -1,10 +1,10 @@
-// File: app/login.component.ts
-
 import { Component } from '@angular/core';
 
 @Component( {
-	selector: 'login',
-	templateUrl: 'tpl/login.html',
+	selector: 'screen',
+	templateUrl: 'tpl/screen.html',
 } )
 
-export class LoginComponent  { name = 'test'; }
+export class ScreenComponent  {
+
+}

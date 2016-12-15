@@ -104,7 +104,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware",
 			WebServer::Method::GET | WebServer::Method::POST,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						if ( output_.is_null() ) {
@@ -121,7 +121,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			WebServer::Method::GET | WebServer::Method::DELETE | WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						output_ = this->getJson();
@@ -135,6 +135,27 @@ namespace micasa {
 					}
 					case WebServer::Method::PUT:
 					case WebServer::Method::PATCH: {
+						try {
+							if (
+								! input_["id"].is_null()
+								&& input_["id"] == this->m_id
+							) {
+								if ( ! input_["name"].is_null() ) {
+									this->m_settings.put( "name", input_["name"].get<std::string>() );
+									this->m_settings.commit( *this );
+								}
+								g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+								output_["result"] = "OK";
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "An id property is required for safety reasons.";
+								code_ = 400; // bad request
+							}
+						} catch( ... ) {
+							output_["result"] = "ERROR";
+							output_["message"] = "Unable to save hardware.";
+							code_ = 400; // bad request
+						}
 						break;
 					}
 					default: break;

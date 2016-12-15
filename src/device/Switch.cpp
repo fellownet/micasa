@@ -35,17 +35,17 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices",
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				if ( output_.is_null() ) {
 					output_ = nlohmann::json::array();
 				}
-				auto inputIt = input_.find( "hardware_id" );
-				if (
-					inputIt == input_.end()
-					|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
-				) {
+				//auto inputIt = input_.find( "hardware_id" );
+				//if (
+				//	inputIt == input_.end()
+				//	|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
+				//) {
 					output_ += this->getJson();
-				}
+				//}
 			} )
 		} ) ) );
 		
@@ -60,13 +60,14 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ),
 			methods,
-			WebServer::t_callback( [this]( const std::string& uri_, const std::map<std::string, std::string>& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						output_ = this->getJson();
 						break;
 					}
 					case WebServer::Method::PATCH:
+						/*
 						// TODO implement patch method, for now it toggles between on and off.
 						// TODO pass error and set code on failure, but what message and what code?
 						if ( this->m_value == Switch::Option::ON ) {
@@ -74,6 +75,7 @@ namespace micasa {
 						} else {
 							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::ON ) ? "OK" : "ERROR";
 						}
+						*/
 						break;
 					default:
 						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid API method." );
