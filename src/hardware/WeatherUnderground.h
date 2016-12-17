@@ -15,7 +15,7 @@ namespace micasa {
 	class WeatherUnderground final : public Hardware {
 
 	public:
-		WeatherUnderground( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, reference_, parent_, label_ ) { };
+		WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, type_, reference_, parent_, label_ ) { };
 		~WeatherUnderground() { };
 
 		void start() override;

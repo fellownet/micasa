@@ -23,16 +23,16 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
-		{ Hardware::Type::HARMONY_HUB, "Harmony Hub" },
-		{ Hardware::Type::OPEN_ZWAVE, "OpenZWave" },
-		{ Hardware::Type::OPEN_ZWAVE_NODE, "OpenZWave Node" },
-		{ Hardware::Type::P1_METER, "P1 Meter" },
-		{ Hardware::Type::PIFACE, "PiFace" },
-		{ Hardware::Type::PIFACE_BOARD, "PiFace Board" },
-		{ Hardware::Type::RFXCOM, "RFXCom" },
-		{ Hardware::Type::SOLAREDGE, "SolarEdge API" },
-		{ Hardware::Type::SOLAREDGE_INVERTER, "SolarEdge Inverter" },
-		{ Hardware::Type::WEATHER_UNDERGROUND, "Weather Underground" }
+		{ Hardware::Type::HARMONY_HUB, "harmony_hub" },
+		{ Hardware::Type::OPEN_ZWAVE, "openzwave" },
+		{ Hardware::Type::OPEN_ZWAVE_NODE, "openzwave_node" },
+		{ Hardware::Type::P1_METER, "p1_meter" },
+		{ Hardware::Type::PIFACE, "piface" },
+		{ Hardware::Type::PIFACE_BOARD, "piface_board" },
+		{ Hardware::Type::RFXCOM, "rfxcom" },
+		{ Hardware::Type::SOLAREDGE, "solaredge" },
+		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
+		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" }
 	};
 
 	const std::map<Hardware::Status, std::string> Hardware::StatusText = {
@@ -43,7 +43,7 @@ namespace micasa {
 		{ Hardware::Status::SLEEPING, "Sleeping" }
 	};
 	
-	Hardware::Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Worker(), m_id( id_ ), m_reference( reference_ ), m_parent( parent_ ), m_label( label_ ) {
+	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ), m_label( label_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
 		assert( g_webServer && "Global Database instance should be created before Hardware instances." );
@@ -63,34 +63,34 @@ namespace micasa {
 	std::shared_ptr<Hardware> Hardware::_factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) {
 		switch( type_ ) {
 			case HARMONY_HUB:
-				return std::make_shared<HarmonyHub>( id_, reference_, parent_, label_ );
+				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_, label_ );
 				break;
 			case OPEN_ZWAVE:
-				return std::make_shared<OpenZWave>( id_, reference_, parent_, label_ );
+				return std::make_shared<OpenZWave>( id_, type_, reference_, parent_, label_ );
 				break;
 			case OPEN_ZWAVE_NODE:
-				return std::make_shared<OpenZWaveNode>( id_, reference_, parent_, label_ );
+				return std::make_shared<OpenZWaveNode>( id_, type_, reference_, parent_, label_ );
 				break;
 			case P1_METER:
-				return std::make_shared<P1Meter>( id_, reference_, parent_, label_ );
+				return std::make_shared<P1Meter>( id_, type_, reference_, parent_, label_ );
 				break;
 			case PIFACE:
-				return std::make_shared<PiFace>( id_, reference_, parent_, label_ );
+				return std::make_shared<PiFace>( id_, type_, reference_, parent_, label_ );
 				break;
 			case PIFACE_BOARD:
-				return std::make_shared<PiFaceBoard>( id_, reference_, parent_, label_ );
+				return std::make_shared<PiFaceBoard>( id_, type_, reference_, parent_, label_ );
 				break;
 			case RFXCOM:
-				return std::make_shared<RFXCom>( id_, reference_, parent_, label_ );
+				return std::make_shared<RFXCom>( id_, type_, reference_, parent_, label_ );
 				break;
 			case SOLAREDGE:
-				return std::make_shared<SolarEdge>( id_, reference_, parent_, label_ );
+				return std::make_shared<SolarEdge>( id_, type_, reference_, parent_, label_ );
 				break;
 			case SOLAREDGE_INVERTER:
-				return std::make_shared<SolarEdgeInverter>( id_, reference_, parent_, label_ );
+				return std::make_shared<SolarEdgeInverter>( id_, type_, reference_, parent_, label_ );
 				break;
 			case WEATHER_UNDERGROUND:
-				return std::make_shared<WeatherUnderground>( id_, reference_, parent_, label_ );
+				return std::make_shared<WeatherUnderground>( id_, type_, reference_, parent_, label_ );
 				break;
 		}
 #ifdef _DEBUG
@@ -202,7 +202,17 @@ namespace micasa {
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
-
+	
+	template<> const Hardware::Type Hardware::getType() const {
+		return this->m_type;
+	};
+	template<> const unsigned int Hardware::getType() const {
+		return (unsigned int)this->m_type;
+	};
+	template<> const std::string Hardware::getType() const {
+		return Hardware::TypeText.at( this->getType<Hardware::Type>() );
+	};
+	
 	const std::string Hardware::getName() const {
 		return this->m_settings.get( "name", this->m_label );
 	};
@@ -223,7 +233,8 @@ namespace micasa {
 		nlohmann::json result = {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
-			{ "name", this->getName() }
+			{ "name", this->getName() },
+			{ "type", this->getType<std::string>() }
 		};
 		if ( this->m_parent ) {
 			result["parent"] = this->m_parent->getJson();

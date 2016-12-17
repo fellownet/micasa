@@ -8,7 +8,7 @@ namespace micasa {
 	class SolarEdge final : public Hardware {
 
 	public:
-		SolarEdge( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, reference_, parent_, label_ ) { };
+		SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, type_, reference_, parent_, label_ ) { };
 		~SolarEdge() { };
 
 		void start() override;

@@ -1,10 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewChecked } from '@angular/core';
 import { Hardware, HardwareService } from './hardware.service';
 
 declare var $: any;
-
-// TODO https://angular.io/docs/ts/latest/guide/forms.html
-// the document uses npm to add bootstrap, why do we do this manually?
 
 @Component( {
 	selector: 'hardware',
@@ -12,7 +9,7 @@ declare var $: any;
 	providers: [ HardwareService ]
 } )
 
-export class HardwareComponent implements OnInit {
+export class HardwareComponent implements OnInit, AfterViewChecked {
 
 	private _hardwareTable: any;
 
@@ -20,30 +17,19 @@ export class HardwareComponent implements OnInit {
 	hardware: Hardware[];
 	selectedHardware: Hardware;
 
+	openzwaveMode: string;
+	openzwaveHardware: Hardware;
+
 	constructor( private _hardwareService: HardwareService ) { };
 
 	ngOnInit() {
 		var me = this;
 
 		me.getHardware();
+	};
 
-		me._hardwareTable = $( '#hardware' ).dataTable( {
-			// config here
-		} );
-		me._hardwareTable.on( 'click', 'tr', function() {
-			if ( $( this ).hasClass( 'selected' ) ) {
-				$( this ).removeClass( 'selected' );
-				me.selectedHardware = null;
-
-			} else {
-				var oData = me._hardwareTable.fnGetData( this );
-				if ( oData && oData.hardware ) {
-					me._hardwareTable.$( 'tr.selected' ).removeClass( 'selected' );
-					$( this ).addClass( 'selected' );
-					me.selectedHardware = oData.hardware;
-				}
-			}
-		} );
+	ngAfterViewChecked(): void {
+		this.resizeView();
 	};
 
 	getHardware() {
@@ -51,16 +37,19 @@ export class HardwareComponent implements OnInit {
 		this._hardwareService.getHardware()
 			.subscribe(
 				function( hardware_: Hardware[]) {
-					// TODO maybe try to find a way to do this the 'angular' way?
 					me.hardware = hardware_;
-					me._hardwareTable.fnClearTable();
-					$.each( me.hardware, function( iIndex_: number, oHardware_: Hardware ) {
-						me._hardwareTable.fnAddData( { hardware: oHardware_, '0':oHardware_.id, '1':oHardware_.name, '2':oHardware_.label } );
-					} );
 				},
 				error => this.error = <any>error
 			)
 		;
+	};
+
+	selectHardware( hardware_: Hardware ) {
+		if ( this.selectedHardware == hardware_ ) {
+			this.selectedHardware = null;
+		} else {
+			this.selectedHardware = hardware_
+		}
 	};
 
 	submitHardware() {
@@ -75,6 +64,76 @@ export class HardwareComponent implements OnInit {
 				}
 			)
 		;
+	};
+
+	resizeView() {
+		var iWindowHeight = $(window).innerHeight();
+		$('#table_hardware').css( 'height', Math.max( 50, iWindowHeight - 130 ) );
+	};
+
+	/* methods specifically for openzwave */
+
+	openzwaveIncludeMode( hardware_: Hardware ) {
+		var me = this;
+		me.openzwaveMode = 'include';
+		me.openzwaveHardware = hardware_;
+		me._hardwareService.openzwaveIncludeMode( hardware_ )
+			.subscribe(
+				function() {
+					$('#openzwave-action').modal();
+				},
+				function( error_: string ) {
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	openzwaveExcludeMode( hardware_: Hardware ) {
+		var me = this;
+		me.openzwaveMode = 'exclude';
+		me.openzwaveHardware = hardware_;
+		me._hardwareService.openzwaveExcludeMode( hardware_ )
+			.subscribe(
+				function() {
+					$('#openzwave-action').modal();
+				},
+				function( error_: string ) {
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	exitMode() {
+		var me = this;
+		if ( me.openzwaveMode == 'include' ) {
+			me._hardwareService.exitOpenzwaveIncludeMode( me.openzwaveHardware )
+				.subscribe(
+					function() {
+						me.openzwaveMode = null;
+						me.openzwaveHardware = null;
+						me.getHardware();
+					},
+					function( error_: string ) {
+						me.error = error_;
+					}
+				)
+			;
+		} else {
+			me._hardwareService.exitOpenzwaveExcludeMode( me.openzwaveHardware )
+				.subscribe(
+					function() {
+						me.openzwaveMode = null;
+						me.openzwaveHardware = null;
+						me.getHardware();
+					},
+					function( error_: string ) {
+						me.error = error_;
+					}
+				)
+			;
+		}
 	};
 
 }

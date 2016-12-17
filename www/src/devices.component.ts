@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewChecked } from '@angular/core';
 import { Device, DeviceService } from './device.service';
 
 declare var $: any;
@@ -9,7 +9,7 @@ declare var $: any;
 	providers: [ DeviceService ]
 } )
 
-export class DevicesComponent implements OnInit {
+export class DevicesComponent implements OnInit, AfterViewChecked {
 
 	private _devicesTable: any;
 
@@ -23,24 +23,10 @@ export class DevicesComponent implements OnInit {
 		var me = this;
 
 		me.getDevices();
+	};
 
-		me._devicesTable = $( '#devices' ).dataTable( {
-			// config here
-		} );
-		me._devicesTable.on( 'click', 'tr', function() {
-			if ( $( this ).hasClass( 'selected' ) ) {
-				$( this ).removeClass( 'selected' );
-				me.selectedDevice = null;
-
-			} else {
-				var oData = me._devicesTable.fnGetData( this );
-				if ( oData && oData.device ) {
-					me._devicesTable.$( 'tr.selected' ).removeClass( 'selected' );
-					$( this ).addClass( 'selected' );
-					me.selectedDevice = oData.device;
-				}
-			}
-		} );
+	ngAfterViewChecked(): void {
+		this.resizeView();
 	};
 
 	getDevices() {
@@ -48,16 +34,19 @@ export class DevicesComponent implements OnInit {
 		this._deviceService.getDevices()
 			.subscribe(
 				function( devices_: Device[]) {
-					// TODO maybe try to find a way to do this the 'angular' way?
 					me.devices = devices_;
-					me._devicesTable.fnClearTable();
-					$.each( me.devices, function( iIndex_: number, oDevice: Device ) {
-						me._devicesTable.fnAddData( { device: oDevice, '0':oDevice.id, '1':oDevice.hardware.name, '2':oDevice.type, '3':oDevice.name, '4':oDevice.label, '5':oDevice.value } );
-					} );
 				},
 				error => this.error = <any>error
 			)
 		;
+	};
+
+	selectDevice( device_: Device ) {
+		if ( this.selectedDevice == device_ ) {
+			this.selectedDevice = null;
+		} else {
+			this.selectedDevice = device_
+		}
 	};
 
 	submitDevice() {
@@ -71,6 +60,11 @@ export class DevicesComponent implements OnInit {
 				}
 			)
 		;
+	};
+
+	resizeView() {
+		var iWindowHeight = $(window).innerHeight();
+		$('#resize_target').css( 'height', Math.max( 50, iWindowHeight - 130 ) );
 	};
 
 }

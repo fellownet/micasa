@@ -115,12 +115,15 @@ namespace micasa {
 		}
 	};
 
-	void WebServer::removeResourceCallbackAt( const std::string uri_ ) {
+	void WebServer::removeResourceCallbacksAt( const std::string uri_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
-			// TODO implement
-			
-			
+		auto search = this->m_resources.find( uri_ );
+		if ( search != this->m_resources.end() ) {
+#ifdef _DEBUG
+			g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callbacks removed at %s.", uri_.c_str() );
+#endif // _DEBUG
+			this->m_resources.erase( search );
+			this->_removeResourceCache( uri_ );
 		}
 	};
 	
@@ -130,7 +133,6 @@ namespace micasa {
 			for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); ) {
 				if ( (*callbackIt)->reference == reference_ ) {
 					this->_removeResourceCache( (*callbackIt)->uri );
-					break;
 				}
 				callbackIt++;
 			}
@@ -138,7 +140,7 @@ namespace micasa {
 		}
 	}
 	
-	void WebServer::touchResourceAt( const std::string uri_ ) {
+	void WebServer::touchResourceCallbacksAt( const std::string uri_ ) {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->_removeResourceCache( uri_ );
 	};

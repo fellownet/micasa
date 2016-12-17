@@ -13,6 +13,8 @@ import { DevicesComponent }  from './devices.component';
 import { ScreenComponent }   from './screen.component';
 import { UsersComponent }    from './users.component';
 import { ScriptsComponent }  from './scripts.component';
+import { HelpComponent }     from './help.component';
+import { TimersComponent }   from './timers.component';
 
 // Add the RxJS Observable operators.
 // The RxJS library is huge and therefore we only include the operators we need.
@@ -26,7 +28,7 @@ import 'rxjs/add/operator/toPromise';
 
 @NgModule( {
 	imports:      [ BrowserModule, FormsModule, HttpModule ],
-	declarations: [ AppComponent, LoginComponent, SetupComponent, HeaderComponent, MenuComponent, HardwareComponent, DevicesComponent, ScreenComponent, UsersComponent, ScriptsComponent ],
+	declarations: [ AppComponent, LoginComponent, SetupComponent, HeaderComponent, MenuComponent, HardwareComponent, DevicesComponent, ScreenComponent, UsersComponent, ScriptsComponent, HelpComponent, TimersComponent ],
 	bootstrap:    [ AppComponent ]
 } )
 
