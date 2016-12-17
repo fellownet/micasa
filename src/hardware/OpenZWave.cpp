@@ -137,7 +137,10 @@ namespace micasa {
 						WebServer::Method::PUT,
 						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-								if ( this->m_controllerState == READY ) {
+								if (
+									this->m_controllerState == READY
+									|| this->m_controllerState == HEALING
+								) {
 									::OpenZWave::Manager::Get()->HealNetwork( this->m_homeId, true );
 									this->m_controllerState = HEALING;
 									output_["result"] = "OK";
@@ -166,7 +169,10 @@ namespace micasa {
 							// TODO cancel inclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( method_ == WebServer::Method::PUT ) {
-									if ( this->m_controllerState == READY ) {
+									if (
+										this->m_controllerState == READY
+										|| this->m_controllerState == INCLUSION_MODE
+									) {
 										if ( ::OpenZWave::Manager::Get()->AddNode( this->m_homeId, false ) ) {
 											this->m_controllerState = INCLUSION_MODE;
 											output_["result"] = "OK";
@@ -183,7 +189,10 @@ namespace micasa {
 										code_ = 423; // Locked (WebDAV; RFC 4918)
 									}
 								} else if ( method_ == WebServer::Method::DELETE ) {
-									if ( this->m_controllerState == INCLUSION_MODE ) {
+									if (
+										this->m_controllerState == INCLUSION_MODE
+										|| this->m_controllerState == READY
+									) {
 										if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
 											output_["result"] = "OK";
 										} else {
@@ -216,7 +225,10 @@ namespace micasa {
 							// TODO cancel exclusion mode after xx minutes? openzwave doesn't cancel
 							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								if ( method_ == WebServer::Method::PUT ) {
-									if ( this->m_controllerState == READY ) {
+									if (
+										this->m_controllerState == READY
+										|| this->m_controllerState == EXCLUSION_MODE
+									) {
 										if ( ::OpenZWave::Manager::Get()->RemoveNode( this->m_homeId ) ) {
 											this->m_controllerState = EXCLUSION_MODE;
 											output_["result"] = "OK";
@@ -233,7 +245,10 @@ namespace micasa {
 										code_ = 423; // Locked (WebDAV; RFC 4918)
 									}
 								} else if ( method_ == WebServer::Method::DELETE ) {
-									if ( this->m_controllerState == EXCLUSION_MODE ) {
+									if (
+										this->m_controllerState == EXCLUSION_MODE
+										|| this->m_controllerState == READY
+									) {
 										if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
 											output_["result"] = "OK";
 										} else {

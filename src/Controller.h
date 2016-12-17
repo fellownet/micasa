@@ -91,6 +91,7 @@ namespace micasa {
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		const TaskOptions _parseTaskOptions( const std::string& options_ ) const;
+		void _updateScriptResourceHandlers() const;
 		
 	}; // class Controller
 

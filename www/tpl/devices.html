@@ -1,12 +1,8 @@
 <section class="content-header">
 <h1>Devices<small>the information that excites</small></h1>
-<ol class="breadcrumb">
-	<li><a href="#"><i class="fa fa-thermometer-half"></i> Devices</a></li>
-	<!-- li><a href="#">Something else?</a></li -->
-</ol>
 </section>
 
-<section class="content">
+<section class="content-body" (window:resize)="resizeView()">
 
 	<div class="callout callout-danger" [hidden]="!error">
 		<h4>Error!</h4>
@@ -16,25 +12,42 @@
 	<div class="row" [hidden]="error">
 		<div class="col-xs-12">
 			<div class="box">
-				<div class="box-body table-responsive no-padding">
+				<div class="box-body table-responsive no-padding" id="resize_target">
 
-<table id="devices" class="table table-hover">
+<table class="table table-hover">
 <thead>
-<tr>
-	<th>Id</th>
-	<th>Hardware</th>
-	<th>Type</th>
-	<th>Name</th>
-	<th>Label</th>
-	<th>Value</th>
-</tr>
+	<tr>
+		<th></th>
+		<th>Id</th>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Hardware</th>
+		<th>Label</th>
+		<th>Value</th>
+	</tr>
 </thead>
+<tbody>
+	<tr *ngFor="let device of devices"
+		[class.active]="device==selectedDevice"
+		(click)="selectDevice(device)">
+		<td><input type="checkbox" [checked]="device==selectedDevice" readonly></td>
+		<td>{{device.id}}</td>
+		<td class="no-shrink">{{device.name}}</td>
+		<td class="no-shrink"><span class="label label-default">{{device.type}}</span></td>
+		<td>{{device.hardware.name}}</td>
+		<td>{{device.label}}</td>
+		<td class="no-shrink"><span class="label"
+			[class.label-success]="device.value=='On'"
+			[class.label-danger]="device.value=='Off'"
+			[class.label-info]="device.value!='On' && device.value!='Off'"
+			>{{device.value}}</span></td>
+	</tr>
+</tbody>
 </table>
 
 				</div>
 			</div>
 		</div>
-
 
 		<div class="col-xs-12 col-md-8" *ngIf="selectedDevice">
 			<div class="box">
@@ -46,7 +59,7 @@
 <div class="box-body">
 	<div class="form-group" [class.has-error]="!name.valid">
 		<label for="device_name">Name</label>
-		<input type="text" class="form-control" id="device_name" placeholder="Enter name" required [(ngModel)]="selectedDevice.name" name="name" #name="ngModel">
+		<input type="text" class="form-control" id="device_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="selectedDevice.name" name="name" #name="ngModel">
 	</div>
 	<div class="alert alert-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
 </div>

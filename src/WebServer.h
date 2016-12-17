@@ -59,10 +59,9 @@ namespace micasa {
 		
 		void addResourceCallback( std::shared_ptr<ResourceCallback> callback_ );
 		void removeResourceCallback( const std::string reference_ );
-		void removeResourceCallbackAt( const std::string uri_ );
+		void removeResourceCallbacksAt( const std::string uri_ );
 		void touchResourceCallback( const std::string reference_ );
-		// TODO remove vv
-		void touchResourceAt( const std::string uri_ );
+		void touchResourceCallbacksAt( const std::string uri_ );
 
 		void start();
 		void stop();

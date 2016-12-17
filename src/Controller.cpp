@@ -21,12 +21,12 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	if ( ! v7_is_number( arg0 ) ) {
-		return V7_EXEC_EXCEPTION;
+		return v7_throwf( js_, "Error", "Invalid parameter." );
 	}
 	int deviceId = v7_get_int( js_, arg0 );
 	auto device = controller->_getDeviceById( deviceId );
 	if ( device == nullptr ) {
-		return V7_EXEC_EXCEPTION;
+		return v7_throwf( js_, "Error", "Invalid device." );
 	}
 	
 	v7_val_t arg1 = v7_arg( js_, 1 );
@@ -44,7 +44,7 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 		} else if ( device->getType() == micasa::Device::Type::LEVEL ) {
 			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Level>( device ), value, options ) );
 		} else {
-			return V7_EXEC_EXCEPTION;
+			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
 	} else if ( v7_is_string( arg1 ) ) {
 		std::string value = v7_get_string( js_, &arg1, NULL );
@@ -53,10 +53,10 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 		} else if ( device->getType() == micasa::Device::Type::TEXT ) {
 			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Text>( device ), value, options ) );
 		} else {
-			return V7_EXEC_EXCEPTION;
+			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
 	} else {
-		return V7_EXEC_EXCEPTION;
+		return v7_throwf( js_, "Error", "Invalid parameter for device." );
 	}
 
 	return V7_OK;
@@ -74,7 +74,7 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 		device = controller->_getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
 	}
 	if ( device == nullptr ) {
-		return V7_EXEC_EXCEPTION;
+		return v7_throwf( js_, "Error", "Invalid device." );
 	}
 	
 	v7_err js_error;
@@ -94,7 +94,7 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 	}
 
 	if ( V7_OK != js_error ) {
-		return V7_EXEC_EXCEPTION;
+		return v7_throwf( js_, "Error", "Internal error." );
 	}
 	
 	return V7_OK;
@@ -160,127 +160,10 @@ namespace micasa {
 		}
 		hardwareLock.unlock();
 
-		// Install resource handlers to edit and/or remove scripts and assign/remove these scripts to devices.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"controller-scripts",
-			"api/scripts",
-			WebServer::Method::GET | WebServer::Method::POST,
-			WebServer::t_callback( []( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
-							"SELECT `id`, `name`, `code`, `status`, `runs` "
-							"FROM `scripts` "
-							"ORDER BY `id` ASC"
-						);
-						output_ = scriptsData;
-						break;
-					}
-					case WebServer::Method::POST: {
-						
-						std::cout << input_.dump( 4 ) << "\n";
-						
-						try {
-							if (
-								input_.find( "name") != input_.end()
-								&& input_.find( "code") != input_.end()
-							) {
-								g_database->putQuery(
-									"INSERT INTO `scripts` (`name`, `code`) "
-									"VALUES (%Q, %Q) ",
-									input_["name"].get<std::string>().c_str(),
-									input_["code"].get<std::string>().c_str()
-								);
-								g_webServer->touchResourceCallback( "controller-scripts" );
-								output_["result"] = "OK";
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Missing parameters.";
-								code_ = 400; // bad request
-							}
-						} catch( ... ) {
-							output_["result"] = "ERROR";
-							output_["message"] = "Unable to save script.";
-							code_ = 400; // bad request
-						}
-						break;
-					}
-					default: break;
-				}
-			} )
-		} ) ) );
-		
-		std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
-			"SELECT `id`, `name`, `code`, `status`, `runs` "
-			"FROM `scripts` "
-			"ORDER BY `id` ASC"
-		);
-		for ( auto scriptsIt = scriptsData.begin(); scriptsIt != scriptsData.end(); scriptsIt++ ) {
-			auto script = (*scriptsIt); // copy constructor, is to be captured
-			g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-				"controller-scripts",
-				"api/scripts/" + script.at( "id" ),
-				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH  | WebServer::Method::DELETE,
-				WebServer::t_callback( [script]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-					switch( method_ ) {
-						case WebServer::Method::GET: {
-							output_ = script;
-							break;
-						}
-						case WebServer::Method::PATCH:
-						case WebServer::Method::PUT: {
-							try {
-								if (
-									input_.find( "id") != input_.end()
-									&& input_.find( "name") != input_.end()
-									&& input_.find( "code") != input_.end()
-									&& input_["id"].get<std::string>() == script.at( "id" )
-								) {
-									g_database->putQuery(
-										"UPDATE `scripts` "
-										"SET `name`=%Q, `code`=%Q, `status`=1 "
-										"WHERE `id`=%d",
-										input_["name"].get<std::string>().c_str(),
-										input_["code"].get<std::string>().c_str(),
-										atoi( input_["id"].get<std::string>().c_str() )
-									);
-									g_webServer->touchResourceCallback( "controller-scripts" );
-									output_["result"] = "OK";
-									// TODO send new script along as output, just like post?
-								} else {
-									output_["result"] = "ERROR";
-									output_["message"] = "Missing parameters.";
-									code_ = 400; // bad request
-								}
-							} catch( ... ) {
-								output_["result"] = "ERROR";
-								output_["message"] = "Unable to save script.";
-								code_ = 400; // bad request
-							}
-							break;
-						}
-						case WebServer::Method::DELETE: {
-							try {
-								g_database->putQuery(
-									"DELETE FROM `scripts` "
-									"WHERE `id`=%d",
-									atoi( script.at( "id" ).c_str() )
-								);
-								g_webServer->touchResourceCallback( "controller-scripts" );
-								output_["result"] = "OK";
-							} catch( ... ) {
-								output_["result"] = "ERROR";
-								output_["message"] = "Unable to save script.";
-								code_ = 400; // bad request
-							}
-							break;
-						}
-						default: break;
-					}
-				} )
-			} ) ) );
-		}
-		
+		// Install the script resource handlers. This is done in a separate method because they call in themselves
+		// to update the handlers upon adding or removal of scripts.
+		this->_updateScriptResourceHandlers();
+	
 		// Install resource to receive version number. This resource is also used by the client to determine if
 		// the server is available at the current url (hence being served by micasa or a 3rd party webserver).
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
@@ -680,5 +563,151 @@ namespace micasa {
 		
 		return result;
 	};
-	
+
+	void Controller::_updateScriptResourceHandlers() const {
+
+		// First all current callbacks for scripts are removed.
+		g_webServer->removeResourceCallback( "controller-scripts" );
+		
+		// The first callback is the general script fetch callback that lists all available scripts and can
+		// be used to add (post) new scripts.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"controller-scripts",
+			"api/scripts",
+			WebServer::Method::GET | WebServer::Method::POST,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				switch( method_ ) {
+					case WebServer::Method::GET: {
+						std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
+							"SELECT `id`, `name`, `code`, `status`, `runs` "
+							"FROM `scripts` "
+							"ORDER BY `id` ASC"
+						);
+						output_ = scriptsData;
+						break;
+					}
+					case WebServer::Method::POST: {
+						try {
+							if (
+								input_.find( "name") != input_.end()
+								&& input_.find( "code") != input_.end()
+							) {
+								auto scriptId = g_database->putQuery(
+									"INSERT INTO `scripts` (`name`, `code`) "
+									"VALUES (%Q, %Q) ",
+									input_["name"].get<std::string>().c_str(),
+									input_["code"].get<std::string>().c_str()
+								);
+								this->_updateScriptResourceHandlers();
+								auto scriptData = g_database->getQueryRow(
+									"SELECT `id`, `name`, `code`, `status`, `runs` "
+									"FROM `scripts` "
+									"WHERE `id`=%d "
+									"ORDER BY `id` ASC",
+									scriptId
+								);
+								output_["result"] = "OK";
+								output_["script"] = scriptData;
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Missing parameters.";
+								code_ = 400; // bad request
+							}
+						} catch( ... ) {
+							output_["result"] = "ERROR";
+							output_["message"] = "Unable to save script.";
+							code_ = 400; // bad request
+						}
+						break;
+					}
+					default: break;
+				}
+			} )
+		} ) ) );
+		
+		// Then a specific resource handler is installed for each script. This handler allows for retrieval as
+		// well as updating a script.
+		auto scriptIds = g_database->getQueryColumn<unsigned int>(
+			"SELECT `id` "
+			"FROM `scripts` "
+			"ORDER BY `id` ASC"
+		);
+		for ( auto scriptIdsIt = scriptIds.begin(); scriptIdsIt != scriptIds.end(); scriptIdsIt++ ) {
+			unsigned int scriptId = (*scriptIdsIt);
+			g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+				"controller-scripts",
+				"api/scripts/" + std::to_string( scriptId ),
+				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
+				WebServer::t_callback( [this,scriptId]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+					switch( method_ ) {
+						case WebServer::Method::PUT: {
+							try {
+								if (
+									input_.find( "name") != input_.end()
+									&& input_.find( "code") != input_.end()
+								) {
+									g_database->putQuery(
+										"UPDATE `scripts` "
+										"SET `name`=%Q, `code`=%Q, `status`=1, `runs`=0 "
+										"WHERE `id`=%d",
+										input_["name"].get<std::string>().c_str(),
+										input_["code"].get<std::string>().c_str(),
+										scriptId
+									);
+									g_webServer->touchResourceCallback( "controller-scripts" );
+									auto scriptData = g_database->getQueryRow(
+										"SELECT `id`, `name`, `code`, `status`, `runs` "
+										"FROM `scripts` "
+										"WHERE `id`=%d "
+										"ORDER BY `id` ASC",
+										scriptId
+									);
+									output_["result"] = "OK";
+									output_["script"] = scriptData;
+								} else {
+									output_["result"] = "ERROR";
+									output_["message"] = "Missing parameters.";
+									code_ = 400; // bad request
+								}
+							} catch( ... ) {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to save script.";
+								code_ = 400; // bad request
+							}
+							break;
+						}
+						case WebServer::Method::GET: {
+							auto scriptData = g_database->getQueryRow(
+								"SELECT `id`, `name`, `code`, `status`, `runs` "
+								"FROM `scripts` "
+								"WHERE `id`=%d "
+								"ORDER BY `id` ASC",
+								scriptId
+							);
+							output_ = scriptData;
+							break;
+						}
+						case WebServer::Method::DELETE: {
+							try {
+								g_database->putQuery(
+									"DELETE FROM `scripts` "
+									"WHERE `id`=%d",
+									scriptId
+								);
+								this->_updateScriptResourceHandlers();
+								output_["result"] = "OK";
+							} catch( ... ) {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to save script.";
+								code_ = 400; // bad request
+							}
+							break;
+						}
+						default: break;
+					}
+				} )
+			} ) ) );
+		}
+	};
+
 }; // namespace micasa

@@ -53,7 +53,7 @@ namespace micasa {
 			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
 		
-		Hardware( const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
+		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
 		virtual ~Hardware();
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
@@ -61,6 +61,7 @@ namespace micasa {
 		virtual void stop();
 		
 		const unsigned int& getId() const { return this->m_id; };
+		template<typename T> const T getType() const;
 		const std::string& getReference() const { return this->m_reference; };
 		const std::string& getLabel() const { return this->m_label; };
 		const std::string getName() const;
@@ -72,6 +73,7 @@ namespace micasa {
 
 	protected:
 		const unsigned int m_id;
+		const Type m_type;
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
 		Settings m_settings;

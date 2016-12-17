@@ -8,9 +8,9 @@ import { Device }                  from './device.service';
 export class Script {
 	id: number;
 	name: string;
-	code: string;
-	runs: number;
-	status: number;
+	code?: string;
+	runs?: number;
+	status?: number;
 }
 
 @Injectable()
@@ -22,27 +22,30 @@ export class ScriptService {
 
 	getScripts(): Observable<Script[]> {
 		return this._http.get( this._scriptUrlBase )
-			.map( this._extractData )
-			.catch( this._handleError )
+			.map( function( response_: Response ) {
+				let body = response_.json();
+				return body || false;
+			} )
+			.catch( this._handleHttpError )
 		;
 	};
 
-	putScript( script_: Script ): Observable<boolean> {
+	putScript( script_: Script ): Observable<Script> {
 		let headers = new Headers( { 'Content-Type': 'application/json' } );
 		let options = new RequestOptions( { headers: headers } );
 		if ( script_.id ) {
 			return this._http.put( this._scriptUrlBase + '/' + script_.id, script_, options )
 				.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
+					return response_.json()['script'] || false;
 				} )
-				.catch( this._handleError )
+				.catch( this._handleHttpError )
 			;
 		} else {
 			return this._http.post( this._scriptUrlBase, script_, options )
 				.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
+					return response_.json()['script'] || false;
 				} )
-				.catch( this._handleError )
+				.catch( this._handleHttpError )
 			;
 		}
 	};
@@ -52,19 +55,18 @@ export class ScriptService {
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
-	private _extractData( response_: Response ): Script[] {
-		let body = response_.json();
-		return body || { };
-	};
-
-	private _handleError( response_: Response | any ) {
+	private _handleHttpError( response_: Response | any ) {
 		let message: string;
 		if ( response_ instanceof Response ) {
-			message = 'an unspecified error to be specified later on';
+			const body = response_.json() || '';
+			const error = body.message || JSON.stringify( body );
+			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
+		} else {
+			message = response_.message ? response_.message : response_.toString();
 		}
 		return Observable.throw( message );
 	};

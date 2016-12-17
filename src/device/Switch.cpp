@@ -30,65 +30,11 @@ namespace micasa {
 			, this->m_id
 		);
 		this->m_value = (Option)atoi( value.c_str() );
-		
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + std::to_string( this->m_id ),
-			"api/devices",
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				if ( output_.is_null() ) {
-					output_ = nlohmann::json::array();
-				}
-				//auto inputIt = input_.find( "hardware_id" );
-				//if (
-				//	inputIt == input_.end()
-				//	|| (*inputIt).second == std::to_string( this->m_hardware->getId() )
-				//) {
-					output_ += this->getJson();
-				//}
-			} )
-		} ) ) );
-		
-		// If the switch can be operated by the user through the API (defined by the hardware) an additionl method
-		// should be added.
-		unsigned int methods = WebServer::Method::GET;
-		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & Device::UpdateSource::API ) == Device::UpdateSource::API ) {
-			methods |= WebServer::Method::PATCH;
-		}
-		
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ),
-			methods,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_ = this->getJson();
-						break;
-					}
-					case WebServer::Method::PATCH:
-						/*
-						// TODO implement patch method, for now it toggles between on and off.
-						// TODO pass error and set code on failure, but what message and what code?
-						if ( this->m_value == Switch::Option::ON ) {
-							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::OFF ) ? "OK" : "ERROR";
-						} else {
-							output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::ON ) ? "OK" : "ERROR";
-						}
-						*/
-						break;
-					default:
-						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid API method." );
-						break;
-				}
-			} )
-		} ) ) );
-		
+
 		Device::start();
 	};
 
 	void Switch::stop() {
-		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) );
 		Device::stop();
 	};
 

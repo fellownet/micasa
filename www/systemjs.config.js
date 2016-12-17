@@ -24,7 +24,6 @@
 
 			// other libraries
 			'jquery'							: 'npm:jquery/dist/jquery.min.js',
-			'datatables'						: 'npm:datatables/media/js/jquery.dataTables.min.js',
 			'highcharts'						: 'npm:highcharts/js/highcharts.js'
 		},
 

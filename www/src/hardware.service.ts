@@ -8,6 +8,7 @@ export class Hardware {
 	id: number;
 	label: string;
 	name: string;
+	type: string;
 }
 
 @Injectable()
@@ -36,6 +37,42 @@ export class HardwareService {
 	private _extractData( response_: Response ): Hardware[] {
 		let body = response_.json();
 		return body || { };
+	};
+
+	openzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
+		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleError )
+		;
+	};
+
+	exitOpenzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
+		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleError )
+		;
+	};
+
+	openzwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
+		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleError )
+		;
+	};
+
+	exitOpenzwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
+		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleError )
+		;
 	};
 
 	private _handleError( response_: Response | any ) {

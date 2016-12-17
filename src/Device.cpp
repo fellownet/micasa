@@ -37,16 +37,33 @@ namespace micasa {
 	};
 	
 	void Device::start() {
-		// TODO move most resource callbacks from specific devices to here because they should be
-		// mostly the same by now.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"device-" + std::to_string( this->m_id ),
+			"api/devices",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( output_.is_null() ) {
+					output_ = nlohmann::json::array();
+				}
+				output_ += this->getJson();
+			} )
+		} ) ) );
+
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ),
-			WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
+					case WebServer::Method::GET: {
+						output_ = this->getJson();
+						break;
+					}
+						
 					case WebServer::Method::PUT:
 					case WebServer::Method::PATCH: {
+						//if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & Device::UpdateSource::API ) == Device::UpdateSource::API ) {
+						//output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::ON ) ? "OK" : "ERROR";
 						try {
 							if (
 								! input_["id"].is_null()
@@ -70,15 +87,22 @@ namespace micasa {
 						}
 						break;
 					}
+					case WebServer::Method::DELETE: {
+						output_["result"] = "ERROR";
+						output_["message"] = "Deleting is not implemented.";
+						code_ = 501; // not implemented
+						break;
+					}
 					default: break;
 				}
 			} )
 		} ) ) );
-		
+
 		Worker::start();
 	};
 	
 	void Device::stop() {
+		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) );
 		if ( this->m_settings.isDirty() ) {
 			this->m_settings.commit( *this );
 		}
