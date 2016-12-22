@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewChecked } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Script, ScriptService } from './script.service';
 
 declare var $: any;
@@ -10,7 +10,7 @@ declare var ace: any;
 	providers: [ ScriptService ]
 } )
 
-export class ScriptsComponent implements OnInit, AfterViewChecked {
+export class ScriptsComponent implements OnInit {
 
 	private _scriptsTable: any;
 	private _scriptEditor: any;
@@ -32,10 +32,6 @@ export class ScriptsComponent implements OnInit, AfterViewChecked {
 		this._scriptEditor.$blockScrolling = Infinity;
 		this._scriptEditor.session.setMode( 'ace/mode/javascript' );
 		this._scriptEditor.session.setUseSoftTabs( false );
-	};
-
-	ngAfterViewChecked(): void {
-		this.resizeView();
 	};
 
 	getScripts() {
@@ -126,12 +122,6 @@ export class ScriptsComponent implements OnInit, AfterViewChecked {
 				error => me.error = <any>error
 			)
 		;
-	};
-
-	resizeView() {
-		var iWindowHeight = $(window).innerHeight();
-		$('#script_editor_target').css( 'height', Math.max( 50, iWindowHeight - 300 ) );
-		$('#table_scripts').css( 'height', Math.max( 50, iWindowHeight - 164 ) );
 	};
 
 }

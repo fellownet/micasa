@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewChecked } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Hardware, HardwareService } from './hardware.service';
 
 declare var $: any;
@@ -9,7 +9,7 @@ declare var $: any;
 	providers: [ HardwareService ]
 } )
 
-export class HardwareComponent implements OnInit, AfterViewChecked {
+export class HardwareComponent implements OnInit {
 
 	private _hardwareTable: any;
 
@@ -26,10 +26,6 @@ export class HardwareComponent implements OnInit, AfterViewChecked {
 		var me = this;
 
 		me.getHardware();
-	};
-
-	ngAfterViewChecked(): void {
-		this.resizeView();
 	};
 
 	getHardware() {
@@ -64,11 +60,6 @@ export class HardwareComponent implements OnInit, AfterViewChecked {
 				}
 			)
 		;
-	};
-
-	resizeView() {
-		var iWindowHeight = $(window).innerHeight();
-		$('#table_hardware').css( 'height', Math.max( 50, iWindowHeight - 130 ) );
 	};
 
 	/* methods specifically for openzwave */

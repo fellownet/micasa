@@ -9,8 +9,8 @@
 
 #include "Notification.h"
 
-#define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC		30000 // how long to wait for result
-#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC		3000 // how long to block node while waiting for result
+#define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC  30000 // how long to wait for result
+#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC 3000  // how long to block node while waiting for result
 
 #define OPENZWAVE_NODE_SETTING_CONFIGURATION "_ozw_configuration"
 
@@ -23,13 +23,6 @@ namespace micasa {
 		friend class OpenZWave;
 		
 	public:
-		enum State {
-			STARTING = 1,
-			READY,
-			SLEEPING,
-			DEAD
-		}; // enum State
-
 		OpenZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, type_, reference_, parent_, label_ ) { };
 		~OpenZWaveNode() { };
 		
@@ -42,7 +35,6 @@ namespace micasa {
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 5 ); }
 
 	private:
-		volatile State m_nodeState = STARTING;
 		json m_configuration;
 		mutable std::mutex m_configurationMutex;
 		

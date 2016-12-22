@@ -10,7 +10,7 @@
 </ol>
 </section>
 
-<section class="content-body" (window:resize)="resizeView()">
+<section class="content-body">
 
 	<div class="callout callout-danger" [hidden]="!error">
 		<h4>Error!</h4>
@@ -70,7 +70,7 @@
 				<div class="box-header with-border">
 					<h3 class="box-title" *ngIf="editorScript">{{editorScript.name}}</h3>
 				</div>
-				<div class="box-body" id="script_editor_target"></div>
+				<div class="box-body editor" id="script_editor_target"></div>
 
 <form role="form" *ngIf="editorScript">
 <div class="box-footer">

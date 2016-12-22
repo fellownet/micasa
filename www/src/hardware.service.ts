@@ -3,12 +3,13 @@ import { Http, Response }          from '@angular/http';
 import { Headers, RequestOptions } from '@angular/http';
 import { Observable }              from 'rxjs/Observable';
 
-@Injectable()
 export class Hardware {
 	id: number;
 	label: string;
 	name: string;
 	type: string;
+	state: string;
+	parent?: Hardware;
 }
 
 @Injectable()
@@ -36,7 +37,7 @@ export class HardwareService {
 
 	private _extractData( response_: Response ): Hardware[] {
 		let body = response_.json();
-		return body || { };
+		return body || [ ];
 	};
 
 	openzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {

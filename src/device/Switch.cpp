@@ -30,7 +30,6 @@ namespace micasa {
 			, this->m_id
 		);
 		this->m_value = (Option)atoi( value.c_str() );
-
 		Device::start();
 	};
 

@@ -14,7 +14,8 @@
 #include "hardware/RFXCom.h"
 #include "hardware/SolarEdge.h"
 #include "hardware/SolarEdgeInverter.h"
- 
+#include "hardware/Dummy.h"
+
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
@@ -32,15 +33,16 @@ namespace micasa {
 		{ Hardware::Type::RFXCOM, "rfxcom" },
 		{ Hardware::Type::SOLAREDGE, "solaredge" },
 		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
-		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" }
+		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" },
+		{ Hardware::Type::DUMMY, "dummy" }
 	};
 
-	const std::map<Hardware::Status, std::string> Hardware::StatusText = {
-		{ Hardware::Status::INIT, "Initializing" },
-		{ Hardware::Status::READY, "Ready" },
-		{ Hardware::Status::DISABLED, "Disabled" },
-		{ Hardware::Status::FAILED, "Failed" },
-		{ Hardware::Status::SLEEPING, "Sleeping" }
+	const std::map<Hardware::State, std::string> Hardware::StateText = {
+		{ Hardware::State::INIT, "initializing" },
+		{ Hardware::State::READY, "ready" },
+		{ Hardware::State::DISABLED, "disabled" },
+		{ Hardware::State::FAILED, "failed" },
+		{ Hardware::State::SLEEPING, "sleeping" }
 	};
 	
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ), m_label( label_ ) {
@@ -92,6 +94,9 @@ namespace micasa {
 			case WEATHER_UNDERGROUND:
 				return std::make_shared<WeatherUnderground>( id_, type_, reference_, parent_, label_ );
 				break;
+			case DUMMY:
+				return std::make_shared<Dummy>( id_, type_, reference_, parent_, label_ );
+				break;
 		}
 #ifdef _DEBUG
 		assert( true && "Hardware types should be defined in the Type enum." );
@@ -136,21 +141,12 @@ namespace micasa {
 					case WebServer::Method::PUT:
 					case WebServer::Method::PATCH: {
 						try {
-							if (
-								! input_["id"].is_null()
-								&& input_["id"] == this->m_id
-							) {
-								if ( ! input_["name"].is_null() ) {
-									this->m_settings.put( "name", input_["name"].get<std::string>() );
-									this->m_settings.commit( *this );
-								}
-								g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
-								output_["result"] = "OK";
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "An id property is required for safety reasons.";
-								code_ = 400; // bad request
+							if ( input_.find( "name" ) != input_.end() ) {
+								this->m_settings.put( "name", input_["name"].get<std::string>() );
+								this->m_settings.commit( *this );
 							}
+							g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+							output_["result"] = "OK";
 						} catch( ... ) {
 							output_["result"] = "ERROR";
 							output_["message"] = "Unable to save hardware.";
@@ -203,18 +199,33 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
-	template<> const Hardware::Type Hardware::getType() const {
+	const Hardware::Type Hardware::getType() const {
 		return this->m_type;
 	};
 	template<> const unsigned int Hardware::getType() const {
 		return (unsigned int)this->m_type;
 	};
 	template<> const std::string Hardware::getType() const {
-		return Hardware::TypeText.at( this->getType<Hardware::Type>() );
+		return Hardware::TypeText.at( this->getType() );
 	};
-	
+
+	const Hardware::State Hardware::getState() const {
+		return this->m_state;
+	};
+	template<> const unsigned int Hardware::getState() const {
+		return (unsigned int)this->m_state;
+	};
+	template<> const std::string Hardware::getState() const {
+		return Hardware::StateText.at( this->getState() );
+	};
+
 	const std::string Hardware::getName() const {
 		return this->m_settings.get( "name", this->m_label );
+	};
+	
+	void Hardware::_setState( const State& state_ ) {
+		g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+		this->m_state = state_;
 	};
 	
 	void Hardware::setLabel( const std::string& label_ ) {
@@ -234,7 +245,8 @@ namespace micasa {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
-			{ "type", this->getType<std::string>() }
+			{ "type", this->getType<std::string>() },
+			{ "state", this->getState<std::string>() }
 		};
 		if ( this->m_parent ) {
 			result["parent"] = this->m_parent->getJson();
@@ -271,15 +283,15 @@ namespace micasa {
 		}
 		return nullptr;
 	};
-
-	std::shared_ptr<Device> Hardware::_declareDevice( const Device::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ ) {
+	
+	template<class T> std::shared_ptr<T> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
 		// can be altered at will by the client (maybe they want temperature and pressure).
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( (*devicesIt)->getReference() == reference_ ) {
-				auto device = *devicesIt;
+				std::shared_ptr<T> device = std::static_pointer_cast<T>( *devicesIt );
 				
 				// System settings (settings that start with an underscore and are usually defined by #define)
 				// should always overwrite existing system settings.
@@ -296,19 +308,24 @@ namespace micasa {
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `label` ) "
 			"VALUES ( %d, %Q, %d, %Q )"
-			, this->m_id, reference_.c_str(), static_cast<int>( type_ ), label_.c_str()
+			, this->m_id, reference_.c_str(), static_cast<int>( T::type ), label_.c_str()
 		);
-		std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), type_, id, reference_, label_ );
-
+		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::_factory( this->shared_from_this(), T::type, id, reference_, label_ ) );
+		
 		Settings& settings = device->getSettings();
 		settings.insert( settings_ );
 		settings.commit( *device );
 		
 		device->start();
 		this->m_devices.push_back( device );
-
+		
 		return device;
+
 	};
+	template std::shared_ptr<Counter> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+	template std::shared_ptr<Level> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+	template std::shared_ptr<Switch> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+	template std::shared_ptr<Text> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 	
 	const bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.

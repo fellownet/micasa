@@ -39,6 +39,7 @@ set( SRC
 	src/hardware/SolarEdgeInverter.cpp
 	src/hardware/WeatherUnderground.cpp
 	src/hardware/HarmonyHub.cpp
+	src/hardware/Dummy.cpp
 
 	# devices
 	src/device/Switch.cpp

@@ -1,24 +1,29 @@
-<div class="login-box">
-	<div class="login-logo"><b>Mi</b>casa</div>
-	<div class="login-box-body">
-		<form>
-		<div class="form-group has-feedback">
-			<input type="text" class="form-control" placeholder="Location">
-			<span class="fa fa-globe form-control-feedback"></span>
-		</div>
-		<div class="form-group has-feedback">
-			<input type="text" class="form-control" placeholder="Username">
-			<span class="fa fa-user form-control-feedback"></span>
-		</div>
-		<div class="form-group has-feedback">
-			<input type="password" class="form-control" placeholder="Password">
-			<span class="fa fa-key form-control-feedback"></span>
-		</div>
-		<div class="row">
-			<div class="col-xs-offset-8 col-xs-4">
-				<button type="button" class="btn btn-primary btn-block" (click)="doLogin()">Sign In</button>
+<div class="login-box-content" *ngIf="!isLoggedIn()">
+	<div class="login-box">
+		<div class="login-logo"><b>Mi</b>casa</div>
+		<div class="login-box-body">
+			<form>
+			<div class="form-group has-feedback">
+				<input type="text" class="form-control" placeholder="Location">
+				<span class="fa fa-globe form-control-feedback"></span>
+			</div>
+			<div class="form-group has-feedback">
+				<input type="text" class="form-control" placeholder="Username">
+				<span class="fa fa-user form-control-feedback"></span>
+			</div>
+			<div class="form-group has-feedback">
+				<input type="password" class="form-control" placeholder="Password">
+				<span class="fa fa-key form-control-feedback"></span>
+			</div>
+			<div class="row">
+				<div class="col-xs-offset-8 col-xs-4">
+					<button type="button" [disabled]="loading" class="btn btn-primary btn-block" (click)="doLogin()">Login</button>
+				</div>
+			</div>
+			</form>
+			<div class="box-overlay" *ngIf="loading">
+				<i class="fa fa-spinner fa-pulse"></i>
 			</div>
 		</div>
-		</form>
 	</div>
 </div>

@@ -62,27 +62,51 @@ namespace micasa {
 						
 					case WebServer::Method::PUT:
 					case WebServer::Method::PATCH: {
-						//if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & Device::UpdateSource::API ) == Device::UpdateSource::API ) {
-						//output_["result"] = this->updateValue( Device::UpdateSource::API, Switch::Option::ON ) ? "OK" : "ERROR";
 						try {
-							if (
-								! input_["id"].is_null()
-								&& input_["id"] == this->m_id
-							) {
-								if ( ! input_["name"].is_null() ) {
-									this->m_settings.put( "name", input_["name"].get<std::string>() );
-									this->m_settings.commit( *this );
+							bool success = true;
+							if ( input_.find( "name" ) != input_.end() ) {
+								this->m_settings.put( "name", input_["name"].get<std::string>() );
+								this->m_settings.commit( *this );
+							}
+							if ( input_.find( "value" ) != input_.end() ) {
+								switch( this->getType() ) {
+									case COUNTER:
+										if ( input_["value"].is_string() ) {
+											success = success && this->updateValue<Counter>( Device::UpdateSource::API, std::stoi( input_["value"].get<std::string>() ) );
+										} else if ( input_["value"].is_number() ) {
+											success = success && this->updateValue<Counter>( Device::UpdateSource::API, input_["value"].get<int>() );
+										} else {
+											success = false;
+											output_["message"] = "Invalid value.";
+										}
+										break;
+									case LEVEL:
+										if ( input_["value"].is_string() ) {
+											success = success && this->updateValue<Level>( Device::UpdateSource::API, std::stof( input_["value"].get<std::string>() ) );
+										} else if ( input_["value"].is_number() ) {
+											success = success && this->updateValue<Level>( Device::UpdateSource::API, input_["value"].get<double>() );
+										} else {
+											success = false;
+											output_["message"] = "Invalid value.";
+										}
+										break;
+									case SWITCH:
+										success = success && this->updateValue<Switch>( Device::UpdateSource::API, input_["value"].get<std::string>() );
+										break;
+									case TEXT:
+										success = success && this->updateValue<Text>( Device::UpdateSource::API, input_["value"].get<std::string>() );
+										break;
 								}
-								g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
+							}
+							if ( success ) {
 								output_["result"] = "OK";
 							} else {
 								output_["result"] = "ERROR";
-								output_["message"] = "An id property is required for safety reasons.";
-								code_ = 400; // bad request
 							}
+							g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 						} catch( ... ) {
 							output_["result"] = "ERROR";
-							output_["message"] = "Unable to save device.";
+							output_["message"] = "Unable to update device.";
 							code_ = 400; // bad request
 						}
 						break;
@@ -126,6 +150,30 @@ namespace micasa {
 		}
 	};
 
+	template<class T> bool Device::updateValue( const unsigned int& source_, const typename T::t_value& value_ ) {
+		auto target = dynamic_cast<T*>( this );
+#ifdef _DEBUG
+		assert( target && "Invalid device template specifier." );
+#endif // _DEBUG
+		return target->updateValue( source_, value_ );
+	};
+	template bool Device::updateValue<Counter>( const unsigned int& source_, const Counter::t_value& value_ );
+	template bool Device::updateValue<Level>( const unsigned int& source_, const Level::t_value& value_ );
+	template bool Device::updateValue<Switch>( const unsigned int& source_, const Switch::t_value& value_ );
+	template bool Device::updateValue<Text>( const unsigned int& source_, const Text::t_value& value_ );
+	
+	template<class T> const typename T::t_value& Device::getValue() const {
+		auto target = dynamic_cast<const T*>( this );
+#ifdef _DEBUG
+		assert( target && "Template specifier should match target instance." );
+#endif // _DEBUG
+		return target->getValue();
+	};
+	template const Counter::t_value& Device::getValue<Counter>() const;
+	template const Level::t_value& Device::getValue<Level>() const;
+	template const Switch::t_value& Device::getValue<Switch>() const;
+	template const Text::t_value& Device::getValue<Text>() const;
+	
 	std::shared_ptr<Device> Device::_factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
 		switch( type_ ) {
 			case COUNTER:

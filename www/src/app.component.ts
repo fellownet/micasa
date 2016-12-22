@@ -1,25 +1,23 @@
-import { Component } from '@angular/core';
-import { AppService } from './app.service';
-import { UserService } from './user.service';
+import { Component }             from '@angular/core';
+import { LoginService }          from './login.service';
+
+ // Is declared here for sibling children screen and menu because this is the common parent.
+import { Screen, ScreenService } from './screen.service';
 
 @Component( {
 	selector: 'body',
 	templateUrl: 'tpl/app.html',
-	providers: [ UserService, AppService ]
+	providers: [ ScreenService /* see not on import */ ]
 } )
 
 export class AppComponent {
 
-	constructor( private _appService: AppService, private _userService: UserService ) {
+	constructor( private _loginService: LoginService ) {
 
 	}
 
 	isLoggedIn(): boolean {
-		return this._userService.user != null;
-	}
-
-	getActiveSection(): string {
-		return this._appService.activeSection;
+		return this._loginService.isLoggedIn();
 	}
 
 }

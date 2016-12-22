@@ -2,8 +2,8 @@
 
 #include "../Hardware.h"
 
-#define HARMONY_HUB_BUSY_WAIT_MSEC		60000 // how long to wait for result
-#define HARMONY_HUB_BUSY_BLOCK_MSEC		3000 // how long to block activies while waiting for result
+#define HARMONY_HUB_BUSY_WAIT_MSEC  60000 // how long to wait for result
+#define HARMONY_HUB_BUSY_BLOCK_MSEC 3000  // how long to block activies while waiting for result
 
 namespace micasa {
 
@@ -30,7 +30,7 @@ namespace micasa {
 		
 	private:
 		mg_connection* m_connection;
-		volatile ConnectionState m_state = CLOSED;
+		volatile ConnectionState m_connectionState = CLOSED;
 		std::string m_currentActivityId = "-1";
 	
 		void _disconnect( const std::string message_ );

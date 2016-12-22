@@ -8,9 +8,10 @@ namespace micasa {
 
 	public:
 		typedef std::string t_value;
+		static const Device::Type type = Device::Type::TEXT;
 		
 		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
-		const Device::Type getType() const { return Device::Type::TEXT; };
+		const Device::Type getType() const { return Text::type; };
 		
 		void start() override;
 		void stop() override;
@@ -20,7 +21,7 @@ namespace micasa {
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:
-		t_value m_value;
+		t_value m_value = "";
 
 	}; // class Text
 

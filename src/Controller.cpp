@@ -117,6 +117,7 @@ namespace micasa {
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
 		assert( g_logger && "Global Logger instance should be created before global Controller instance." );
 #endif // _DEBUG
+		this->m_settings.populate();
 	};
 
 	Controller::~Controller() {
@@ -220,7 +221,6 @@ namespace micasa {
 #endif // _DEBUG
 		
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
-		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
 				return *hardwareIt;
@@ -245,15 +245,20 @@ namespace micasa {
 		// The lock is released while instantiating hardware because some hardware need to lookup their parent with
 		// the getHardware* methods which also use the lock.
 		lock.unlock();
+
 		std::shared_ptr<Hardware> hardware = Hardware::_factory( type_, id, reference_, parent_, label_ );
-		//lock.lock();
+
 		
 		Settings& settings = hardware->getSettings();
 		settings.insert( settings_ );
 		settings.commit( *hardware );
 		
 		hardware->start();
+
+		// Reacquire lock when adding to the map to make it thread safe.
+		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
 		this->m_hardware.push_back( hardware );
+		lock.unlock();
 		
 		return hardware;
 	};
@@ -267,7 +272,6 @@ namespace micasa {
 		
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt) == hardware_ ) {
-				std::cout << "GEVONDEN JAJA\n";
 				this->m_hardware.erase( hardwareIt );
 				break;
 			}
@@ -309,7 +313,30 @@ namespace micasa {
 		// TODO insert a task that checks if the script isn't running for more than xx seconds? This requires that
 		// we don't detach and keep track of the thread.
 		auto thread = std::thread( [this,event_]{
+			std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
 			
+			// Create v7 environment.
+			// TODO make a controller property out of this and re-use it across events?
+			v7* js = v7_create();
+			v7_set_user_data( js, v7_get_global( js ), this );
+			
+			v7_val_t eventObj;
+			if ( V7_OK != v7_parse_json( js, event_.dump().c_str(), &eventObj ) ) {
+				return; // should not happen, but function has attribute warn_unused_result
+			}
+
+			v7_val_t userDataObj;
+			if ( V7_OK != v7_parse_json( js, this->m_settings.get<std::string>( "userdata", "{}" ).c_str(), &userDataObj ) ) {
+				return; // should not happen, but function has attribute warn_unused_result
+			}
+			
+			// Set event and userdata, and install javascript hooks.
+			v7_val_t root = v7_get_global( js );
+			v7_set( js, root, "event", ~0, eventObj );
+			v7_set( js, root, "userData", ~0, userDataObj );
+			v7_set_method( js, root, "updateDevice", &micasa_v7_update_device );
+			v7_set_method( js, root, "getDevice", &micasa_v7_get_device );
+
 			// Fetch all the scripts.
 			// TODO Only fetch those scripts that are present in the script / device crosstable.
 			std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
@@ -319,17 +346,9 @@ namespace micasa {
 				"ORDER BY `id` ASC"
 			);
 			for ( auto scriptsIt = scriptsData.begin(); scriptsIt != scriptsData.end(); scriptsIt++ ) {
-				std::string script = "event = " + event_.dump() + "; " + (*scriptsIt)["code"];
-
-				v7* js = v7_create();
-				v7_set_user_data( js, v7_get_global( js ), this );
-				
-				// Install javascript hooks.
-				v7_set_method( js, v7_get_global( js ), "updateDevice", &micasa_v7_update_device );
-				v7_set_method( js, v7_get_global( js ), "getDevice", &micasa_v7_get_device );
 				
 				v7_val_t js_result;
-				v7_err js_error = v7_exec( js, script.c_str(), &js_result );
+				v7_err js_error = v7_exec( js, (*scriptsIt)["code"].c_str(), &js_result );
 
 				unsigned int status = 1;
 				
@@ -339,6 +358,7 @@ namespace micasa {
 						status = 3; // TODO make an enum out of this
 						break;
 					case V7_EXEC_EXCEPTION:
+						// TODO this exception probably has a message, store and report for easier debugging.
 						g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\".", (*scriptsIt)["name"].c_str() );
 						status = 3; // TODO make an enum out of this
 						break;
@@ -352,8 +372,6 @@ namespace micasa {
 						break;
 				}
 				
-				v7_destroy( js );
-				
 				g_database->putQuery(
 					"UPDATE `scripts` "
 					"SET `runs`=`runs`+1, `status`=%d "
@@ -363,6 +381,21 @@ namespace micasa {
 				);
 				g_webServer->touchResourceCallback( "controller-scripts" );
 			}
+			
+			// Get the userdata from the v7 environment and store it in settings for later use. If the buffer
+			// is too small to hold all the data, v7 will allocate more and we need to free it ourselves.
+			userDataObj = v7_get( js, root, "userData", ~0 );
+			char buffer[1024], *p;
+			p = v7_stringify( js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
+			if ( p != buffer ) {
+				free( p );
+			}
+			
+			this->m_settings.put( "userdata", std::string( buffer ) );
+			this->m_settings.commit();
+
+			v7_destroy( js );
+			
 		} );
 		thread.detach();
 	};
@@ -486,7 +519,6 @@ namespace micasa {
 					break;
 			}
 			
-			
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
 		
@@ -576,6 +608,7 @@ namespace micasa {
 			"api/scripts",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						std::vector<std::map<std::string, std::string> > scriptsData = g_database->getQuery(
@@ -639,6 +672,7 @@ namespace micasa {
 				"api/scripts/" + std::to_string( scriptId ),
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 				WebServer::t_callback( [this,scriptId]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+					std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
 					switch( method_ ) {
 						case WebServer::Method::PUT: {
 							try {

@@ -27,14 +27,18 @@ namespace micasa {
 	}
 
 	const std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
-		if ( ! this->m_settings.contains( { "address", "port" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			return std::chrono::milliseconds( 1000 * 60 * 5 );
-		}
+		
+		// A connection to the Harmony Hub should remain open at all times, so if it isn't, a new
+		// connection will be made.
+		if ( this->m_connectionState == CLOSED ) {
 
-		if ( this->m_state == CLOSED ) {
+			if ( ! this->m_settings.contains( { "address", "port" } ) ) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				return std::chrono::milliseconds( 1000 * 60 * 5 );
+			}
+
 			std::string uri = this->m_settings["address"] + ':' + this->m_settings["port"];
-			this->m_state = CONNECTING;
+			this->m_connectionState = CONNECTING;
 			this->m_connection = g_network->connect( uri, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				switch( event_ ) {
 					case MG_EV_CONNECT: {
@@ -76,11 +80,17 @@ namespace micasa {
 			} ) );
 		}
 		
+		// Waiting for 5 minutes ensures that a new connection is made at least every 5 minutes if
+		// an error has occured.
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	}
 	
 	bool HarmonyHub::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
+
+		if ( this->getState() != Hardware::State::READY ) {
+			return false;
+		}
 
 		std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 		
@@ -123,7 +133,8 @@ namespace micasa {
 	void HarmonyHub::_disconnect( const std::string message_ ) {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		this->m_state = CLOSED;
+		this->m_connectionState = CLOSED;
+		this->_setState( Hardware::State::FAILED );
 	}
 	
 	void HarmonyHub::_processConnection( const bool ready_ ) {
@@ -147,7 +158,7 @@ namespace micasa {
 				return;
 			}
 
-			switch( this->m_state ) {
+			switch( this->m_connectionState ) {
 				case CLOSED: {
 					break;
 				}
@@ -158,7 +169,7 @@ namespace micasa {
 					response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
 					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
 					mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-					this->m_state = WAIT_FOR_CURRENT_ACTIVITY;
+					this->m_connectionState = WAIT_FOR_CURRENT_ACTIVITY;
 					break;
 				}
 
@@ -172,7 +183,7 @@ namespace micasa {
 						std::stringstream response;
 						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
 						mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-						this->m_state = WAIT_FOR_ACTIVITIES;
+						this->m_connectionState = WAIT_FOR_ACTIVITIES;
 						
 					}
 					break;
@@ -192,7 +203,10 @@ namespace micasa {
 							break;
 						}
 						
-						if ( data["activity"].is_array() ) {
+						if (
+							data.find( "activity" ) != data.end()
+							&& data["activity"].is_array()
+						) {
 							for ( auto activityIt = data["activity"].begin(); activityIt != data["activity"].end(); activityIt++ ) {
 								json activity = *activityIt;
 								if (
@@ -202,9 +216,9 @@ namespace micasa {
 									std::string activityId = activity["id"].get<std::string>();
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_declareDevice( Device::Type::SWITCH, activityId, label, {
+										auto device = this->_declareDevice<Switch>( activityId, label, {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-										} ) );
+										} );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );
 										} else {
@@ -216,7 +230,8 @@ namespace micasa {
 							
 							// After the activities have been recieved we're putting the connection in idle state. At this
 							// point changes in activities can be received and processed.
-							this->m_state = IDLE;
+							this->m_connectionState = IDLE;
+							this->_setState( Hardware::State::READY );
 						} else {
 							this->_disconnect( "Malformed activities data." );
 							break;
@@ -250,8 +265,8 @@ namespace micasa {
 						}
 						
 						if (
-							data.is_object()
-							&& ! data["activityStatus"].is_null()
+							data.find( "activityStatus" ) != data.end()
+							&& data["activityStatus"].is_number()
 						) {
 							int activityStatus = data["activityStatus"].get<int>();
 							if ( 1 == activityStatus ) {
@@ -259,6 +274,9 @@ namespace micasa {
 								// while the update is pending.
 								this->_queuePendingUpdate( "hub", Device::UpdateSource::HARDWARE, 0, HARMONY_HUB_BUSY_WAIT_MSEC );
 							}
+						} else {
+							this->_disconnect( "Malformed activity status data." );
+							break;
 						}
 					}
 					
@@ -303,7 +321,7 @@ namespace micasa {
 			
 			received.clear();
 			
-		} else if ( this->m_state != CLOSED ) {
+		} else if ( this->m_connectionState != CLOSED ) {
 			this->_disconnect( "Connection closed." );
 		}
 	}

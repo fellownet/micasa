@@ -1,5 +1,7 @@
-import { Component } from '@angular/core';
-import { AppService } from './app.service';
+import { Component }             from '@angular/core';
+import { LoginService }          from './login.service';
+import { ACL }                   from './user.service';
+import { Screen, ScreenService } from './screen.service';
 
 // Declaring $ as any prevents typescript errors when using jQuery.
 declare var $: any;
@@ -11,13 +13,26 @@ declare var $: any;
 
 export class MenuComponent  {
 
-	constructor( private appService: AppService ) {
+	// Make the ACL's available in the template.
+	public ACL = ACL;
 
+	constructor( private _loginService: LoginService, private _screenService: ScreenService ) {
 	}
 
-	setActiveSection( section: string ): void {
-		this.appService.activeSection = section;
-		$( 'body' ).removeClass( 'sidebar-open' );
+	hasAccess( acl_: ACL ): boolean {
+		return this._loginService.isLoggedIn( acl_ );
+	}
+
+	getScreens(): Screen[] {
+		return this._screenService.getScreens();
+	}
+
+	toggleMenu(): void {
+		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
+			$( 'body' ).removeClass( 'sidebar-open' );
+		} else {
+			$( 'body' ).addClass( 'sidebar-open' );
+		}
 	}
 
 }

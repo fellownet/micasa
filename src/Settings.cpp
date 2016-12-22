@@ -10,8 +10,6 @@ namespace micasa {
 
 	const std::string Settings::NOT_FOUND = "";
 	
-	// TODO lock settings
-	
 	void Settings::insert( const std::map<std::string, std::string> settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( settings_.begin(), settings_.end() );
@@ -121,6 +119,7 @@ namespace micasa {
 	template double Settings::get( const std::string& key_, const double& default_ ) const ;
 
 	// The string variant of the template specification is separate because it can be done more efficiently.
+	// TODO this can also be the default untemplated version, like getType from hardware.
 	template<> std::string Settings::get<std::string>( const std::string& key_, const std::string& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {

@@ -21,11 +21,12 @@ namespace micasa {
 		}; // enum Option
 
 		static const std::map<Switch::Option, std::string> OptionText;
+		static const Device::Type type = Device::Type::SWITCH;
 		
 		typedef std::string t_value;
 		
 		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
-		const Device::Type getType() const { return Device::Type::SWITCH; };
+		const Device::Type getType() const { return Switch::type; };
 		
 		void start() override;
 		void stop() override;
@@ -37,7 +38,7 @@ namespace micasa {
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 
 	private:
-		Option m_value;
+		Option m_value = OFF;
 		
 	}; // class Switch
 

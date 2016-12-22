@@ -20,7 +20,6 @@ namespace micasa {
 			"LIMIT 1"
 			, this->m_id
 		);
-
 		Device::start();
 	};
 	
@@ -63,8 +62,10 @@ namespace micasa {
 	};
 
 	json Level::getJson() const {
+		std::stringstream ss;
+		ss << std::fixed << std::setprecision( 3 ) << this->getValue();
 		json result = Device::getJson();
-		result["value"] = this->getValue();
+		result["value"] = ss.str();
 		result["type"] = "level";
 		return result;
 	};

@@ -29,8 +29,11 @@ namespace micasa {
 		
 		if ( ! this->m_settings.contains( { "api_key", "site_id" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			this->_setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
+
+		this->_setState( Hardware::State::READY );
 
 		std::stringstream url;
 		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings["site_id"] << "/list?api_key=" << this->m_settings["api_key"];
@@ -76,6 +79,7 @@ namespace micasa {
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
+			this->_setState( Hardware::State::FAILED );
 		}
 		
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;

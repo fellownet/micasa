@@ -4,7 +4,6 @@ import { Headers, RequestOptions } from '@angular/http';
 import { Observable }              from 'rxjs/Observable';
 import { Device }                  from './device.service';
 
-@Injectable()
 export class Script {
 	id: number;
 	name: string;

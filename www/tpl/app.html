@@ -1,18 +1,6 @@
-<section *ngIf="isLoggedIn()">
+	<header class="header" *ngIf="isLoggedIn()"></header>
+	<aside class="sidebar" *ngIf="isLoggedIn()"></aside>
 
-	<header class="header"></header>
-	<aside class="sidebar"></aside>
-	<section class="content">
-		<hardware *ngIf="getActiveSection() == 'hardware'"></hardware>
-		<devices *ngIf="getActiveSection() == 'devices'"></devices>
-		<screen *ngIf="getActiveSection() == 'screen'"></screen>
-		<timers *ngIf="getActiveSection() == 'timers'"></timers>
-		<users *ngIf="getActiveSection() == 'users'"></users>
-		<scripts *ngIf="getActiveSection() == 'scripts'"></scripts>
-		<setup *ngIf="getActiveSection() == 'setup'"></setup>
-		<help *ngIf="getActiveSection() == 'help'"></help>
+	<section class="content"><!--  [class.not-logged-in]="!isLoggedIn()" -->
+		<router-outlet></router-outlet>
 	</section>
-
-</section>
-
-<login *ngIf="!isLoggedIn()"></login>

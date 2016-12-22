@@ -1,8 +1,10 @@
+<ng-container *ngIf="!selectedDevice">
+
 <section class="content-header">
 <h1>Devices<small>the information that excites</small></h1>
 </section>
 
-<section class="content-body" (window:resize)="resizeView()">
+<section class="content-body">
 
 	<div class="callout callout-danger" [hidden]="!error">
 		<h4>Error!</h4>
@@ -17,30 +19,33 @@
 <table class="table table-hover">
 <thead>
 	<tr>
-		<th></th>
 		<th>Id</th>
 		<th>Name</th>
-		<th>Type</th>
+		<th></th>
+		<th>Value</th>
 		<th>Hardware</th>
 		<th>Label</th>
-		<th>Value</th>
+		<th>Type</th>
 	</tr>
 </thead>
 <tbody>
 	<tr *ngFor="let device of devices"
 		[class.active]="device==selectedDevice"
 		(click)="selectDevice(device)">
-		<td><input type="checkbox" [checked]="device==selectedDevice" readonly></td>
 		<td>{{device.id}}</td>
-		<td class="no-shrink">{{device.name}}</td>
-		<td class="no-shrink"><span class="label label-default">{{device.type}}</span></td>
-		<td>{{device.hardware.name}}</td>
-		<td>{{device.label}}</td>
-		<td class="no-shrink"><span class="label"
+		<td>{{device.name}}</td>
+		<th>
+			<i class="fa fa-toggle-on red" aria-hidden="true" *ngIf="device.type=='switch' && device.value=='Off'"></i>
+			<i class="fa fa-toggle-on fa-rotate-180 green" aria-hidden="true" *ngIf="device.type=='switch' && device.value=='On'"></i>
+		</th>
+		<td><span class="label"
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"
 			[class.label-info]="device.value!='On' && device.value!='Off'"
 			>{{device.value}}</span></td>
+		<td>{{device.hardware.name}}</td>
+		<td>{{device.label}}</td>
+		<td><span class="label label-default">{{device.type}}</span></td>
 	</tr>
 </tbody>
 </table>
@@ -48,11 +53,29 @@
 				</div>
 			</div>
 		</div>
+	</div>
 
-		<div class="col-xs-12 col-md-8" *ngIf="selectedDevice">
+</section>
+
+</ng-container>
+
+<ng-container *ngIf="selectedDevice">
+
+<section class="content-header">
+<h1>{{selectedDevice.label}}<small>{{selectedDevice.hardware.label}}</small></h1>
+<ol class="breadcrumb">
+	<li><a routerLink="/devices"><i class="fa fa-thermometer-half"></i> Devices</a></li>
+	<li><span><i class="fa fa-pencil"></i> Edit</span></li>
+</ol>
+</section>
+
+<section class="content-body">
+
+	<div class="row">
+		<div class="col-xs-12 col-md-12" *ngIf="selectedDevice">
 			<div class="box">
 				<div class="box-header with-border">
-					<h3 class="box-title">#{{selectedDevice.id}} - {{selectedDevice.label}}</h3>
+					<h3 class="box-title">Edit Device</h3>
 				</div>
 
 <form role="form" (ngSubmit)="submitDevice()" #deviceForm="ngForm">
@@ -61,16 +84,36 @@
 		<label for="device_name">Name</label>
 		<input type="text" class="form-control" id="device_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="selectedDevice.name" name="name" #name="ngModel">
 	</div>
-	<div class="alert alert-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+	<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
 </div>
-<div class="box-footer">
-	<button type="submit" class="btn btn-primary" [disabled]="!deviceForm.form.valid">Submit</button>
+<div class="box-footer row actionrow">
+	<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+		<button type="submit" class="btn btn-success btn-block" [disabled]="!deviceForm.form.valid || deviceForm.form.pristine || loading">Save</button>
+	</div>
+	<div class="col-xs-12 col-sm-offset-4 col-sm-4 col-md-offset-6 col-md-3 col-lg-offset-8 col-lg-2">
+		<button type="button" class="btn btn-danger btn-block" (click)="cancelEdit()">Cancel</button>
+	</div>
 </div>
 </form>
 
 			</div>
 		</div>
-
 	</div>
 
+<!--
+	<div class="row">
+		<div class="col-xs-12 col-md-12" *ngIf="selectedDevice">
+			<div class="box">
+				<div class="box-header with-border">
+					<h3 class="box-title">Log</h3>
+				</div>
+
+
+			</div>
+		</div>
+	</div>
+-->
+
 </section>
+
+</ng-container>

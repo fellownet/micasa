@@ -1,10 +1,15 @@
 import { Injectable }              from '@angular/core';
+import {
+	Router,
+	Resolve,
+	RouterStateSnapshot,
+	ActivatedRouteSnapshot
+}                                  from '@angular/router';
 import { Http, Response }          from '@angular/http';
 import { Headers, RequestOptions } from '@angular/http';
 import { Observable }              from 'rxjs/Observable';
 import { Hardware }                from './hardware.service';
 
-@Injectable()
 export class Device {
 	id: number;
 	label: string;
@@ -15,11 +20,23 @@ export class Device {
 }
 
 @Injectable()
-export class DeviceService {
+export class DeviceService implements Resolve<Device> {
 
 	private _deviceUrlBase = 'api/devices';
 
-	constructor( private _http: Http ) { };
+	constructor( private _router: Router, private _http: Http ) { };
+
+	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Device> {
+		var me = this;
+		return this.getDevice( +route_.params['id'] ).do( function( device_: Device ) {
+			if ( device_ ) {
+				return device_;
+			} else {
+				me._router.navigate( [ '/devices' ] );
+				return null;
+			}
+		} );
+	}
 
 	getDevices(): Observable<Device[]> {
 		return this._http.get( this._deviceUrlBase )
@@ -48,6 +65,16 @@ export class DeviceService {
 			message = 'an unspecified error to be specified later on';
 		}
 		return Observable.throw( message );
+	};
+
+	getDevice( id_: number ): Observable<Device> {
+		return this._http.get( this._deviceUrlBase + '/' + id_ )
+			.map( this._extractData )
+			.catch( this._handleError )
+		;
+
+
+		//return Observable.of( { id: id_, label: 'poekoe', name: 'plaap' } ).delay( 500 /* ms */ );
 	};
 
 }
