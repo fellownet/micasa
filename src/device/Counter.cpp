@@ -20,6 +20,40 @@ namespace micasa {
 		   "LIMIT 1"
 		   , this->m_id
 		);
+
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"device-" + std::to_string( this->m_id ),
+			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				
+				// TOOD combine the log with the history table?
+				// TODO check range to fetch
+				// TODO return data in its target format (float for level)
+
+				std::vector<std::map<std::string, std::string> > data = g_database->getQuery(
+					"SELECT * FROM ( "
+						"SELECT `diff` AS `value`, strftime('%%s',`date`) AS `timestamp` "
+						"FROM `device_counter_trends` "
+						"WHERE `device_id`=%d "
+						"AND `date` < datetime('now','-%d day') "
+						"ORDER BY `date` ASC "
+					")"
+					"UNION ALL "
+					"SELECT * FROM ( "
+						"SELECT max(`value`)-min(`value`) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 60 * 60 ) ) AS `timestamp` "
+						"FROM `device_counter_history` "
+						"WHERE `device_id`=%d "
+						"AND `date` >= datetime('now','-%d day') "
+						"GROUP BY `timestamp` "
+						"ORDER BY `date` ASC "
+					") ",
+					this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+				);
+				output_ = data;
+			} )
+		} ) ) );
+
 		Device::start();
 	};
 
@@ -72,6 +106,7 @@ namespace micasa {
 		if ( iteration_ > 0 ) {
 			std::string hourFormat = "%Y-%m-%d %H:00:00";
 			std::string groupFormat = "%Y-%m-%d-%H";
+			// TODO store value every 5 minutes regardless of updates?
 			// TODO do not generate trends for anything older than an hour?? and what if micasa was offline for a while?
 			// TODO maybe grab the latest hour from trends and start from there?
 			// TODO for counter devices it's no use storing the latest value of the current hour in trends, only process

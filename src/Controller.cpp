@@ -216,7 +216,7 @@ namespace micasa {
 
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::string label_, const std::map<std::string, std::string> settings_ ) {
 #ifdef _DEBUG
-		assert( this->isRunning() && "Controller should be running before declaring hardware." );
+		//assert( this->isRunning() && "Controller should be running before declaring hardware." );
 		assert( g_webServer->isRunning() && "WebServer should be running before declaring hardware." );
 #endif // _DEBUG
 		

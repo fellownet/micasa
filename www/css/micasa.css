@@ -198,12 +198,13 @@ a:focus, button:focus {
 
 	margin-left: 230px;
 	z-index: 820;
-	padding-top: 50px;
+	padding-top: 65px;
 	background-color: #ecf0f5;
+	padding-bottom: 15px;
 }
 .content .content-header {
 	position: relative;
-	padding: 15px 15px 0 15px;
+	padding: 0 15px 0 15px;
 }
 .content .content-header > h1 {
 	margin: 0;
@@ -223,7 +224,7 @@ a:focus, button:focus {
 	font-size: 12px;
 	padding: 7px 5px;
 	position: absolute;
-	top: 15px;
+	top: 0;
 	right: 10px;
 	border-radius: 2px;
 }
@@ -242,8 +243,7 @@ a:focus, button:focus {
 }
 
 .content .content-body {
-	min-height: 250px;
-	padding: 15px;
+	padding: 15px 15px 0 15px;
 	margin-right: auto;
 	margin-left: auto;
 	padding-left: 15px;
@@ -285,7 +285,7 @@ a:focus, button:focus {
 	border-radius: 3px;
 	background: #ffffff;
 	border-top: 3px solid #d2d6de;
-	margin-bottom: 5px;
+	margin-bottom: 15px;
 	width: 100%;
 	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
@@ -327,6 +327,9 @@ a:focus, button:focus {
 .box-body .table {
 	margin-bottom: 0;
 }
+.box-body.chart-box {
+	padding: 0;
+}
 .box-footer {
 	border-top: 1px solid #f4f4f4;
 	padding: 10px;
@@ -351,7 +354,7 @@ a:focus, button:focus {
 .callout {
 	border-radius: 3px;
 	margin: 0 0 20px 0;
-	padding: 15px 30px 15px 15px;
+	padding: 15px 15px 15px 15px;
 	border-left: 5px solid #eee;
 	color: #FFF;
 }
@@ -374,6 +377,18 @@ a:focus, button:focus {
 .callout.callout-success {
 	border-color: #00733e;
 	background-color: #00a65a !important;
+}
+.callout p:last-child {
+	margin-bottom: 0;
+}
+.callout button {
+	background: none;
+	border: none;
+	box-shadow: none;
+	color: #FFF;
+}
+.callout button:hover {
+	opacity: 0.8;
 }
 
 /* login */
@@ -462,14 +477,46 @@ a:focus, button:focus {
 	border-width: 1px;
 	border: 1px solid transparent;
 }
+.btn-selected {
+	background-color: #CCC;
+}
 .table td {
 	white-space: nowrap;
 }
-.table td:first-child {
-	width: 15px;
-}
-.table-hover tr {
+.table-hover tr td {
 	cursor: pointer;
+}
+.table td.paging {
+	padding: 0;
+}
+.table th a {
+	cursor: pointer;
+}
+
+/* table pagination */
+
+div.paging {
+	display: block;
+}
+.table td.paging,
+div.paging {
+	text-align: right;
+	padding-right: 10px;
+}
+.paging ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.paging li {
+	display: inline-block;
+	margin: 10px 0;
+}
+.paging ul li a {
+	border-radius: 50%;
+}
+.actionrow .paging li {
+	margin: 0;
 }
 
 /* generic */
@@ -591,6 +638,23 @@ a:focus, button:focus {
     font-size: 12px;
   }
 }
+
+/* widgets */
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* to be cleaned-up */
+
 
 .bg-gray {
   color: #000;

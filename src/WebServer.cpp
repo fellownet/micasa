@@ -185,6 +185,7 @@ namespace micasa {
 
 		// Create the input map which should consist of the parsed body and any parameter passed in the
 		// query string.
+		// TODO check for non /api requests
 		json input;
 		if ( ( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0 ) {
 			std::string bodyStr = "";
@@ -199,6 +200,7 @@ namespace micasa {
 		}
 		
 		// Parse the qyery string and put it's content into the input object.
+		// TODO check for non /api requests
 		std::regex pattern( "([\\w+%]+)=([^&]*)" );
 		auto wordsBegin = std::sregex_iterator( queryStr.begin(), queryStr.end(), pattern );
 		auto wordsEnd = std::sregex_iterator();
@@ -212,19 +214,18 @@ namespace micasa {
 		// Create a cacheKey for GET requests. Note that a std::map is sorted by default, hence the order
 		// of parameters doesn't bypass the cache. Also, some parameters should not also not cause the
 		// cache to be bypassed.
+		// TODO check for non /api requests
 		std::stringstream cacheKey;
 		if ( method == Method::GET ) {
 			cacheKey << uriStr;
-			/*
 			for ( auto inputIt = input.begin(); inputIt != input.end(); inputIt++ ) {
 				if (
-					inputIt->first != "page"
-					&& inputIt->first != "count"
+					inputIt.key() != "page"
+					&& inputIt.key() != "count"
 				) {
-					cacheKey << "/" << inputIt->first << "=" << inputIt->second;
+					cacheKey << "/" << inputIt.key() << "=" << inputIt.value();
 				}
 			}
-			*/
 		}
 
 		std::unique_lock<std::mutex> resourceLock( this->m_resourcesMutex );
@@ -375,6 +376,27 @@ namespace micasa {
 			connection_->flags |= MG_F_SEND_AND_CLOSE;
 #endif // _DEBUG
 
+		} else if ( uriStr.substr( 0, 3 ) == "api" ) {
+
+			std::stringstream headers;
+			headers << "Content-Type: Content-type: application/json\r\n";
+			headers << "Access-Control-Allow-Origin: *\r\n";
+			headers << "Cache-Control: no-cache, no-store, must-revalidate";
+
+			json output = {
+				{ "result", "ERROR" },
+				{ "message", "Invalid resource." }
+			};
+			int code = 404;
+			
+			// Format the json output (intent with 4 spaces).
+			const std::string content = output.dump( 4 );
+			
+			mg_send_head( connection_, code, content.length(), headers.str().c_str() );
+			mg_send( connection_, content.c_str(), content.length() );
+			
+			connection_->flags |= MG_F_SEND_AND_CLOSE;
+			
 		} else {
 			
 			// If some other resource was accessed, serve static files instead.

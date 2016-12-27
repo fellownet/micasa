@@ -45,7 +45,13 @@ namespace micasa {
 				if ( output_.is_null() ) {
 					output_ = nlohmann::json::array();
 				}
-				output_ += this->getJson();
+				auto inputIt = input_.find( "hardware_id" );
+				if (
+					inputIt == input_.end()
+					|| input_["hardware_id"].get<std::string>() == std::to_string( this->m_hardware->getId() )
+				) {
+					output_ += this->getJson();
+				}
 			} )
 		} ) ) );
 
