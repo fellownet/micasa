@@ -52,6 +52,8 @@ namespace micasa {
 		const std::string& getLabel() const { return this->m_label; };
 		const std::string getName() const;
 		void setLabel( const std::string& label_ );
+		template<class T> bool updateValue( const unsigned int& source_, const typename T::t_value& value_ );
+		template<class T> const typename T::t_value& getValue() const;
 		Settings& getSettings() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
 		virtual json getJson() const;

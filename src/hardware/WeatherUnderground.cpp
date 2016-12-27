@@ -32,9 +32,12 @@ namespace micasa {
 		
 		if ( ! this->m_settings.contains( { "api_key", "location", "scale" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			this->_setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
+		this->_setState( Hardware::State::READY );
+		
 		std::stringstream url;
 		url << "http://api.wunderground.com/api/" << this->m_settings["api_key"] << "/conditions/q/" << this->m_settings["location"] << ".json";
 
@@ -72,40 +75,40 @@ namespace micasa {
 							this->m_settings["scale"] == "fahrenheit"
 							&& ! data["temp_f"].is_null()
 						) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "1", "Temperature in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
-							} ) );
+							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
 						   this->m_settings["scale"] == "celcius"
 						   && ! data["temp_c"].is_null()
 					   ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "2", "Temperature in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
-							} ) );
+							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "3", "Humidity in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "3", "Humidity in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
-							} ) );
+							} );
 							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
-							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( this->_declareDevice( Device::Type::LEVEL, "4", "Barometric pressure in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PASCAL ) }
-							} ) );
+							} );
 							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
-							std::shared_ptr<Text> device = std::static_pointer_cast<Text>( this->_declareDevice( Device::Type::TEXT, "5", "Wind Direction in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Text>( "5", "Wind Direction in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							} ) );
+							} );
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}
 					}
@@ -119,6 +122,7 @@ namespace micasa {
 				}
 			}
 		} catch( ... ) {
+			this->_setState( Hardware::State::FAILED );
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 		}
 		

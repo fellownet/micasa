@@ -1,0 +1,55 @@
+<section class="content-header" *ngIf="!hardware || devices.length>0">
+<h1>Devices<small>the information that excites</small></h1>
+</section>
+
+<section class="content-body" *ngIf="devices.length>0">
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-body table-responsive no-padding">
+
+<table class="table table-hover" [gridData]="devices" [gridSort]="'id'" #grid="GridDirective">
+<thead>
+	<tr>
+		<th [gridField]="'id'">Id</th>
+		<th [gridField]="'name'">Name</th>
+		<th>Value</th>
+		<th>Hardware</th>
+		<th [gridField]="'label'">Label</th>
+		<th [gridField]="'type'">Type</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)">
+		<td>{{device.id}}</td>
+		<td>{{device.name}}</td>
+		<td><span class="label"
+			[class.label-success]="device.value=='On'"
+			[class.label-danger]="device.value=='Off'"
+			[class.label-info]="device.value!='On' && device.value!='Off'"
+			>{{device.value}}</span></td>
+		<td>{{device.hardware.name}}</td>
+		<td>{{device.label}}</td>
+		<td><span class="label label-default">{{device.type}}</span></td>
+	</tr>
+</tbody>
+<tfoot>
+	<tr>
+		<td colspan="6" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+	</tr>
+</tfoot>
+</table>
+
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>

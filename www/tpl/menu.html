@@ -1,39 +1,39 @@
-<ul class="menu">
+<ul class="menu" (click)="toggleMenu()">
 	<li class="menu-header">Main Navigation</li>
-	<li>
-		<a href="#" (click)="setActiveSection('screen')">
+	<li *ngIf="hasAccess(ACL.Viewer)" routerLinkActive="active">
+		<a routerLink="/dashboard">
 			<i class="fa fa-dashboard"></i> <span>Dashboard</span>
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('hardware')">
+	<li *ngIf="hasAccess(ACL.User)" routerLinkActive="active">
+		<a routerLink="/hardware">
 			<i class="fa fa-microchip"></i>
 			<span>Hardware</span>
-			<span class="pull-right-container">
+			<!--span class="pull-right-container">
 				<span class="label label-danger pull-right">1</span>
-			</span>
+			</span-->
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('devices')">
+	<li *ngIf="hasAccess(ACL.User)" routerLinkActive="active">
+		<a routerLink="/devices">
 			<i class="fa fa-thermometer-half"></i>
 			<span>Devices</span>
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('timers')">
+	<li *ngIf="hasAccess(ACL.User)" routerLinkActive="active">
+		<a routerLink="/timers">
 			<i class="fa fa-clock-o"></i>
 			<span>Timers</span>
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('users')">
+	<li *ngIf="hasAccess(ACL.Admin)" routerLinkActive="active">
+		<a routerLink="/users">
 			<i class="fa fa-user"></i>
 			<span>Users</span>
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('scripts')">
+	<li *ngIf="hasAccess(ACL.Admin)" routerLinkActive="active">
+		<a routerLink="/scripts">
 			<i class="fa fa-code"></i>
 			<span>Scripts</span>
 		</a>
@@ -41,22 +41,12 @@
 
 	<li class="menu-header">Screens</li>
 
-	<li>
-		<a href="#" (click)="setActiveSection('screen')">
+	<ng-container *ngFor="let screen of getScreens()">
+	<li *ngIf="hasAccess(ACL.Viewer) && screen.id>1" routerLinkActive="active">
+		<a routerLink="/screen/{{screen.id}}">
 			<i class="fa fa-desktop"></i>
-			<span>Custom 1</span>
+			<span>{{screen.name}}</span>
 		</a>
 	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('screen')">
-			<i class="fa fa-desktop"></i>
-			<span>Custom 2</span>
-		</a>
-	</li>
-	<li>
-		<a href="#" (click)="setActiveSection('screen')">
-			<i class="fa fa-desktop"></i>
-			<span>Custom 3</span>
-		</a>
-	</li>
+	</ng-container>
 </ul>

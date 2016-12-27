@@ -1,6 +1,9 @@
 // https://github.com/OpenZWave/open-zwave/wiki/Config-Options
 // http://www.openzwave.com/dev/classOpenZWave_1_1Notification.html#a5fa14ba721a25a4c84e0fbbedd767d54a4432a88465416a63cf4eda11ecf28c24
 
+// pipes to store and retrieve the log and config?
+// http://stackoverflow.com/questions/2784500/how-to-send-a-simple-string-between-two-programs-using-pipes
+
 #ifdef WITH_OPENZWAVE
 
 #include "OpenZWave.h"
@@ -102,7 +105,7 @@ namespace micasa {
 		this->m_managerMutex.lock();
 
 #ifdef _DEBUG
-		//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+		g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
 #endif // _DEBUG
 		
 		unsigned int homeId = notification_->GetHomeId();
@@ -122,179 +125,45 @@ namespace micasa {
 			
 			// No hardware is available for this node which means that the notification is for the controller (us).
 			//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
-			
 			switch( notification_->GetType() ) {
+
 				case ::OpenZWave::Notification::Type_DriverReady: {
 					this->m_homeId = homeId;
 					this->m_controllerNodeId = nodeId;
-					this->m_controllerState = READY;
-					g_logger->log( Logger::LogLevel::NORMAL, this, "Driver initialized." );
-					
-					// Add resource handlers for network heal.
-					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-						"openzwave-" + std::to_string( this->m_id ),
-						"api/hardware/" + std::to_string( this->m_id ) + "/heal",
-						WebServer::Method::PUT,
-						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-								if (
-									this->m_controllerState == READY
-									|| this->m_controllerState == HEALING
-								) {
-									::OpenZWave::Manager::Get()->HealNetwork( this->m_homeId, true );
-									this->m_controllerState = HEALING;
-									output_["result"] = "OK";
-									g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
-								} else {
-									output_["result"] = "ERROR";
-									output_["message"] = "Controller busy.";
-									code_ = 423; // Locked (WebDAV; RFC 4918)
-								}
-								this->m_managerMutex.unlock();
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Controller busy.";
-								code_ = 423; // Locked (WebDAV; RFC 4918)
-							}
-						} )
-					} ) ) );
-
-					// Add resource handler for inclusion mode.
-					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-						"openzwave-" + std::to_string( this->m_id ),
-						"api/hardware/" + std::to_string( this->m_id ) + "/include",
-						WebServer::Method::PUT | WebServer::Method::DELETE,
-						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-							// TODO also accept secure inclusion mode
-							// TODO cancel inclusion mode after xx minutes? openzwave doesn't cancel
-							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-								if ( method_ == WebServer::Method::PUT ) {
-									if (
-										this->m_controllerState == READY
-										|| this->m_controllerState == INCLUSION_MODE
-									) {
-										if ( ::OpenZWave::Manager::Get()->AddNode( this->m_homeId, false ) ) {
-											this->m_controllerState = INCLUSION_MODE;
-											output_["result"] = "OK";
-											g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-										} else {
-											output_["result"] = "ERROR";
-											output_["message"] = "Unable to activate inclusion mode.";
-											code_ = 500; // Internal Server Error
-											g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
-										}
-									} else {
-										output_["result"] = "ERROR";
-										output_["message"] = "Controller busy.";
-										code_ = 423; // Locked (WebDAV; RFC 4918)
-									}
-								} else if ( method_ == WebServer::Method::DELETE ) {
-									if (
-										this->m_controllerState == INCLUSION_MODE
-										|| this->m_controllerState == READY
-									) {
-										if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
-											output_["result"] = "OK";
-										} else {
-											output_["result"] = "ERROR";
-											output_["message"] = "Unable to deactivate inclusion mode.";
-											code_ = 500; // Internal Server Error
-											g_logger->log( Logger::LogLevel::ERROR, this, "Unable to deactivate inclusion mode." );
-										}
-									} else {
-										output_["result"] = "ERROR";
-										output_["message"] = "Controller not in inclusion mode.";
-										code_ = 409; // Conflict
-									}
-								}
-								this->m_managerMutex.unlock();
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Controller busy.";
-								code_ = 423; // Locked (WebDAV; RFC 4918)
-							}
-						} )
-					} ) ) );
-					
-					// Add resource handler for exclusion mode.
-					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-						"openzwave-" + std::to_string( this->m_id ),
-						"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
-						WebServer::Method::PUT | WebServer::Method::DELETE,
-						WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-							// TODO cancel exclusion mode after xx minutes? openzwave doesn't cancel
-							if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-								if ( method_ == WebServer::Method::PUT ) {
-									if (
-										this->m_controllerState == READY
-										|| this->m_controllerState == EXCLUSION_MODE
-									) {
-										if ( ::OpenZWave::Manager::Get()->RemoveNode( this->m_homeId ) ) {
-											this->m_controllerState = EXCLUSION_MODE;
-											output_["result"] = "OK";
-											g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-										} else {
-											output_["result"] = "ERROR";
-											output_["message"] = "Unable to activate exclusion mode.";
-											code_ = 500; // Internal Server Error
-											g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
-										}
-									} else {
-										output_["result"] = "ERROR";
-										output_["message"] = "Controller busy.";
-										code_ = 423; // Locked (WebDAV; RFC 4918)
-									}
-								} else if ( method_ == WebServer::Method::DELETE ) {
-									if (
-										this->m_controllerState == EXCLUSION_MODE
-										|| this->m_controllerState == READY
-									) {
-										if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
-											output_["result"] = "OK";
-										} else {
-											output_["result"] = "ERROR";
-											output_["message"] = "Unable to deactivate exclusion mode.";
-											code_ = 500; // Internal Server Error
-											g_logger->log( Logger::LogLevel::ERROR, this, "Unable to deactivate exclusion mode." );
-										}
-									} else {
-										output_["result"] = "ERROR";
-										output_["message"] = "Controller not in exclusion mode.";
-										code_ = 409; // Conflict
-									}
-								}
-								this->m_managerMutex.unlock();
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Controller busy.";
-								code_ = 423; // Locked (WebDAV; RFC 4918)
-							}
-						} )
-					} ) ) );
+					g_logger->log( Logger::LogLevel::VERBOSE, this, "Driver initialized." );
 					break;
 				}
 
+				case ::OpenZWave::Notification::Type_DriverFailed: {
+					this->_setState( Hardware::State::FAILED );
+					g_logger->log( Logger::LogLevel::VERBOSE, this, "Driver failed." );
+					break;
+				}
+
+				case ::OpenZWave::Notification::Type_AwakeNodesQueried:
+				case ::OpenZWave::Notification::Type_AllNodesQueried:
+				case ::OpenZWave::Notification::Type_AllNodesQueriedSomeDead: {
+					this->_setState( Hardware::State::READY );
+					this->_installResourceHandlers();
+					break;
+				}
+					
 				case ::OpenZWave::Notification::Type_ControllerCommand: {
 					switch( notification_->GetEvent() ) {
 						case ::OpenZWave::Driver::ControllerState_Cancel: {
-							if ( this->m_controllerState == INCLUSION_MODE ) {
-								g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode deactivated." );
-							} else if ( this->m_controllerState == EXCLUSION_MODE ) {
-								g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode deactivated." );
-							}
-							this->m_controllerState = READY;
+							//this->m_controllerBusy = false;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Error: {
-							this->m_controllerState = READY;
+							//this->m_controllerBusy = false;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Completed: {
-							this->m_controllerState = READY;
+							//this->m_controllerBusy = false;
 							break;
 						}
 						case ::OpenZWave::Driver::ControllerState_Failed: {
-							this->m_controllerState = READY;
+							//this->m_controllerBusy = false;
 							break;
 						}
 					}
@@ -483,6 +352,133 @@ namespace micasa {
 		}
 */
 	}
+
+	void OpenZWave::_installResourceHandlers() const {
+		// Add resource handlers for network heal.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"openzwave-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
+			WebServer::Method::PUT,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					if ( this->getState() == Hardware::State::READY ) {
+						::OpenZWave::Manager::Get()->HealNetwork( this->m_homeId, true );
+						output_["result"] = "OK";
+						g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
+					} else {
+						output_["result"] = "ERROR";
+						output_["message"] = "Controller not ready.";
+						code_ = 423; // Locked (WebDAV; RFC 4918)
+					}
+					this->m_managerMutex.unlock();
+				} else {
+					output_["result"] = "ERROR";
+					output_["message"] = "Controller busy.";
+					code_ = 423; // Locked (WebDAV; RFC 4918)
+				}
+			} )
+		} ) ) );
+		
+		// Add resource handler for inclusion mode.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"openzwave-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ) + "/include",
+			WebServer::Method::PUT | WebServer::Method::DELETE,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				// TODO also accept secure inclusion mode
+				// TODO cancel inclusion mode after xx minutes? openzwave doesn't cancel
+				if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					if ( method_ == WebServer::Method::PUT ) {
+						if ( this->getState() == Hardware::State::READY ) {
+							if ( ::OpenZWave::Manager::Get()->AddNode( this->m_homeId, false ) ) {
+								output_["result"] = "OK";
+								g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to activate inclusion mode.";
+								code_ = 500; // Internal Server Error
+								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
+							}
+						} else {
+							output_["result"] = "ERROR";
+							output_["message"] = "Controller not ready.";
+							code_ = 423; // Locked (WebDAV; RFC 4918)
+						}
+					} else if ( method_ == WebServer::Method::DELETE ) {
+						if ( this->getState() == Hardware::State::READY ) {
+							if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
+								output_["result"] = "OK";
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to deactivate inclusion mode.";
+								code_ = 500; // Internal Server Error
+								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to deactivate inclusion mode." );
+							}
+						} else {
+							output_["result"] = "ERROR";
+							output_["message"] = "Controller not ready.";
+							code_ = 409; // Conflict
+						}
+					}
+					this->m_managerMutex.unlock();
+				} else {
+					output_["result"] = "ERROR";
+					output_["message"] = "Controller busy.";
+					code_ = 423; // Locked (WebDAV; RFC 4918)
+				}
+			} )
+		} ) ) );
+		
+		// Add resource handler for exclusion mode.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"openzwave-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
+			WebServer::Method::PUT | WebServer::Method::DELETE,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				// TODO cancel exclusion mode after xx minutes? openzwave doesn't cancel
+				if ( this->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					if ( method_ == WebServer::Method::PUT ) {
+						if ( this->getState() == Hardware::State::READY ) {
+							if ( ::OpenZWave::Manager::Get()->RemoveNode( this->m_homeId ) ) {
+								output_["result"] = "OK";
+								g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to activate exclusion mode.";
+								code_ = 500; // Internal Server Error
+								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
+							}
+						} else {
+							output_["result"] = "ERROR";
+							output_["message"] = "Controller not ready.";
+							code_ = 423; // Locked (WebDAV; RFC 4918)
+						}
+					} else if ( method_ == WebServer::Method::DELETE ) {
+						if ( this->getState() == Hardware::State::READY ) {
+							if ( ::OpenZWave::Manager::Get()->CancelControllerCommand( this->m_homeId ) ) {
+								output_["result"] = "OK";
+							} else {
+								output_["result"] = "ERROR";
+								output_["message"] = "Unable to deactivate exclusion mode.";
+								code_ = 500; // Internal Server Error
+								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to deactivate exclusion mode." );
+							}
+						} else {
+							output_["result"] = "ERROR";
+							output_["message"] = "Controller not ready.";
+							code_ = 409; // Conflict
+						}
+					}
+					this->m_managerMutex.unlock();
+				} else {
+					output_["result"] = "ERROR";
+					output_["message"] = "Controller busy.";
+					code_ = 423; // Locked (WebDAV; RFC 4918)
+				}
+			} )
+		} ) ) );
+	};
+	
 	
 }; // namespace micasa
 

@@ -1,3 +1,61 @@
 <section class="content-header">
-<h1>Generic Screen<small>can be personalized</small></h1>
+<h1>{{activeScreen.name}}<small>can be personalized</small></h1>
+</section>
+
+<section class="content-body">
+
+	<div class="row" *ngIf="activeScreen.id==1">
+		<div class="col-md-3 col-xs-6">
+			<div class="small-box bg-aqua">
+				<div class="inner">
+					<h3>150</h3>
+					<p>Hardware</p>
+				</div>
+				<div class="icon">
+					<i class="fa fa-microchip"></i>
+				</div>
+				<a routerLink="/hardware" class="small-box-footer">More info <i class="fa fa-arrow-circle-right"></i></a>
+			</div>
+		</div>
+
+		<div class="col-md-3 col-xs-6">
+			<div class="small-box bg-green">
+				<div class="inner">
+					<h3>53<sup style="font-size: 20px">%</sup></h3>
+					<p>Devices</p>
+				</div>
+				<div class="icon">
+					<i class="fa fa-thermometer-half"></i>
+				</div>
+				<a routerLink="/devices" class="small-box-footer">More info <i class="fa fa-arrow-circle-right"></i></a>
+			</div>
+		</div>
+
+		<div class="col-md-3 col-xs-6">
+			<div class="small-box bg-yellow">
+				<div class="inner">
+					<h3>44</h3>
+					<p>Users</p>
+				</div>
+				<div class="icon">
+					<i class="fa fa-user"></i>
+				</div>
+				<a routerLink="/users" class="small-box-footer">More info <i class="fa fa-arrow-circle-right"></i></a>
+			</div>
+		</div>
+
+		<div class="col-md-3 col-xs-6">
+			<div class="small-box bg-red">
+				<div class="inner">
+					<h3>65</h3>
+					<p>Scripts</p>
+				</div>
+				<div class="icon">
+					<i class="fa fa-code"></i>
+				</div>
+				<a routerLink="/scripts" class="small-box-footer">More info <i class="fa fa-arrow-circle-right"></i></a>
+			</div>
+		</div>
+	</div>
+
 </section>

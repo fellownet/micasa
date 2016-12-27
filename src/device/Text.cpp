@@ -20,7 +20,6 @@ namespace micasa {
 			"LIMIT 1"
 			, this->m_id
 		);
-
 		Device::start();
 	};
 

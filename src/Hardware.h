@@ -31,18 +31,19 @@ namespace micasa {
 			RFXCOM,
 			SOLAREDGE,
 			SOLAREDGE_INVERTER,
-			WEATHER_UNDERGROUND
+			WEATHER_UNDERGROUND,
+			DUMMY
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 
-		enum Status {
+		enum State {
 			INIT = 1,
 			READY,
 			DISABLED,
 			FAILED,
 			SLEEPING
-		}; // enum Status
-		static const std::map<Status, std::string> StatusText;
+		}; // enum State
+		static const std::map<State, std::string> StateText;
 		
 		struct PendingUpdate {
 			std::timed_mutex updateMutex;
@@ -61,7 +62,10 @@ namespace micasa {
 		virtual void stop();
 		
 		const unsigned int& getId() const { return this->m_id; };
+		const Type getType() const;
 		template<typename T> const T getType() const;
+		const State getState() const;
+		template<typename T> const T getState() const;
 		const std::string& getReference() const { return this->m_reference; };
 		const std::string& getLabel() const { return this->m_label; };
 		const std::string getName() const;
@@ -78,10 +82,11 @@ namespace micasa {
 		const std::shared_ptr<Hardware> m_parent;
 		Settings m_settings;
 
+		void _setState( const State& state_ );
 		std::shared_ptr<Device> _getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
-		std::shared_ptr<Device> _declareDevice( const Device::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 		
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
@@ -95,7 +100,8 @@ namespace micasa {
 		mutable std::mutex m_devicesMutex;
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
-
+		volatile State m_state = INIT;
+		
 		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
 
 	}; // class Hardware

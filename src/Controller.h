@@ -83,6 +83,8 @@ namespace micasa {
 		mutable std::mutex m_hardwareMutex;
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;
+		mutable std::mutex m_scriptsMutex;
+		Settings m_settings;
 		
 		void _processEvent( const nlohmann::json& event_ );
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;

@@ -1,16 +1,19 @@
-import { Injectable } from '@angular/core';
+import { Injectable }  from '@angular/core';
 
-@Injectable()
+export enum ACL {
+	Viewer = 1,
+	User = 2,
+	Admin = 4
+}
+
 export class User {
-
+	username: string;
+	fullname: string;
+	acl: number;
 }
 
 @Injectable()
 export class UserService {
 
-	user: Object;
 
-	doLogin( username: string, password: string ): void {
-		this.user = { fullname: 'Bob Kersten (' + username + ')' };
-	}
 }
