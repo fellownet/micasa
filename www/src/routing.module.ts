@@ -7,7 +7,6 @@ import { SetupComponent }       from './setup.component';
 import { ScreenComponent }      from './screen.component';
 import { UsersComponent }       from './users.component';
 import { HelpComponent }        from './help.component';
-import { TimersComponent }      from './timers.component';
 
 // Route Guards
 import { LoginService }         from './login.service';
@@ -23,8 +22,7 @@ const routes = [
 	{ path: 'dashboard',   component: ScreenComponent, canActivate: [LoginService], resolve: { screen: ScreenService } },
 	{ path: 'setup',       component: SetupComponent, canActivate: [LoginService] },
 	{ path: 'screen/:id',  component: ScreenComponent, canActivate: [LoginService], resolve: { screen: ScreenService } },
-	{ path: 'users',       component: UsersComponent, canActivate: [LoginService] },
-	{ path: 'timers',      component: TimersComponent, canActivate: [LoginService] }
+	{ path: 'users',       component: UsersComponent, canActivate: [LoginService] }
 ];
 
 @NgModule( {

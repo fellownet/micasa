@@ -20,7 +20,9 @@ export class Device {
 	name: string;
 	hardware: Hardware;
 	type: string;
-	value: any;
+	enabled: boolean;
+	value?: any; // is optional for updates
+	scripts: number[];
 }
 
 @Injectable()
@@ -88,7 +90,11 @@ export class DevicesService implements Resolve<Device> {
 	putDevice( device_: Device ): Observable<Device> {
 		let headers = new Headers( { 'Content-Type': 'application/json' } );
 		let options = new RequestOptions( { headers: headers } );
-		return this._http.put( this._deviceUrlBase + '/' + device_.id, device_, options )
+		// Value should not be sent along with the update to prevent server warnings for
+		// invalid update source.
+		let data: Device = Object.assign( {}, device_ );
+		delete( data.value );
+		return this._http.put( this._deviceUrlBase + '/' + device_.id, data, options )
 			.map( this._extractData )
 			.catch( this._handleError )
 		;
@@ -97,6 +103,15 @@ export class DevicesService implements Resolve<Device> {
 	getData( device_: Device ): Observable<any[]> {
 		return this._http.get( this._deviceUrlBase + '/' + device_.id + '/data' )
 			.map( this._extractData )
+			.catch( this._handleError )
+		;
+	};
+
+	deleteDevice( device_: Device ): Observable<boolean> {
+		return this._http.delete( this._deviceUrlBase + '/' + device_.id )
+			.map( function( response_: Response ) {
+				return response_.json()['result'] == 'OK';
+			} )
 			.catch( this._handleError )
 		;
 	};

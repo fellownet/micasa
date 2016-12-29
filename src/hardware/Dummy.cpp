@@ -27,11 +27,12 @@ namespace micasa {
 
 	void Dummy::_installResourceHandlers() {
 
-		// Add resource handlers for creating or deleting dummy devices.
+		// Add resource handlers for creating dummy devices. Note that deleting devices is handled through
+		// the general hardware delete resource handler.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"dummy-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
-			WebServer::Method::POST | WebServer::Method::DELETE,
+			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::POST: {
@@ -84,9 +85,6 @@ namespace micasa {
 							output_["message"] = "Unable to create dummy device.";
 							code_ = 400; // bad request
 						}
-						break;
-					}
-					case WebServer::Method::DELETE: {
 						break;
 					}
 					default: break;

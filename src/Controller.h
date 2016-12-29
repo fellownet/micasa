@@ -84,9 +84,10 @@ namespace micasa {
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;
 		mutable std::mutex m_scriptsMutex;
+		mutable std::mutex m_cronsMutex;
 		Settings m_settings;
 		
-		void _processEvent( const nlohmann::json& event_ );
+		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
@@ -94,6 +95,7 @@ namespace micasa {
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		const TaskOptions _parseTaskOptions( const std::string& options_ ) const;
 		void _updateScriptResourceHandlers() const;
+		void _updateCronResourceHandlers() const;
 		
 	}; // class Controller
 

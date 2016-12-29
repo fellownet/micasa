@@ -27,8 +27,7 @@ namespace micasa {
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
-				// TODO return data in its target format (float for level)
-				std::vector<std::map<std::string, std::string> > data = g_database->getQuery(
+				output_ = g_database->getQuery<json>(
 					"SELECT * FROM ( "
 						"SELECT `average` AS `value`, strftime('%%s',`date`) AS `timestamp` "
 						"FROM `device_level_trends` "
@@ -47,8 +46,6 @@ namespace micasa {
 					") ",
 					this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 				);
-				output_ = data;
-
 			} )
 		} ) ) );
 

@@ -20,6 +20,7 @@
 	<tr>
 		<th [gridField]="'id'">Id</th>
 		<th [gridField]="'name'">Name</th>
+		<th></th>
 		<th>Value</th>
 		<th>Hardware</th>
 		<th [gridField]="'label'">Label</th>
@@ -30,6 +31,9 @@
 	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)">
 		<td>{{device.id}}</td>
 		<td>{{device.name}}</td>
+		<td>
+			<i class="fa fa-code" *ngIf="device.scripts.length>0"></i>
+		</td>
 		<td><span class="label"
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"
@@ -42,7 +46,7 @@
 </tbody>
 <tfoot>
 	<tr>
-		<td colspan="6" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+		<td colspan="7" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
 	</tr>
 </tfoot>
 </table>

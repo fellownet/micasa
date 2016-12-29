@@ -42,16 +42,25 @@
 						<input type="text" class="form-control" id="device_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="device.name" name="name" #name="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+					<div class="form-group">
+						<div class="checkbox">
+							<label><input type="checkbox" value="1" [(ngModel)]="device.enabled" name="enabled">Enabled</label>
+						</div>
+					</div>
+					<div class="form-group">
+						<label>Scripts</label>
+						<div class="checkbox" *ngFor="let script of scripts">
+							<label><input type="checkbox" value="{{script.id}}" [checked]="device.scripts.indexOf(script.id) >= 0" (change)="updateSelectedScripts(script.id,$event);deviceForm.form.markAsDirty();">{{script.name}}</label>
+						</div>
+					</div>
 				</div>
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!deviceForm.form.valid || deviceForm.form.pristine || loading">Save</button>
 					</div>
-					<!--
 					<div class="col-xs-12 col-sm-offset-4 col-sm-4 col-md-offset-6 col-md-3 col-lg-offset-8 col-lg-2">
-						<button type="button" class="btn btn-danger btn-block" (click)="cancelEdit()">Cancel</button>
+						<button type="button" class="btn btn-danger btn-block" (click)="deleteDevice()">Delete</button>
 					</div>
-					-->
 				</div>
 				</form>
 

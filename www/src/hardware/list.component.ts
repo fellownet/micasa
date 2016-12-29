@@ -5,6 +5,7 @@ import { Hardware, HardwareService } from './hardware.service';
 declare var $: any;
 
 @Component( {
+	selector: 'hardware',
 	templateUrl: 'tpl/hardware-list.html',
 } )
 

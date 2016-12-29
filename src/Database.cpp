@@ -7,6 +7,8 @@ namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
 
+	using namespace nlohmann;
+
 	Database::Database( std::string filename_ ) : m_filename( filename_ ) {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be created before global Database instances." );
@@ -19,7 +21,7 @@ namespace micasa {
 		} else {
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to open database %s.", filename_.c_str() );
 		}
-	}
+	};
 
 	Database::~Database() {
 #ifdef _DEBUG
@@ -34,7 +36,7 @@ namespace micasa {
 		} else {
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly.", this->m_filename.c_str() );
 		}
-	}
+	};
 
 	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string& query_, ... ) const {
 		std::vector<std::map<std::string, std::string> > result;
@@ -65,7 +67,49 @@ namespace micasa {
 		va_end( arguments );
 
 		return result;
-	}
+	};
+
+	template<> nlohmann::json Database::getQuery( const std::string& query_, ... ) const {
+		json result = json::array();
+		
+		va_list arguments;
+		va_start( arguments, query_ );
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
+			int columns = sqlite3_column_count( statement_ );
+			while ( true ) {
+				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
+					json row = json::object();
+					for ( int column = 0; column < columns; column++ ) {
+						std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_name( statement_, column ) ) );
+						switch( sqlite3_column_type( statement_, column ) ) {
+							case SQLITE_INTEGER:
+								row[key] = sqlite3_column_int( statement_, column );
+								break;
+							case SQLITE_FLOAT:
+								row[key] = sqlite3_column_double( statement_, column );
+								break;
+							case SQLITE_TEXT: {
+								const unsigned char* value = sqlite3_column_text( statement_, column );
+								row[key] = std::string( reinterpret_cast<const char*>( value ) );
+								break;
+							}
+							case SQLITE_BLOB:
+								// not supported (yet?)
+								break;
+							case SQLITE_NULL:
+								break;
+						}
+					}
+					result += row;
+				} else {
+					break;
+				}
+			}
+		} );
+		va_end( arguments );
+
+		return result;
+	};
 
 	std::map<std::string, std::string> Database::getQueryRow( const std::string& query_, ... ) const {
 		std::map<std::string, std::string> result;
@@ -90,7 +134,7 @@ namespace micasa {
 		va_end( arguments );
 
 		return result;
-	}
+	};
 
 	template<typename T> std::vector<T> Database::getQueryColumn( const std::string& query_, ... ) const {
 		std::vector<T> result;
@@ -179,7 +223,7 @@ namespace micasa {
 		va_end( arguments );
 
 		return result;
-	}
+	};
 
 	template<typename T> T Database::getQueryValue( const std::string& query_, ... ) const {
 		std::string result;
@@ -202,7 +246,7 @@ namespace micasa {
 		T value;
 		std::istringstream( result ) >> value;
 		return value;
-	}
+	};
 	
 	// The above template is specialized for the types listed below.
 	template int Database::getQueryValue( const std::string& query_, ... ) const;
@@ -246,7 +290,11 @@ namespace micasa {
 		} );
 		va_end( arguments );
 		return insertId;
-	}
+	};
+
+	int Database::getLastErrorCode() const {
+		return sqlite3_errcode( this->m_connection );
+	};
 
 	void Database::_init() const {
 		this->putQuery( "PRAGMA synchronous=NORMAL" );
@@ -261,7 +309,7 @@ namespace micasa {
 			}
 			this->putQuery( "PRAGMA user_version=%d", c_queries.size() );
 		}
-	}
+	};
 	
 	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)> process_ ) const {
 		if ( ! this->m_connection ) {
@@ -287,10 +335,10 @@ namespace micasa {
 		}
 		
 #ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+		//g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
 		
 		sqlite3_free( query );
-	}
+	};
 	
 } // namespace micasa

@@ -37,6 +37,34 @@ namespace micasa {
 	};
 	
 	void Device::start() {
+
+		// This method is used in both callbacks to set the scripts associated with the device.
+		const auto setScripts = []( const json& scriptIds_, unsigned int deviceId_ ) {
+			std::stringstream list;
+			unsigned int index = 0;
+			for ( auto scriptIdsIt = scriptIds_.begin(); scriptIdsIt != scriptIds_.end(); scriptIdsIt++ ) {
+				auto scriptId = (*scriptIdsIt);
+				if ( scriptId.is_number() ) {
+					list << ( index > 0 ? "," : "" ) << scriptId;
+					index++;
+					g_database->putQuery(
+						"INSERT OR IGNORE INTO `x_device_scripts` "
+						"(`device_id`, `script_id`) "
+						"VALUES (%d, %d)",
+						deviceId_,
+						scriptId.get<unsigned int>()
+					);
+				}
+			}
+			g_database->putQuery(
+				"DELETE FROM `x_device_scripts` "
+				"WHERE `device_id`=%d "
+				"AND `script_id` NOT IN (%q)",
+				deviceId_,
+				list.str().c_str()
+			);
+		};
+
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices",
@@ -50,7 +78,16 @@ namespace micasa {
 					inputIt == input_.end()
 					|| input_["hardware_id"].get<std::string>() == std::to_string( this->m_hardware->getId() )
 				) {
-					output_ += this->getJson();
+					json data = this->getJson();
+					data["scripts"] = g_database->getQueryColumn<unsigned int>(
+						"SELECT s.`id` "
+						"FROM `scripts` s, `x_device_scripts` x "
+						"WHERE s.`id`=x.`script_id` "
+						"AND x.`device_id`=%d "
+						"ORDER BY s.`id` ASC",
+						this->m_id
+					);
+					output_ += data;
 				}
 			} )
 		} ) ) );
@@ -58,11 +95,19 @@ namespace micasa {
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ),
-			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::t_callback( [this,&setScripts]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						output_ = this->getJson();
+						output_["scripts"] = g_database->getQueryColumn<unsigned int>(
+							"SELECT s.`id` "
+							"FROM `scripts` s, `x_device_scripts` x "
+							"WHERE s.`id`=x.`script_id` "
+							"AND x.`device_id`=%d "
+							"ORDER BY s.`id` ASC",
+							this->m_id
+						);
 						break;
 					}
 						
@@ -73,6 +118,12 @@ namespace micasa {
 							if ( input_.find( "name" ) != input_.end() ) {
 								this->m_settings.put( "name", input_["name"].get<std::string>() );
 								this->m_settings.commit( *this );
+							}
+							if (
+								input_.find( "scripts") != input_.end()
+								&& input_["scripts"].is_array()
+							) {
+								setScripts( input_["scripts"], this->m_id );
 							}
 							if ( input_.find( "value" ) != input_.end() ) {
 								switch( this->getType() ) {
@@ -115,12 +166,6 @@ namespace micasa {
 							output_["message"] = "Unable to update device.";
 							code_ = 400; // bad request
 						}
-						break;
-					}
-					case WebServer::Method::DELETE: {
-						output_["result"] = "ERROR";
-						output_["message"] = "Deleting is not implemented.";
-						code_ = 501; // not implemented
 						break;
 					}
 					default: break;
@@ -204,6 +249,7 @@ namespace micasa {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
+			{ "enabled", true },
 			{ "hardware", this->m_hardware->getJson() },
 			// TODO the age on resources on the webpage doesn't update if the device doesn't, so lastUpdate might
 			// be better somehow.

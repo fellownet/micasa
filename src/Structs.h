@@ -136,6 +136,38 @@ namespace micasa {
 		"FOREIGN KEY ( `script_id` ) REFERENCES `scripts` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 	
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_scripts_device_id_script_id` ON `x_device_scripts`( `device_id`, `script_id` )",
+
+		// Crons
+		"CREATE TABLE IF NOT EXISTS `crons` ( "
+		"`id` INTEGER PRIMARY KEY, "
+		"`name` VARCHAR(255) NOT NULL, "
+		"`cron` VARCHAR(64) NOT NULL, "
+		"`last_run` TIMESTAMP DEFAULT NULL, "
+		"`next_run` TIMESTAMP DEFAULT NULL, "
+		"`enabled` INTEGER DEFAULT 1, "
+		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL )",
+		
+		"INSERT INTO `crons` (`name`, `cron` ) VALUES ( 'every minute', '* * * * *' )",
+		
+		"INSERT INTO `crons` (`name`, `cron` ) VALUES ( 'daily at midnight', '0 0 * * *' )",
+
+		"CREATE TABLE IF NOT EXISTS `x_cron_scripts` ( "
+		"`cron_id` INTEGER NOT NULL, "
+		"`script_id` INTEGER NOT NULL, "
+		"FOREIGN KEY ( `cron_id` ) REFERENCES `crons` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT, "
+		"FOREIGN KEY ( `script_id` ) REFERENCES `scripts` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
+
+		"CREATE TABLE IF NOT EXISTS `x_cron_devices` ( "
+		"`cron_id` INTEGER NOT NULL, "
+		"`device_id` INTEGER NOT NULL, "
+		"`value` VARCHAR(64) NOT NULL, "
+		"FOREIGN KEY ( `cron_id` ) REFERENCES `crons` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT, "
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
+
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_cron_scripts_cron_id_script_id` ON `x_cron_scripts`( `cron_id`, `script_id` )",
+		
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_cron_devices_cron_id_device_id` ON `x_cron_devices`( `cron_id`, `device_id` )",
+
 	};
 	
 }; // namespace micasa

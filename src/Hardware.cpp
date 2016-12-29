@@ -115,7 +115,16 @@ namespace micasa {
 						if ( output_.is_null() ) {
 							output_ = nlohmann::json::array();
 						}
-						output_ += this->getJson();
+						auto inputIt = input_.find( "hardware_id" );
+						if (
+							inputIt == input_.end()
+							|| (
+								this->m_parent
+								&& input_["hardware_id"].get<std::string>() == std::to_string( this->m_parent->getId() )
+							)
+						) {
+							output_ += this->getJson();
+						}
 						break;
 					}
 					default: break;
@@ -174,6 +183,7 @@ namespace micasa {
 #endif // _DEBUG
 			std::shared_ptr<Device> device = Device::_factory( this->shared_from_this(), type, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["label"] );
 			device->start();
+			this->_installDeviceResourceHandlers( device );  // these are removed on device->stop due to the same id's
 			this->m_devices.push_back( device );
 		}
 
@@ -245,6 +255,7 @@ namespace micasa {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
+			{ "enabled", true },
 			{ "type", this->getType<std::string>() },
 			{ "state", this->getState<std::string>() }
 		};
@@ -317,6 +328,7 @@ namespace micasa {
 		settings.commit( *device );
 		
 		device->start();
+		this->_installDeviceResourceHandlers( device ); // these are removed on device->stop due to the same id's
 		this->m_devices.push_back( device );
 		
 		return device;
@@ -326,6 +338,37 @@ namespace micasa {
 	template std::shared_ptr<Level> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 	template std::shared_ptr<Switch> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
 	template std::shared_ptr<Text> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+	
+	void Hardware::_installDeviceResourceHandlers( const std::shared_ptr<Device> device_ ) {
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"device-" + std::to_string( device_->getId() ),
+			"api/devices/" + std::to_string( device_->getId() ),
+			WebServer::Method::DELETE,
+			WebServer::t_callback( [this,device_]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				switch( method_ ) {
+					case WebServer::Method::DELETE: {
+						std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+						for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+							if ( (*devicesIt) == device_ ) {
+								this->m_devices.erase( devicesIt );
+								device_->stop();
+								g_database->putQuery(
+									"DELETE FROM `devices` "
+									"WHERE `id`=%d",
+									device_->getId()
+								);
+								output_["result"] = "OK";
+								break;
+							}
+						}
+					
+						break;
+					}
+					default: break;
+				}
+			} )
+		} ) ) );
+	};
 	
 	const bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.

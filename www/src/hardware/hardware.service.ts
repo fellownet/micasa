@@ -18,6 +18,7 @@ export class Hardware {
 	label: string;
 	name: string;
 	type: string;
+	enabled: boolean;
 	state: string;
 	parent?: Hardware;
 }
@@ -95,7 +96,6 @@ export class HardwareService {
 		return Observable.throw( message );
 	};
 
-/*
 	openzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
 			.map( function( response_: Response ) {
@@ -131,6 +131,14 @@ export class HardwareService {
 			.catch( this._handleError )
 		;
 	};
-*/
+
+	openzwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
+		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleError )
+		;
+	};
 
 }

@@ -103,6 +103,7 @@ namespace micasa {
 		volatile State m_state = INIT;
 		
 		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
+		void _installDeviceResourceHandlers( const std::shared_ptr<Device> device_ );
 
 	}; // class Hardware
 

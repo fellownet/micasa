@@ -538,7 +538,7 @@ namespace micasa {
 			}
 				
 			default: {
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x (%s).", commandClass, label.c_str() );
+				//g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x (%s).", commandClass, label.c_str() );
 				break;
 			}
 		}
