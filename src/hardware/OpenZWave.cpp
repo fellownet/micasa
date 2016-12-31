@@ -28,7 +28,7 @@
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ ) {
 	auto target = reinterpret_cast<micasa::OpenZWave*>( handler_ );
 	target->_handleNotification( notification_ );
-}
+};
 
 namespace micasa {
 
@@ -36,8 +36,12 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<WebServer> g_webServer;
 
+	OpenZWave::OpenZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
+		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "port" );
+	};
+
 	void OpenZWave::start() {
-		
+
 		if ( ! this->m_settings.contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			return;
@@ -81,7 +85,7 @@ namespace micasa {
 		this->m_managerMutex.unlock();
 
 		Hardware::start();
-	}
+	};
 	
 	void OpenZWave::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
@@ -95,17 +99,21 @@ namespace micasa {
 		g_webServer->removeResourceCallback( "openzwave-" + std::to_string( this->m_id ) );
 		
 		Hardware::stop();
-	}
+	};
+	
+	const std::string OpenZWave::getLabel() const {
+		return this->m_settings.get<std::string>( "label", "OpenZWave" );
+	};
 	
 	const std::chrono::milliseconds OpenZWave::_work( const unsigned long int& iteration_ ) {
 		return std::chrono::milliseconds( 1000 * 60 * 60 );
-	}
+	};
 	
 	void OpenZWave::_handleNotification( const ::OpenZWave::Notification* notification_ ) {
 		this->m_managerMutex.lock();
 
 #ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+		//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
 #endif // _DEBUG
 		
 		unsigned int homeId = notification_->GetHomeId();
@@ -177,17 +185,23 @@ namespace micasa {
 						&& homeId == this->m_homeId
 					) {
 						std::string label = ::OpenZWave::Manager::Get()->GetNodeType( homeId, nodeId );
-						g_controller->declareHardware( Hardware::Type::OPEN_ZWAVE_NODE, reference.str(), this->shared_from_this(), label, {
+						g_controller->declareHardware( Hardware::Type::OPEN_ZWAVE_NODE, reference.str(), this->shared_from_this(), {
+							{ "label", label },
 							{ "home_id", std::to_string( homeId ) }
-						} );
+						}, true /* auto start */ );
 					}
 				}
 				
 				case ::OpenZWave::Notification::Type_NodeNaming: {
-					std::string manufacturer = ::OpenZWave::Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
-					std::string product = ::OpenZWave::Manager::Get()->GetNodeProductName( homeId, nodeId );
-					if ( ! manufacturer.empty() ) {
-						this->setLabel( manufacturer + " " + product );
+					if (
+						nodeId == this->m_controllerNodeId
+						&& homeId == this->m_homeId
+					) {
+						std::string manufacturer = ::OpenZWave::Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
+						std::string product = ::OpenZWave::Manager::Get()->GetNodeProductName( homeId, nodeId );
+						if ( ! manufacturer.empty() ) {
+							this->m_settings.put( "label", manufacturer + " " + product );
+						}
 					}
 					break;
 				}
@@ -351,7 +365,7 @@ namespace micasa {
 				
 		}
 */
-	}
+	};
 
 	void OpenZWave::_installResourceHandlers() const {
 		// Add resource handlers for network heal.
@@ -478,7 +492,6 @@ namespace micasa {
 			} )
 		} ) ) );
 	};
-	
 	
 }; // namespace micasa
 

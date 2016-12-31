@@ -2,6 +2,33 @@
 <h1>Timers<small>tick tack</small></h1>
 </section>
 
+<section class="content-body" *ngIf="timers.length==0 && !loading">
+
+	<div class="callout callout-info">
+		<h4>No Timers!</h4>
+		<p>There are no timers configured in your system.</p>
+	</div>
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-footer row actionrow">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>
+
 <section class="content-body" *ngIf="timers.length>0">
 
 	<div class="callout callout-danger" *ngIf="error">
@@ -15,10 +42,10 @@
 			<div class="box">
 				<div class="box-body table-responsive no-padding">
 
-<table class="table table-hover" [gridData]="timers" [gridSort]="'id'" #grid="GridDirective">
+<table class="table table-hover" [gridData]="timers" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
-		<th [gridField]="'id'">Id</th>
+		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
 		<th></th>
 		<th>Cron</th>
@@ -26,7 +53,7 @@
 </thead>
 <tbody>
 	<tr *ngFor="let timer of grid.page" (click)="selectTimer(timer)">
-		<td>{{timer.id}}</td>
+		<!-- td>{{timer.id}}</td -->
 		<td>{{timer.name}}</td>
 		<td>
 			<i class="fa fa-code" *ngIf="timer.scripts.length>0"></i>
@@ -34,11 +61,6 @@
 		<td>{{timer.cron}}</td>
 	</tr>
 </tbody>
-<tfoot>
-	<tr>
-		<td colspan="6" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
-	</tr>
-</tfoot>
 </table>
 
 				</div>

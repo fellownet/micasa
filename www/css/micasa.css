@@ -327,6 +327,9 @@ a:focus, button:focus {
 .box-body .table {
 	margin-bottom: 0;
 }
+.box-body p {
+	margin-bottom: 10px;
+}
 .box-body.chart-box {
 	padding: 0;
 }
@@ -512,9 +515,6 @@ div.paging {
 	display: inline-block;
 	margin: 10px 0;
 }
-.paging ul li a {
-	border-radius: 50%;
-}
 .actionrow .paging li {
 	margin: 0;
 }
@@ -567,9 +567,9 @@ div.paging {
 	color: #dd4b39;
 	font-size: 1.2em;
 }
-
-
-
+.dropdown-menu .pull-right {
+	margin-top:4px;
+}
 
 /* dashboard */
 

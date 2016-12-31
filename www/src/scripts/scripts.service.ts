@@ -18,7 +18,7 @@ export class Script {
 	name: string;
 	code?: string;
 	runs?: number;
-	status?: number;
+	enabled: boolean;
 }
 
 @Injectable()
@@ -38,7 +38,7 @@ export class ScriptsService {
 	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script> {
 		var me = this;
 		if ( route_.params['script_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here' } );
+			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
 		} else {
 			return new Observable( function( observer_: any ) {
 				me.getScript( +route_.params['script_id'] )
@@ -61,27 +61,15 @@ export class ScriptsService {
 	getScripts(): Observable<Script[]> {
 		return this._http.get( this._scriptUrlBase )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	getScript( id_: Number ): Observable<Script> {
 		return this._http.get( this._scriptUrlBase + '/' + id_ )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
-	};
-
-	private _handleError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
- 		}
-		return Observable.throw( message );
 	};
 
 	putScript( script_: Script ): Observable<Script> {

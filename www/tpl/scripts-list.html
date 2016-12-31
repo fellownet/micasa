@@ -2,6 +2,33 @@
 <h1>Scripts<small>scripting galore</small></h1>
 </section>
 
+<section class="content-body" *ngIf="scripts.length==0 && !loading">
+
+	<div class="callout callout-info">
+		<h4>No Scripts!</h4>
+		<p>There are no scripts configured in your system.</p>
+	</div>
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-footer row actionrow">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<button type="submit" class="btn btn-primary btn-block" (click)="addScript()">Add</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>
+
 <section class="content-body" *ngIf="scripts.length>0">
 
 	<div class="callout callout-danger" *ngIf="error">
@@ -15,24 +42,23 @@
 			<div class="box">
 				<div class="box-body table-responsive no-padding">
 
-<table class="table table-hover" [gridData]="scripts" [gridSort]="'id'" #grid="GridDirective">
+<table class="table table-hover" [gridData]="scripts" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
-		<th [gridField]="'id'">Id</th>
+		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th [gridField]="'status'">Status</th>
+		<th>State</th>
 		<th [gridField]="'runs'">Runs</th>
 	</tr>
 </thead>
 <tbody>
 	<tr *ngFor="let script of grid.page" (click)="selectScript(script)">
-		<td>{{script.id}}</td>
+		<!-- td>{{script.id}}</td -->
 		<td>{{script.name}}</td>
-		<td><span class="label"
-			[class.label-success]="script.status==1"
-			[class.label-warning]="script.status==2"
-			[class.label-danger]="script.status==3"
-			>{{script.status}}</span></td>
+		<td>
+			<span class="label label-success" *ngIf="script.enabled">enabled</span>
+			<span class="label label-danger" *ngIf="!script.enabled">disabled</span>
+		</td>
 		<td>{{script.runs}}</td>
 	</tr>
 </tbody>

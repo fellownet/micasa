@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <vector>
 
 namespace micasa {
 
@@ -32,6 +33,8 @@ namespace micasa {
 		template<typename T> T get( const std::string& key_, const T& default_ ) const;
 		const std::string& operator[]( const std::string& key_ ) const;
 		template<typename T> Settings* put( const std::string& key_, const T& value_ );
+		const std::map<std::string,std::string> getAll( const std::string& keys_, const bool& keepNotFounds_ = false ) const;
+		const std::map<std::string,std::string> getAll( const std::vector<std::string>& keys_, const bool& keepNotFounds_ = false ) const;
 		
 	private:
 		mutable bool m_dirty = false;

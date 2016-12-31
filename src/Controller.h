@@ -70,9 +70,8 @@ namespace micasa {
 		void stop();
 		
 		std::shared_ptr<Hardware> getHardware( const std::string reference_ ) const;
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::string label_, const std::map<std::string, std::string> settings_ );
-		void removeHardware( std::shared_ptr<Hardware> hardware_ );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
 		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
 
 	protected:
@@ -94,6 +93,8 @@ namespace micasa {
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		const TaskOptions _parseTaskOptions( const std::string& options_ ) const;
+		
+		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
 		void _updateScriptResourceHandlers() const;
 		void _updateCronResourceHandlers() const;
 		

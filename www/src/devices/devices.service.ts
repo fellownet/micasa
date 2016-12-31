@@ -73,6 +73,8 @@ export class DevicesService implements Resolve<Device> {
 		let uri: string = this._deviceUrlBase;
 		if ( hardware_ ) {
 			uri += '?hardware_id=' + hardware_.id;
+		} else {
+			uri += '?enabled=1';
 		}
 		return this._http.get( uri )
 			.map( this._extractData )
@@ -87,13 +89,15 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	putDevice( device_: Device ): Observable<Device> {
+	putDevice( device_: Device, updateValue_: boolean = false ): Observable<Device> {
 		let headers = new Headers( { 'Content-Type': 'application/json' } );
 		let options = new RequestOptions( { headers: headers } );
 		// Value should not be sent along with the update to prevent server warnings for
 		// invalid update source.
 		let data: Device = Object.assign( {}, device_ );
-		delete( data.value );
+		if ( ! updateValue_ ) {
+			delete( data.value );
+		}
 		return this._http.put( this._deviceUrlBase + '/' + device_.id, data, options )
 			.map( this._extractData )
 			.catch( this._handleError )

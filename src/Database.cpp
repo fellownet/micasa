@@ -136,6 +136,42 @@ namespace micasa {
 		return result;
 	};
 
+	template<> nlohmann::json Database::getQueryRow( const std::string& query_, ... ) const {
+		json result = json::object();
+		
+		va_list arguments;
+		va_start( arguments, query_ );
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
+			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
+				int columns = sqlite3_column_count( statement_ );
+				for ( int column = 0; column < columns; column++ ) {
+					std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_name( statement_, column ) ) );
+					switch( sqlite3_column_type( statement_, column ) ) {
+						case SQLITE_INTEGER:
+							result[key] = sqlite3_column_int( statement_, column );
+							break;
+						case SQLITE_FLOAT:
+							result[key] = sqlite3_column_double( statement_, column );
+							break;
+						case SQLITE_TEXT: {
+							const unsigned char* value = sqlite3_column_text( statement_, column );
+							result[key] = std::string( reinterpret_cast<const char*>( value ) );
+							break;
+						}
+						case SQLITE_BLOB:
+							// not supported (yet?)
+							break;
+						case SQLITE_NULL:
+							break;
+					}
+				}
+			}
+		} );
+		va_end( arguments );
+		
+		return result;
+	};
+
 	template<typename T> std::vector<T> Database::getQueryColumn( const std::string& query_, ... ) const {
 		std::vector<T> result;
 		

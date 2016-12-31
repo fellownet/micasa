@@ -5,6 +5,7 @@
 #include "../Utils.h"
 #include "../device/Switch.h"
 #include "../Network.h"
+#include "../Settings.h"
 
 #define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
 #define HARMONY_HUB_PING_INTERVAL_SEC	30
@@ -16,15 +17,19 @@ namespace micasa {
 
 	using namespace nlohmann;
 	
+	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
+		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "address,port" );
+	};
+	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
-	}
+	};
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
-	}
+	};
 
 	const std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
 		
@@ -83,7 +88,7 @@ namespace micasa {
 		// Waiting for 5 minutes ensures that a new connection is made at least every 5 minutes if
 		// an error has occured.
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	}
+	};
 	
 	bool HarmonyHub::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
@@ -128,14 +133,14 @@ namespace micasa {
 		}
 
 		return true;
-	}
+	};
 	
 	void HarmonyHub::_disconnect( const std::string message_ ) {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		this->m_connectionState = CLOSED;
 		this->_setState( Hardware::State::FAILED );
-	}
+	};
 	
 	void HarmonyHub::_processConnection( const bool ready_ ) {
 		if ( ready_ ) {
@@ -324,6 +329,6 @@ namespace micasa {
 		} else if ( this->m_connectionState != CLOSED ) {
 			this->_disconnect( "Connection closed." );
 		}
-	}
+	};
 	
 }; // namespace micasa

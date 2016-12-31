@@ -27,10 +27,9 @@ namespace micasa {
 
 		std::vector<std::map<std::string, std::string> > getQuery( const std::string& query_, ... ) const;
 		template<typename T> T getQuery( const std::string& query_, ... ) const;
-		std::map<std::string, std::string> getQueryRow( const std::string& query_, ... ) const ;
+		std::map<std::string, std::string> getQueryRow( const std::string& query_, ... ) const;
+		template<typename T> T getQueryRow( const std::string& query_, ... ) const;
 		template<typename T> std::vector<T> getQueryColumn( const std::string& query_, ... ) const;
-		// TODO getQuery template with t_json which puts it into json where the default is map
-		// TODO make template out of the method below vv
 		std::map<std::string, std::string> getQueryMap( const std::string& query_, ... ) const ;
 		template<typename T> T getQueryValue( const std::string& query_, ... ) const;
 		long putQuery( const std::string& query_, ... ) const;

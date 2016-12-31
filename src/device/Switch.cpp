@@ -51,7 +51,7 @@ namespace micasa {
 		// TODO does this make sense?
 		// Prevent the same updates.
 		if ( this->m_value == value_ ) {
-			return true; // update was successful but nothing has to happen
+			//return true; // update was successful but nothing has to happen
 		}
 		
 		// Make a local backup of the original value (the hardware might want to revert it).
@@ -70,7 +70,9 @@ namespace micasa {
 				"VALUES (%d, %d)"
 				, this->m_id, (unsigned int)value_
 			);
-			g_controller->newEvent<Switch>( *this, source_ );
+			if ( this->isRunning() ) {
+				g_controller->newEvent<Switch>( *this, source_ );
+			}
 			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
@@ -106,8 +108,13 @@ namespace micasa {
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
 				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 			);
+			return std::chrono::milliseconds( 1000 * 60 * 60 );
+		} else {
+			// To prevent all devices from crunching data at the same time an offset is used.
+			static volatile unsigned int offset = 0;
+			offset += ( 1000 * 20 ); // 20 seconds interval
+			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
-		return std::chrono::milliseconds( 1000 * 60 * 60 );
 	};
 	
 }; // namespace micasa

@@ -1,5 +1,7 @@
 #include "Utils.h"
 
+#include <algorithm>
+
 namespace micasa {
 
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, const bool strict_, std::string& result_ ) {
@@ -100,6 +102,20 @@ namespace micasa {
 		std::string sResult(pStart, pEnd);
 		delete [] pStart;
 		return sResult;
+	};
+	
+	std::string randomString( size_t length_ ) {
+		auto randchar = []() -> char {
+			const char charset[] =
+			"0123456789"
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			"abcdefghijklmnopqrstuvwxyz";
+			const size_t max_index = (sizeof(charset) - 1);
+			return charset[ rand() % max_index ];
+		};
+		std::string str( length_,0 );
+		std::generate_n( str.begin(), length_, randchar );
+		return str;
 	};
 	
 } // namespace micasa

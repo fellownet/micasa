@@ -1,5 +1,6 @@
 // restful
 // http://www.vinaysahni.com/best-practices-for-a-pragmatic-restful-api
+// http://www.restapitutorial.com/httpstatuscodes.html
 
 // mongoose
 // https://docs.cesanta.com/mongoose/master/

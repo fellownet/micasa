@@ -51,7 +51,9 @@ namespace micasa {
 				"VALUES (%d, %Q)"
 				, this->m_id, value_.c_str()
 			);
-			g_controller->newEvent<Text>( *this, source_ );
+			if ( this->isRunning() ) {
+				g_controller->newEvent<Text>( *this, source_ );
+			}
 			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
@@ -77,8 +79,13 @@ namespace micasa {
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
 				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 			);
+			return std::chrono::milliseconds( 1000 * 60 * 60 );
+		} else {
+			// To prevent all devices from crunching data at the same time an offset is used.
+			static volatile unsigned int offset = 0;
+			offset += ( 1000 * 25 ); // 25 seconds interval
+			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
-		return std::chrono::milliseconds( 1000 * 60 * 60 );
 	};
 	
 }; // namespace micasa

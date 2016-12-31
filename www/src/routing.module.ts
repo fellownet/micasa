@@ -3,7 +3,6 @@ import { NgModule }             from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
 import { LoginComponent }       from './login.component';
-import { SetupComponent }       from './setup.component';
 import { ScreenComponent }      from './screen.component';
 import { UsersComponent }       from './users.component';
 import { HelpComponent }        from './help.component';
@@ -20,7 +19,6 @@ const routes = [
 	{ path: 'login',       component: LoginComponent },
 	{ path: 'help',        component: HelpComponent, canActivate: [LoginService] },
 	{ path: 'dashboard',   component: ScreenComponent, canActivate: [LoginService], resolve: { screen: ScreenService } },
-	{ path: 'setup',       component: SetupComponent, canActivate: [LoginService] },
 	{ path: 'screen/:id',  component: ScreenComponent, canActivate: [LoginService], resolve: { screen: ScreenService } },
 	{ path: 'users',       component: UsersComponent, canActivate: [LoginService] }
 ];

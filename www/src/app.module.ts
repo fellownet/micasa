@@ -7,7 +7,6 @@ import { AppComponent }    from './app.component';
 import { RoutingModule }   from './routing.module';
 
 import { LoginComponent }  from './login.component';
-import { SetupComponent }  from './setup.component';
 import { HeaderComponent } from './header.component';
 import { MenuComponent }   from './menu.component';
 import { ScreenComponent } from './screen.component';
@@ -33,7 +32,7 @@ import 'rxjs/add/operator/toPromise';
 
 @NgModule( {
 	imports:      [ BrowserModule, FormsModule, HttpModule, RoutingModule, DevicesModule, HardwareModule, ScriptsModule, TimersModule ],
-	declarations: [ AppComponent, LoginComponent, SetupComponent, HeaderComponent, MenuComponent, ScreenComponent, UsersComponent, HelpComponent ],
+	declarations: [ AppComponent, LoginComponent, HeaderComponent, MenuComponent, ScreenComponent, UsersComponent, HelpComponent ],
 	bootstrap:    [ AppComponent ],
 	providers:    [ LoginService ]
 } )

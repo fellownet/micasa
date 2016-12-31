@@ -10,12 +10,12 @@ namespace micasa {
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`label` VARCHAR(255) NOT NULL, "
-		"`enabled` INTEGER DEFAULT 1, "
+		"`enabled` INTEGER DEFAULT 0, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_hardware_reference` ON `hardware`( `reference` )",
+		"CREATE INDEX IF NOT EXISTS `ix_hardware_enabled` ON `hardware`( `enabled` )",
 
 		// Devices
 		"CREATE TABLE IF NOT EXISTS `devices` ( "
@@ -24,10 +24,13 @@ namespace micasa {
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
 		"`label` VARCHAR(255) NOT NULL, "
+		"`enabled` INTEGER DEFAULT 1, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_devices_hardware_id_reference` ON `devices`( `hardware_id`, `reference` )",
+		"CREATE INDEX IF NOT EXISTS `ix_devices_hardware_id` ON `devices`( `hardware_id` )",
+		"CREATE INDEX IF NOT EXISTS `ix_devices_enabled` ON `devices`( `enabled` )",
 
 		// Device History
 		"CREATE TABLE IF NOT EXISTS `device_text_history` ( "
@@ -122,12 +125,9 @@ namespace micasa {
 		"`name` VARCHAR(255) NOT NULL, "
 		"`code` TEXT, "
 		"`language` VARCHAR(64) NOT NULL DEFAULT 'javascript', "
-		"`status` TINYINT DEFAULT 1, " // 1 = enabled, 2 = disabled, 3 = error
 		"`runs` BIGINT DEFAULT 0, "
-		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
-		"`last_device_id` INTEGER, "
-		"`last_run` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-		"FOREIGN KEY ( `last_device_id` ) REFERENCES `devices` ( `id` ) ON DELETE SET NULL ON UPDATE CASCADE )",
+		"`enabled` INTEGER DEFAULT 1, "
+		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL ) ",
 		
 		"CREATE TABLE IF NOT EXISTS `x_device_scripts` ( "
 		"`device_id` INTEGER NOT NULL, "
@@ -142,8 +142,6 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`name` VARCHAR(255) NOT NULL, "
 		"`cron` VARCHAR(64) NOT NULL, "
-		"`last_run` TIMESTAMP DEFAULT NULL, "
-		"`next_run` TIMESTAMP DEFAULT NULL, "
 		"`enabled` INTEGER DEFAULT 1, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL )",
 		

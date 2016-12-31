@@ -10,5 +10,6 @@ namespace micasa {
 	bool stringStartsWith( const std::string& haystack_, const std::string& search_ );
 	void stringSplit( std::string input_, const std::string& delim_, std::vector<std::string>& results_ );
 	std::string stringUriDecode(const std::string & sSrc);
+	std::string randomString( size_t length_ );
 	
 }; // namespace micasa

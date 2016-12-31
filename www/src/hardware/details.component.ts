@@ -1,6 +1,7 @@
 import { Component, OnInit }         from '@angular/core';
 import { Router, ActivatedRoute }    from '@angular/router';
 import { Hardware, HardwareService } from './hardware.service';
+import { Device }                    from '../devices/devices.service';
 
 declare var $: any;
 
@@ -38,6 +39,27 @@ export class HardwareDetailsComponent implements OnInit {
 				function( hardware_: Hardware ) {
 					me.loading = false;
 					me._router.navigate( [ '/hardware' ] );
+				},
+				function( error_: string ) {
+					me.loading = false;
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	deleteHardware() {
+		var me = this;
+		me.loading = true;
+		me._hardwareService.deleteHardware( me.hardware )
+			.subscribe(
+				function( success_: boolean ) {
+					me.loading = false;
+					if ( success_ ) {
+						me._router.navigate( [ '/hardware' ] );
+					} else {
+						this.error = 'Unable to delete hardware.';
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;
@@ -115,6 +137,25 @@ export class HardwareDetailsComponent implements OnInit {
 					$( '#openzwave-action' ).modal();
 				},
 				function( error_: string ) {
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	// Methods for the Dummy Hardware hardware.
+
+	dummyAddDevice( type_: string ) {
+		var me = this;
+		me.loading = true;
+		this._hardwareService.dummyAddDevice( me.hardware, type_ )
+			.subscribe(
+				function( device_: Device ) {
+					me.loading = false;
+					me._router.navigate( [ '/hardware/' + me.hardware.id + '/' + device_.id ] );
+				},
+				function( error_: string ) {
+					me.loading = false;
 					me.error = error_;
 				}
 			)

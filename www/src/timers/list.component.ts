@@ -28,12 +28,15 @@ export class TimersListComponent implements OnInit {
 
 	getTimers() {
 		var me = this;
+		me.loading = true;
 		this._timersService.getTimers()
 			.subscribe(
 				function( timers_: Timer[]) {
+					me.loading = false;
 					me.timers = timers_;
 				},
 				function( error_: String ) {
+					me.loading = false;
 					me.error = error_;
 				}
 			)
