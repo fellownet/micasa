@@ -13,18 +13,17 @@ import {
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
 
-export class Script {
+export class Timer {
 	id: number;
 	name: string;
-	code?: string;
-	runs?: number;
-	enabled: boolean;
+	cron: string;
+	scripts: number[];
 }
 
 @Injectable()
-export class ScriptsService {
+export class TimersService {
 
-	private _scriptUrlBase = 'api/scripts';
+	private _timerUrlBase = 'api/crons';
 
 	constructor(
 		private _router: Router,
@@ -33,22 +32,22 @@ export class ScriptsService {
 	};
 
 	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the script and injects it into the router state. If this fails the router
+	// method fetches the timer and injects it into the router state. If this fails the router
 	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script> {
+	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
 		var me = this;
-		if ( route_.params['script_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
+		if ( route_.params['timer_id'] == 'add' ) {
+			return Observable.of( { id: NaN, name: 'New timer', cron: '', scripts: [] } );
 		} else {
 			return new Observable( function( observer_: any ) {
-				me.getScript( +route_.params['script_id'] )
+				me.getTimer( +route_.params['timer_id'] )
 					.subscribe(
-						function( script_: Script ) {
-							observer_.next( script_ );
+						function( timer_: Timer ) {
+							observer_.next( timer_ );
 							observer_.complete();
 						},
 						function( error_: string ) {
-							me._router.navigate( [ '/scripts' ] );
+							me._router.navigate( [ '/timers' ] );
 							observer_.next( null );
 							observer_.complete();
 						}
@@ -58,38 +57,50 @@ export class ScriptsService {
 		}
 	}
 
-	getScripts(): Observable<Script[]> {
-		return this._http.get( this._scriptUrlBase )
+	getTimers(): Observable<Timer[]> {
+		return this._http.get( this._timerUrlBase )
 			.map( this._extractData )
-			.catch( this._handleHttpError )
+			.catch( this._handleError )
 		;
 	};
 
-	getScript( id_: Number ): Observable<Script> {
-		return this._http.get( this._scriptUrlBase + '/' + id_ )
+	getTimer( id_: Number ): Observable<Timer> {
+		return this._http.get( this._timerUrlBase + '/' + id_ )
 			.map( this._extractData )
-			.catch( this._handleHttpError )
+			.catch( this._handleError )
 		;
 	};
 
-	putScript( script_: Script ): Observable<Script> {
+	private _handleError( response_: Response | any ) {
+		let message: string;
+		if ( response_ instanceof Response ) {
+			const body = response_.json() || '';
+			const error = body.message || JSON.stringify( body );
+			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
+		} else {
+			message = response_.message ? response_.message : response_.toString();
+ 		}
+		return Observable.throw( message );
+	};
+
+	putTimer( timer_: Timer ): Observable<Timer> {
 		let headers = new Headers( { 'Content-Type': 'application/json' } );
 		let options = new RequestOptions( { headers: headers } );
-		if ( script_.id ) {
-			return this._http.put( this._scriptUrlBase + '/' + script_.id, script_, options )
+		if ( timer_.id ) {
+			return this._http.put( this._timerUrlBase + '/' + timer_.id, timer_, options )
 				.map( this._extractData )
 				.catch( this._handleHttpError )
 			;
 		} else {
-			return this._http.post( this._scriptUrlBase, script_, options )
+			return this._http.post( this._timerUrlBase, timer_, options )
 				.map( this._extractData )
 				.catch( this._handleHttpError )
 			;
 		}
 	};
 
-	deleteScript( script_: Script ): Observable<boolean> {
-		return this._http.delete( this._scriptUrlBase + '/' + script_.id )
+	deleteTimer( timer_: Timer ): Observable<boolean> {
+		return this._http.delete( this._timerUrlBase + '/' + timer_.id )
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )

@@ -1,12 +1,12 @@
 <section class="content-header">
-<h1>Scripts<small>scripting galore</small></h1>
+<h1>Timers<small>tick tack</small></h1>
 </section>
 
-<section class="content-body" *ngIf="scripts.length==0 && !loading">
+<section class="content-body" *ngIf="timers.length==0 && !loading">
 
 	<div class="callout callout-info">
-		<h4>No Scripts!</h4>
-		<p>There are no scripts configured in your system.</p>
+		<h4>No Timers!</h4>
+		<p>There are no timers configured in your system.</p>
 	</div>
 
 	<div class="callout callout-danger" *ngIf="error">
@@ -20,7 +20,7 @@
 			<div class="box">
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-primary btn-block" (click)="addScript()">Add</button>
+						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
 					</div>
 				</div>
 			</div>
@@ -29,7 +29,7 @@
 
 </section>
 
-<section class="content-body" *ngIf="scripts.length>0">
+<section class="content-body" *ngIf="timers.length>0">
 
 	<div class="callout callout-danger" *ngIf="error">
 		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
@@ -42,24 +42,23 @@
 			<div class="box">
 				<div class="box-body table-responsive no-padding">
 
-<table class="table table-hover" [gridData]="scripts" [gridSort]="'name'" #grid="GridDirective">
+<table class="table table-hover" [gridData]="timers" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th>State</th>
-		<th [gridField]="'runs'">Runs</th>
+		<th></th>
+		<th>Cron</th>
 	</tr>
 </thead>
 <tbody>
-	<tr *ngFor="let script of grid.page" (click)="selectScript(script)">
-		<!-- td>{{script.id}}</td -->
-		<td>{{script.name}}</td>
+	<tr *ngFor="let timer of grid.page" (click)="selectTimer(timer)">
+		<!-- td>{{timer.id}}</td -->
+		<td>{{timer.name}}</td>
 		<td>
-			<span class="label label-success" *ngIf="script.enabled">enabled</span>
-			<span class="label label-danger" *ngIf="!script.enabled">disabled</span>
+			<i class="fa fa-code" *ngIf="timer.scripts.length>0"></i>
 		</td>
-		<td>{{script.runs}}</td>
+		<td>{{timer.cron}}</td>
 	</tr>
 </tbody>
 </table>
@@ -67,7 +66,7 @@
 				</div>
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-primary btn-block" (click)="addScript()">Add</button>
+						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
 					</div>
 					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging">
 						<grid-paging [grid]="grid"></grid-paging>

@@ -129,15 +129,23 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 
 	void OpenZWaveNode::start() {
+		// TODO when this hardware is started and stopped while the openzwave parent hardware keeps running,
+		// the state remains initializing > fix. Check the parent initializing state. If it is still initializing
+		// do nothing, otherwise query the node our self. This still might overlap, so additional tweaking is
+		// probably necessary.
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
-	}
+	};
 	
 	void OpenZWaveNode::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		g_webServer->removeResourceCallback( "openzwavenode-" + std::to_string( this->m_id ) );
 		Hardware::stop();
-	}
+	};
+	
+	const std::string OpenZWaveNode::getLabel() const {
+		return this->m_settings.get<std::string>( "label", "OpenZWave Node" );
+	};
 	
 	bool OpenZWaveNode::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
@@ -195,15 +203,13 @@ namespace micasa {
 		return true;
 	};
 	
-	
 	void OpenZWaveNode::_handleNotification( const ::OpenZWave::Notification* notification_ ) {
+
 		// This method is proxied from the OpenZWave class which still holds the OpenZWave manager lock. This
 		// is required when processing notifications.
 
 		unsigned int homeId = notification_->GetHomeId();
 		unsigned char nodeId = notification_->GetNodeId();
-
-		//g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
 
 		switch( notification_->GetType() ) {
 				
@@ -538,7 +544,7 @@ namespace micasa {
 			}
 				
 			default: {
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x (%s).", commandClass, label.c_str() );
+				//g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x (%s).", commandClass, label.c_str() );
 				break;
 			}
 		}
@@ -548,7 +554,7 @@ namespace micasa {
 		std::string manufacturer = ::OpenZWave::Manager::Get()->GetNodeManufacturerName( homeId_, nodeId_ );
 		std::string product = ::OpenZWave::Manager::Get()->GetNodeProductName( homeId_, nodeId_ );
 		if ( ! manufacturer.empty() ) {
-			this->setLabel( manufacturer + " " + product );
+			this->m_settings.put( "label", manufacturer + " " + product );
 		}
 	};
 	

@@ -14,6 +14,8 @@
 
 #include "Logger.h"
 
+#include "json.hpp"
+
 namespace micasa {
 
 	class Database final {
@@ -24,11 +26,14 @@ namespace micasa {
 		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }
 
 		std::vector<std::map<std::string, std::string> > getQuery( const std::string& query_, ... ) const;
-		std::map<std::string, std::string> getQueryRow( const std::string& query_, ... ) const ;
+		template<typename T> T getQuery( const std::string& query_, ... ) const;
+		std::map<std::string, std::string> getQueryRow( const std::string& query_, ... ) const;
+		template<typename T> T getQueryRow( const std::string& query_, ... ) const;
 		template<typename T> std::vector<T> getQueryColumn( const std::string& query_, ... ) const;
 		std::map<std::string, std::string> getQueryMap( const std::string& query_, ... ) const ;
 		template<typename T> T getQueryValue( const std::string& query_, ... ) const;
 		long putQuery( const std::string& query_, ... ) const;
+		int getLastErrorCode() const;
 
 	private:
 		void _init() const;

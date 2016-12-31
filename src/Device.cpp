@@ -36,109 +36,6 @@ namespace micasa {
 		out_ << device_->m_hardware->getName() << " / " << device_->getName(); return out_;
 	};
 	
-	void Device::start() {
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + std::to_string( this->m_id ),
-			"api/devices",
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				if ( output_.is_null() ) {
-					output_ = nlohmann::json::array();
-				}
-				auto inputIt = input_.find( "hardware_id" );
-				if (
-					inputIt == input_.end()
-					|| input_["hardware_id"].get<std::string>() == std::to_string( this->m_hardware->getId() )
-				) {
-					output_ += this->getJson();
-				}
-			} )
-		} ) ) );
-
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ),
-			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_ = this->getJson();
-						break;
-					}
-						
-					case WebServer::Method::PUT:
-					case WebServer::Method::PATCH: {
-						try {
-							bool success = true;
-							if ( input_.find( "name" ) != input_.end() ) {
-								this->m_settings.put( "name", input_["name"].get<std::string>() );
-								this->m_settings.commit( *this );
-							}
-							if ( input_.find( "value" ) != input_.end() ) {
-								switch( this->getType() ) {
-									case COUNTER:
-										if ( input_["value"].is_string() ) {
-											success = success && this->updateValue<Counter>( Device::UpdateSource::API, std::stoi( input_["value"].get<std::string>() ) );
-										} else if ( input_["value"].is_number() ) {
-											success = success && this->updateValue<Counter>( Device::UpdateSource::API, input_["value"].get<int>() );
-										} else {
-											success = false;
-											output_["message"] = "Invalid value.";
-										}
-										break;
-									case LEVEL:
-										if ( input_["value"].is_string() ) {
-											success = success && this->updateValue<Level>( Device::UpdateSource::API, std::stof( input_["value"].get<std::string>() ) );
-										} else if ( input_["value"].is_number() ) {
-											success = success && this->updateValue<Level>( Device::UpdateSource::API, input_["value"].get<double>() );
-										} else {
-											success = false;
-											output_["message"] = "Invalid value.";
-										}
-										break;
-									case SWITCH:
-										success = success && this->updateValue<Switch>( Device::UpdateSource::API, input_["value"].get<std::string>() );
-										break;
-									case TEXT:
-										success = success && this->updateValue<Text>( Device::UpdateSource::API, input_["value"].get<std::string>() );
-										break;
-								}
-							}
-							if ( success ) {
-								output_["result"] = "OK";
-							} else {
-								output_["result"] = "ERROR";
-							}
-							g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
-						} catch( ... ) {
-							output_["result"] = "ERROR";
-							output_["message"] = "Unable to update device.";
-							code_ = 400; // bad request
-						}
-						break;
-					}
-					case WebServer::Method::DELETE: {
-						output_["result"] = "ERROR";
-						output_["message"] = "Deleting is not implemented.";
-						code_ = 501; // not implemented
-						break;
-					}
-					default: break;
-				}
-			} )
-		} ) ) );
-
-		Worker::start();
-	};
-	
-	void Device::stop() {
-		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) );
-		if ( this->m_settings.isDirty() ) {
-			this->m_settings.commit( *this );
-		}
-		Worker::stop();
-	};
-	
 	const std::string Device::getName() const {
 		return this->m_settings.get( "name", this->m_label );
 	};
@@ -204,12 +101,34 @@ namespace micasa {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
+			{ "enabled", this->isRunning() },
 			{ "hardware", this->m_hardware->getJson() },
-			// TODO the age on resources on the webpage doesn't update if the device doesn't, so lastUpdate might
-			// be better somehow.
 			{ "age", std::chrono::duration_cast<std::chrono::milliseconds>( age ).count() / 1000. }
 		};
 		return result;
+	};
+	
+	void Device::setScripts( std::vector<unsigned int>& scriptIds_ ) {
+		std::stringstream list;
+		unsigned int index = 0;
+		for ( auto scriptIdsIt = scriptIds_.begin(); scriptIdsIt != scriptIds_.end(); scriptIdsIt++ ) {
+			list << ( index > 0 ? "," : "" ) << (*scriptIdsIt);
+			index++;
+			g_database->putQuery(
+				"INSERT OR IGNORE INTO `x_device_scripts` "
+				"(`device_id`, `script_id`) "
+				"VALUES (%d, %d)",
+				this->getId(),
+				(*scriptIdsIt)
+			);
+		}
+		g_database->putQuery(
+			"DELETE FROM `x_device_scripts` "
+			"WHERE `device_id`=%d "
+			"AND `script_id` NOT IN (%q)",
+			this->getId(),
+			list.str().c_str()
+		);
 	};
 
 }; // namespace micasa

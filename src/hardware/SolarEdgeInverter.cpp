@@ -19,15 +19,23 @@ namespace micasa {
 	
 	using namespace nlohmann;
 	
+	SolarEdgeInverter::SolarEdgeInverter( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
+		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "api_key,site_id,serial" );
+	};
+	
 	void SolarEdgeInverter::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
-	}
+	};
 	
 	void SolarEdgeInverter::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
-	}
+	};
+
+	const std::string SolarEdgeInverter::getLabel() const {
+		return this->m_settings.get<std::string>( "label", "SolarEdge Inverter" );
+	};
 	
 	const std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
 		
@@ -36,8 +44,6 @@ namespace micasa {
 			this->_setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
-
-		this->_setState( Hardware::State::READY );
 
 		auto dates = g_database->getQueryRow(
 			"SELECT date('now','-1 day','localtime') AS `startdate`, "
@@ -52,11 +58,17 @@ namespace micasa {
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
 				this->_processHttpReply( connection_, (http_message*)data_ );
+			} else if (
+				event_ == MG_EV_CLOSE
+				&& this->getState() == Hardware::State::INIT
+			) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
+				this->_setState( Hardware::State::FAILED );
 			}
 		} ) );
 		
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	}
+	};
 	
 	void SolarEdgeInverter::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
 		std::string body;
@@ -106,6 +118,8 @@ namespace micasa {
 					} );
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}
+
+				this->_setState( Hardware::State::READY );
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
@@ -113,6 +127,6 @@ namespace micasa {
 		}
 		
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-	}
+	};
 	
 }; // namespace micasa

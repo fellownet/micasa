@@ -3,6 +3,7 @@
 #include "Database.h"
 #include "Hardware.h"
 #include "Device.h"
+#include "Utils.h"
 
 namespace micasa {
 	
@@ -13,7 +14,7 @@ namespace micasa {
 	void Settings::insert( const std::map<std::string, std::string> settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( settings_.begin(), settings_.end() );
-	}
+	};
 	
 	bool Settings::contains( const std::initializer_list<std::string> settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
@@ -23,12 +24,12 @@ namespace micasa {
 			}
 		}
 		return true;
-	}
+	};
 
 	unsigned int Settings::count() const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		return this->m_settings.size();
-	}
+	};
 	
 	void Settings::populate() {
 		this->m_settings.clear();
@@ -129,7 +130,7 @@ namespace micasa {
 			//this->m_dirty = true;
 			return default_;
 		}
-	}
+	};
 	
 	const std::string& Settings::operator[]( const std::string& key_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
@@ -168,6 +169,32 @@ namespace micasa {
 			this->m_dirty = true;
 		}
 		return this;
-	}
+	};
+
+	const std::map<std::string,std::string> Settings::getAll( const std::string& keys_, const bool& keepNotFounds_ ) const {
+		std::vector<std::string> keys;
+		stringSplit( keys_, ",", keys );
+		return this->getAll( keys );
+	};
+	
+	const std::map<std::string,std::string> Settings::getAll( const std::vector<std::string>& keys_, const bool& keepNotFounds_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		std::map<std::string,std::string> results;
+		for ( auto keysIt = keys_.begin(); keysIt != keys_.end(); keysIt++ ) {
+			std::string value = NOT_FOUND;
+			try {
+				value = this->m_settings.at( *keysIt );
+			} catch( std::out_of_range exception_ ) {
+				/* ignore */
+			}
+			if (
+				value != NOT_FOUND
+				|| keepNotFounds_
+			) {
+				results[*keysIt] = value;
+			}
+		}
+		return results;
+	};
 
 }; // namespace micasa

@@ -20,11 +20,13 @@ namespace micasa {
 		friend void ::micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 		
 	public:
-		OpenZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ ) : Hardware( id_, type_, reference_, parent_, label_ ) { };
+		OpenZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		~OpenZWave() { };
 		
 		void start() override;
 		void stop() override;
+		
+		const std::string getLabel() const;
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) { return false; };
 
 	protected:

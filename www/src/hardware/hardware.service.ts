@@ -12,14 +12,17 @@ import {
 	RequestOptions
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
+import { Device }          from '../devices/devices.service';
 
 export class Hardware {
 	id: number;
 	label: string;
 	name: string;
 	type: string;
+	enabled: boolean;
 	state: string;
 	parent?: Hardware;
+	settings: any;
 }
 
 @Injectable()
@@ -53,19 +56,23 @@ export class HardwareService {
 				)
 			;
 		} );
-	}
+	};
 
-	getHardwareList(): Observable<Hardware[]> {
-		return this._http.get( this._hardwareUrlBase )
+	getHardwareList( parent_?: Hardware ): Observable<Hardware[]> {
+		let uri: string = this._hardwareUrlBase;
+		if ( parent_ ) {
+			uri += '?hardware_id=' + parent_.id;
+		}
+		return this._http.get( uri )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	getHardware( id_: Number ): Observable<Hardware> {
 		return this._http.get( this._hardwareUrlBase + '/' + id_ )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
@@ -74,7 +81,35 @@ export class HardwareService {
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id, hardware_, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	addHardware( type_: string ): Observable<Hardware> {
+		let headers = new Headers( { 'Content-Type': 'application/json' } );
+		let options = new RequestOptions( { headers: headers } );
+		let data: any = {
+			type: type_,
+			name: 'New Hardware'
+		};
+		return this._http.post( this._hardwareUrlBase, data, options )
+			.map( function( response_: Response ) {
+				let body = response_.json();
+				if ( body && body.hardware ) {
+					return body.hardware;
+				}
+				return null;
+			} )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	deleteHardware( hardware_: Hardware ): Observable<boolean> {
+		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id )
+			.map( function( response_: Response ) {
+				return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleHttpError )
 		;
 	};
 
@@ -83,7 +118,7 @@ export class HardwareService {
 		return body || null;
 	};
 
-	private _handleError( response_: Response | any ) {
+	private _handleHttpError( response_: Response | any ) {
 		let message: string;
 		if ( response_ instanceof Response ) {
 			const body = response_.json() || '';
@@ -95,13 +130,12 @@ export class HardwareService {
 		return Observable.throw( message );
 	};
 
-/*
 	openzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
@@ -110,7 +144,7 @@ export class HardwareService {
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
@@ -119,7 +153,7 @@ export class HardwareService {
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
@@ -128,9 +162,36 @@ export class HardwareService {
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
-*/
+
+	openzwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
+		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	dummyAddDevice( hardware_: Hardware, type_: string ): Observable<Device> {
+		let headers = new Headers( { 'Content-Type': 'application/json' } );
+		let options = new RequestOptions( { headers: headers } );
+		let data: any = {
+			type: type_,
+			name: 'New Dummy Device'
+		};
+		return this._http.post( this._hardwareUrlBase + '/' + hardware_.id, data, options )
+			.map( function( response_: Response ) {
+				let body = response_.json();
+				if ( body && body.device ) {
+					return body.device;
+				}
+				return null;
+			} )
+			.catch( this._handleHttpError )
+		;
+	};
 
 }

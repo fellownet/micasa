@@ -27,22 +27,21 @@ namespace micasa {
 
 	void Dummy::_installResourceHandlers() {
 
-		// Add resource handlers for creating or deleting dummy devices.
+		// Add resource handlers for creating dummy devices. Note that deleting devices is handled through
+		// the general hardware delete resource handler.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"dummy-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
-			WebServer::Method::POST | WebServer::Method::DELETE,
+			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::POST: {
-						
 						unsigned int index = g_database->getQueryValue<unsigned int>(
 							"SELECT MAX(`reference`) "
 							"FROM `devices` "
 							"WHERE `hardware_id`=%d"
 							, this->m_id
 						);
-						
 						try {
 							if (
 								input_.find( "type" ) != input_.end()
@@ -52,26 +51,30 @@ namespace micasa {
 									auto device = this->_declareDevice<Counter>( std::to_string( ++index ), "Counter", {
 										{ "name", input_["name"].get<std::string>() },
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									} );
+									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
+									output_["device"] = device->getJson();
 								} else if ( input_["type"].get<std::string>() == "level" ) {
 									auto device = this->_declareDevice<Level>( std::to_string( ++index ), "Level", {
 										{ "name", input_["name"].get<std::string>() },
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									} );
+									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
+									output_["device"] = device->getJson();
 								} else if ( input_["type"].get<std::string>() == "text" ) {
 									auto device = this->_declareDevice<Text>( std::to_string( ++index ), "Text", {
 										{ "name", input_["name"].get<std::string>() },
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									} );
+									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
+									output_["device"] = device->getJson();
 								} else if ( input_["type"].get<std::string>() == "switch" ) {
 									auto device = this->_declareDevice<Switch>( std::to_string( ++index ), "Switch", {
 										{ "name", input_["name"].get<std::string>() },
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									} );
+									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+									output_["device"] = device->getJson();
 								}
 								output_["result"] = "OK";
 							} else {
@@ -84,9 +87,6 @@ namespace micasa {
 							output_["message"] = "Unable to create dummy device.";
 							code_ = 400; // bad request
 						}
-						break;
-					}
-					case WebServer::Method::DELETE: {
 						break;
 					}
 					default: break;

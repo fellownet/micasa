@@ -44,9 +44,6 @@ namespace micasa {
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 		virtual const Type getType() const =0;
 		
-		virtual void start();
-		virtual void stop();
-
 		const unsigned int getId() const { return this->m_id; };
 		const std::string getReference() const { return this->m_reference; };
 		const std::string& getLabel() const { return this->m_label; };
@@ -57,6 +54,7 @@ namespace micasa {
 		Settings& getSettings() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
 		virtual json getJson() const;
+		void setScripts( std::vector<unsigned int>& scriptIds_ );
 		
 	protected:
 		std::shared_ptr<Hardware> m_hardware;

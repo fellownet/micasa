@@ -196,6 +196,21 @@ else()
 ENDIF( OPENSSL_FOUND )
 
 #
+# Check for Libusb
+#
+FIND_PATH( LIBUSB_INCLUDE_DIR NAMES usb.h )
+FIND_LIBRARY( LIBUSB_LIBRARY NAMES usb )
+FIND_PACKAGE_HANDLE_STANDARD_ARGS( LIBUSB DEFAULT_MSG LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+IF( LIBUSB_FOUND )
+	MESSAGE( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
+	MESSAGE( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
+	INCLUDE_DIRECTORIES( ${LIBUSB_INCLUDE_DIR} )
+	target_link_libraries( micasa ${LIBUSB_LIBRARY} )
+ELSE()
+	MESSAGE( FATAL_ERROR "Libusb not found on your system. Try:\nsudo apt-get install libusb libusb-dev" )
+ENDIF( LIBUSB_FOUND )
+
+#
 # Check for SQLite3
 #
 FIND_PATH( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )

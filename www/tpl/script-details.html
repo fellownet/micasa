@@ -29,16 +29,18 @@
 						<input type="text" class="form-control" id="script_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="script.name" name="name" #name="ngModel">
 					</div>
 					<div class="alert alert-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+					<div class="form-group">
+						<div class="checkbox">
+							<label><input type="checkbox" value="1" [(ngModel)]="script.enabled" name="enabled">Enabled</label>
+						</div>
+					</div>
 				</div>
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!scriptForm.form.valid || loading">Save</button>
 					</div>
-					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2">
+					<div class="col-xs-12 col-sm-offset-4 col-sm-4 col-md-offset-6 col-md-3 col-lg-offset-8 col-lg-2" *ngIf="script.id">
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteScript()">Delete</button>
-					</div>
-					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="button" class="btn btn-danger btn-block" (click)="cancelEdit()">Cancel</button>
 					</div>
 				</div>
 				</form>

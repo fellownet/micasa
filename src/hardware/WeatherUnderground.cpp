@@ -18,15 +18,19 @@ namespace micasa {
 
 	using namespace nlohmann;
 
+	WeatherUnderground::WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
+		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "api_key,location,scale" );
+	};
+
 	void WeatherUnderground::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
-	}
+	};
 	
 	void WeatherUnderground::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
-	}
+	};
 	
 	const std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
 		
@@ -36,14 +40,18 @@ namespace micasa {
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
-		this->_setState( Hardware::State::READY );
-		
 		std::stringstream url;
 		url << "http://api.wunderground.com/api/" << this->m_settings["api_key"] << "/conditions/q/" << this->m_settings["location"] << ".json";
 
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
 				this->_processHttpReply( connection_, (http_message*)data_ );
+			}  else if (
+				event_ == MG_EV_CLOSE
+				&& this->getState() == Hardware::State::INIT
+			) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
+				this->_setState( Hardware::State::FAILED );
 			}
 		} ) );
 		
@@ -112,11 +120,15 @@ namespace micasa {
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}
 					}
+
+					this->_setState( Hardware::State::READY );
+
 				} else {
 					if (
 						data["response"]["error"].is_object()
 						&& ! data["response"]["error"]["description"].is_null()
 					) {
+						this->_setState( Hardware::State::FAILED );
 						g_logger->log( Logger::LogLevel::ERROR, this, data["response"]["error"]["description"].get<std::string>() );
 					}
 				}
@@ -127,6 +139,6 @@ namespace micasa {
 		}
 		
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-	}
+	};
 	
 }; // namespace micasa

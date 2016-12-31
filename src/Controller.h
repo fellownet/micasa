@@ -70,9 +70,8 @@ namespace micasa {
 		void stop();
 		
 		std::shared_ptr<Hardware> getHardware( const std::string reference_ ) const;
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::string label_, const std::map<std::string, std::string> settings_ );
-		void removeHardware( std::shared_ptr<Hardware> hardware_ );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
 		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
 
 	protected:
@@ -84,16 +83,20 @@ namespace micasa {
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;
 		mutable std::mutex m_scriptsMutex;
+		mutable std::mutex m_cronsMutex;
 		Settings m_settings;
 		
-		void _processEvent( const nlohmann::json& event_ );
+		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		const TaskOptions _parseTaskOptions( const std::string& options_ ) const;
+		
+		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
 		void _updateScriptResourceHandlers() const;
+		void _updateCronResourceHandlers() const;
 		
 	}; // class Controller
 

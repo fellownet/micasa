@@ -27,8 +27,7 @@ namespace micasa {
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
-				// TODO return data in its target format (float for level)
-				std::vector<std::map<std::string, std::string> > data = g_database->getQuery(
+				output_ = g_database->getQuery<json>(
 					"SELECT * FROM ( "
 						"SELECT `average` AS `value`, strftime('%%s',`date`) AS `timestamp` "
 						"FROM `device_level_trends` "
@@ -47,8 +46,6 @@ namespace micasa {
 					") ",
 					this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 				);
-				output_ = data;
-
 			} )
 		} ) ) );
 
@@ -83,7 +80,9 @@ namespace micasa {
 				"VALUES (%d, %.3f)"
 				, this->m_id, value_
 			);
-			g_controller->newEvent<Level>( *this, source_ );
+			if ( this->isRunning() ) {
+				g_controller->newEvent<Level>( *this, source_ );
+			}
 			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
@@ -131,8 +130,13 @@ namespace micasa {
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
 				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
+			return std::chrono::milliseconds( 1000 * 60 * 5 );
+		} else {
+			// To prevent all devices from crunching data at the same time an offset is used.
+			static volatile unsigned int offset = 0;
+			offset += ( 1000 * 10 ); // 10 seconds interval
+			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 
 }; // namespace micasa

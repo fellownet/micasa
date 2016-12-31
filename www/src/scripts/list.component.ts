@@ -28,12 +28,15 @@ export class ScriptsListComponent implements OnInit {
 
 	getScripts() {
 		var me = this;
+		me.loading = true;
 		this._scriptsService.getScripts()
 			.subscribe(
 				function( scripts_: Script[]) {
+					me.loading = false;
 					me.scripts = scripts_;
 				},
 				function( error_: String ) {
+					me.loading = false;
 					me.error = error_;
 				}
 			)

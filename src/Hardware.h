@@ -14,7 +14,11 @@
 #include "Device.h"
 #include "Settings.h"
 
+#define HARDWARE_SETTINGS_ALLOWED "_allowed_settings"
+
 namespace micasa {
+
+	using namespace nlohmann;
 
 	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
 		
@@ -37,9 +41,9 @@ namespace micasa {
 		static const std::map<Type, std::string> TypeText;
 
 		enum State {
-			INIT = 1,
+			DISABLED = 1,
+			INIT,
 			READY,
-			DISABLED,
 			FAILED,
 			SLEEPING
 		}; // enum State
@@ -54,7 +58,7 @@ namespace micasa {
 			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
 		
-		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
+		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		virtual ~Hardware();
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
@@ -67,12 +71,13 @@ namespace micasa {
 		const State getState() const;
 		template<typename T> const T getState() const;
 		const std::string& getReference() const { return this->m_reference; };
-		const std::string& getLabel() const { return this->m_label; };
 		const std::string getName() const;
-		void setLabel( const std::string& label_ );
 		Settings& getSettings() { return this->m_settings; };
-		const nlohmann::json getJson() const;
+		void setSettings( const std::map<std::string,std::string>& settings_ );
+		virtual json getJson() const;
+		const std::shared_ptr<Hardware>& getParent() { return this->m_parent; };
 
+		virtual const std::string getLabel() const =0;
 		virtual bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
 	protected:
@@ -86,7 +91,7 @@ namespace micasa {
 		std::shared_ptr<Device> _getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
-		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_ );
+		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
 		
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
@@ -95,14 +100,14 @@ namespace micasa {
 		const unsigned int _releasePendingUpdate( const std::string& reference_ );
 
 	private:
-		std::string m_label;
 		std::vector<std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
-		volatile State m_state = INIT;
+		volatile State m_state = DISABLED;
 		
-		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_, std::string label_ );
+		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
+		void _installDeviceResourceHandlers( const std::shared_ptr<Device> device_ );
 
 	}; // class Hardware
 

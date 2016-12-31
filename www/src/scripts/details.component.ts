@@ -59,6 +59,7 @@ export class ScriptDetailsComponent implements OnInit {
 
 	deleteScript() {
 		var me = this;
+		me.loading = true;
 		me._scriptsService.deleteScript( me.script )
 			.subscribe(
 				function( success_: boolean ) {
@@ -75,10 +76,6 @@ export class ScriptDetailsComponent implements OnInit {
 				}
 			)
 		;
-	};
-
-	cancelEdit() {
-		this._router.navigate( [ '/scripts' ] );
 	};
 
 }
