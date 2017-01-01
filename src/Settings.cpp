@@ -173,7 +173,7 @@ namespace micasa {
 
 	const std::map<std::string,std::string> Settings::getAll( const std::string& keys_, const bool& keepNotFounds_ ) const {
 		std::vector<std::string> keys;
-		stringSplit( keys_, ",", keys );
+		stringSplit( keys_, ',', keys );
 		return this->getAll( keys );
 	};
 	

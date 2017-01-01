@@ -17,6 +17,7 @@ export class Timer {
 	id: number;
 	name: string;
 	cron: string;
+	enabled: boolean;
 	scripts: number[];
 }
 
