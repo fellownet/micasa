@@ -1,6 +1,8 @@
 #include "Utils.h"
 
 #include <algorithm>
+#include <sstream>
+#include <iostream>
 
 namespace micasa {
 
@@ -27,15 +29,17 @@ namespace micasa {
 		return std::equal( search_.begin(), search_.end(), haystack_.begin() );
 	};
 	
-	void stringSplit( std::string input_, const std::string& delim_, std::vector<std::string>& results_ ) {
-		results_.clear();
-		size_t cutAt;
-		while( ( cutAt = input_.find( delim_ ) ) != std::string::npos ) {
-			results_.push_back( input_.substr( 0, cutAt ) );
-			input_ = input_.substr( cutAt + delim_.size() );
-		}
-		if ( ! input_.empty() ) {
-			results_.push_back( input_ );
+	std::vector<std::string> stringSplit( const std::string& input_, const char& delim_ ) {
+		std::vector<std::string> results;
+		stringSplit( input_, delim_, results );
+		return results;
+	};
+	
+	void stringSplit( const std::string& input_, const char& delim_, std::vector<std::string>& results_ ) {
+		std::string token = "";
+		std::stringstream stream( input_ );
+		while( std::getline( stream, token, delim_ ) ) {
+			results_.push_back( token );
 		}
 	};
 	

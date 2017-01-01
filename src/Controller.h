@@ -74,9 +74,6 @@ namespace micasa {
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
 		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
 
-	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
-
 	private:
 		std::vector<std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
@@ -86,7 +83,9 @@ namespace micasa {
 		mutable std::mutex m_cronsMutex;
 		Settings m_settings;
 		
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
+		void _runCrons();
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );

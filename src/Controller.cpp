@@ -380,6 +380,59 @@ namespace micasa {
 	template void Controller::newEvent( const Counter& device_, const unsigned int& source_ );
 	template void Controller::newEvent( const Text& device_, const unsigned int& source_ );
 	
+	const milliseconds Controller::_work( const unsigned long int& iteration_ ) {
+		auto now = system_clock::now();
+		
+		// See if we need to run the crons (every round minute).
+		static unsigned int minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
+		if ( minuteSinceEpoch < duration_cast<minutes>( now.time_since_epoch() ).count() ) {
+			this->_runCrons();
+		}
+		
+		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
+		// the fact that _scheduleTask keeps the list sorted on scheduled time.
+		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
+		auto taskQueueIt = this->m_taskQueue.begin();
+		while(
+			taskQueueIt != this->m_taskQueue.end()
+			&& (*taskQueueIt)->scheduled <= now + milliseconds( 5 )
+		) {
+			std::shared_ptr<Task> task = (*taskQueueIt);
+			
+			switch( task->device->getType() ) {
+				case Device::Type::COUNTER:
+					std::static_pointer_cast<Counter>( task->device )->updateValue( task->source, task->counterValue );
+					break;
+				case Device::Type::LEVEL:
+					std::static_pointer_cast<Level>( task->device )->updateValue( task->source, task->levelValue );
+					break;
+				case Device::Type::SWITCH:
+					std::static_pointer_cast<Switch>( task->device )->updateValue( task->source, task->switchValue );
+					break;
+				case Device::Type::TEXT:
+					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
+					break;
+			}
+			
+			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
+		}
+		
+		// This method should run a least every minute for cron jobs to run. The 5ms is a safe margin to make sure
+		// the whole minute has passed.
+		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
+
+		// If there's nothing in the queue anymore we can wait the default duration before investigating the queue
+		// again. This is because the _scheduleTask method will wake us up if there's work to do anyway.
+		if ( taskQueueIt != this->m_taskQueue.end() ) {
+			auto delay = duration_cast<milliseconds>( (*taskQueueIt)->scheduled - now );
+			if ( delay < wait ) {
+				wait = delay;
+			}
+		}
+
+		return wait;
+	};
+	
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
 		// Event processing is done in a separate thread to prevent scripts from blocking hardare updates.
 		// TODO insert a task that checks if the script isn't running for more than xx seconds? This requires that
@@ -474,6 +527,140 @@ namespace micasa {
 		thread.detach();
 	};
 
+	void Controller::_runCrons() {
+		std::lock_guard<std::mutex> lock( this->m_cronsMutex );
+		
+		auto crons = g_database->getQuery(
+			"SELECT DISTINCT c.`id`, c.`cron`, c.`name` "
+			"FROM `crons` c, `x_cron_scripts` x, `scripts` s "
+			"WHERE c.`id`=x.`cron_id` "
+			"AND s.`id`=x.`script_id` "
+			"AND c.`enabled`=1 "
+			"AND s.`enabled`=1 "
+			"ORDER BY c.`id` ASC"
+		);
+		for ( auto cronIt = crons.begin(); cronIt != crons.end(); cronIt++ ) {
+			try {
+				bool run = true;
+			
+				// Split the cron string into exactly 5 fields; m h dom mon dow.
+				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
+				auto fields = stringSplit( (*cronIt)["cron"], ' ' );
+				if ( fields.size() != 5 ) {
+					throw std::runtime_error( "invalid number of cron fields" );
+				}
+				for ( unsigned int field = 0; field <= 4; field++ ) {
+
+					// Determine the values that are valid for each field by parsing the field and
+					// filling an array with valid values.
+					std::vector<std::string> subexpressions;
+					if ( fields[field].find( "," ) != std::string::npos ) {
+						subexpressions = stringSplit( fields[field], ',' );
+					} else {
+						subexpressions.push_back( fields[field] );
+					}
+				
+					std::vector<unsigned int> rangeitems;
+
+					for ( auto& subexpression : subexpressions ) {
+						unsigned int start = extremes[field].first;
+						unsigned int end = extremes[field].second;
+						unsigned int modulo = 0;
+
+						if ( subexpression.find( "/" ) != std::string::npos ) {
+							auto parts = stringSplit( subexpression, '/' );
+							if ( parts.size() != 2 ) {
+								throw std::runtime_error( "invalid cron field devider" );
+							}
+							modulo = std::stoi( parts[1] );
+							subexpression = parts[0];
+						}
+						
+						if ( subexpression.find( "-" ) != std::string::npos ) {
+							auto parts = stringSplit( subexpression, '-' );
+							if ( parts.size() != 2 ) {
+								throw std::runtime_error( "invalid cron field range" );
+							}
+							start = std::stoi( parts[0] );
+							end = std::stoi( parts[1] );
+						} else if (
+							subexpression != "*"
+							&& modulo == 0
+						) {
+							start = std::stoi( subexpression );
+							end = start;
+						}
+						
+						for ( unsigned int index = start; index <= end; index++ ) {
+							if ( modulo > 0 ) {
+								int remainder = index % modulo;
+								if ( subexpression == "*" ) {
+									if ( 0 == remainder ) {
+										rangeitems.push_back( index );
+									}
+								} else if ( remainder == std::stoi( subexpression ) ) {
+									rangeitems.push_back( index );
+								}
+							} else {
+								rangeitems.push_back( index );
+							}
+						}
+					}
+					
+					// Then we need to check if the current value for the field is available in the
+					// array with valid items.
+					time_t rawtime;
+					time( &rawtime );
+
+					struct tm* timeinfo;
+					timeinfo = localtime( &rawtime );
+				
+					unsigned int current;
+					switch( field ) {
+						case 0: current = timeinfo->tm_min; break;
+						case 1: current = timeinfo->tm_hour; break;
+						case 2: current = timeinfo->tm_mday; break;
+						case 3: current = timeinfo->tm_mon + 1; break;
+						case 4: current = timeinfo->tm_wday == 0 ? 7 : timeinfo->tm_wday; break;
+					}
+
+					if ( std::find( rangeitems.begin(), rangeitems.end(), current ) == rangeitems.end() ) {
+						run = false;
+					}
+
+					// If this field didn't match there's no need to investigate the other fields.
+					if ( ! run ) {
+						break;
+					}
+				}
+			
+				if ( run ) {
+					json data = (*cronIt);
+					this->_runScripts( "cron", data, g_database->getQuery(
+						"SELECT s.`id`, s.`name`, s.`code`, s.`runs` "
+						"FROM `x_cron_scripts` x, `scripts` s "
+						"WHERE x.`script_id`=s.`id` "
+						"AND x.`cron_id`=%q "
+						"AND s.`enabled`=1 "
+						"ORDER BY s.`id` ASC",
+						(*cronIt)["id"].c_str()
+					) );
+				}
+
+			} catch( std::exception ex_ ) {
+			
+				// Something went wrong while parsing the cron. The cron is marked as disabled.
+				g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for %s (%s).", (*cronIt).at( "name" ).c_str(), ex_.what() );
+				g_database->putQuery(
+					"UPDATE `crons` "
+					"SET `enabled`=0 "
+					"WHERE `id`=%q",
+					(*cronIt).at( "id" ).c_str()
+				);
+			}
+		}
+	};
+
 	std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
@@ -565,202 +752,12 @@ namespace micasa {
 		this->wakeUp();
 	};
 
-	const milliseconds Controller::_work( const unsigned long int& iteration_ ) {
-		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
-
-		auto now = system_clock::now();
-		static unsigned int minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
-		if ( minuteSinceEpoch < duration_cast<minutes>( now.time_since_epoch() ).count() ) {
-
-			std::lock_guard<std::mutex> lock( this->m_cronsMutex );
-			minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
-
-			auto crons = g_database->getQuery(
-				"SELECT `id`, `cron`, `name` "
-				"FROM `crons` "
-				"WHERE `enabled`=1 "
-				"ORDER BY `id` ASC"
-			);
-			for ( auto cronIt = crons.begin(); cronIt != crons.end(); cronIt++ ) {
-			
-				try { // invalid crons throw std::runtime_error exceptions
-			
-					bool run = true;
-			
-					// TODO regexp the entire cron for added security? client side has the regexp in place.
-					// TODO get inspired by https://github.com/davidmoreno/garlic/blob/master/src/cron.cpp
-					// TODO take UTC into account. now() on systemclock is in utc > maybe attach user with user timezone?
-			
-					// First the entiry cron is plit up in parts. There should be exactly 5 parts, m h dom mon dow.
-					std::vector<std::string> cronParts;
-					stringSplit( (*cronIt)["cron"], " ", cronParts );
-					if ( cronParts.size() != 5 ) {
-						throw std::runtime_error( "invalid number of cron parts" );
-						continue;
-					}
-					for ( unsigned int index = 0; index <= 4; index++ ) {
-						std::string cronPart = cronParts[index];
-					
-						// Then a list is processed. A single entry is wrapped into a list for convenience. Then each
-						// entry in the list is processed further.
-						std::vector<std::string> list;
-						if ( cronPart.find( "," ) != std::string::npos ) {
-							stringSplit( cronPart, ",", list );
-						} else {
-							list.push_back( cronPart );
-						}
-						for ( auto listIt = list.begin(); listIt != list.end(); listIt++ ) {
-							std::string entry = (*listIt);
-						
-							// Then we're looking for every other x style forward-slashes. These act like a modulo, so
-							// store it in the modulo var.
-							unsigned int modulo = 60;
-							if ( entry.find( "/" ) != std::string::npos ) {
-								std::vector<std::string> entryParts;
-								stringSplit( entry, "/", entryParts );
-								if ( entryParts.size() != 2 ) {
-									throw std::runtime_error( "invalid cron interval syntax" );
-								}
-								modulo = std::stoi( entryParts[1] );
-								if ( modulo == 0 ) {
-									throw std::runtime_error( "invalid cron interval" );
-								}
-								entry = entryParts[0];
-							}
-							
-							// Then we're looking for ranges in the form of xx-xx.
-							unsigned int min;
-							unsigned int max;
-							if ( entry.find( "-" ) != std::string::npos ) {
-								std::vector<std::string> entryParts;
-								stringSplit( entry, "-", entryParts );
-								if ( entryParts.size() != 2 ) {
-									throw std::runtime_error( "invalid cron range syntax" );
-								}
-								min = std::stoi( entryParts[0] );
-								max = std::stoi( entryParts[1] );
-							} else {
-								if ( entry == "*" ) {
-									min = max = minuteSinceEpoch % 60;
-								} else {
-									min = max = std::stoi( entry );
-									if ( min > max ) {
-										throw std::runtime_error( "invalid cron range" );
-									}
-								}
-							}
-
-							// Then we're going to determine if the cron should run or not.
-							switch( index ) {
-								case 0: { // m
-									if (
-										( minuteSinceEpoch % 60 ) % modulo < min
-										|| ( minuteSinceEpoch % 60 ) % modulo > max
-									) {
-										run = false;
-									}
-									break;
-								}
-								case 1: { // h
-									/*
-									if (
-										( minuteSinceEpoch % 1440 ) < min * 60
-										|| ( minuteSinceEpoch % 1440 ) > max * 60
-									) {
-										g_logger->logr( Logger::LogLevel::VERBOSE, this, "NOP 2" );
-										run = false;
-									}
-									*/
-									break;
-								}
-								case 2: { // dom
-									break;
-								}
-								case 3: { // mon
-									break;
-								}
-								case 4: { // dow
-									break;
-								}
-							}
-							
-							
-							
-							
-							
-						}
-					}
-					
-
-					if ( run ) {
-						json data = (*cronIt);
-						data["minute"] = minuteSinceEpoch % 60;
-						data["hour"] = ( minuteSinceEpoch % 1440 ) / 60;
-						this->_runScripts( "cron", data, g_database->getQuery(
-							"SELECT s.`id`, s.`name`, s.`code`, s.`runs` "
-							"FROM `x_cron_scripts` x, `scripts` s "
-							"WHERE x.`script_id`=s.`id` "
-							"AND x.`cron_id`=%q "
-							"AND s.`enabled`=1 "
-							"ORDER BY s.`id` ASC",
-							(*cronIt)["id"].c_str()
-						) );
-					}
-				} catch( const std::exception& exception_ ) {
-					g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron (%s).", exception_.what() );
-				}
-			}
-		}
-		
-		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
-		// the fact that _scheduleTask keeps the list sorted on scheduled time.
-		auto taskQueueIt = this->m_taskQueue.begin();
-		while(
-			taskQueueIt != this->m_taskQueue.end()
-			&& (*taskQueueIt)->scheduled <= now + milliseconds( 5 )
-		) {
-			std::shared_ptr<Task> task = (*taskQueueIt);
-			
-			switch( task->device->getType() ) {
-				case Device::Type::COUNTER:
-					std::static_pointer_cast<Counter>( task->device )->updateValue( task->source, task->counterValue );
-					break;
-				case Device::Type::LEVEL:
-					std::static_pointer_cast<Level>( task->device )->updateValue( task->source, task->levelValue );
-					break;
-				case Device::Type::SWITCH:
-					std::static_pointer_cast<Switch>( task->device )->updateValue( task->source, task->switchValue );
-					break;
-				case Device::Type::TEXT:
-					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
-					break;
-			}
-			
-			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
-		}
-		
-		// This method should run a least every minute for cron jobs to run. The 5ms is a safe margin to make sure
-		// the whole minute has passed.
-		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
-
-		// If there's nothing in the queue anymore we can wait the default duration before investigating the queue
-		// again. This is because the _scheduleTask method will wake us up if there's work to do anyway.
-		if ( taskQueueIt != this->m_taskQueue.end() ) {
-			auto delay = duration_cast<milliseconds>( (*taskQueueIt)->scheduled - now );
-			if ( delay < wait ) {
-				wait = delay;
-			}
-		}
-
-		return wait;
-	};
-
 	const Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
 		int lastTokenType = 0;
-		std::vector<std::string> optionParts;
 		TaskOptions result = { 0, 0, 1, 0, false, false };
 
-		stringSplit( options_, " ", optionParts );
+		std::vector<std::string> optionParts;
+		stringSplit( options_, ' ', optionParts );
 		for ( auto partsIt = optionParts.begin(); partsIt != optionParts.end(); ++partsIt ) {
 			std::string part = *partsIt;
 			std::transform( part.begin(), part.end(), part.begin(), ::toupper );
@@ -1214,7 +1211,7 @@ namespace micasa {
 					case WebServer::Method::GET: {
 						output_ = json::array();
 						auto crons = g_database->getQuery<json>(
-							"SELECT `id`, `name`, `cron` "
+							"SELECT `id`, `name`, `cron`, `enabled` "
 							"FROM `crons` "
 							"ORDER BY `id` ASC"
 						);
@@ -1314,26 +1311,43 @@ namespace micasa {
 										input_["cron"].get<std::string>().c_str(),
 										cronId
 									);
-									if (
-										input_.find( "scripts") != input_.end()
-										&& input_["scripts"].is_array()
-									) {
-										setScripts( input_["scripts"], cronId );
+								}
+								
+								if (
+									input_.find( "scripts") != input_.end()
+									&& input_["scripts"].is_array()
+								) {
+									setScripts( input_["scripts"], cronId );
+								}
+
+								// The enabled property can be used to enable or disable the script.
+								if ( input_.find( "enabled") != input_.end() ) {
+									bool enabled = true;
+									if ( input_["enabled"].is_boolean() ) {
+										enabled = input_["enabled"].get<bool>();
 									}
-									output_["result"] = "OK";
-									output_["cron"] = g_database->getQueryRow<json>(
-										"SELECT `id`, `name`, `cron` "
-										"FROM `crons` "
-										"WHERE `id`=%d "
-										"ORDER BY `id` ASC",
+									if ( input_["enabled"].is_number() ) {
+										enabled = input_["enabled"].get<unsigned int>() > 0;
+									}
+									g_database->putQuery(
+										"UPDATE `crons` "
+										"SET `enabled`=%d "
+										"WHERE `id`=%d ",
+										enabled ? 1 : 0,
 										cronId
 									);
-									g_webServer->touchResourceCallback( "controller-crons" );
-								} else {
-									output_["result"] = "ERROR";
-									output_["message"] = "Missing parameters.";
-									code_ = 400; // bad request
 								}
+
+								output_["result"] = "OK";
+								output_["cron"] = g_database->getQueryRow<json>(
+									"SELECT `id`, `name`, `cron`, `enabled` "
+									"FROM `crons` "
+									"WHERE `id`=%d "
+									"ORDER BY `id` ASC",
+									cronId
+								);
+								g_webServer->touchResourceCallback( "controller-crons" );
+
 							} catch( ... ) {
 								output_["result"] = "ERROR";
 								output_["message"] = "Unable to save cron.";
@@ -1343,7 +1357,7 @@ namespace micasa {
 						}
 						case WebServer::Method::GET: {
 							output_ = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `cron` "
+								"SELECT `id`, `name`, `cron`, `enabled` "
 								"FROM `crons` "
 								"WHERE `id`=%d "
 								"ORDER BY `id` ASC",

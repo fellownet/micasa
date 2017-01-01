@@ -187,7 +187,7 @@ namespace micasa {
 	
 	void Hardware::setSettings( const std::map<std::string,std::string>& settings_ ) {
 		std::vector<std::string> allowedSettings;
-		stringSplit( this->m_settings.get<std::string>( HARDWARE_SETTINGS_ALLOWED, "" ), ",", allowedSettings );
+		stringSplit( this->m_settings.get<std::string>( HARDWARE_SETTINGS_ALLOWED, "" ), ',', allowedSettings );
 		for ( auto allowedSettingsIt = allowedSettings.begin(); allowedSettingsIt != allowedSettings.end(); allowedSettingsIt++ ) {
 			if ( settings_.count( *allowedSettingsIt ) > 0 ) {
 				this->m_settings.put( *allowedSettingsIt, settings_.at( *allowedSettingsIt ) );
