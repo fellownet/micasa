@@ -295,9 +295,7 @@ namespace micasa {
 		g_webServer->removeResourceCallback( "controller" );
 		g_webServer->removeResourceCallback( "controller-scripts" );
 		g_webServer->removeResourceCallback( "controller-crons" );
-#ifdef _WITH_LIBUDEV
 		g_webServer->removeResourceCallback( "controller-usb" );
-#endif // _WITH_LIBUDEV
 
 		Worker::stop();
 

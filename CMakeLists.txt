@@ -75,25 +75,48 @@ endif()
 option( WITH_OPENZWAVE "Build with OpenZWave libraries" YES )
 if( WITH_OPENZWAVE )
 	message( STATUS "Build with OpenZWave libraries" )
-	ExternalProject_Add(
-		OpenZWave
+	if( NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" )
+		ExternalProject_Add(
+			OpenZWave
 
-		GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-		# just fetch the most recent configs
-		#GIT_TAG "v1.4"
+			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
+			# just fetch the most recent configs
+			#GIT_TAG "v1.4"
 
-		UPDATE_COMMAND ""
-		PATCH_COMMAND ""
-		TEST_COMMAND ""
+			UPDATE_COMMAND ""
+			PATCH_COMMAND ""
+			TEST_COMMAND ""
 
-		SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
-		PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
+			SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
+			PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
 
-		CONFIGURE_COMMAND ""
-		BUILD_COMMAND make
-		BUILD_IN_SOURCE 1
-		INSTALL_COMMAND ""
-	)
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND make
+			BUILD_IN_SOURCE 1
+			INSTALL_COMMAND ""
+		)
+	else()
+		ExternalProject_Add(
+			OpenZWave
+
+			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
+			# just fetch the most recent configs
+			#GIT_TAG "v1.4"
+
+			UPDATE_COMMAND ""
+			PATCH_COMMAND ""
+			TEST_COMMAND ""
+
+			SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
+			PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
+
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND gmake
+			BUILD_IN_SOURCE 1
+			INSTALL_COMMAND ""
+		)
+	endif()
+
 	set( OPENZWAVE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave/cpp/src )
 	set( OPENZWAVE_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave )
 
