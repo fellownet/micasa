@@ -22,6 +22,7 @@ export class Device {
 	type: string;
 	enabled: boolean;
 	value?: any; // is optional for updates
+	unit: string;
 	scripts: number[];
 }
 

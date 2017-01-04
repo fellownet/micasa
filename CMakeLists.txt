@@ -2,8 +2,8 @@ project( "micasa" )
 
 cmake_minimum_required( VERSION 2.8.7 )
 
-INCLUDE( ExternalProject )
-INCLUDE( FindPackageHandleStandardArgs )
+include( ExternalProject )
+include( FindPackageHandleStandardArgs )
 
 #
 # Set sources directory.
@@ -29,8 +29,6 @@ set( SRC
 	src/Database.cpp
 
 	# hardware
-	src/hardware/OpenZWave.cpp
-	src/hardware/OpenZWaveNode.cpp
 	src/hardware/RFXCom.cpp
 	src/hardware/PiFace.cpp
 	src/hardware/PiFaceBoard.cpp
@@ -57,8 +55,9 @@ find_package( Threads REQUIRED )
 # Set debug mode.
 #
 option( DEBUG "Build debug release" NO )
-if ( DEBUG )
-	set(CMAKE_BUILD_TYPE Debug)
+if( DEBUG )
+	message( STATUS "Building DEBUG release" )
+	set( CMAKE_BUILD_TYPE Debug )
 	add_definitions( -D_DEBUG )
 endif()
 
@@ -66,7 +65,7 @@ endif()
 # Set SSL mode.
 #
 option( ENABLE_SSL "Build with SSL" NO )
-if ( ENABLE_SSL )
+if( ENABLE_SSL )
 	add_definitions( -D_WITH_SSL )
 endif()
 
@@ -74,34 +73,62 @@ endif()
 # Add and compile open-zwave project.
 #
 option( WITH_OPENZWAVE "Build with OpenZWave libraries" YES )
-if ( WITH_OPENZWAVE )
-	MESSAGE( STATUS "Build with static OpenZWave libraries." )
-	ExternalProject_Add(
-		OpenZWave
+if( WITH_OPENZWAVE )
+	message( STATUS "Build with OpenZWave libraries" )
+	if( NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" )
+		ExternalProject_Add(
+			OpenZWave
 
-		GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-		# just fetch the most recent configs
-		#GIT_TAG "v1.4"
+			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
+			# just fetch the most recent configs
+			#GIT_TAG "v1.4"
 
-		UPDATE_COMMAND ""
-		PATCH_COMMAND ""
-		TEST_COMMAND ""
+			UPDATE_COMMAND ""
+			PATCH_COMMAND ""
+			TEST_COMMAND ""
 
-		SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
-		PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
+			SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
+			PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
 
-		CONFIGURE_COMMAND ""
-		BUILD_COMMAND make
-		BUILD_IN_SOURCE 1
-		INSTALL_COMMAND ""
-	)
-	SET( OPENZWAVE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave/cpp/src )
-	SET( OPENZWAVE_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave )
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND make
+			BUILD_IN_SOURCE 1
+			INSTALL_COMMAND ""
+		)
+	else()
+		ExternalProject_Add(
+			OpenZWave
+
+			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
+			# just fetch the most recent configs
+			#GIT_TAG "v1.4"
+
+			UPDATE_COMMAND ""
+			PATCH_COMMAND ""
+			TEST_COMMAND ""
+
+			SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/open-zwave"
+			PREFIX "${CMAKE_SOURCE_DIR}/lib/open-zwave-prefix"
+
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND gmake
+			BUILD_IN_SOURCE 1
+			INSTALL_COMMAND ""
+		)
+	endif()
+
+	set( OPENZWAVE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave/cpp/src )
+	set( OPENZWAVE_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/open-zwave )
 
 	add_library( OpenZWaveLib STATIC IMPORTED )
 	set_target_properties( OpenZWaveLib PROPERTIES IMPORTED_LOCATION ${OPENZWAVE_LIB_DIR}/libopenzwave.a )
 
-	add_definitions( -DWITH_OPENZWAVE )
+	add_definitions( -D_WITH_OPENZWAVE )
+
+	set( SRC ${SRC}
+		src/hardware/OpenZWave.cpp
+		src/hardware/OpenZWaveNode.cpp
+	)
 endif()
 
 #
@@ -124,14 +151,12 @@ set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -D
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
 
 #
-# Set the target directory.
-#
-#set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
-
-#
 # Set compiler options.
 #
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11 -pthread" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11" )
+if( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
+endif()
 
 #
 # Configure executable.
@@ -144,88 +169,82 @@ add_executable( micasa ${SRC} )
 target_link_libraries( micasa ${PThreadLib})
 
 #
-# OpenZWave needs libudev.
+# Check for Libudev.
 #
-if ( WITH_OPENZWAVE )
-	IF ( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" )
-		MESSAGE( STATUS "Building on FreeBSD, libudev not needed." )
-	else()
-		find_library( UDEV NAMES libudev.a )
-		IF( UDEV )
-			message( STATUS ${UDEV} )
-			#target_link_libraries( micasa ${UDEV} -lrt )
-		else()
-			find_library( UDEV NAMES libudev.so )
-			IF( UDEV )
-				message( STATUS ${UDEV} )
-				#target_link_libraries( micasa ${UDEV} -lrt )
-			else()
-				MESSAGE( FATAL_ERROR "Library libudev not found on your system. Try:\nsudo apt-get install libudev-dev" )
-			ENDIF(UDEV)
-		ENDIF(UDEV)
-	ENDIF()
-	include_directories( ${OPENZWAVE_INCLUDE_DIR} )
-	add_dependencies( micasa OpenZWave )
-	target_link_libraries( micasa OpenZWaveLib ${UDEV} -lrt )
-endif()
+find_path( LIBUDEV_INCLUDE_DIR NAMES libudev.h )
+find_library( LIBUDEV_LIBRARY NAMES udev )
+find_package_handle_standard_args( Libudev "Libudev not found" LIBUDEV_LIBRARY LIBUDEV_INCLUDE_DIR )
+if( LIBUDEV_FOUND )
+	message( STATUS "Libudev libraries found at: ${LIBUDEV_LIBRARY}" )
+	message( STATUS "Libudev includes found at: ${LIBUDEV_INCLUDE_DIR}" )
+	include_directories( ${LIBUDEV_INCLUDE_DIR} )
+	target_link_libraries( micasa ${LIBUDEV_LIBRARY} )
+	add_definitions( -D_WITH_LIBUDEV )
+endif( LIBUDEV_FOUND )
 
 #
-# Check for cURL.
+# OpenZWave needs libudev. While it is optional for micasa, it is not for OpenZWave.
 #
-FIND_PACKAGE( CURL )
-IF( CURL_FOUND )
-	MESSAGE( STATUS "cURL libraries found at: ${CURL_LIBRARIES}" )
-	MESSAGE( STATUS "cURL includes found at: ${CURL_INCLUDE_DIRS}" )
-	INCLUDE_DIRECTORIES( ${CURL_INCLUDE_DIRS} )
-	target_link_libraries( micasa ${CURL_LIBRARIES} )
-else()
-	MESSAGE( FATAL_ERROR "cURL not found on your system. Try:\nsudo apt-get install curl libcurl4-openssl-dev" )
-ENDIF( CURL_FOUND )
+if( WITH_OPENZWAVE )
+	if( NOT LIBUDEV_FOUND )
+		if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+			message( STATUS "Building on FreeBSD or Darwin, libudev not needed for OpenZWave." )
+			include_directories( ${OPENZWAVE_INCLUDE_DIR} )
+			add_dependencies( micasa OpenZWave )
+
+			#
+			# Check for Libusb.
+			#
+			find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
+			find_library( LIBUSB_LIBRARY NAMES usb )
+			find_package_handle_standard_args( Libusb "Libusb not found" LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+			if( LIBUSB_FOUND )
+				message( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
+				message( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
+				include_directories( ${LIBUSB_INCLUDE_DIR} )
+				target_link_libraries( micasa OpenZWaveLib ${LIBUSB_LIBRARY} )
+			else()
+				message( FATAL_ERROR "Libusb not found on your system." )
+			endif()
+
+			if( CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+				set( IOKIT_LIBRARY "-framework IOKit -framework CoreFoundation" CACHE FILEPATH "IOKit framework" FORCE )
+				target_link_libraries( micasa ${IOKIT_LIBRARY} )
+			endif()
+		else()
+			message( FATAL_ERROR "Libudev not found on your system." )
+		endif()
+	else()
+		include_directories( ${OPENZWAVE_INCLUDE_DIR} )
+		add_dependencies( micasa OpenZWave )
+		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} )
+	endif()
+endif()
 
 #
 # Check for OpenSSL
 #
-FIND_PACKAGE( OpenSSL )
-IF( OPENSSL_FOUND )
-	MESSAGE( STATUS "OpenSSL libraries found at: ${OPENSSL_LIBRARIES}" )
-	MESSAGE( STATUS "OpenSSL includes found at: ${OPENSSL_INCLUDE_DIRS}" )
-	INCLUDE_DIRECTORIES( ${OPENSSL_INCLUDE_DIRS} )
+find_package( OpenSSL REQUIRED )
+if( OPENSSL_FOUND )
+	message( STATUS "OpenSSL libraries found at: ${OPENSSL_LIBRARIES}" )
+	message( STATUS "OpenSSL includes found at: ${OPENSSL_INCLUDE_DIRS}" )
+	include_directories( ${OPENSSL_INCLUDE_DIRS} )
 	target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
 else()
-	MESSAGE( FATAL_ERROR "OpenSSL not found on your system." )
-ENDIF( OPENSSL_FOUND )
-
-#
-# Check for Libusb
-#
-FIND_PATH( LIBUSB_INCLUDE_DIR NAMES usb.h )
-FIND_LIBRARY( LIBUSB_LIBRARY NAMES usb )
-FIND_PACKAGE_HANDLE_STANDARD_ARGS( LIBUSB DEFAULT_MSG LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
-IF( LIBUSB_FOUND )
-	MESSAGE( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
-	MESSAGE( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
-	INCLUDE_DIRECTORIES( ${LIBUSB_INCLUDE_DIR} )
-	target_link_libraries( micasa ${LIBUSB_LIBRARY} )
-ELSE()
-	MESSAGE( FATAL_ERROR "Libusb not found on your system. Try:\nsudo apt-get install libusb libusb-dev" )
-ENDIF( LIBUSB_FOUND )
+	message( FATAL_ERROR "OpenSSL not found on your system." )
+endif( OPENSSL_FOUND )
 
 #
 # Check for SQLite3
 #
-FIND_PATH( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
-FIND_LIBRARY( SQLITE3_LIBRARY NAMES sqlite3 )
-FIND_PACKAGE_HANDLE_STANDARD_ARGS( SQLITE3 DEFAULT_MSG SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR )
-IF( SQLITE3_FOUND )
-	MESSAGE( STATUS "SQLite3 libraries found at: ${SQLITE3_LIBRARY}" )
-	MESSAGE( STATUS "SQLite3 includes found at: ${SQLITE3_INCLUDE_DIR}" )
-	INCLUDE_DIRECTORIES( ${SQLITE3_INCLUDE_DIR} )
+find_path( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
+find_library( SQLITE3_LIBRARY NAMES sqlite3 )
+find_package_handle_standard_args( SQLite3 "SQLite3 not found" SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR )
+if( SQLITE3_FOUND )
+	message( STATUS "SQLite3 libraries found at: ${SQLITE3_LIBRARY}" )
+	message( STATUS "SQLite3 includes found at: ${SQLITE3_INCLUDE_DIR}" )
+	include_directories( ${SQLITE3_INCLUDE_DIR} )
 	target_link_libraries( micasa ${SQLITE3_LIBRARY} )
-ELSE()
-	MESSAGE( FATAL_ERROR "SQLite3 not found on your system. Try:\nsudo apt-get install sqlite3 libsqlite3-dev" )
-ENDIF( SQLITE3_FOUND )
-
-#
-# Add the install targets.
-#
-#install( TARGETS micasa DESTINATION bin )
+else()
+	message( FATAL_ERROR "SQLite3 not found on your system." )
+endif( SQLITE3_FOUND )

@@ -85,7 +85,7 @@ namespace micasa {
 						) {
 							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
+								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::FAHRENHEIT ) }
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
@@ -94,7 +94,7 @@ namespace micasa {
 					   ) {
 							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings["location"], {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
+								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::CELCIUS ) }
 							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}

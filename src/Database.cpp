@@ -38,7 +38,7 @@ namespace micasa {
 		}
 	};
 
-	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string& query_, ... ) const {
+	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string query_, ... ) const {
 		std::vector<std::map<std::string, std::string> > result;
 
 		va_list arguments;
@@ -69,7 +69,7 @@ namespace micasa {
 		return result;
 	};
 
-	template<> nlohmann::json Database::getQuery( const std::string& query_, ... ) const {
+	template<> nlohmann::json Database::getQuery( const std::string query_, ... ) const {
 		json result = json::array();
 		
 		va_list arguments;
@@ -111,7 +111,7 @@ namespace micasa {
 		return result;
 	};
 
-	std::map<std::string, std::string> Database::getQueryRow( const std::string& query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryRow( const std::string query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -136,7 +136,7 @@ namespace micasa {
 		return result;
 	};
 
-	template<> nlohmann::json Database::getQueryRow( const std::string& query_, ... ) const {
+	template<> nlohmann::json Database::getQueryRow( const std::string query_, ... ) const {
 		json result = json::object();
 		
 		va_list arguments;
@@ -172,7 +172,7 @@ namespace micasa {
 		return result;
 	};
 
-	template<typename T> std::vector<T> Database::getQueryColumn( const std::string& query_, ... ) const {
+	template<typename T> std::vector<T> Database::getQueryColumn( const std::string query_, ... ) const {
 		std::vector<T> result;
 		
 		va_list arguments;
@@ -200,13 +200,13 @@ namespace micasa {
 	};
 
 	// The above template is specialized for the types listed below.
-	template std::vector<int> Database::getQueryColumn( const std::string& query_, ... ) const;
-	template std::vector<unsigned int> Database::getQueryColumn( const std::string& query_, ... ) const;
-	template std::vector<double> Database::getQueryColumn( const std::string& query_, ... ) const;
+	template std::vector<int> Database::getQueryColumn( const std::string query_, ... ) const;
+	template std::vector<unsigned int> Database::getQueryColumn( const std::string query_, ... ) const;
+	template std::vector<double> Database::getQueryColumn( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
 	// specialized implementation.
-	template<> std::vector<std::string> Database::getQueryColumn( const std::string& query_, ... ) const {
+	template<> std::vector<std::string> Database::getQueryColumn( const std::string query_, ... ) const {
 		std::vector<std::string> result;
 		
 		va_list arguments;
@@ -231,7 +231,7 @@ namespace micasa {
 		return result;
 	};
 
-	std::map<std::string, std::string> Database::getQueryMap( const std::string& query_, ... ) const {
+	std::map<std::string, std::string> Database::getQueryMap( const std::string query_, ... ) const {
 		std::map<std::string, std::string> result;
 
 		va_list arguments;
@@ -261,7 +261,7 @@ namespace micasa {
 		return result;
 	};
 
-	template<typename T> T Database::getQueryValue( const std::string& query_, ... ) const {
+	template<typename T> T Database::getQueryValue( const std::string query_, ... ) const {
 		std::string result;
 
 		va_list arguments;
@@ -285,13 +285,13 @@ namespace micasa {
 	};
 	
 	// The above template is specialized for the types listed below.
-	template int Database::getQueryValue( const std::string& query_, ... ) const;
-	template unsigned int Database::getQueryValue( const std::string& query_, ... ) const;
-	template double Database::getQueryValue( const std::string& query_, ... ) const;
+	template int Database::getQueryValue( const std::string query_, ... ) const;
+	template unsigned int Database::getQueryValue( const std::string query_, ... ) const;
+	template double Database::getQueryValue( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
 	// specialized implementation.
-	template<> std::string Database::getQueryValue<std::string>( const std::string& query_, ... ) const {
+	template<> std::string Database::getQueryValue<std::string>( const std::string query_, ... ) const {
 		std::string result;
 		
 		va_list arguments;
@@ -312,7 +312,7 @@ namespace micasa {
 		return result;
 	};
 	
-	long Database::putQuery( const std::string& query_, ... ) const {
+	long Database::putQuery( const std::string query_, ... ) const {
 		va_list arguments;
 		va_start( arguments, query_ );
 		long insertId = -1;

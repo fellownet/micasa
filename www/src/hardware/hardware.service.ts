@@ -25,10 +25,19 @@ export class Hardware {
 	settings: any;
 }
 
+export class Port {
+	path: string;
+	id_product: string;
+	id_vendor: string;
+	manufacturer: string;
+	product: string;
+}
+
 @Injectable()
 export class HardwareService {
 
 	private _hardwareUrlBase = 'api/hardware';
+	private _portsUrlBase = 'api/usb';
 
 	constructor(
 		private _router: Router,
@@ -109,6 +118,13 @@ export class HardwareService {
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	getPorts(): Observable<Port[]> {
+		return this._http.get( this._portsUrlBase )
+			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};

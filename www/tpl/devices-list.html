@@ -27,7 +27,7 @@
 <table class="table table-hover" [gridData]="devices" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
-		<th [gridField]="'id'">Id</th>
+		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
 		<th></th>
 		<th>Value</th>
@@ -40,7 +40,7 @@
 	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)"
 		[class.danger]="!device.enabled"
 	>
-		<td>{{device.id}}</td>
+		<!-- td>{{device.id}}</td -->
 		<td>{{device.name}}</td>
 		<td>
 			<i class="fa fa-code" *ngIf="device.scripts.length>0"></i>
@@ -49,7 +49,7 @@
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"
 			[class.label-info]="device.value!='On' && device.value!='Off'"
-			>{{device.value}}</span></td>
+			>{{device.value}} {{device.unit}}</span></td>
 		<td>{{device.hardware.name}}</td>
 		<td>{{device.label}}</td>
 		<td><span class="label label-default">{{device.type}}</span></td>
@@ -57,7 +57,7 @@
 </tbody>
 <tfoot>
 	<tr>
-		<td colspan="7" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+		<td colspan="6" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
 	</tr>
 </tfoot>
 </table>

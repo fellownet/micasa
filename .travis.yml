@@ -1,28 +1,51 @@
 language: cpp
 
-os: linux
+matrix:
+  # Linux x86_64
+  include:
+  - os: linux
 
-compiler:
-- gcc
+    env: TARGET_ARCHITECTURE=x86_64
 
-install:
-- if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
+    compiler:
+    - gcc
 
-addons:
-    apt:
-        sources:
-        - ubuntu-toolchain-r-test
-        packages:
-        - gcc-4.9
-        - g++-4.9
-        - cmake
-        - libsqlite3-dev
-        - curl
-        - libcurl4-openssl-dev
-        - libssl-dev
-        - libudev-dev
-        - libusb-dev
-        - git
+    install:
+    - if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
 
-script:
-- cmake -DDEBUG=OFF . && make
+    addons:
+        apt:
+            sources:
+            - ubuntu-toolchain-r-test
+            packages:
+            - gcc-4.9
+            - g++-4.9
+            - cmake
+            - libsqlite3-dev
+            - curl
+            - libcurl4-openssl-dev
+            - libssl-dev
+            - libudev-dev
+            - git
+
+    script:
+    - cmake -DDEBUG=OFF . && make
+
+  # OSX
+  - os: osx
+    osx_image: xcode6.2
+
+    env: TARGET_ARCHITECTURE=x86_64
+
+    compiler:
+    - gcc
+
+    install:
+      - brew install libusb
+      - brew install libusb-compat
+      - brew install openssl
+      - brew link openssl --force
+      - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
+
+    script:
+    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make

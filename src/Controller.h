@@ -38,9 +38,6 @@ namespace micasa {
 	public:
 		typedef std::chrono::time_point<std::chrono::system_clock> t_scheduled;
 		
-		// TODO make a class out of this with a templated or function overload setValue method?
-		// TODO if the value can be part of the base class as union, a lot of code can be generalized in the
-		// base device class too.
 		struct Task {
 			std::shared_ptr<Device> device;
 			unsigned int source;
@@ -82,11 +79,13 @@ namespace micasa {
 		mutable std::mutex m_scriptsMutex;
 		mutable std::mutex m_cronsMutex;
 		Settings m_settings;
+		v7* m_v7_js;
 		
 		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runCrons();
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
+		std::shared_ptr<Device> _getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
@@ -96,7 +95,8 @@ namespace micasa {
 		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
 		void _updateScriptResourceHandlers() const;
 		void _updateCronResourceHandlers() const;
-		
+		void _updateUsbResourceHandlers() const;
+
 	}; // class Controller
 
 }; // namespace micasa

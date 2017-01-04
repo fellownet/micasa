@@ -10,7 +10,7 @@ namespace micasa {
 	bool stringStartsWith( const std::string& haystack_, const std::string& search_ );
 	std::vector<std::string> stringSplit( const std::string& input_, const char& delim_ );
 	void stringSplit( const std::string& input_, const char& delim_, std::vector<std::string>& results_ );
-	std::string stringUriDecode(const std::string & sSrc);
 	std::string randomString( size_t length_ );
+	const std::vector<std::string> getSerialPorts();
 	
 }; // namespace micasa

@@ -102,8 +102,8 @@ namespace micasa {
 #ifdef _DEBUG
 					g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback removed at %s.", (*callbackIt)->uri.c_str() );
 #endif // _DEBUG
-					callbackIt = resourceIt->second.erase( callbackIt );
 					this->_removeResourceCache( (*callbackIt)->uri );
+					callbackIt = resourceIt->second.erase( callbackIt );
 				} else {
 					callbackIt++;
 				}
@@ -207,10 +207,21 @@ namespace micasa {
 		auto wordsEnd = std::sregex_iterator();
 		for ( std::sregex_iterator it = wordsBegin; it != wordsEnd; it++ ) {
 			std::string key = (*it)[1].str();
-			std::string value = stringUriDecode( (*it)[2].str() );
-			input[key] = value;
+			
+			unsigned int size = 256;
+			int length;
+			char buf[size];
+			
+			while( -1 == ( length = mg_url_decode( (*it)[2].str().c_str(), (*it)[2].str().size(), buf, size, 1 ) ) ) {
+				size *= 2;
+				if ( size > 65536 ) break;
+			}
+			if ( -1 == length ) {
+				continue;
+			}
+			
+			input[key] = std::string( buf );
 		}
-
 		
 		// Create a cacheKey for GET requests. Note that a std::map is sorted by default, hence the order
 		// of parameters doesn't bypass the cache. Also, some parameters should not also not cause the

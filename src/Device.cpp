@@ -103,7 +103,8 @@ namespace micasa {
 			{ "name", this->getName() },
 			{ "enabled", this->isRunning() },
 			{ "hardware", this->m_hardware->getJson() },
-			{ "age", std::chrono::duration_cast<std::chrono::milliseconds>( age ).count() / 1000. }
+			{ "age", std::chrono::duration_cast<std::chrono::milliseconds>( age ).count() / 1000. },
+			{ "readonly", ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) > 0 ) }
 		};
 		return result;
 	};

@@ -21,14 +21,16 @@ namespace micasa {
 	using namespace nlohmann;
 
 	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
-		
+
 		friend class Controller;
 
 	public:
 		enum Type {
 			HARMONY_HUB = 1,
+#ifdef _WITH_OPENZWAVE
 			OPEN_ZWAVE,
 			OPEN_ZWAVE_NODE,
+#endif // _WITH_OPENZWAVE
 			P1_METER,
 			PIFACE,
 			PIFACE_BOARD,
@@ -48,7 +50,7 @@ namespace micasa {
 			SLEEPING
 		}; // enum State
 		static const std::map<State, std::string> StateText;
-		
+
 		struct PendingUpdate {
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
@@ -57,14 +59,14 @@ namespace micasa {
 			unsigned int source;
 			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
-		
+
 		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		virtual ~Hardware();
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
 		virtual void start();
 		virtual void stop();
-		
+
 		const unsigned int& getId() const { return this->m_id; };
 		const Type getType() const;
 		template<typename T> const T getType() const;
@@ -90,9 +92,10 @@ namespace micasa {
 		void _setState( const State& state_ );
 		std::shared_ptr<Device> _getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> _getDeviceById( const unsigned int& id_ ) const;
+		std::shared_ptr<Device> _getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> _getDeviceByLabel( const std::string& label_ ) const;
 		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
-		
+
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
 		// It also makes sure that the source of the update is remembered during this time.
@@ -105,7 +108,7 @@ namespace micasa {
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
 		volatile State m_state = DISABLED;
-		
+
 		static std::shared_ptr<Hardware> _factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		void _installDeviceResourceHandlers( const std::shared_ptr<Device> device_ );
 

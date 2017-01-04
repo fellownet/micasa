@@ -1,5 +1,3 @@
-#ifdef WITH_OPENZWAVE
-
 #include <chrono>
 
 #include "OpenZWaveNode.h"
@@ -123,10 +121,29 @@
 #define COMMAND_CLASS_NON_INTEROPERABLE			0xF0
 
 namespace micasa {
-	
+
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<WebServer> g_webServer;
+
+	const std::map<std::string, unsigned int> OpenZWaveNode::UnitMapping = {
+		{ "Energy", Counter::Unit::KILOWATTHOUR },
+		{ "Power", Level::Unit::WATT },
+		{ "Voltage", Level::Unit::VOLT },
+		{ "Current", Level::Unit::AMPERES },
+		{ "Power Factor", Level::Unit::POWER_FACTOR },
+		{ "Gas", Counter::Unit::GENERIC },
+		{ "Water", Counter::Unit::GENERIC },
+		{ "Temperature", Counter::Unit::GENERIC },
+		{ "Luminance", Counter::Unit::GENERIC },
+		{ "Relative Humidity", Counter::Unit::GENERIC },
+		{ "Ultraviolet", Counter::Unit::GENERIC },
+		{ "Velocity", Counter::Unit::GENERIC },
+		{ "Barometric Pressure", Counter::Unit::GENERIC },
+		{ "Dew Point", Counter::Unit::GENERIC },
+		{ "CO2 Level", Counter::Unit::GENERIC },
+		{ "Moisture", Counter::Unit::GENERIC }
+	};
 
 	void OpenZWaveNode::start() {
 		// TODO when this hardware is started and stopped while the openzwave parent hardware keeps running,
@@ -136,29 +153,29 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 	};
-	
+
 	void OpenZWaveNode::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		g_webServer->removeResourceCallback( "openzwavenode-" + std::to_string( this->m_id ) );
 		Hardware::stop();
 	};
-	
+
 	const std::string OpenZWaveNode::getLabel() const {
-		return this->m_settings.get<std::string>( "label", "OpenZWave Node" );
+		return this->m_settings.get( "label", "OpenZWave Node" );
 	};
-	
+
 	bool OpenZWaveNode::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
 		std::shared_ptr<OpenZWave> parent = std::static_pointer_cast<OpenZWave>( this->m_parent );
-		
+
 		// Obtain a lock on the manager of the parent openzwave transaction.
 		if ( parent->m_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-			
+
 			// Obtain the lock created above. This allows for return statements without explicitly releasing the lock, this
 			// is done in the lock_guard destructor.
 			std::lock_guard<std::timed_mutex> lock( parent->m_managerMutex, std::adopt_lock );
-			
+
 			if ( this->getState() != Hardware::State::READY ) {
 				if ( this->getState() == Hardware::State::FAILED ) {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
@@ -194,7 +211,7 @@ namespace micasa {
 			}
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid command." );
 			return false;
-			
+
 		} else {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
 			return false;
@@ -202,7 +219,7 @@ namespace micasa {
 
 		return true;
 	};
-	
+
 	void OpenZWaveNode::_handleNotification( const ::OpenZWave::Notification* notification_ ) {
 
 		// This method is proxied from the OpenZWave class which still holds the OpenZWave manager lock. This
@@ -212,15 +229,15 @@ namespace micasa {
 		unsigned char nodeId = notification_->GetNodeId();
 
 		switch( notification_->GetType() ) {
-				
+
 			case ::OpenZWave::Notification::Type_EssentialNodeQueriesComplete:
 			case ::OpenZWave::Notification::Type_NodeQueriesComplete: {
-				
+
 				// This is the point after which the node can accept commands.
 				if ( this->getState() == Hardware::State::INIT ) {
 					g_logger->log( Logger::LogLevel::NORMAL, this, "Node ready." );
 					this->_setState( Hardware::State::READY );
-					
+
 					// Add resource handler for configuration.
 					g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 						"openzwavenode-" + std::to_string( this->m_id ),
@@ -233,14 +250,14 @@ namespace micasa {
 									output_ = this->m_configuration;
 									break;
 								}
-								
+
 								case WebServer::Method::PUT:
 								case WebServer::Method::PATCH: {
 									/*
 									std::lock_guard<std::mutex> lock( this->m_configurationMutex );
 									for ( auto inputIt = input_.begin(); inputIt != input_.end(); inputIt++ ) {
 										if ( ! this->m_configuration[(*inputIt).first].is_null() ) {
-											
+
 											// TODO check the shit out of the input
 											// Only the list option works for now because we needed that one :D
 											try {
@@ -257,17 +274,17 @@ namespace micasa {
 									}
 									*/
 								}
-									
+
 								default:
 									break;
 							}
-							
+
 						} )
 					} ) ) );
-					
+
 				}
 			}
-				
+
 			case ::OpenZWave::Notification::Type_ValueAdded: {
 				::OpenZWave::ValueID valueId = notification_->GetValueID();
 				this->_processValue( valueId, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE );
@@ -280,12 +297,12 @@ namespace micasa {
 				this->_processValue( valueId, Device::UpdateSource::HARDWARE );
 				break;
 			}
-				
+
 			case ::OpenZWave::Notification::Type_ValueRemoved: {
 				// TODO remove device? an what about history and trends that the user might want to keep?
 				break;
 			}
-				
+
 			case ::OpenZWave::Notification::Type_Notification: {
 				switch( notification_->GetNotification() ) {
 					case ::OpenZWave::Notification::Code_Alive: {
@@ -321,7 +338,7 @@ namespace micasa {
 				}
 				break;
 			}
-				
+
 			case ::OpenZWave::Notification::Type_NodeEvent: {
 				//std::cout << "NODE EVENT, UNHANDLED?\n";
 				break;
@@ -331,16 +348,17 @@ namespace micasa {
 				this->_updateNodeInfo( homeId, nodeId );
 				break;
 			}
-				
+
 			default: {
 				break;
 			}
 		}
 	};
-	
+
 	void OpenZWaveNode::_processValue( const ::OpenZWave::ValueID& valueId_, unsigned int source_ ) {
 		std::string label = ::OpenZWave::Manager::Get()->GetValueLabel( valueId_ );
 		std::string reference = std::to_string( valueId_.GetId() );
+		std::string units = ::OpenZWave::Manager::Get()->GetValueUnits( valueId_ );
 
 		// Some values are not going to be processed ever and can be filtered out beforehand.
 		if (
@@ -354,14 +372,10 @@ namespace micasa {
 			return;
 		}
 
-		// If there's an update mutex available we need to make sure that it is properly notified of the
-		// execution of the update.
-		source_ |= this->_releasePendingUpdate( reference );
-
 		// Process all other values by command class.
 		unsigned int commandClass = valueId_.GetCommandClassId();
 		switch( commandClass ) {
-				
+
 			case COMMAND_CLASS_BASIC: {
 				// https://github.com/OpenZWave/open-zwave/wiki/Basic-Command-Class
 				// Conclusion; try to use devices that send other cc values aswell as the basic set. For instance,
@@ -369,15 +383,19 @@ namespace micasa {
 				// configured to also send binary reports.
 				break;
 			}
-				
+
 			case COMMAND_CLASS_SWITCH_BINARY:
 			case COMMAND_CLASS_SENSOR_BINARY: {
 				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
 				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
 				// instruction.
-				unsigned int updateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
+				unsigned int allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
-					updateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+					allowedUpdateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+
+					// If there's an update mutex available we need to make sure that it is properly notified of the
+					// execution of the update.
+					source_ |= this->_releasePendingUpdate( reference );
 				}
 				bool boolValue = false;
 				unsigned char byteValue = 0;
@@ -387,7 +405,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( updateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
 					} );
 					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -400,7 +418,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( updateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
 					} );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -409,32 +427,41 @@ namespace micasa {
 				}
 				break;
 			}
-			
+
 			case COMMAND_CLASS_METER: {
 				float floatValue = 0;
 				if (
 					valueId_.GetType() == ::OpenZWave::ValueID::ValueType_Decimal
 					&& false != ::OpenZWave::Manager::Get()->GetValueAsFloat( valueId_, &floatValue )
 				) {
+					unsigned int unit = 1;
+					if ( OpenZWaveNode::UnitMapping.find( label ) != OpenZWaveNode::UnitMapping.end() ) {
+						unit = OpenZWaveNode::UnitMapping.at( label );
+					}
+					
+					// TODO check units to see if any multiplication needs to take place (from watt kwh)?
+				
 					if (
 						"Energy" == label
 						|| "Gas" == label
 						|| "Water" == label
 					) {
 						auto device = this->_declareDevice<Counter>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					} else {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					}
 				}
 				break;
 			}
-				
+
 			case COMMAND_CLASS_BATTERY: {
 				unsigned char byteValue = 0;
 				if (
@@ -442,24 +469,25 @@ namespace micasa {
 					&& false != ::OpenZWave::Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
 					auto device = this->_declareDevice<Level>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
 					} );
 					device->updateValue( source_, (unsigned int)byteValue );
 				}
 				break;
 			}
-			
+
 			case COMMAND_CLASS_CONFIGURATION: {
 				std::lock_guard<std::mutex> lock( this->m_configurationMutex );
 				if ( this->m_configuration.is_null() ) {
 					this->m_configuration = json::parse( this->m_settings.get( OPENZWAVE_NODE_SETTING_CONFIGURATION, std::string( "{ }" ) ) );
 				}
-				
+
 				json setting = {
 					{ "label", label },
 					{ "description", ::OpenZWave::Manager::Get()->GetValueHelp( valueId_ ) }
 				};
-				
+
 				::OpenZWave::ValueID::ValueType type = valueId_.GetType();
 				if ( type == ::OpenZWave::ValueID::ValueType_Decimal ) {
 					setting["type"] = "double";
@@ -517,14 +545,14 @@ namespace micasa {
 					::OpenZWave::Manager::Get()->GetValueAsString( valueId_, &stringValue );
 					setting["value"] = stringValue;
 				}
-				
+
 				this->m_configuration[reference] = setting;
-				
+
 				this->m_settings.put( OPENZWAVE_NODE_SETTING_CONFIGURATION, this->m_configuration.dump() );
 				//std::cout << "CONFIGURATION " << this->m_configuration.dump( 4 ) << "\n";
 				break;
 			}
-				
+
 			case COMMAND_CLASS_ALARM:
 			case COMMAND_CLASS_SENSOR_ALARM: {
 				// https://github.com/OpenZWave/open-zwave/wiki/Alarm-Command-Class
@@ -542,14 +570,14 @@ namespace micasa {
 				*/
 				break;
 			}
-				
+
 			default: {
 				//g_logger->logr( Logger::LogLevel::ERROR, this, "Unhandled command class %#010x (%s).", commandClass, label.c_str() );
 				break;
 			}
 		}
 	};
-	
+
 	void OpenZWaveNode::_updateNodeInfo( const unsigned int& homeId_, const unsigned char& nodeId_ ) {
 		std::string manufacturer = ::OpenZWave::Manager::Get()->GetNodeManufacturerName( homeId_, nodeId_ );
 		std::string product = ::OpenZWave::Manager::Get()->GetNodeProductName( homeId_, nodeId_ );
@@ -557,7 +585,5 @@ namespace micasa {
 			this->m_settings.put( "label", manufacturer + " " + product );
 		}
 	};
-	
-}; // namespace micasa
 
-#endif // WITH_OPENZWAVE
+}; // namespace micasa
