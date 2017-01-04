@@ -27,11 +27,11 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 
-		const std::string getLabel() const;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ );
+		const std::string getLabel() const override;
+		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 5 ); }
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 * 60 * 5 ); }
 
 	private:
 		json m_configuration;

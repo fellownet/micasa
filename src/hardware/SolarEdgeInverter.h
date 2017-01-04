@@ -14,11 +14,11 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		
-		const std::string getLabel() const;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) { return true; };
+		const std::string getLabel() const override;
+		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
 		
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 		
 	private:
 		bool m_first = true;
