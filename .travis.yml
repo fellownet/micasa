@@ -44,6 +44,7 @@ matrix:
       - brew install libusb-compat
       - brew install openssl
       - brew link openssl --force
+      - brew install md5sha1sum
       - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
 
     script:
