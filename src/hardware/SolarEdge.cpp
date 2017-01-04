@@ -64,7 +64,7 @@ namespace micasa {
 			if (
 				! data["reporters"].empty()
 				&& ! data["reporters"]["count"].empty()
-				&& data["reporters"]["count"] >= (unsigned int)1
+				&& data["reporters"]["count"].get<unsigned int>() >= 1
 			) {
 				json list = data["reporters"]["list"];
 				for ( auto inverterIt = list.begin(); inverterIt != list.end(); inverterIt++ ) {
