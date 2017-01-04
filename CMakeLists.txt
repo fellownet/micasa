@@ -180,37 +180,36 @@ if( LIBUDEV_FOUND )
 endif( LIBUDEV_FOUND )
 
 #
-# Check for Libusb
-#
-find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
-find_library( LIBUSB_LIBRARY NAMES usb )
-find_package_handle_standard_args( LIBUSB DEFAULT_MSG LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
-IF( LIBUSB_FOUND )
-	message( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
-	message( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
-	include_directories( ${LIBUSB_INCLUDE_DIR} )
-	target_link_libraries( micasa ${LIBUSB_LIBRARY} )
-else()
-	message( FATAL_ERROR "Libusb not found on your system. Try:\nsudo apt-get install libusb libusb-dev" )
-endif( LIBUSB_FOUND )
-
-#
 # OpenZWave needs libudev. While it is optional for micasa, it is not for OpenZWave.
 #
 if( WITH_OPENZWAVE )
 	if( NOT LIBUDEV_FOUND )
-		if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" )
-			message( STATUS "Building on FreeBSD, libudev not needed for OpenZWave." )
+		if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+			message( STATUS "Building on FreeBSD or Darwin, libudev not needed for OpenZWave." )
 			include_directories( ${OPENZWAVE_INCLUDE_DIR} )
 			add_dependencies( micasa OpenZWave )
-			target_link_libraries( micasa OpenZWaveLib )
+
+			#
+			# Check for Libusb.
+			#
+			find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
+			find_library( LIBUSB_LIBRARY NAMES usb )
+			find_package_handle_standard_args( LIBUSB DEFAULT_MSG LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+			IF( LIBUSB_FOUND )
+				message( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
+				message( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
+				include_directories( ${LIBUSB_INCLUDE_DIR} )
+				target_link_libraries( micasa OpenZWaveLib ${LIBUSB_LIBRARY} )
+			else()
+				message( FATAL_ERROR "Library libusb is required for OpenZWave, but is not found on your system." )
+			endif()
 		else()
 			message( FATAL_ERROR "Library libudev is required for OpenZWave, but is not found on your system. Try:\nsudo apt-get install libudev-dev" )
 		endif()
 	else()
 		include_directories( ${OPENZWAVE_INCLUDE_DIR} )
 		add_dependencies( micasa OpenZWave )
-		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} ${LIBUSB_LIBRARY} )
+		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} )
 	endif()
 endif()
 
@@ -255,6 +254,6 @@ else()
 	if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" )
 		message( FATAL_ERROR "SQLite3 not found on your system. Try as root:\npkg install sqlite3" )
 	else()
-		message( FATAL_ERROR "SQLite3 not found on your system. Try:\nsudo apt-get install sqlite3 libsqlite3-dev" )
+		message( FATAL_ERROR "SQLite3 not found on your system. Try:\nsudo apt-get install libsqlite3-dev" )
 	endif()
 endif( SQLITE3_FOUND )
