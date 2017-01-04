@@ -44,8 +44,7 @@ matrix:
       - brew install libusb-compat
       - brew install openssl
       - brew link openssl --force
-      - brew install md5sha1sum
       - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
 
     script:
-    - cmake -DDEBUG=OFF . && make
+    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make
