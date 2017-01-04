@@ -180,6 +180,21 @@ if( LIBUDEV_FOUND )
 endif( LIBUDEV_FOUND )
 
 #
+# Check for Libusb
+#
+find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
+find_library( LIBUSB_LIBRARY NAMES usb )
+find_package_handle_standard_args( LIBUSB DEFAULT_MSG LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+IF( LIBUSB_FOUND )
+	message( STATUS "Libusb libraries found at: ${LIBUSB_LIBRARY}" )
+	message( STATUS "Libusb includes found at: ${LIBUSB_INCLUDE_DIR}" )
+	include_directories( ${LIBUSB_INCLUDE_DIR} )
+	target_link_libraries( micasa ${LIBUSB_LIBRARY} )
+else()
+	message( FATAL_ERROR "Libusb not found on your system. Try:\nsudo apt-get install libusb libusb-dev" )
+endif( LIBUSB_FOUND )
+
+#
 # OpenZWave needs libudev. While it is optional for micasa, it is not for OpenZWave.
 #
 if( WITH_OPENZWAVE )
@@ -195,7 +210,7 @@ if( WITH_OPENZWAVE )
 	else()
 		include_directories( ${OPENZWAVE_INCLUDE_DIR} )
 		add_dependencies( micasa OpenZWave )
-		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} )
+		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} ${LIBUSB_LIBRARY} )
 	endif()
 endif()
 
