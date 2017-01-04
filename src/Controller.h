@@ -95,10 +95,7 @@ namespace micasa {
 		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
 		void _updateScriptResourceHandlers() const;
 		void _updateCronResourceHandlers() const;
-
-#ifdef _WITH_LIBUDEV
 		void _updateUsbResourceHandlers() const;
-#endif // _WITH_LIBUDEV
 
 	}; // class Controller
 
