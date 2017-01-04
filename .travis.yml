@@ -24,7 +24,6 @@ matrix:
             - libcurl4-openssl-dev
             - libssl-dev
             - libudev-dev
-            - libusb-dev
             - git
 
     script:
