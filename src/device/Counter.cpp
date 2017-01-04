@@ -11,6 +11,11 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
 
+	const std::map<Counter::Unit, std::string> Counter::UnitText = {
+		{ Counter::Unit::GENERIC, "x" },
+		{ Counter::Unit::KILOWATTHOUR, "kWh" }
+	};
+
 	void Counter::start() {
 		this->m_value = g_database->getQueryValue<int>(
 		   "SELECT `value` "
@@ -96,6 +101,7 @@ namespace micasa {
 		json result = Device::getJson();
 		result["value"] = this->getValue();
 		result["type"] = "counter";
+		result["unit"] = Counter::UnitText.at( static_cast<Unit>( this->m_settings.get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
 		return result;
 	};
 

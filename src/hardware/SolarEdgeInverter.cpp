@@ -34,7 +34,7 @@ namespace micasa {
 	};
 
 	const std::string SolarEdgeInverter::getLabel() const {
-		return this->m_settings.get<std::string>( "label", "SolarEdge Inverter" );
+		return this->m_settings.get( "label", "SolarEdge Inverter" );
 	};
 	
 	const std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
@@ -100,7 +100,7 @@ namespace micasa {
 				if ( ! telemetry["totalEnergy"].empty() ) {
 					auto device = this->_declareDevice<Counter>( this->getReference() + "(E)", "Energy", {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Counter::Unit::WATTHOUR ) }
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Counter::Unit::KILOWATTHOUR ) }
 					} );
 					device->updateValue( source, telemetry["totalEnergy"].get<int>() );
 				}
@@ -114,7 +114,7 @@ namespace micasa {
 				if ( ! telemetry["temperature"].empty() ) {
 					auto device = this->_declareDevice<Level>( this->getReference() + "(T)", "Temperature", {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::DEGREES ) }
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::CELCIUS ) }
 					} );
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}

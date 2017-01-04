@@ -5,8 +5,11 @@
 #include "Controller.h"
 #include "Utils.h"
 
-#include "hardware/OpenZWave.h"
-#include "hardware/OpenZWaveNode.h"
+#ifdef _WITH_OPENZWAVE
+	#include "hardware/OpenZWave.h"
+	#include "hardware/OpenZWaveNode.h"
+#endif // _WITH_OPENZWAVE
+
 #include "hardware/WeatherUnderground.h"
 #include "hardware/PiFace.h"
 #include "hardware/PiFaceBoard.h"
@@ -26,8 +29,10 @@ namespace micasa {
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
 		{ Hardware::Type::HARMONY_HUB, "harmony_hub" },
+#ifdef _WITH_OPENZWAVE
 		{ Hardware::Type::OPEN_ZWAVE, "openzwave" },
 		{ Hardware::Type::OPEN_ZWAVE_NODE, "openzwave_node" },
+#endif // _WITH_OPENZWAVE
 		{ Hardware::Type::P1_METER, "p1_meter" },
 		{ Hardware::Type::PIFACE, "piface" },
 		{ Hardware::Type::PIFACE_BOARD, "piface_board" },
@@ -45,7 +50,7 @@ namespace micasa {
 		{ Hardware::State::FAILED, "failed" },
 		{ Hardware::State::SLEEPING, "sleeping" }
 	};
-	
+
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
@@ -68,12 +73,14 @@ namespace micasa {
 			case HARMONY_HUB:
 				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_ );
 				break;
+#ifdef _WITH_OPENZWAVE
 			case OPEN_ZWAVE:
 				return std::make_shared<OpenZWave>( id_, type_, reference_, parent_ );
 				break;
 			case OPEN_ZWAVE_NODE:
 				return std::make_shared<OpenZWaveNode>( id_, type_, reference_, parent_ );
 				break;
+#endif // _WITH_OPENZWAVE
 			case P1_METER:
 				return std::make_shared<P1Meter>( id_, type_, reference_, parent_ );
 				break;
@@ -130,7 +137,7 @@ namespace micasa {
 
 			this->m_devices.push_back( device );
 		}
-		
+
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
 		if ( this->getState() == DISABLED ) {
 			this->_setState( INIT );
@@ -138,7 +145,7 @@ namespace micasa {
 		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
-	
+
 	void Hardware::stop() {
 		{
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
@@ -155,12 +162,12 @@ namespace micasa {
 		if ( this->m_settings.isDirty() ) {
 			this->m_settings.commit( *this );
 		}
-		
+
 		this->_setState( DISABLED );
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
-	
+
 	const Hardware::Type Hardware::getType() const {
 		return this->m_type;
 	};
@@ -184,10 +191,10 @@ namespace micasa {
 	const std::string Hardware::getName() const {
 		return this->m_settings.get( "name", this->getLabel() );
 	};
-	
+
 	void Hardware::setSettings( const std::map<std::string,std::string>& settings_ ) {
 		std::vector<std::string> allowedSettings;
-		stringSplit( this->m_settings.get<std::string>( HARDWARE_SETTINGS_ALLOWED, "" ), ',', allowedSettings );
+		stringSplit( this->m_settings.get( HARDWARE_SETTINGS_ALLOWED, "" ), ',', allowedSettings );
 		for ( auto allowedSettingsIt = allowedSettings.begin(); allowedSettingsIt != allowedSettings.end(); allowedSettingsIt++ ) {
 			if ( settings_.count( *allowedSettingsIt ) > 0 ) {
 				this->m_settings.put( *allowedSettingsIt, settings_.at( *allowedSettingsIt ) );
@@ -197,14 +204,14 @@ namespace micasa {
 			this->m_settings.commit( *this );
 		}
 	};
-	
+
 	void Hardware::_setState( const State& state_ ) {
 		if ( this->m_state != state_ ) {
 			g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
 			this->m_state = state_;
 		}
 	};
-	
+
 	json Hardware::getJson() const {
 		json result = {
 			{ "id", this->m_id },
@@ -213,14 +220,14 @@ namespace micasa {
 			{ "enabled", this->isRunning() },
 			{ "type", this->getType<std::string>() },
 			{ "state", this->getState<std::string>() },
-			{ "settings", this->m_settings.getAll( this->m_settings.get<std::string>( HARDWARE_SETTINGS_ALLOWED, "" ), true ) }
+			{ "settings", this->m_settings.getAll( this->m_settings.get( HARDWARE_SETTINGS_ALLOWED, "" ), true ) }
 		};
 		if ( this->m_parent ) {
 			result["parent"] = this->m_parent->getJson();
 		}
 		return result;
 	};
-	
+
 	std::shared_ptr<Device> Hardware::_getDevice( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
@@ -230,11 +237,21 @@ namespace micasa {
 		}
 		return nullptr;
 	};
-	
+
 	std::shared_ptr<Device> Hardware::_getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( (*devicesIt)->getId() == id_ ) {
+				return *devicesIt;
+			}
+		}
+		return nullptr;
+	};
+
+	std::shared_ptr<Device> Hardware::_getDeviceByName( const std::string& name_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+			if ( (*devicesIt)->getName() == name_ ) {
 				return *devicesIt;
 			}
 		}
@@ -250,7 +267,7 @@ namespace micasa {
 		}
 		return nullptr;
 	};
-	
+
 	template<class T> std::shared_ptr<T> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
@@ -259,7 +276,7 @@ namespace micasa {
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( (*devicesIt)->getReference() == reference_ ) {
 				std::shared_ptr<T> device = std::static_pointer_cast<T>( *devicesIt );
-				
+
 				// System settings (settings that start with an underscore and are usually defined by #define)
 				// should always overwrite existing system settings.
 				for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
@@ -282,20 +299,20 @@ namespace micasa {
 			start_ ? 1 : 0
 		);
 		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::_factory( this->shared_from_this(), T::type, id, reference_, label_ ) );
-		
+
 		Settings& settings = device->getSettings();
 		settings.insert( settings_ );
 		if ( settings.isDirty() ) {
 			settings.commit( *device );
 		}
-		
+
 		if ( start_ ) {
 			device->start();
 		}
 		this->_installDeviceResourceHandlers( device );
 
 		this->m_devices.push_back( device );
-		
+
 		return device;
 
 	};
@@ -303,7 +320,7 @@ namespace micasa {
 	template std::shared_ptr<Level> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ );
 	template std::shared_ptr<Switch> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ );
 	template std::shared_ptr<Text> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ );
-	
+
 	void Hardware::_installDeviceResourceHandlers( const std::shared_ptr<Device> device_ ) {
 
 		// The first handler to install is the list handler that outputs all the devices available. Note that
@@ -316,7 +333,7 @@ namespace micasa {
 				if ( output_.is_null() ) {
 					output_ = json::array();
 				}
-				
+
 				// If a hardware_id property was provided, only devices belonging to that hardware id are being
 				// added to the device list.
 				auto hardwareIdIt = input_.find( "hardware_id" );
@@ -326,7 +343,7 @@ namespace micasa {
 				) {
 					return;
 				}
-				
+
 				// If the enabled flag was set only devices that are enabled or disabled are returned.
 				auto enabledIt = input_.find( "enabled" );
 				if ( enabledIt != input_.end() ) {
@@ -344,7 +361,7 @@ namespace micasa {
 						return;
 					}
 				}
-				
+
 				json data = device_->getJson();
 				// TODO this causes a lot of requests to the database at once. See if this can be implemented
 				// more efficiently.
@@ -359,7 +376,7 @@ namespace micasa {
 				output_ += data;
 			} )
 		} ) ) );
-	
+
 		// The second handler to install is the one that returns the details of a single device and the ability
 		// to update or delete the device.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
@@ -388,7 +405,7 @@ namespace micasa {
 								device_->getSettings().put( "name", input_["name"].get<std::string>() );
 								device_->getSettings().commit( *device_.get() );
 							}
-							
+
 							// A scripts array can be passed along to set the scripts to run when the device
 							// is updated.
 							if (
@@ -398,7 +415,7 @@ namespace micasa {
 								std::vector<unsigned int> scripts = std::vector<unsigned int>( input_["scripts"].begin(), input_["scripts"].end() );
 								device_->setScripts( scripts );
 							}
-						
+
 							// The enabled property can be used to enable or disable a device.
 							if ( input_.find( "enabled") != input_.end() ) {
 								bool enabled = true;
@@ -424,7 +441,7 @@ namespace micasa {
 									enabled ? 1 : 0,
 									device_->getId()
 								);
-								
+
 								// Remove all references to this device from the crosstables. A 'delete' will remove these
 								// automatically. Disabling means removing them manually.
 								if ( ! enabled ) {
@@ -440,7 +457,7 @@ namespace micasa {
 									);
 								}
 							}
-							
+
 							// A value property can be set to update the device through the api.
 							bool success = true;
 							if ( input_.find( "value" ) != input_.end() ) {
@@ -490,7 +507,7 @@ namespace micasa {
 						std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 						for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 							if ( (*devicesIt) == device_ ) {
-							
+
 								g_webServer->removeResourceCallback( "device-" + std::to_string( device_->getId() ) );
 								if ( device_->isRunning() ) {
 									device_->stop();
@@ -501,7 +518,7 @@ namespace micasa {
 									"WHERE `id`=%d",
 									device_->getId()
 								);
-							
+
 								this->m_devices.erase( devicesIt );
 								g_webServer->touchResourceCallback( "controller" );
 								g_webServer->touchResourceCallback( "hardware-" + std::to_string( this->m_id ) );
@@ -516,7 +533,7 @@ namespace micasa {
 			} )
 		} ) ) );
 	};
-	
+
 	const bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
@@ -526,22 +543,22 @@ namespace micasa {
 		}
 		std::shared_ptr<PendingUpdate>& pendingUpdate = this->m_pendingUpdates[reference_];
 		pendingUpdatesLock.unlock();
-		
+
 		if ( pendingUpdate->updateMutex.try_lock_for( std::chrono::milliseconds( blockNewUpdate_ ) ) ) {
-			std::thread( [this,pendingUpdate,reference_,waitForResult_] { // pendingUpdate and valueId_ are copied into the thread
-				
+			std::thread( [this,pendingUpdate,reference_,waitForResult_] {
+
 				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
 				pendingUpdate->condition.wait_for( notifyLock, std::chrono::milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
 				// Spurious wakeups are someting we have to live with; there's no way to determine if the amount
 				// of time was passed or if a spurious wakeup occured.
-				
+
 				std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 				auto search = this->m_pendingUpdates.find( reference_ );
 				if ( search != this->m_pendingUpdates.end() ) {
 					this->m_pendingUpdates.erase( search );
 				}
 				pendingUpdatesLock.unlock();
-				
+
 				pendingUpdate->updateMutex.unlock();
 			} ).detach();
 			return true;
@@ -549,7 +566,7 @@ namespace micasa {
 			return false;
 		}
 	};
-	
+
 	const unsigned int Hardware::_releasePendingUpdate( const std::string& reference_ ) {
 		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto search = this->m_pendingUpdates.find( reference_ );
@@ -563,5 +580,5 @@ namespace micasa {
 		}
 		return 0;
 	};
-	
+
 } // namespace micasa

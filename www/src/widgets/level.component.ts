@@ -39,11 +39,14 @@ export class WidgetLevelComponent implements OnInit {
 							type: 'spline'
 						},
 						series: [ {
+							name: me.device.name,
 							data: data,
-							yAxis: 0
+							yAxis: 0,
+							tooltip: {
+								valueSuffix: ' ' + me.device.unit
+							}
 						} ]
 					} );
-
 				},
 				function( error_: string ) {
 					me.error = error_;

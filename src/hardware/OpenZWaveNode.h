@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef WITH_OPENZWAVE
-
 #include <list>
 
 #include "../Hardware.h"
@@ -17,18 +15,18 @@
 namespace micasa {
 
 	using namespace nlohmann;
-	
+
 	class OpenZWaveNode final : public Hardware {
 
 		friend class OpenZWave;
-		
+
 	public:
 		OpenZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~OpenZWaveNode() { };
-		
+
 		void start() override;
 		void stop() override;
-		
+
 		const std::string getLabel() const;
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ );
 
@@ -38,13 +36,12 @@ namespace micasa {
 	private:
 		json m_configuration;
 		mutable std::mutex m_configurationMutex;
-		
+		static const std::map<std::string, unsigned int> UnitMapping;
+
 		void _handleNotification( const ::OpenZWave::Notification* notification_ );
 		void _processValue( const ::OpenZWave::ValueID& valueId_, unsigned int source_ );
 		void _updateNodeInfo( const unsigned int& homeId_, const unsigned char& nodeId_ );
-		
+
 	}; // class OpenZWaveNode
 
 }; // namespace micasa
-
-#endif // WITH_OPENZWAVE

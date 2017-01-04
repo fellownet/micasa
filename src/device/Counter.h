@@ -8,8 +8,10 @@ namespace micasa {
 
 	public:
 		enum Unit {
-			WATTHOUR = 1,
+			GENERIC = 1,
+			KILOWATTHOUR,
 		}; // enum Unit
+		static const std::map<Unit, std::string> UnitText;
 		
 		typedef int t_value;
 		static const Device::Type type = Device::Type::COUNTER;

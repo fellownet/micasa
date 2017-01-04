@@ -8,13 +8,16 @@ namespace micasa {
 
 	public:
 		enum Unit {
-			TICKS = 1,
-			PERCENT,
+			PERCENT = 1,
 			WATT,
 			VOLT,
-			DEGREES,
+			AMPERES,
+			POWER_FACTOR,
+			CELCIUS,
+			FAHRENHEIT,
 			PASCAL
 		}; // enum Unit
+		static const std::map<Unit, std::string> UnitText;
 
 		typedef double t_value;
 		static const Device::Type type = Device::Type::LEVEL;

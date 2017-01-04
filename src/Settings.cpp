@@ -101,6 +101,16 @@ namespace micasa {
 		this->m_dirty = false;
 	};
 
+	std::string Settings::get( const std::string& key_, const std::string& default_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		try {
+			return this->m_settings.at( key_ );
+		} catch( std::out_of_range exception_ ) {
+			return default_;
+		}
+	};
+
+
 	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
@@ -108,29 +118,12 @@ namespace micasa {
 			std::istringstream( this->m_settings.at( key_ ) ) >> value;
 			return value;
 		} catch( std::out_of_range exception_ ) {
-			//std::stringstream ss;
-			//ss << default_;
-			//this->m_settings[key_] = ss.str();
-			//this->m_dirty = true;
 			return default_;
 		}
 	};
 	template int Settings::get( const std::string& key_, const int& default_ ) const ;
 	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ ) const ;
 	template double Settings::get( const std::string& key_, const double& default_ ) const ;
-
-	// The string variant of the template specification is separate because it can be done more efficiently.
-	// TODO this can also be the default untemplated version, like getType from hardware.
-	template<> std::string Settings::get<std::string>( const std::string& key_, const std::string& default_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
-		try {
-			return this->m_settings.at( key_ );
-		} catch( std::out_of_range exception_ ) {
-			//this->m_settings[key_] = default_;
-			//this->m_dirty = true;
-			return default_;
-		}
-	};
 	
 	const std::string& Settings::operator[]( const std::string& key_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );

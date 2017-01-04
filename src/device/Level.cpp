@@ -10,6 +10,17 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
+
+	const std::map<Level::Unit, std::string> Level::UnitText = {
+		{ Level::Unit::PERCENT, "%" },
+		{ Level::Unit::WATT, "Watt" },
+		{ Level::Unit::VOLT, "V" },
+		{ Level::Unit::AMPERES, "A" },
+		{ Level::Unit::POWER_FACTOR, "PF" },
+		{ Level::Unit::CELCIUS, "°C" },
+		{ Level::Unit::FAHRENHEIT, "°F" },
+		{ Level::Unit::PASCAL, "Pa" },
+	};
 	
 	void Level::start() {
 		this->m_value = g_database->getQueryValue<double>(
@@ -98,6 +109,7 @@ namespace micasa {
 		json result = Device::getJson();
 		result["value"] = ss.str();
 		result["type"] = "level";
+		result["unit"] = Level::UnitText.at( static_cast<Unit>( this->m_settings.get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
 		return result;
 	};
 

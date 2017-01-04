@@ -30,6 +30,7 @@ namespace micasa {
 		void commit( const Device& device_ ) const;
 		bool isDirty() const { return this->m_dirty; }
 		
+		std::string get( const std::string& key_, const std::string& default_ ) const;
 		template<typename T> T get( const std::string& key_, const T& default_ ) const;
 		const std::string& operator[]( const std::string& key_ ) const;
 		template<typename T> Settings* put( const std::string& key_, const T& value_ );

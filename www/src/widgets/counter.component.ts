@@ -39,8 +39,12 @@ export class WidgetCounterComponent implements OnInit {
 							type: 'column'
 						},
 						series: [ {
+							name: me.device.name,
 							data: data,
-							yAxis: 0
+							yAxis: 0,
+							tooltip: {
+								valueSuffix: ' ' + me.device.unit
+							}
 						} ]
 					} );
 

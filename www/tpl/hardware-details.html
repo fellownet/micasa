@@ -41,7 +41,17 @@
 					<ng-container *ngIf="hardware.type=='openzwave'">
 					<div class="form-group" [class.has-error]="!port.valid && !port.pristine">
 						<label for="openzwave_port">Port</label>
-						<input type="text" class="form-control" id="openzwave_port" placeholder="Enter USB Port" autocomplete="off" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel">
+						<select class="form-control" id="openzwave_port" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel">
+							<option value="port.path" [selected]="port.path==hardware.settings.port" *ngFor="let port of ports">
+								{{port.path}}
+								<ng-container *ngIf="port.manufacturer.length>0"> - {{port.manufacturer}}</ng-container>
+								<ng-container *ngIf="port.product.length>0"> - {{port.product}}</ng-container>
+								<ng-container *ngIf="port.product.length==0 && port.manufacturer.length==0 && port.id_vendor.length>0"> (vendor: {{port.id_vendor}}<ng-container *ngIf="port.id_product.length>0">, product: {{port.id_product}}</ng-container>)</ng-container>
+							</option>
+
+						</select>
+						<!-- TODO maybe allow an input field if libudev is not installed (freebsd)? -->
+						<!-- input type="text" class="form-control" id="openzwave_port" placeholder="Enter USB Port" autocomplete="off" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel" -->
 					</div>
 					<div class="callout callout-danger" [hidden]="port.valid || port.pristine">An USB Port is required!</div>
 					</ng-container>
