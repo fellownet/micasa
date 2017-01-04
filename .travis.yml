@@ -3,7 +3,7 @@ language: cpp
 matrix:
   # Linux x86_64
   include:
-    os: linux
+  - os: linux
 
     compiler:
     - gcc
@@ -30,8 +30,7 @@ matrix:
     - cmake -DDEBUG=OFF . && make
 
   # OSX
-  include:
-    os: osx
+  - os: osx
     osx_image: xcode6.2
 
     env: TARGET_ARCHITECTURE=x86_64
