@@ -5,6 +5,8 @@ matrix:
   include:
   - os: linux
 
+    env: TARGET_ARCHITECTURE=x86_64
+
     compiler:
     - gcc
 
