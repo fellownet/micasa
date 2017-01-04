@@ -12,7 +12,9 @@
 #include "Database.h"
 #include "Utils.h"
 
+#ifdef _WITH_LIBUDEV
 #include <libudev.h>
+#endif // _WITH_LIBUDEV
 
 #ifdef _DEBUG
 #include <cassert>
