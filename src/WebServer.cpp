@@ -74,7 +74,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
-	const std::chrono::milliseconds WebServer::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds WebServer::_work( const unsigned long int& iteration_ ) {
 		// TODO if it turns out that the webserver instance doesn't need to do stuff periodically, remove the
 		// extend from Worker.
 		return std::chrono::milliseconds( 1000 * 60 );
@@ -85,6 +85,9 @@ namespace micasa {
 		auto resourceIt = this->m_resources.find( callback_->uri );
 		if ( resourceIt != this->m_resources.end() ) {
 			resourceIt->second.push_back( callback_ );
+			std::sort( resourceIt->second.begin(), resourceIt->second.end(), [=]( std::shared_ptr<ResourceCallback>& a_, std::shared_ptr<ResourceCallback>& b_ ) {
+				return a_->sort < b_->sort;
+			} );
 		} else {
 			this->m_resources[callback_->uri] = { callback_ };
 		}

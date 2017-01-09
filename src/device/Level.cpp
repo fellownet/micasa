@@ -12,6 +12,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 
 	const std::map<Level::Unit, std::string> Level::UnitText = {
+		{ Level::Unit::GENERIC, "" },
 		{ Level::Unit::PERCENT, "%" },
 		{ Level::Unit::WATT, "Watt" },
 		{ Level::Unit::VOLT, "V" },
@@ -20,6 +21,7 @@ namespace micasa {
 		{ Level::Unit::CELCIUS, "°C" },
 		{ Level::Unit::FAHRENHEIT, "°F" },
 		{ Level::Unit::PASCAL, "Pa" },
+		{ Level::Unit::LUX, "lx" },
 	};
 	
 	void Level::start() {
@@ -34,13 +36,13 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			"api/devices/" + std::to_string( this->m_id ) + "/data", 100,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
 				output_ = g_database->getQuery<json>(
 					"SELECT * FROM ( "
-						"SELECT `average` AS `value`, strftime('%%s',`date`) AS `timestamp` "
+						"SELECT printf(\"%%.3f\", `average`) AS `value`, strftime('%%s',`date`) AS `timestamp` "
 						"FROM `device_level_trends` "
 						"WHERE `device_id`=%d "
 						"AND `date` < datetime('now','-%d day') "
@@ -48,14 +50,14 @@ namespace micasa {
 					")"
 					"UNION ALL "
 					"SELECT * FROM ( "
-						"SELECT avg(`value`) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 5 * 60 ) ) AS `timestamp` "
+						"SELECT printf(\"%%.3f\", avg(`value`)) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 5 * 60 ) ) AS `timestamp` "
 						"FROM `device_level_history` "
 						"WHERE `device_id`=%d "
 						"AND `date` >= datetime('now','-%d day') "
 						"GROUP BY `timestamp` "
 						"ORDER BY `date` ASC "
 					") ",
-					this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+					this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 				);
 			} )
 		} ) ) );
@@ -70,13 +72,18 @@ namespace micasa {
 	bool Level::updateValue( const unsigned int& source_, const t_value& value_ ) {
 
 		// The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
 
+		// Do not process duplicate values.
+		if ( this->m_value == value_ ) {
+			return true;
+		}
+
 		// Make a local backup of the original value (the hardware might want to revert it).
-		t_value currentValue = this->m_value;
+		this->m_previousValue = this->m_value;
 		this->m_value = value_;
 		
 		// If the update originates from the hardware, do not send it to the hardware again!
@@ -98,22 +105,44 @@ namespace micasa {
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
 		} else {
-			this->m_value = currentValue;
+			this->m_value = this->m_previousValue;
 		}
 		return success;
 	};
 
-	json Level::getJson() const {
+	json Level::getJson( bool full_ ) const {
 		std::stringstream ss;
 		ss << std::fixed << std::setprecision( 3 ) << this->getValue();
 		json result = Device::getJson();
 		result["value"] = ss.str();
 		result["type"] = "level";
-		result["unit"] = Level::UnitText.at( static_cast<Unit>( this->m_settings.get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
+		result["unit"] = Level::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
+
+		// If the unit of this device can be altered, the setting should be pushed to the client.
+		if (
+			full_
+			&& this->m_settings->get( DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_FALSE ) == SETTING_TRUE
+		) {
+			json setting = {
+				{ "name", "unit" },
+				{ "label", "Unit" },
+				{ "type", "list" },
+				{ "options", json::array() },
+				{ "value", Level::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) ) }
+			};
+			for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
+				setting["options"] += {
+					{ "value", static_cast<unsigned int>( unitIt->first ) },
+					{ "label", unitIt->second }
+				};
+			}
+			result["settings"] += setting;
+		}
+
 		return result;
 	};
 
-	const std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			std::string hourFormat = "%Y-%m-%d %H:00:00";
 			std::string groupFormat = "%Y-%m-%d-%H";
@@ -140,7 +169,7 @@ namespace micasa {
 			g_database->putQuery(
 				"DELETE FROM `device_level_history` "
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
-				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+				, this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
 			return std::chrono::milliseconds( 1000 * 60 * 5 );
 		} else {

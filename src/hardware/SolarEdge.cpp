@@ -3,6 +3,7 @@
 #include "SolarEdge.h"
 #include "../Database.h"
 #include "../Controller.h"
+#include "../Utils.h"
 
 #include "json.hpp"
 
@@ -12,11 +13,32 @@ namespace micasa {
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Controller> g_controller;
+	extern std::shared_ptr<WebServer> g_webServer;
 	
 	using namespace nlohmann;
-	
+
 	SolarEdge::SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "api_key,site_id" );
+		// The settings for SolarEdge need to be entered before the hardware is started. Therefore the
+		// resource handler needs to be installed upon construction time. The resource will be destroyed by
+		// the controller which uses the same identifier for specific hardware resources.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"hardware-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				auto settings = extractSettingsFromJson( input_ );
+				try {
+					this->m_settings->put( "api_key", settings.at( "api_key" ) );
+				} catch( std::out_of_range exception_ ) { };
+				try {
+					this->m_settings->put( "site_id", settings.at( "site_id" ) );
+				} catch( std::out_of_range exception_ ) { };
+				if ( this->m_settings->isDirty() ) {
+					this->m_settings->commit( *this );
+					this->m_needsRestart = true;
+				}
+			} )
+		} ) ) );
 	};
 	
 	void SolarEdge::start() {
@@ -28,17 +50,40 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
 	};
+
+	json SolarEdge::getJson( bool full_ ) const {
+		if ( full_ ) {
+			json result = Hardware::getJson( full_ );
+			result["settings"] = {
+				{
+					{ "name", "api_key" },
+					{ "label", "API Key" },
+					{ "type", "string" },
+					{ "value", this->m_settings->get( "api_key", "" ) }
+				},
+				{
+					{ "name", "site_id" },
+					{ "label", "Site ID" },
+					{ "type", "string" },
+					{ "value", this->m_settings->get( "site_id", "" ) }
+				}
+			};
+			return result;
+		} else {
+			return Hardware::getJson( full_ );
+		}
+	};
 	
-	const std::chrono::milliseconds SolarEdge::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds SolarEdge::_work( const unsigned long int& iteration_ ) {
 		
-		if ( ! this->m_settings.contains( { "api_key", "site_id" } ) ) {
+		if ( ! this->m_settings->contains( { "api_key", "site_id" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
 		std::stringstream url;
-		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings["site_id"] << "/list?api_key=" << this->m_settings["api_key"];
+		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/list?api_key=" << this->m_settings->get( "api_key" );
 		
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -48,7 +93,7 @@ namespace micasa {
 				&& this->getState() == Hardware::State::INIT
 			) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-				this->_setState( Hardware::State::FAILED );
+				this->setState( Hardware::State::FAILED );
 			}
 		} ) );
 		
@@ -77,8 +122,8 @@ namespace micasa {
 						(*inverterIt)["serialNumber"].get<std::string>(),
 						this->shared_from_this(),
 						{
-							{ "api_key", this->m_settings["api_key"] },
-							{ "site_id", this->m_settings["site_id"] },
+							{ "api_key", this->m_settings->get( "api_key" ) },
+							{ "site_id", this->m_settings->get( "site_id" ) },
 							{ "serial", (*inverterIt)["serialNumber"].get<std::string>() },
 							{ "label", label.str() }
 						},
@@ -86,11 +131,11 @@ namespace micasa {
 					);
 				}
 				
-				this->_setState( Hardware::State::READY );
+				this->setState( Hardware::State::READY );
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 		}
 		
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;

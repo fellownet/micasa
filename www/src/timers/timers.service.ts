@@ -24,7 +24,7 @@ export class Timer {
 @Injectable()
 export class TimersService {
 
-	private _timerUrlBase = 'api/crons';
+	private _timerUrlBase = 'api/timers';
 
 	constructor(
 		private _router: Router,
@@ -38,7 +38,7 @@ export class TimersService {
 	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
 		var me = this;
 		if ( route_.params['timer_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New timer', cron: '', scripts: [] } );
+			return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', scripts: [] } );
 		} else {
 			return new Observable( function( observer_: any ) {
 				me.getTimer( +route_.params['timer_id'] )

@@ -53,7 +53,7 @@ namespace micasa {
 		mg_connection* connect( const std::string uri_, const t_callback callback_ );
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		
 	private:
 		mg_mgr m_manager;

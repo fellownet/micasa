@@ -26,6 +26,7 @@ namespace micasa {
 		switch( signal_ ) {
 			case SIGINT:
 			case SIGTERM:
+				g_logger->log( Logger::LogLevel::WARNING, g_controller, "Shutting down." );
 				g_shutdown = true;
 				break;
 		}
@@ -98,8 +99,8 @@ int main( int argc_, char* argv_[] ) {
 	}
 
 	g_webServer->stop();
-	g_network->stop();
 	g_controller->stop();
+	g_network->stop();
 	
 	g_controller = NULL;
 	g_webServer = NULL;

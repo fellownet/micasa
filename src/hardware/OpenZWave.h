@@ -24,17 +24,19 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 
-		const std::string getLabel() const override;
+		std::string getLabel() const override;
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return false; };
+		json getJson( bool full_ = false ) const override;
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
-		mutable std::timed_mutex m_managerMutex;
-		unsigned int m_homeId;
+		mutable std::timed_mutex m_notificationMutex;
+		std::string m_port;
+		unsigned int m_homeId = 0;
 		unsigned char m_controllerNodeId;
-
+		
 		void _handleNotification( const ::OpenZWave::Notification* notification_ );
 		void _installResourceHandlers() const;
 

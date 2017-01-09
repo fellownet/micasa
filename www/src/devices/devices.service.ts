@@ -14,6 +14,23 @@ import {
 import { Observable }      from 'rxjs/Observable';
 import { Hardware }        from '../hardware/hardware.service';
 
+export class Option {
+	label: string;
+	value: string;
+}
+
+export class Setting {
+	label: string;
+	description?: string;
+	name: string;
+	type: string;
+	class: string;
+	value?: any;
+	min?: number;
+	max?: number;
+	options?: Option[];
+}
+
 export class Device {
 	id: number;
 	label: string;
@@ -23,7 +40,8 @@ export class Device {
 	enabled: boolean;
 	value?: any; // is optional for updates
 	unit: string;
-	scripts: number[];
+	scripts?: number[];
+	settings?: Setting[];
 }
 
 @Injectable()

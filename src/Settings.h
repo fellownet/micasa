@@ -6,6 +6,9 @@
 #include <sstream>
 #include <vector>
 
+#define SETTING_TRUE  "true"
+#define SETTING_FALSE "false"
+
 namespace micasa {
 
 	class Hardware;
@@ -25,22 +28,23 @@ namespace micasa {
 		void populate();
 		void populate( const Hardware& hardware_ );
 		void populate( const Device& device_ );
-		void commit() const;
-		void commit( const Hardware& hardware_ ) const;
-		void commit( const Device& device_ ) const;
+		void commit();
+		void commit( const Hardware& hardware_ );
+		void commit( const Device& device_ );
 		bool isDirty() const { return this->m_dirty; }
 		
 		std::string get( const std::string& key_, const std::string& default_ ) const;
 		template<typename T> T get( const std::string& key_, const T& default_ ) const;
-		const std::string& operator[]( const std::string& key_ ) const;
+		std::string get( const std::string& key_ ) const;
+		template<typename T> T get( const std::string& key_ ) const;
 		template<typename T> Settings* put( const std::string& key_, const T& value_ );
 		const std::map<std::string,std::string> getAll( const std::string& keys_, const bool& keepNotFounds_ = false ) const;
 		const std::map<std::string,std::string> getAll( const std::vector<std::string>& keys_, const bool& keepNotFounds_ = false ) const;
 		
 	private:
-		mutable bool m_dirty = false;
 		std::map<std::string, std::string> m_settings;
 		mutable std::mutex m_settingsMutex;
+		bool m_dirty = false;
 		
 	}; // class Settings
 	

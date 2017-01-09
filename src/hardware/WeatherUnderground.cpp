@@ -9,6 +9,7 @@
 #include "../device/Switch.h"
 #include "../Logger.h"
 #include "../Network.h"
+#include "../Utils.h"
 
 namespace micasa {
 
@@ -19,7 +20,30 @@ namespace micasa {
 	using namespace nlohmann;
 
 	WeatherUnderground::WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "api_key,location,scale" );
+		// The settings for WeatherUnderground need to be entered before the hardware is started. Therefore the
+		// resource handler needs to be installed upon construction time. The resource will be destroyed by
+		// the controller which uses the same identifier for specific hardware resources.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"hardware-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				auto settings = extractSettingsFromJson( input_ );
+				try {
+					this->m_settings->put( "api_key", settings.at( "api_key" ) );
+				} catch( std::out_of_range exception_ ) { };
+				try {
+					this->m_settings->put( "location", settings.at( "location" ) );
+				} catch( std::out_of_range exception_ ) { };
+				try {
+					this->m_settings->put( "scale", settings.at( "scale" ) );
+				} catch( std::out_of_range exception_ ) { };
+				if ( this->m_settings->isDirty() ) {
+					this->m_settings->commit( *this );
+					this->m_needsRestart = true;
+				}
+			} )
+		} ) ) );
 	};
 
 	void WeatherUnderground::start() {
@@ -31,17 +55,56 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
 	};
+
+	json WeatherUnderground::getJson( bool full_ ) const {
+		if ( full_ ) {
+			json result = Hardware::getJson( full_ );
+			result["settings"] = {
+				{
+					{ "name", "api_key" },
+					{ "label", "API Key" },
+					{ "type", "string" },
+					{ "value", this->m_settings->get( "api_key", "" ) }
+				},
+				{
+					{ "name", "location" },
+					{ "label", "Location" },
+					{ "type", "string" },
+					{ "value", this->m_settings->get( "location", "" ) }
+				},
+				{
+					{ "name", "scale" },
+					{ "label", "Scale" },
+					{ "type", "list" },
+					{ "options", {
+						{
+							{ "value", "celcius" },
+							{ "label", "Celcius" }
+						},
+						{
+							{ "value", "fahrenheit" },
+							{ "label", "Fahrenheid" }
+						}
+					} },
+					{ "value", this->m_settings->get( "scale", "celcius" ) }
+				}
+			};
+			return result;
+		} else {
+			return Hardware::getJson( full_ );
+		}
+	};
 	
-	const std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
 		
-		if ( ! this->m_settings.contains( { "api_key", "location", "scale" } ) ) {
+		if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
 		std::stringstream url;
-		url << "http://api.wunderground.com/api/" << this->m_settings["api_key"] << "/conditions/q/" << this->m_settings["location"] << ".json";
+		url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/q/" << this->m_settings->get( "location" ) << ".json";
 
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -51,7 +114,7 @@ namespace micasa {
 				&& this->getState() == Hardware::State::INIT
 			) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-				this->_setState( Hardware::State::FAILED );
+				this->setState( Hardware::State::FAILED );
 			}
 		} ) );
 		
@@ -80,19 +143,19 @@ namespace micasa {
 						}
 						
 						if (
-							this->m_settings["scale"] == "fahrenheit"
+							this->m_settings->get( "scale" ) == "fahrenheit"
 							&& ! data["temp_f"].is_null()
 						) {
-							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::FAHRENHEIT ) }
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
-						   this->m_settings["scale"] == "celcius"
+						   this->m_settings->get( "scale" ) == "celcius"
 						   && ! data["temp_c"].is_null()
 					   ) {
-							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::CELCIUS ) }
 							} );
@@ -100,41 +163,41 @@ namespace micasa {
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
-							auto device = this->_declareDevice<Level>( "3", "Humidity in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
 							} );
 							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
-							auto device = this->_declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PASCAL ) }
 							} );
 							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
-							auto device = this->_declareDevice<Text>( "5", "Wind Direction in " + this->m_settings["location"], {
+							auto device = this->_declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 							} );
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}
 					}
 
-					this->_setState( Hardware::State::READY );
+					this->setState( Hardware::State::READY );
 
 				} else {
 					if (
 						data["response"]["error"].is_object()
 						&& ! data["response"]["error"]["description"].is_null()
 					) {
-						this->_setState( Hardware::State::FAILED );
+						this->setState( Hardware::State::FAILED );
 						g_logger->log( Logger::LogLevel::ERROR, this, data["response"]["error"]["description"].get<std::string>() );
 					}
 				}
 			}
 		} catch( ... ) {
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 		}
 		

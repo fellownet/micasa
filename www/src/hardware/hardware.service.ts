@@ -14,6 +14,23 @@ import {
 import { Observable }      from 'rxjs/Observable';
 import { Device }          from '../devices/devices.service';
 
+export class Option {
+	label: string;
+	value: string;
+}
+
+export class Setting {
+	label: string;
+	description?: string;
+	name: string;
+	type: string;
+	class: string;
+	value?: any;
+	min?: number;
+	max?: number;
+	options?: Option[];
+}
+
 export class Hardware {
 	id: number;
 	label: string;
@@ -22,22 +39,13 @@ export class Hardware {
 	enabled: boolean;
 	state: string;
 	parent?: Hardware;
-	settings: any;
-}
-
-export class Port {
-	path: string;
-	id_product: string;
-	id_vendor: string;
-	manufacturer: string;
-	product: string;
+	settings?: Setting[];
 }
 
 @Injectable()
 export class HardwareService {
 
 	private _hardwareUrlBase = 'api/hardware';
-	private _portsUrlBase = 'api/usb';
 
 	constructor(
 		private _router: Router,
@@ -122,13 +130,6 @@ export class HardwareService {
 		;
 	};
 
-	getPorts(): Observable<Port[]> {
-		return this._http.get( this._portsUrlBase )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
-	};
-
 	private _extractData( response_: Response ) {
 		let body = response_.json();
 		return body || null;
@@ -183,6 +184,15 @@ export class HardwareService {
 	};
 
 	openzwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
+		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	openzwaveHealNode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';

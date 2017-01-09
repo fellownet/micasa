@@ -57,7 +57,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
-	const std::chrono::milliseconds Network::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds Network::_work( const unsigned long int& iteration_ ) {
 		// The _work method is executed in the network worker thread, and so will *all* the installed callbacks. The
 		// connect and bind methods are synchronized with this worker thread. Because these methods are usually called
 		// at the very beginning of the app lifecycle, skip blocking the first iteration.

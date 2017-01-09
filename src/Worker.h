@@ -20,12 +20,13 @@ namespace micasa {
 		bool isRunning() const;
 		void wakeUp();
 
+		virtual void start();
+		virtual void stop();
+
 	protected:
 		volatile bool m_shutdown = true;
 		
-		virtual void start();
-		virtual void stop();
-		virtual const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) =0;
+		virtual std::chrono::milliseconds _work( const unsigned long int& iteration_ ) =0;
 		void _synchronize( std::function<void()> func_ ) const;
 
 	private:

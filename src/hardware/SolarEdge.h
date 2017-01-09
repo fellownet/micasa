@@ -14,11 +14,12 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		
-		const std::string getLabel() const override { return "SolarEdge API"; };
+		std::string getLabel() const override { return "SolarEdge API"; };
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
+		json getJson(  bool full_ = false  ) const override;
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 		
 	private:
 		void _processHttpReply( mg_connection* connection_, const http_message* message_ );

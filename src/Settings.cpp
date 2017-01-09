@@ -65,7 +65,7 @@ namespace micasa {
 		this->m_settings.insert( results.begin(), results.end() );
 	};
 
-	void Settings::commit() const {
+	void Settings::commit() {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
@@ -77,7 +77,7 @@ namespace micasa {
 		this->m_dirty = false;
 	};
 	
-	void Settings::commit( const Hardware& hardware_ ) const {
+	void Settings::commit( const Hardware& hardware_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
@@ -89,7 +89,7 @@ namespace micasa {
 		this->m_dirty = false;
 	};
 	
-	void Settings::commit( const Device& device_ ) const {
+	void Settings::commit( const Device& device_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		for ( auto settingsIt = this->m_settings.begin(); settingsIt != this->m_settings.end(); settingsIt++ ) {
 			g_database->putQuery(
@@ -110,7 +110,6 @@ namespace micasa {
 		}
 	};
 
-
 	template<typename T> T Settings::get( const std::string& key_, const T& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
@@ -125,15 +124,21 @@ namespace micasa {
 	template unsigned int Settings::get( const std::string& key_, const unsigned int& default_ ) const ;
 	template double Settings::get( const std::string& key_, const double& default_ ) const ;
 	
-	const std::string& Settings::operator[]( const std::string& key_ ) const {
+	std::string Settings::get( const std::string& key_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
-		try {
-			return this->m_settings.at( key_ );
-		} catch( std::out_of_range exception_ ) {
-			return NOT_FOUND;
-		}
+		return this->m_settings.at( key_ );
 	};
-	
+
+	template<typename T> T Settings::get( const std::string& key_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		T value;
+		std::istringstream( this->m_settings.at( key_ ) ) >> value;
+		return value;
+	};
+	template int Settings::get( const std::string& key_ ) const ;
+	template unsigned int Settings::get( const std::string& key_ ) const ;
+	template double Settings::get( const std::string& key_ ) const ;
+
 	template<typename T> Settings* Settings::put( const std::string& key_, const T& value_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		std::stringstream ss;
