@@ -13,11 +13,11 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		
-		std::string getLabel() const override { return "Dummy Hardware"; };
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
+		std::string getLabel() const throw() override { return "Dummy Hardware"; };
+		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 * 60 * 15 ); }
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) throw() override { return std::chrono::milliseconds( 1000 * 60 * 15 ); }
 		
 	private:
 		void _installResourceHandlers();

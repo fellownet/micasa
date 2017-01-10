@@ -147,7 +147,7 @@ export class HardwareService {
 		return Observable.throw( message );
 	};
 
-	openzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
+	zwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
@@ -156,7 +156,7 @@ export class HardwareService {
 		;
 	};
 
-	exitOpenzwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
+	exitZWaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/include', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
@@ -165,7 +165,7 @@ export class HardwareService {
 		;
 	};
 
-	openzwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
+	zwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
@@ -174,7 +174,7 @@ export class HardwareService {
 		;
 	};
 
-	exitOpenzwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
+	exitZWaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
@@ -183,7 +183,7 @@ export class HardwareService {
 		;
 	};
 
-	openzwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
+	zwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';
@@ -192,7 +192,7 @@ export class HardwareService {
 		;
 	};
 
-	openzwaveHealNode( hardware_: Hardware ): Observable<boolean> {
+	zwaveHealNode( hardware_: Hardware ): Observable<boolean> {
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {} )
 			.map( function( response_: Response ) {
 					return response_.json()['result'] == 'OK';

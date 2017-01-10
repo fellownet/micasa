@@ -24,8 +24,8 @@ namespace micasa {
 		enum Type {
 			HARMONY_HUB = 1,
 #ifdef _WITH_OPENZWAVE
-			OPEN_ZWAVE,
-			OPEN_ZWAVE_NODE,
+			ZWAVE,
+			ZWAVE_NODE,
 #endif // _WITH_OPENZWAVE
 			P1_METER,
 			PIFACE,
@@ -67,17 +67,17 @@ namespace micasa {
 		virtual void start();
 		virtual void stop();
 
-		unsigned int getId() const { return this->m_id; };
+		unsigned int getId() const throw() { return this->m_id; };
 		Type getType() const;
 		template<typename T> T getType() const;
 		State getState() const;
 		template<typename T> T getState() const;
 		void setState( const State& state_ );
-		std::string getReference() const { return this->m_reference; };
+		std::string getReference() const throw() { return this->m_reference; };
 		std::string getName() const;
-		std::shared_ptr<Settings> getSettings() const { return this->m_settings; };
-		std::shared_ptr<Hardware> getParent() const { return this->m_parent; };
-		bool needsRestart() const { return this->m_needsRestart; };
+		std::shared_ptr<Settings> getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Hardware> getParent() const throw() { return this->m_parent; };
+		bool needsRestart() const throw() { return this->m_needsRestart; };
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;

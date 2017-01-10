@@ -19,13 +19,13 @@ namespace micasa {
 
 		Counter( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
 		
-		Device::Type getType() const override { return Counter::type; };
+		Device::Type getType() const throw() override { return Counter::type; };
 		
 		void start() override;
 		void stop() override;
 		bool updateValue( const unsigned int& source_, const t_value& value_ );
-		t_value getValue() const { return this->m_value; };
-		t_value getPreviousValue() const { return this->m_previousValue; };
+		t_value getValue() const throw() { return this->m_value; };
+		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		json getJson( bool full_ = false ) const override;
 
 	protected:

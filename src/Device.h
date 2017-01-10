@@ -45,17 +45,17 @@ namespace micasa {
 		// constructor).
 		static std::shared_ptr<Device> factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
 
-		unsigned int getId() const { return this->m_id; };
-		std::string getReference() const { return this->m_reference; };
-		std::string getLabel() const { return this->m_label; };
+		unsigned int getId() const throw() { return this->m_id; };
+		std::string getReference() const throw() { return this->m_reference; };
+		std::string getLabel() const throw() { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
 		template<class T> bool updateValue( const unsigned int& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
-		std::shared_ptr<Settings> getSettings() const { return this->m_settings; };
-		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
+		std::shared_ptr<Settings> getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
-		std::chrono::time_point<std::chrono::system_clock> getLastUpdate() const { return this->m_lastUpdate; };
+		std::chrono::time_point<std::chrono::system_clock> getLastUpdate() const throw() { return this->m_lastUpdate; };
 
 		virtual json getJson( bool full_ = false ) const;
 		virtual Type getType() const =0;

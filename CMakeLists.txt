@@ -126,8 +126,8 @@ if( WITH_OPENZWAVE )
 	add_definitions( -D_WITH_OPENZWAVE )
 
 	set( SRC ${SRC}
-		src/hardware/OpenZWave.cpp
-		src/hardware/OpenZWaveNode.cpp
+		src/hardware/ZWave.cpp
+		src/hardware/ZWaveNode.cpp
 	)
 endif()
 

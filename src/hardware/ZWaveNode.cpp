@@ -1,0 +1,812 @@
+#include <chrono>
+
+#include "ZWaveNode.h"
+#include "ZWave/CommandClasses.h"
+
+#include "../Logger.h"
+#include "../Controller.h"
+#include "../WebServer.h"
+
+#include "../device/Level.h"
+#include "../device/Text.h"
+#include "../device/Counter.h"
+#include "../device/Switch.h"
+
+// OpenZWave includes
+#include "Options.h"
+#include "Manager.h"
+#include "Driver.h"
+#include "Node.h"
+#include "Group.h"
+#include "Notification.h"
+#include "value_classes/ValueStore.h"
+#include "value_classes/Value.h"
+#include "value_classes/ValueBool.h"
+#include "platform/Log.h"
+#include "Defs.h"
+
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
+namespace micasa {
+
+	extern std::shared_ptr<Logger> g_logger;
+	extern std::shared_ptr<Controller> g_controller;
+	extern std::shared_ptr<WebServer> g_webServer;
+
+	const std::map<std::string, unsigned int> ZWaveNode::UnitMapping = {
+		{ "Energy", Counter::Unit::KILOWATTHOUR },
+		{ "Power", Level::Unit::WATT },
+		{ "Voltage", Level::Unit::VOLT },
+		{ "Current", Level::Unit::AMPERES },
+		{ "Power Factor", Level::Unit::POWER_FACTOR },
+		{ "Gas", Counter::Unit::M3 },
+		{ "Water", Counter::Unit::M3 },
+		{ "Temperature", Level::Unit::CELCIUS },
+		{ "Luminance", Level::Unit::LUX },
+		{ "Relative Humidity", Level::Unit::GENERIC },
+		{ "Ultraviolet", Level::Unit::GENERIC },
+		{ "Velocity", Level::Unit::GENERIC },
+		{ "Barometric Pressure", Level::Unit::GENERIC },
+		{ "Dew Point", Level::Unit::GENERIC },
+		{ "CO2 Level", Level::Unit::GENERIC },
+		{ "Moisture", Level::Unit::GENERIC }
+	};
+
+	void ZWaveNode::start() {
+#ifdef _DEBUG
+		assert( this->m_settings->contains( { "home_id", "node_id" } ) && "ZWaveNode should be declared with home_id and node_id." );
+#endif // _DEBUG
+
+		// TODO when this hardware is started and stopped while the zwave parent hardware keeps running,
+		// the state remains initializing > fix. Check the parent initializing state. If it is still initializing
+		// do nothing, otherwise query the node our self. This still might overlap, so additional tweaking is
+		// probably necessary.
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+
+		this->m_homeId = this->m_settings->get<unsigned int>( "home_id" );
+		this->m_nodeId = this->m_settings->get<unsigned int>( "node_id" );
+
+		this->_installResourceHandlers();
+
+		Hardware::start();
+	};
+
+	void ZWaveNode::stop() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		g_webServer->removeResourceCallback( "zwavenode-" + std::to_string( this->m_id ) );
+		Hardware::stop();
+	};
+
+	std::chrono::milliseconds ZWaveNode::_work( const unsigned long int& iteration_ ) {
+		unsigned int wait = 1000 * 60 * 5; // 5 mins default
+		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+			if (
+				this->getState() == Hardware::State::READY
+				&& this->getParent()->getState() == Hardware::State::READY
+			) {
+
+				if ( this->m_doNamingUpdate ) {
+			
+					// Update the label of the node (which is the name the hardware reports).
+					std::string manufacturer = Manager::Get()->GetNodeManufacturerName( this->m_homeId, this->m_nodeId );
+					std::string product = Manager::Get()->GetNodeProductName( this->m_homeId, this->m_nodeId );
+					if ( ! manufacturer.empty() ) {
+						this->m_settings->put( "label", manufacturer + " " + product );
+					}
+
+					std::string nodeName = Manager::Get()->GetNodeName( this->m_homeId, this->m_nodeId );
+					if ( ! nodeName.empty() ) {
+						if ( this->m_settings->get( "name", "" ).empty() ) {
+							// If no name has been entered yet for this hardware, use the one from openzwave.
+							this->m_settings->put( "name", nodeName );
+						} else if ( nodeName != this->m_settings->get( "name" ) ) {
+							// Make sure the configured hardware name is the same as the node name used by
+							// openzwave and stored in the config xml file.
+							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, this->m_settings->get( "name" ) );
+						}
+					}
+					this->m_doNamingUpdate = false;
+				}
+
+				std::lock_guard<std::mutex> lock( this->m_configurationMutex );
+				if ( this->m_doConfigSync.size() > 0 ) {
+					
+					// Push all of our settings to the node to make sure it has the same settings as we do in
+					// the database.
+					for ( auto referenceIt = this->m_doConfigSync.begin(); referenceIt != this->m_doConfigSync.end(); referenceIt++ ) {
+						ValueID valueId( this->m_homeId, std::stoull( *referenceIt ) );
+						ValueID::ValueType type = valueId.GetType();
+						try {
+							auto& config = this->m_configuration[*referenceIt];
+							if ( type == ValueID::ValueType_Decimal ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<float>() );
+							} else if ( type == ValueID::ValueType_Bool ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<bool>() );
+							} else if ( type == ValueID::ValueType_Byte ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<uint8>() );
+							} else if ( type == ValueID::ValueType_Short ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<int16>() );
+							} else if ( type == ValueID::ValueType_Int ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<int32>() );
+							} else if ( type == ValueID::ValueType_List ) {
+								Manager::Get()->SetValueListSelection( valueId, config["value"].get<std::string>() );
+							} else if ( type == ValueID::ValueType_String ) {
+								Manager::Get()->SetValue( valueId, config["value"].get<std::string>() );
+							}
+						} catch( ... ) { }
+					}
+					g_logger->log( Logger::LogLevel::WARNING, this, "Configuration synchronized." );
+					this->m_doConfigSync.clear();
+				}
+			} else {
+				// Perform work method more often (every second) while still initializing.
+				wait = 1000;
+			}
+			ZWave::g_managerMutex.unlock();
+		}
+		return std::chrono::milliseconds( wait );
+	}
+
+	std::string ZWaveNode::getLabel() const {
+		return this->m_settings->get( "label", "Z-Wave Node" );
+	};
+
+	json ZWaveNode::getJson( bool full_ ) const {
+		if ( full_ ) {
+			std::lock_guard<std::mutex> lock( this->m_configurationMutex );
+			json result = Hardware::getJson( full_ );
+			result["settings"] = json::array();
+			for( auto const& setting: this->m_configuration ) {
+				result["settings"]+= setting;
+			}
+			return result;
+		} else {
+			return Hardware::getJson( full_ );
+		}
+	}
+
+	bool ZWaveNode::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		apply_ = false;
+
+		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+			std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+			if ( this->getState() != Hardware::State::READY ) {
+				if ( this->getState() == Hardware::State::FAILED ) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
+					return false;
+				} else if ( this->getState() == Hardware::State::SLEEPING ) {
+					g_logger->log( Logger::LogLevel::WARNING, this, "Node is sleeping." );
+					// fallthrough, event can be sent regardless of sleeping state.
+				} else {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Node is busy." );
+					return false;
+				}
+			}
+
+			// Reconstruct the value id which is needed to send a command to a node.
+			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+			switch( valueId.GetCommandClassId() ) {
+				case COMMAND_CLASS_SWITCH_BINARY: {
+					if (
+						valueId.GetType() == ValueID::ValueType_Bool
+						&& device_->getType() == Device::Type::SWITCH
+					) {
+						// TODO differentiate between blinds, switches etc (like open close on of etc).
+						if ( this->_queuePendingUpdate( device_->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+							bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
+							return Manager::Get()->SetValue( valueId, value );
+						} else {
+							g_logger->log( Logger::LogLevel::ERROR, this, "Node busy." );
+							return false;
+						}
+					}
+				}
+				case COMMAND_CLASS_SWITCH_MULTILEVEL: {
+					if (
+						valueId.GetType() == ValueID::ValueType_Byte
+						&& device_->getType() == Device::Type::LEVEL
+					) {
+						if ( this->_queuePendingUpdate( device_->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( device_ );
+							return Manager::Get()->SetValue( valueId, uint8( device->getValue() ) );
+						} else {
+							g_logger->log( Logger::LogLevel::ERROR, this, "Node busy." );
+							return false;
+						}
+					}
+				}
+
+			}
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid command." );
+			return false;
+
+		} else {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+			return false;
+		}
+
+		return true;
+	};
+
+	void ZWaveNode::_handleNotification( const Notification* notification_ ) {
+		// No need to lock here, the parent ZWave instance already holds a lock while proxying the
+		// notification to us.
+
+#ifdef _DEBUG
+		assert( this->m_homeId == notification_->GetHomeId() && "ZWaveNode home_id should be correct." );
+		assert( this->m_nodeId == notification_->GetNodeId() && "ZWaveNode node_id should be correct." );
+#endif // _DEBUG
+
+		switch( notification_->GetType() ) {
+
+			case Notification::Type_EssentialNodeQueriesComplete: {
+				// This is the point after which the node can accept commands.
+				if ( this->getState() == Hardware::State::INIT ) {
+					g_logger->log( Logger::LogLevel::NORMAL, this, "Node ready." );
+					this->setState( Hardware::State::READY );
+				}
+				break;
+			}
+			
+			case Notification::Type_NodeQueriesComplete: {
+				// Run any pending updates on the node immediately after the node is fully initialized.
+				this->wakeUp();
+				break;
+			}
+
+			case Notification::Type_ValueAdded: {
+				ValueID valueId = notification_->GetValueID();
+				this->_processValue( valueId, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE );
+				this->m_doNamingUpdate = true;
+				break;
+			}
+
+			case Notification::Type_ValueChanged: {
+				ValueID valueId = notification_->GetValueID();
+				this->_processValue( valueId, Device::UpdateSource::HARDWARE );
+				break;
+			}
+
+			case Notification::Type_Notification: {
+				switch( notification_->GetNotification() ) {
+					case Notification::Code_Alive: {
+						if ( this->getState() == Hardware::State::FAILED ) {
+							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is alive again." );
+						}
+						this->m_doNamingUpdate = true;
+						this->setState( Hardware::State::READY );
+						break;
+					}
+					case Notification::Code_Dead: {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
+						this->setState( Hardware::State::FAILED );
+						break;
+					}
+					case Notification::Code_Awake: {
+						if ( this->getState() == Hardware::State::SLEEPING ) {
+							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is awake again." );
+						}
+						this->setState( Hardware::State::READY );
+						this->m_doNamingUpdate = true;
+						break;
+					}
+					case Notification::Code_Sleep: {
+						g_logger->log( Logger::LogLevel::NORMAL, this, "Node is asleep." );
+						this->setState( Hardware::State::SLEEPING );
+						break;
+					}
+					case Notification::Code_Timeout: {
+						g_logger->log( Logger::LogLevel::WARNING, this, "Node timeout." );
+						break;
+					}
+				}
+				break;
+			}
+
+			case Notification::Type_NodeNaming: {
+				this->m_doNamingUpdate = true;
+				this->wakeUp();
+				break;
+			}
+
+			default: {
+				break;
+			}
+		}
+	};
+
+	void ZWaveNode::_processValue( const ValueID& valueId_, unsigned int source_ ) {
+		std::string label = Manager::Get()->GetValueLabel( valueId_ );
+		std::string reference = std::to_string( valueId_.GetId() );
+		std::string units = Manager::Get()->GetValueUnits( valueId_ );
+
+		// Some values are not going to be processed ever and can be filtered out beforehand.
+		if (
+			"Exporting" == label
+			|| "Interval" == label
+			|| "Previous Reading" == label
+			|| "Library Version" == label
+			|| "Protocol Version" == label
+			|| "Application Version" == label
+			|| "Previous Reading" == label
+		) {
+			return;
+		}
+
+		// Process all other values by command class.
+		unsigned int commandClass = valueId_.GetCommandClassId();
+		switch( commandClass ) {
+
+			case COMMAND_CLASS_POWERLEVEL: {
+				// This is actually not ONE command class but several; Powerlevel, Timeout, Set Powerlevel, Test Node,
+				// Test Powerlevel, Frame Count, Test, Report, Test Status, Acked Frames and possibly others. They are
+				// used to keep the mesh network in optimal state and do not provide any meaningfull information for
+				// the end user. They are thus ignored.
+				break;
+			}
+
+			case COMMAND_CLASS_PROTECTION: // not yet implemented
+			case COMMAND_CLASS_NO_OPERATION:
+			case COMMAND_CLASS_SWITCH_ALL:
+			case COMMAND_CLASS_ZWAVE_PLUS_INFO: {
+				// Not implemented yet.
+				break;
+			}
+
+			case COMMAND_CLASS_BASIC: {
+				// https://github.com/OpenZWave/open-zwave/wiki/Basic-Command-Class
+				// Conclusion; try to use devices that send other cc values aswell as the basic set. For instance,
+				// the Aeotec ZW089 Recessed Door Sensor Gen5 defaults to only sending basic messages BUT can be
+				// configured to also send binary reports.
+				break;
+			}
+
+			case COMMAND_CLASS_SWITCH_BINARY:
+			case COMMAND_CLASS_SENSOR_BINARY: {
+				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
+				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
+				// instruction.
+				unsigned int allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
+				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
+					allowedUpdateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+
+					// If there's an update mutex available we need to make sure that it is properly notified of the
+					// execution of the update.
+					source_ |= this->_releasePendingUpdate( reference );
+				}
+				bool boolValue = false;
+				unsigned char byteValue = 0;
+				if (
+					valueId_.GetType() == ValueID::ValueType_Bool
+					&& false != Manager::Get()->GetValueAsBool( valueId_, &boolValue )
+				) {
+					// TODO differentiate between blinds, switches etc (like open close on of etc).
+					auto device = this->_declareDevice<Switch>( reference, label, {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+					} );
+					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
+					if ( "Unknown" != label ) {
+						device->setLabel( label );
+					}
+				}
+				if (
+					valueId_.GetType() == ValueID::ValueType_Byte
+					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
+				) {
+					// TODO differentiate between blinds, switches etc (like open close on of etc).
+					auto device = this->_declareDevice<Switch>( reference, label, {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+					} );
+					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
+					if ( "Unknown" != label ) {
+						device->setLabel( label );
+					}
+				}
+				break;
+			}
+
+			case COMMAND_CLASS_SWITCH_MULTILEVEL: {
+				// For now only level multilevel devices are supported.
+				// NOTE: for instance, the fibaro dimmer has several multilevel devices, such as start level-,
+				// step size and dimming duration. These should be handled through the configuration.
+				if ( "Level" == label ) {
+					unsigned int allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+
+					// If there's an update mutex available we need to make sure that it is properly notified of the
+					// execution of the update.
+					source_ |= this->_releasePendingUpdate( reference );
+
+					unsigned char byteValue = 0;
+
+					if (
+						valueId_.GetType() == ValueID::ValueType_Byte
+						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
+					) {
+						auto device = this->_declareDevice<Level>( reference, label, {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) },
+							{ DEVICE_SETTING_UNITS, std::to_string( Level::Unit::PERCENT ) }
+						} );
+						device->updateValue( source_, byteValue );
+						if ( "Unknown" != label ) {
+							device->setLabel( label );
+						}
+					}
+				}
+			}
+
+			case COMMAND_CLASS_METER:
+			case COMMAND_CLASS_SENSOR_MULTILEVEL: {
+				float floatValue = 0;
+				if (
+					valueId_.GetType() == ValueID::ValueType_Decimal
+					&& false != Manager::Get()->GetValueAsFloat( valueId_, &floatValue )
+				) {
+					unsigned int unit = 1;
+					if ( ZWaveNode::UnitMapping.find( label ) != ZWaveNode::UnitMapping.end() ) {
+						unit = ZWaveNode::UnitMapping.at( label );
+						if (
+							label == "Temperature"
+							&& units == "F"
+						) {
+							unit = Level::Unit::FAHRENHEIT;
+						}
+					}
+
+					// TODO check units to see if any multiplication needs to take place (from watt kwh)?
+
+					if (
+						"Energy" == label
+						|| "Gas" == label
+						|| "Water" == label
+					) {
+						auto device = this->_declareDevice<Counter>( reference, label, {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+						} );
+						device->updateValue( source_, floatValue );
+					} else {
+						auto device = this->_declareDevice<Level>( reference, label, {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+						} );
+						device->updateValue( source_, floatValue );
+					}
+				}
+				break;
+			}
+
+			case COMMAND_CLASS_BATTERY: {
+				unsigned char byteValue = 0;
+				if (
+					valueId_.GetType() == ValueID::ValueType_Byte
+					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
+				) {
+					auto device = this->_declareDevice<Level>( reference, label, {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
+					} );
+					device->updateValue( source_, (unsigned int)byteValue );
+				}
+				break;
+			}
+
+			case COMMAND_CLASS_WAKE_UP:
+			case COMMAND_CLASS_CONFIGURATION: {
+				std::lock_guard<std::mutex> lock( this->m_configurationMutex );
+				
+				if (
+					commandClass == COMMAND_CLASS_WAKE_UP
+					&& label != "Wake-up Interval"
+				) {
+					break;
+				}
+				
+				// The configuration is stored with the reference as both the key and as the name property. This
+				// comes in handy in both cases where the configuration is needed, that is when adding it to the
+				// json and when processing settings from the callback.
+
+				// Some configuration parameters refer to other paramters by index.
+				unsigned int index = valueId_.GetIndex();
+				if ( index > 0 ) {
+					label = std::to_string( index ) + ". " + label;
+				}
+
+				json setting = {
+					{ "name", reference },
+					{ "label", label },
+					{ "description", Manager::Get()->GetValueHelp( valueId_ ) },
+					{ "class", "advanced" }
+				};
+
+				ValueID::ValueType type = valueId_.GetType();
+				if ( type == ValueID::ValueType_Decimal ) {
+					setting["type"] = "double";
+					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					float floatValue = 0;
+					Manager::Get()->GetValueAsFloat( valueId_, &floatValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get<double>( reference );
+						if ( floatValue != this->m_settings->get<double>( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = floatValue;
+					}
+				} else if ( type == ValueID::ValueType_Bool ) {
+					setting["type"] = "boolean";
+					bool boolValue = 0;
+					Manager::Get()->GetValueAsBool( valueId_, &boolValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get<bool>( reference );
+						if ( boolValue != this->m_settings->get<bool>( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = boolValue;
+					}
+				} else if ( type == ValueID::ValueType_Byte ) {
+					setting["type"] = "byte";
+					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					unsigned char byteValue = 0;
+					Manager::Get()->GetValueAsByte( valueId_, &byteValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get<unsigned int>( reference );
+						if ( byteValue != this->m_settings->get<unsigned int>( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = byteValue;
+					}
+				} else if ( type == ValueID::ValueType_Short ) {
+					setting["type"] = "short";
+					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					short shortValue = 0;
+					Manager::Get()->GetValueAsShort( valueId_, &shortValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get<int>( reference );
+						if ( shortValue != this->m_settings->get<int>( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = shortValue;
+					}
+				} else if ( type == ValueID::ValueType_Int ) {
+					setting["type"] = "int";
+					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					int intValue = 0;
+					Manager::Get()->GetValueAsInt( valueId_, &intValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get<int>( reference );
+						if ( intValue != this->m_settings->get<int>( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = intValue;
+					}
+				} else if ( type == ValueID::ValueType_Button ) {
+					// Perform action, such as reset to factory defaults.
+					// TODO these should actually be action resources directly, but how to name the resource?
+					//setting["type"] = "button";
+					break; // skip this setting for now > unsupported
+				} else if ( type == ValueID::ValueType_List ) {
+					setting["type"] = "list";
+					std::string listValue;
+					Manager::Get()->GetValueListSelection( valueId_, &listValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get( reference );
+						if ( listValue != this->m_settings->get( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = listValue;
+					}
+
+					setting["options"] = json::array();
+					std::vector<std::string> items;
+					Manager::Get()->GetValueListItems( valueId_, &items );
+					for ( auto itemsIt = items.begin(); itemsIt != items.end(); itemsIt++ ) {
+						json option = json::object();
+						option["value"] = (*itemsIt);
+						option["label"] = (*itemsIt);
+						setting["options"] += option;
+					}
+				} else if ( type == ValueID::ValueType_String ) {
+					setting["type"] = "string";
+					std::string stringValue;
+					Manager::Get()->GetValueAsString( valueId_, &stringValue );
+					if ( this->m_settings->contains( reference ) ) {
+						setting["value"] = this->m_settings->get( reference );
+						if ( stringValue != this->m_settings->get( reference ) ) {
+							this->m_doConfigSync.push_back( reference );
+						}
+					} else {
+						setting["value"] = stringValue;
+					}
+				}
+
+				this->m_configuration[reference] = setting;
+				break;
+			}
+
+			case COMMAND_CLASS_ALARM:
+			case COMMAND_CLASS_SENSOR_ALARM: {
+				// https://github.com/OpenZWave/open-zwave/wiki/Alarm-Command-Class
+				break;
+			}
+
+			default: {
+				break;
+			}
+		}
+	};
+
+	void ZWaveNode::_installResourceHandlers() {
+		g_webServer->removeResourceCallback( "zwavenode-" + std::to_string( this->m_id ) );
+
+		// Add resource handlers for network heal.
+		// http://www.openzwave.com/knowledge-base/deadnode
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"zwavenode-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ) + "/heal", 101,
+			WebServer::Method::PUT,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
+				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+					if ( parent->getState() == Hardware::State::READY ) {
+						Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
+						output_["result"] = "OK";
+						g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
+					} else {
+						output_["result"] = "ERROR";
+						output_["message"] = "Controller not ready.";
+						code_ = 423; // Locked (WebDAV; RFC 4918)
+					}
+				} else {
+					output_["result"] = "ERROR";
+					output_["message"] = "Controller busy.";
+					code_ = 423; // Locked (WebDAV; RFC 4918)
+				}
+			} )
+		} ) ) );
+		
+		// Add resource handler for settings update.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"hardware-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				try {
+
+					// Obtain a lock on the static/shared OpenZWave library manager. If it takes too long to
+					// obtain the lock, the command will fail.
+					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+						// Set the node name so it's persistant. This name is stored in the xml config file.
+						if ( input_.find( "name" ) != input_.end() ) {
+							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, input_["name"].get<std::string>() );
+						}
+
+						// Then all pushed settings are processed. The settings should be pushed to the server in
+						// the same format as they are received.
+						if (
+							input_.find( "settings" ) != input_.end()
+							&& input_["settings"].is_array()
+						) {
+							bool success = true;
+							for ( auto settingIt = input_["settings"].begin(); success && settingIt != input_["settings"].end(); settingIt++ ) {
+								auto setting = (*settingIt);
+								if (
+									setting.find( "name" ) != setting.end()
+									&& setting.find( "value" ) != setting.end()
+									&& this->m_configuration.find( setting["name"].get<std::string>() ) != this->m_configuration.end()
+								) {
+									auto reference = setting["name"].get<std::string>();
+									auto& config = this->m_configuration[reference];
+
+									ValueID valueId( this->m_homeId, std::stoull( reference ) );
+									ValueID::ValueType type = valueId.GetType();
+									if ( type == ValueID::ValueType_Decimal ) {
+										success = success && setting["value"].get<float>() <= config["max"];
+										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<float>();
+											this->m_settings->put<double>( reference, setting["value"].get<float>() );
+										}
+									} else if ( type == ValueID::ValueType_Bool ) {
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<bool>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<bool>();
+											this->m_settings->put<bool>( reference, setting["value"].get<bool>() );
+										}
+									} else if ( type == ValueID::ValueType_Byte ) {
+										success = success && setting["value"].get<float>() <= config["max"];
+										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<uint8>();
+											this->m_settings->put<unsigned int>( reference, setting["value"].get<uint8>() );
+										}
+									} else if ( type == ValueID::ValueType_Short ) {
+										success = success && setting["value"].get<float>() <= config["max"];
+										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<int16>();
+											this->m_settings->put<int>( reference, setting["value"].get<int16>() );
+										}
+									} else if ( type == ValueID::ValueType_Int ) {
+										success = success && setting["value"].get<float>() <= config["max"];
+										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<int32>();
+											this->m_settings->put<int>( reference, setting["value"].get<int32>() );
+										}
+									} else if ( type == ValueID::ValueType_List ) {
+										bool exists = false;
+										for ( auto itemsIt = config["options"].begin(); itemsIt != config["options"].end(); itemsIt++ ) {
+											if ( (*itemsIt)["value"] == setting["value"].get<std::string>() ) {
+												exists = true;
+												break;
+											}
+										}
+										success = success && exists;
+										success = success && Manager::Get()->SetValueListSelection( valueId, setting["value"].get<std::string>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<std::string>();
+											this->m_settings->put( reference, setting["value"].get<std::string>() );
+										}
+									} else if ( type == ValueID::ValueType_String ) {
+										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<std::string>() );
+										if ( success ) {
+											config["value"] = setting["value"].get<std::string>();
+											this->m_settings->put( reference, setting["value"].get<std::string>() );
+										}
+									}
+									
+									// Add a more descriptive message to the error if possible.
+									if ( ! success ) {
+										unsigned int index = valueId.GetIndex();
+										output_["message"] = "Invalid value for parameter " + std::to_string( index ) + ".";
+									}
+								}
+							}
+
+							if ( success ) {
+								output_["result"] = "OK";
+							} else {
+								output_["result"] = "ERROR";
+								if ( output_.find( "message" ) == output_.end() ) {
+									output_["message"] = "Unable to update hardware.";
+								}
+								code_ = 400; // bad request > causes all other callbacks to not get called
+							}
+						}
+					} else {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+						output_["result"] = "ERROR";
+						output_["message"] = "Hardware busy.";
+						code_ = 400; // bad request > causes all other callbacks to not get called
+					}
+				} catch( ... ) {
+					output_["result"] = "ERROR";
+					output_["message"] = "Unable to update hardware.";
+					code_ = 400; // bad request > causes all other callbacks to not get called
+				}
+			} )
+		} ) ) );
+		
+	};
+
+}; // namespace micasa

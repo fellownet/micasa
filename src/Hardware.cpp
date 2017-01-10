@@ -7,8 +7,8 @@
 #include <sstream>
 
 #ifdef _WITH_OPENZWAVE
-	#include "hardware/OpenZWave.h"
-	#include "hardware/OpenZWaveNode.h"
+	#include "hardware/ZWave.h"
+	#include "hardware/ZWaveNode.h"
 #endif // _WITH_OPENZWAVE
 
 #include "hardware/WeatherUnderground.h"
@@ -31,8 +31,8 @@ namespace micasa {
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
 		{ Hardware::Type::HARMONY_HUB, "harmony_hub" },
 #ifdef _WITH_OPENZWAVE
-		{ Hardware::Type::OPEN_ZWAVE, "openzwave" },
-		{ Hardware::Type::OPEN_ZWAVE_NODE, "openzwave_node" },
+		{ Hardware::Type::ZWAVE, "zwave" },
+		{ Hardware::Type::ZWAVE_NODE, "zwave_node" },
 #endif // _WITH_OPENZWAVE
 		{ Hardware::Type::P1_METER, "p1_meter" },
 		{ Hardware::Type::PIFACE, "piface" },
@@ -77,11 +77,11 @@ namespace micasa {
 				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_ );
 				break;
 #ifdef _WITH_OPENZWAVE
-			case OPEN_ZWAVE:
-				return std::make_shared<OpenZWave>( id_, type_, reference_, parent_ );
+			case ZWAVE:
+				return std::make_shared<ZWave>( id_, type_, reference_, parent_ );
 				break;
-			case OPEN_ZWAVE_NODE:
-				return std::make_shared<OpenZWaveNode>( id_, type_, reference_, parent_ );
+			case ZWAVE_NODE:
+				return std::make_shared<ZWaveNode>( id_, type_, reference_, parent_ );
 				break;
 #endif // _WITH_OPENZWAVE
 			case P1_METER:

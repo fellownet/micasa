@@ -12,34 +12,37 @@ void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* not
 
 namespace micasa {
 
-	class OpenZWave final : public Hardware {
+	using namespace OpenZWave;
 
-		friend class OpenZWaveNode;
+	class ZWave final : public Hardware {
+
+		friend class ZWaveNode;
 		friend void ::micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 
 	public:
-		OpenZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
-		~OpenZWave() { };
+		ZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
+		~ZWave() { };
 
 		void start() override;
 		void stop() override;
 
 		std::string getLabel() const override;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return false; };
+		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return false; };
 		json getJson( bool full_ = false ) const override;
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) throw() override { return std::chrono::milliseconds( 1000 * 60 * 5 ); }
 
 	private:
-		mutable std::timed_mutex m_notificationMutex;
+		static std::timed_mutex g_managerMutex;
+		static unsigned int g_managerWatchers;
+	
 		std::string m_port;
 		unsigned int m_homeId = 0;
-		unsigned char m_controllerNodeId;
 		
-		void _handleNotification( const ::OpenZWave::Notification* notification_ );
+		void _handleNotification( const Notification* notification_ );
 		void _installResourceHandlers() const;
 
-	}; // class OpenZWave
+	}; // class ZWave
 
 }; // namespace micasa

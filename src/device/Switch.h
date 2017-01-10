@@ -27,16 +27,16 @@ namespace micasa {
 		
 		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
 
-		Device::Type getType() const override { return Switch::type; };
+		Device::Type getType() const throw() override { return Switch::type; };
 		
 		void start() override;
 		void stop() override;
 		bool updateValue( const unsigned int& source_, const Option& value_ );
 		bool updateValue( const unsigned int& source_, const t_value& value_ );
-		const unsigned int getValueOption() const { return this->m_value; };
-		const unsigned int getPreviousValueOption() const { return this->m_previousValue; };
-		t_value getValue() const { return OptionText.at( this->m_value ); };
-		t_value getPreviousValue() const { return OptionText.at( this->m_previousValue ); };
+		const unsigned int getValueOption() const throw() { return this->m_value; };
+		const unsigned int getPreviousValueOption() const throw() { return this->m_previousValue; };
+		t_value getValue() const throw() { return OptionText.at( this->m_value ); };
+		t_value getPreviousValue() const throw() { return OptionText.at( this->m_previousValue ); };
 		json getJson( bool full_ = false ) const override;
 
 	protected:

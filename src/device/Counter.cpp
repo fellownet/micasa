@@ -112,7 +112,7 @@ namespace micasa {
 		// If the unit of this device can be altered, the setting should be pushed to the client.
 		if (
 			full_
-			&& this->m_settings->get( DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_FALSE ) == SETTING_TRUE
+			&& this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
 		) {
 			json setting = {
 				{ "name", "unit" },

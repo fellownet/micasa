@@ -57,22 +57,22 @@
 					<div class="form-group" *ngSwitchCase="'byte'" [class.has-error]="!field.valid && !field.pristine">
 						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
 						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" maxlength="3" pattern="^[0-9]{1,3}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+						<input type="number" maxlength="3" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,3}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
 					</div>
 					<div class="form-group" *ngSwitchCase="'short'" [class.has-error]="!field.valid && !field.pristine">
 						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
 						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" maxlength="5" pattern="^[0-9]{1,5}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+						<input type="number" maxlength="5" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,5}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
 					</div>
 					<div class="form-group" *ngSwitchCase="'int'" [class.has-error]="!field.valid && !field.pristine">
 						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
 						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" pattern="^[0-9]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
 					</div>
 					<div class="form-group" *ngSwitchCase="'double'" [class.has-error]="!field.valid && !field.pristine">
 						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
 						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" pattern="^[0-9\.]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9\.]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
 					</div>
 					<div class="form-group" *ngSwitchCase="'boolean'">
 						<div class="checkbox">
@@ -94,22 +94,22 @@
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!hardwareForm.form.valid || hardwareForm.form.pristine || loading">Save</button>
 					</div>
 
-					<!-- buttons for openzwave -->
-					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='openzwave'">
+					<!-- buttons for zwave -->
+					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='zwave'">
 						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Management <span class="caret"></span></button>
 						<ul class="dropdown-menu">
-							<li><a (click)="openzwaveIncludeMode();">Include Node</a></li>
-							<li><a (click)="openzwaveExcludeMode();">Exclude Node</a></li>
-							<li><a (click)="openzwaveHealNetwork();">Heal Network</a></li>
+							<li><a (click)="zwaveIncludeMode();">Include Node</a></li>
+							<li><a (click)="zwaveExcludeMode();">Exclude Node</a></li>
+							<li><a (click)="zwaveHealNetwork();">Heal Network</a></li>
 						</ul>
 					</div>
-					<!-- / buttons for openzwave -->
+					<!-- / buttons for zwave -->
 
-					<!-- buttons for openzwavenodes -->
-					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.type=='openzwave_node' && hardware.parent && hardware.parent.state=='ready'">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" (click)="openzwaveHealNode();">Heal Node</button>
+					<!-- buttons for zwavenodes -->
+					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.type=='zwave_node' && hardware.parent && hardware.parent.state=='ready'">
+						<button type="button" class="btn btn-primary btn-block dropdown-toggle" (click)="zwaveHealNode();">Heal Node</button>
 					</div>
-					<!-- / buttons for openzwavenodes -->
+					<!-- / buttons for zwavenodes -->
 
 					<!-- buttons for dummy hardware -->
 					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='dummy'">
@@ -124,9 +124,9 @@
 					<!-- / buttons for dummy hardware -->
 
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
-						[class.col-sm-offset-4]="hardware.state!='ready' || ['dummy','openzwave','openzwave_node'].indexOf(hardware.type)==-1"
-						[class.col-md-offset-6]="hardware.state!='ready' || ['dummy','openzwave','openzwave_node'].indexOf(hardware.type)==-1"
-						[class.col-lg-offset-8]="hardware.state!='ready' || ['dummy','openzwave','openzwave_node'].indexOf(hardware.type)==-1"
+						[class.col-sm-offset-4]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
+						[class.col-md-offset-6]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
+						[class.col-lg-offset-8]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
 					>
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteHardware()">Delete</button>
 					</div>
@@ -142,26 +142,26 @@
 <hardware [parent]="hardware"></hardware>
 <devices [hardware]="hardware"></devices>
 
-<!-- Dialog for OpenZWave Management In- and Exclude Actions -->
-<div class="modal fade" id="openzwave-action" role="dialog" *ngIf="hardware.type=='openzwave' || hardware.type=='openzwave_node'">
+<!-- Dialog for Z-Wave Management In- and Exclude Actions -->
+<div class="modal fade" id="zwave-action" role="dialog" *ngIf="hardware.type=='zwave' || hardware.type=='zwave_node'">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
 			<div class="modal-header">
 				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-				<h4 class="modal-title" id="myModalLabel">OpenZWave
-					<span *ngIf="openzwavemode=='include'">Include Mode</span>
-					<span *ngIf="openzwavemode=='exclude'">Exclude Mode</span>
-					<span *ngIf="openzwavemode=='heal'">Healing Network</span>
+				<h4 class="modal-title" id="myModalLabel">Z-Wave
+					<span *ngIf="zwavemode=='include'">Include Mode</span>
+					<span *ngIf="zwavemode=='exclude'">Exclude Mode</span>
+					<span *ngIf="zwavemode=='heal'">Healing Network</span>
 				</h4>
 			</div>
 			<div class="modal-body">
-				<i class="fa fa-spinner fa-pulse fa-3x fa-fw" *ngIf="openzwavemode!='heal'"></i>
-				<span *ngIf="openzwavemode=='heal' && hardware.type=='openzwave'">Network healing started.</span>
-				<span *ngIf="openzwavemode=='heal' && hardware.type=='openzwave_node'">Node healing started. If the node is battery powered, bring it close to the controller or the controller close to the node for optimal results.</span>
+				<i class="fa fa-spinner fa-pulse fa-3x fa-fw" *ngIf="zwavemode!='heal'"></i>
+				<span *ngIf="zwavemode=='heal' && hardware.type=='zwave'">Network healing started.</span>
+				<span *ngIf="zwavemode=='heal' && hardware.type=='zwave_node'">Node healing started. If the node is battery powered, bring it close to the controller or the controller close to the node for optimal results.</span>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-primary" data-dismiss="modal" (click)="openzwaveExitMode()" *ngIf="openzwavemode!='heal'">Exit</button>
-				<button type="button" class="btn btn-primary" data-dismiss="modal" *ngIf="openzwavemode=='heal'">Ok</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal" (click)="zwaveExitMode()" *ngIf="zwavemode!='heal'">Exit</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal" *ngIf="zwavemode=='heal'">Ok</button>
 			</div>
 		</div>
 	</div>
