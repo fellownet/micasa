@@ -14,11 +14,32 @@ namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
+	extern std::shared_ptr<WebServer> g_webServer;
 
 	using namespace nlohmann;
 	
 	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "address,port" );
+		// The settings for the harmony hub need to be entered before the hardware is started. Therefore the
+		// resource handler needs to be installed upon construction time. The resource will be destroyed by
+		// the controller which uses the same identifier for specific hardware resources.
+		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+			"hardware-" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			WebServer::Method::PUT | WebServer::Method::PATCH,
+			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+				auto settings = extractSettingsFromJson( input_ );
+				try {
+					this->m_settings->put( "address", settings.at( "address" ) );
+				} catch( std::out_of_range exception_ ) { };
+				try {
+					this->m_settings->put( "port", settings.at( "port" ) );
+				} catch( std::out_of_range exception_ ) { };
+				if ( this->m_settings->isDirty() ) {
+					this->m_settings->commit( *this );
+					this->m_needsRestart = true;
+				}
+			} )
+		} ) ) );
 	};
 	
 	void HarmonyHub::start() {
@@ -28,21 +49,50 @@ namespace micasa {
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		if ( this->m_connectionState != CLOSED ) {
+			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
+			this->m_connectionState = CLOSED;
+		}
 		Hardware::stop();
 	};
 
-	const std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
+	json HarmonyHub::getJson( bool full_ ) const {
+		if ( full_ ) {
+			json result = Hardware::getJson( full_ );
+			result["settings"] = {
+				{
+					{ "name", "address" },
+					{ "label", "Address" },
+					{ "type", "string" },
+					{ "value", this->m_settings->get( "address", "" ) }
+				},
+				{
+					{ "name", "port" },
+					{ "label", "Port" },
+					{ "type", "short" },
+					{ "min", "1" },
+					{ "max", "65536" },
+					{ "value", this->m_settings->get( "port", "" ) }
+				}
+			};
+			return result;
+		} else {
+			return Hardware::getJson( full_ );
+		}
+	};
+
+	std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
 		
 		// A connection to the Harmony Hub should remain open at all times, so if it isn't, a new
 		// connection will be made.
 		if ( this->m_connectionState == CLOSED ) {
 
-			if ( ! this->m_settings.contains( { "address", "port" } ) ) {
+			if ( ! this->m_settings->contains( { "address", "port" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				return std::chrono::milliseconds( 1000 * 60 * 5 );
 			}
 
-			std::string uri = this->m_settings["address"] + ':' + this->m_settings["port"];
+			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
 			this->m_connectionState = CONNECTING;
 			this->m_connection = g_network->connect( uri, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				switch( event_ ) {
@@ -139,7 +189,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		this->m_connectionState = CLOSED;
-		this->_setState( Hardware::State::FAILED );
+		this->setState( Hardware::State::FAILED );
 	};
 	
 	void HarmonyHub::_processConnection( const bool ready_ ) {
@@ -236,7 +286,7 @@ namespace micasa {
 							// After the activities have been recieved we're putting the connection in idle state. At this
 							// point changes in activities can be received and processed.
 							this->m_connectionState = IDLE;
-							this->_setState( Hardware::State::READY );
+							this->setState( Hardware::State::READY );
 						} else {
 							this->_disconnect( "Malformed activities data." );
 							break;
@@ -304,7 +354,7 @@ namespace micasa {
 								&& this->m_currentActivityId != activityId
 							)
 						) {
-							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_getDevice( this->m_currentActivityId ) );
+							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( this->m_currentActivityId ) );
 							if ( device != nullptr ) {
 								device->updateValue( source, Switch::Option::OFF );
 							}
@@ -313,7 +363,7 @@ namespace micasa {
 						
 						// Turn the new activity on.
 						if ( activityId != "-1" ) {
-							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->_getDevice( activityId ) );
+							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( activityId ) );
 							if ( device != nullptr ) {
 								device->updateValue( source, Switch::Option::ON );
 							}

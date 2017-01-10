@@ -43,6 +43,7 @@ namespace micasa {
 		struct ResourceCallback {
 			const std::string reference;
 			const std::string uri;
+			const unsigned int sort;
 			const unsigned int methods;
 			const t_callback callback;
 		};
@@ -67,7 +68,7 @@ namespace micasa {
 		void stop();
 		
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		
 	private:
 		std::map<std::string, std::vector<std::shared_ptr<ResourceCallback> > > m_resources;

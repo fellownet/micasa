@@ -29,7 +29,6 @@
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th></th>
 		<th>Value</th>
 		<th>Hardware</th>
 		<th [gridField]="'label'">Label</th>
@@ -42,9 +41,6 @@
 	>
 		<!-- td>{{device.id}}</td -->
 		<td>{{device.name}}</td>
-		<td>
-			<i class="fa fa-code" *ngIf="device.scripts.length>0"></i>
-		</td>
 		<td><span class="label"
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"

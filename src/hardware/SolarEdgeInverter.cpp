@@ -19,10 +19,6 @@ namespace micasa {
 	
 	using namespace nlohmann;
 	
-	SolarEdgeInverter::SolarEdgeInverter( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		this->m_settings.put<std::string>( HARDWARE_SETTINGS_ALLOWED, "api_key,site_id,serial" );
-	};
-	
 	void SolarEdgeInverter::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -33,15 +29,16 @@ namespace micasa {
 		Hardware::stop();
 	};
 
-	const std::string SolarEdgeInverter::getLabel() const {
-		return this->m_settings.get( "label", "SolarEdge Inverter" );
+	std::string SolarEdgeInverter::getLabel() const {
+		return this->m_settings->get( "label", "SolarEdge Inverter" );
 	};
-	
-	const std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
+
+	std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
 		
-		if ( ! this->m_settings.contains( { "api_key", "site_id", "serial" } ) ) {
+		// The settings should've been provided by the SolarEdge parent hardware.
+		if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
@@ -53,7 +50,7 @@ namespace micasa {
 		);
 
 		std::stringstream url;
-		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings["site_id"] << "/" << this->m_settings["serial"] << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings["api_key"];
+		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
 		
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -63,7 +60,7 @@ namespace micasa {
 				&& this->getState() == Hardware::State::INIT
 			) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-				this->_setState( Hardware::State::FAILED );
+				this->setState( Hardware::State::FAILED );
 			}
 		} ) );
 		
@@ -119,11 +116,11 @@ namespace micasa {
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}
 
-				this->_setState( Hardware::State::READY );
+				this->setState( Hardware::State::READY );
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
-			this->_setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED );
 		}
 		
 		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;

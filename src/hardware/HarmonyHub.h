@@ -24,11 +24,12 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		
-		const std::string getLabel() const override { return "Harmony Hub"; };
+		std::string getLabel() const throw() override { return "Harmony Hub"; };
 		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
+		json getJson( bool full_ = false ) const override;
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 		
 	private:
 		mg_connection* m_connection;

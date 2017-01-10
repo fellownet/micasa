@@ -43,22 +43,22 @@ namespace micasa {
 #endif // _DEBUG
 		
 	   // The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings.get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
 		
-		// TODO does this make sense?
-		// Prevent the same updates.
+		// Do not process duplicate values.
 		if ( this->m_value == value_ ) {
-			//return true; // update was successful but nothing has to happen
+			return true;
 		}
-		
+
 		// Make a local backup of the original value (the hardware might want to revert it).
-		Option currentValue = this->m_value;
+		this->m_previousValue = this->m_value;
 		this->m_value = value_;
 		
-		// If the update originates from the hardware, do not send it to the hardware again!
+		// If the update originates from the hardware, do not send it to the hardware again. Also do not send the
+		// value to the hardware if it's the same as currently registered.
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
@@ -77,7 +77,7 @@ namespace micasa {
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {
-			this->m_value = currentValue;
+			this->m_value = this->m_previousValue;
 		}
 		return success;
 	};
@@ -91,7 +91,7 @@ namespace micasa {
 		return false;
 	};
 
-	json Switch::getJson() const {
+	json Switch::getJson( bool full_ ) const {
 		json result = Device::getJson();
 		result["value"] = this->getValue();
 		result["type"] = "switch";
@@ -99,14 +99,14 @@ namespace micasa {
 		return result;
 	};
 
-	const std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {
+	std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 			// Purge history after a configured period (defaults to 31 days for switch devices because these
 			// lack a separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_switch_history` "
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
-				, this->m_id, this->m_settings.get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
+				, this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 			);
 			return std::chrono::milliseconds( 1000 * 60 * 60 );
 		} else {

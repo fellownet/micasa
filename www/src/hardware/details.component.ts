@@ -1,7 +1,10 @@
-import { Component, OnInit }               from '@angular/core';
-import { Router, ActivatedRoute }          from '@angular/router';
-import { Hardware, Port, HardwareService } from './hardware.service';
-import { Device }                          from '../devices/devices.service';
+import { Component, OnInit }         from '@angular/core';
+import { Router, ActivatedRoute }    from '@angular/router';
+import {
+	Hardware, Setting, Option,
+	HardwareService
+}                                    from './hardware.service';
+import { Device }                    from '../devices/devices.service';
 
 declare var $: any;
 
@@ -14,9 +17,11 @@ export class HardwareDetailsComponent implements OnInit {
 	loading: boolean = false;
 	error: String;
 	hardware: Hardware;
-	ports: Port[];
 
-	openzwavemode: string;
+	hasAdvancedSettings: boolean;
+	showAdvancedSettings: boolean;
+
+	zwavemode: string;
 
 	constructor(
 		private _router: Router,
@@ -29,18 +34,12 @@ export class HardwareDetailsComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.hardware = data_.hardware;
-		} );
-
-		this._hardwareService.getPorts()
-			.subscribe(
-				function( ports_: Port[] ) {
-					me.ports = ports_;
-				},
-				function( error_: String ) {
-					me.error = error_;
+			for ( let setting of me.hardware.settings ) {
+				if ( setting.class == 'advanced' ) {
+					me.hasAdvancedSettings = true;
 				}
-			)
-		;
+			}
+		} );
 	};
 
 	submitHardware() {
@@ -55,6 +54,7 @@ export class HardwareDetailsComponent implements OnInit {
 				function( error_: string ) {
 					me.loading = false;
 					me.error = error_;
+					window.scrollTo( 0, 0 );
 				}
 			)
 		;
@@ -81,15 +81,15 @@ export class HardwareDetailsComponent implements OnInit {
 		;
 	};
 
-	// Methods specifically for the OpenZWave hardware.
+	// Methods specifically for the Z-Wave hardware.
 
-	openzwaveIncludeMode() {
+	zwaveIncludeMode() {
 		var me = this;
-		this._hardwareService.openzwaveIncludeMode( me.hardware )
+		this._hardwareService.zwaveIncludeMode( me.hardware )
 			.subscribe(
 				function( success_: boolean ) {
-					me.openzwavemode = 'include';
-					$( '#openzwave-action' ).modal();
+					me.zwavemode = 'include';
+					$( '#zwave-action' ).modal();
 				},
 				function( error_: string ) {
 					me.error = error_;
@@ -98,13 +98,13 @@ export class HardwareDetailsComponent implements OnInit {
 		;
 	};
 
-	openzwaveExcludeMode() {
+	zwaveExcludeMode() {
 		var me = this;
-		this._hardwareService.openzwaveExcludeMode( me.hardware )
+		this._hardwareService.zwaveExcludeMode( me.hardware )
 			.subscribe(
 				function( success_: boolean ) {
-					me.openzwavemode = 'exclude';
-					$( '#openzwave-action' ).modal();
+					me.zwavemode = 'exclude';
+					$( '#zwave-action' ).modal();
 				},
 				function( error_: string ) {
 					me.error = error_;
@@ -113,24 +113,24 @@ export class HardwareDetailsComponent implements OnInit {
 		;
 	};
 
-	openzwaveExitMode() {
+	zwaveExitMode() {
 		var me = this;
-		if ( 'include' == me.openzwavemode ) {
-			this._hardwareService.exitOpenzwaveIncludeMode( me.hardware )
+		if ( 'include' == me.zwavemode ) {
+			this._hardwareService.exitZWaveIncludeMode( me.hardware )
 				.subscribe(
 					function( success_: boolean ) {
-						me.openzwavemode = null;
+						me.zwavemode = null;
 					},
 					function( error_: string ) {
 						me.error = error_;
 					}
 				)
 			;
-		} else if ( 'exclude' == me.openzwavemode ) {
-			this._hardwareService.exitOpenzwaveExcludeMode( me.hardware )
+		} else if ( 'exclude' == me.zwavemode ) {
+			this._hardwareService.exitZWaveExcludeMode( me.hardware )
 				.subscribe(
 					function( success_: boolean ) {
-						me.openzwavemode = null;
+						me.zwavemode = null;
 					},
 					function( error_: string ) {
 						me.error = error_;
@@ -140,13 +140,28 @@ export class HardwareDetailsComponent implements OnInit {
 		}
 	};
 
-	openzwaveHealNetwork() {
+	zwaveHealNetwork() {
 		var me = this;
-		this._hardwareService.openzwaveHealNetwork( me.hardware )
+		this._hardwareService.zwaveHealNetwork( me.hardware )
 			.subscribe(
 				function( success_: boolean ) {
-					me.openzwavemode = 'heal';
-					$( '#openzwave-action' ).modal();
+					me.zwavemode = 'heal';
+					$( '#zwave-action' ).modal();
+				},
+				function( error_: string ) {
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	zwaveHealNode() {
+		var me = this;
+		this._hardwareService.zwaveHealNode( me.hardware )
+			.subscribe(
+				function( success_: boolean ) {
+					me.zwavemode = 'heal';
+					$( '#zwave-action' ).modal();
 				},
 				function( error_: string ) {
 					me.error = error_;

@@ -47,7 +47,6 @@
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th></th>
 		<th>State</th>
 		<th>Cron</th>
 	</tr>
@@ -56,9 +55,6 @@
 	<tr *ngFor="let timer of grid.page" (click)="selectTimer(timer)">
 		<!-- td>{{timer.id}}</td -->
 		<td>{{timer.name}}</td>
-		<td>
-			<i class="fa fa-code" *ngIf="timer.scripts.length>0"></i>
-		</td>
 		<td>
 			<span class="label label-success" *ngIf="timer.enabled">enabled</span>
 			<span class="label label-danger" *ngIf="!timer.enabled">disabled</span>

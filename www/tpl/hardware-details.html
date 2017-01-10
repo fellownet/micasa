@@ -21,6 +21,7 @@
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
+					<button type="button" class="btn btn-primary btn-xs pull-right" *ngIf="hasAdvancedSettings" (click)="showAdvancedSettings=!showAdvancedSettings"><span *ngIf="!showAdvancedSettings">Show Advanced</span><span *ngIf="showAdvancedSettings">Hide Advanced</span></button>
 					<h3 class="box-title">Edit Hardware</h3>
 				</div>
 
@@ -31,120 +32,84 @@
 						<input type="text" class="form-control" id="hardware_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="hardware.name" name="name" #name="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
-					<div class="form-group">
+					<div class="form-group" *ngIf="!hardware.parent">
 						<div class="checkbox">
 							<label><input type="checkbox" value="1" [(ngModel)]="hardware.enabled" name="enabled">Enabled</label>
 						</div>
 					</div>
 
-					<!-- settings for openzwave -->
-					<ng-container *ngIf="hardware.type=='openzwave'">
-					<div class="form-group" [class.has-error]="!port.valid && !port.pristine">
-						<label for="openzwave_port">Port</label>
-						<select class="form-control" id="openzwave_port" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel">
-							<option value="port.path" [selected]="port.path==hardware.settings.port" *ngFor="let port of ports">
-								{{port.path}}
-								<ng-container *ngIf="port.manufacturer.length>0"> - {{port.manufacturer}}</ng-container>
-								<ng-container *ngIf="port.product.length>0"> - {{port.product}}</ng-container>
-								<ng-container *ngIf="port.product.length==0 && port.manufacturer.length==0 && port.id_vendor.length>0"> (vendor: {{port.id_vendor}}<ng-container *ngIf="port.id_product.length>0">, product: {{port.id_product}}</ng-container>)</ng-container>
-							</option>
-
-						</select>
-						<!-- TODO maybe allow an input field if libudev is not installed (freebsd)? -->
-						<!-- input type="text" class="form-control" id="openzwave_port" placeholder="Enter USB Port" autocomplete="off" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel" -->
+					<!-- settings -->
+					<ng-container *ngFor="let setting of hardware.settings">
+					<ng-container *ngIf="showAdvancedSettings || setting.class!='advanced'">
+					<ng-container [ngSwitch]="setting.type">
+					<div class="form-group" *ngSwitchCase="'string'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<input type="text" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
 					</div>
-					<div class="callout callout-danger" [hidden]="port.valid || port.pristine">An USB Port is required!</div>
-					</ng-container>
-					<!-- / settings for openzwave -->
-
-					<!-- settings for harmony hub -->
-					<ng-container *ngIf="hardware.type=='harmony_hub'">
-					<div class="form-group" [class.has-error]="!address.valid && !address.pristine">
-						<label for="harmony_hub_address">Address</label>
-						<input type="text" class="form-control" id="harmony_hub_address" placeholder="Enter Address" autocomplete="off" required [(ngModel)]="hardware.settings.address" name="address" #address="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="address.valid || address.pristine">An address is required!</div>
-					<div class="form-group" [class.has-error]="!port.valid && !port.pristine">
-						<label for="harmony_hub_port">Port</label>
-						<input type="text" class="form-control" id="harmony_hub_port" placeholder="Enter Port" autocomplete="off" pattern="^[0-9]+$" required [(ngModel)]="hardware.settings.port" name="port" #port="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="port.valid || port.pristine">A valid port is required!</div>
-					</ng-container>
-					<!-- / settings for harmony hub -->
-
-					<!-- settings for solaredge -->
-					<ng-container *ngIf="hardware.type=='solaredge'">
-					<div class="form-group" [class.has-error]="!api_key.valid && !api_key.pristine">
-						<label for="solaredge_api_key">API Key</label>
-						<input type="text" class="form-control" id="solaredge_api_key" placeholder="Enter API Key" autocomplete="off" required [(ngModel)]="hardware.settings.api_key" name="api_key" #api_key="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="api_key.valid || api_key.pristine">An API key is required!</div>
-					<div class="form-group" [class.has-error]="!site_id.valid && !site_id.pristine">
-						<label for="solaredge_site_id">Site Id</label>
-						<input type="text" class="form-control" id="solaredge_site_id" placeholder="Enter Site Id" autocomplete="off" required [(ngModel)]="hardware.settings.site_id" name="site_id" #site_id="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="site_id.valid || site_id.pristine">A Site Id is required!</div>
-					</ng-container>
-					<!-- / settings for solaredge -->
-
-					<!-- settings for solaredge inverter -->
-					<ng-container *ngIf="hardware.type=='solaredge_inverter'">
-					<div class="form-group" [class.has-error]="!api_key.valid && !api_key.pristine">
-						<label for="solaredge_inverter_api_key">API Key</label>
-						<input type="text" class="form-control" id="solaredge_inverter_api_key" placeholder="Enter API Key" autocomplete="off" required [(ngModel)]="hardware.settings.api_key" name="api_key" #api_key="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="api_key.valid || api_key.pristine">An API key is required!</div>
-					<div class="form-group" [class.has-error]="!site_id.valid && !site_id.pristine">
-						<label for="solaredge_inverter_site_id">Site Id</label>
-						<input type="text" class="form-control" id="solaredge_inverter_site_id" placeholder="Enter Site Id" autocomplete="off" required [(ngModel)]="hardware.settings.site_id" name="site_id" #site_id="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="site_id.valid || site_id.pristine">A Site Id is required!</div>
-					<div class="form-group" [class.has-error]="!serial.valid && !serial.pristine">
-						<label for="solaredge_inverter_serial">Serial</label>
-						<input type="text" class="form-control" id="solaredge_inverter_serial" placeholder="Enter Inverter Serial Number" autocomplete="off" required [(ngModel)]="hardware.settings.serial" name="serial" #serial="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="serial.valid || serial.pristine">An Inverter Serial Number is required!</div>
-					</ng-container>
-					<!-- / settings for solaredge inverter -->
-
-					<!-- settings for weather underground -->
-					<ng-container *ngIf="hardware.type=='weather_underground'">
-					<div class="form-group" [class.has-error]="!api_key.valid && !api_key.pristine">
-						<label for="weather_underground_api_key">API Key</label>
-						<input type="text" class="form-control" id="weather_underground_api_key" placeholder="Enter API Key" autocomplete="off" required [(ngModel)]="hardware.settings.api_key" name="api_key" #api_key="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="api_key.valid || api_key.pristine">An API key is required!</div>
-					<div class="form-group" [class.has-error]="!location.valid && !location.pristine">
-						<label for="weather_underground_location">Location</label>
-						<input type="text" class="form-control" id="weather_underground_location" placeholder="Enter Location" autocomplete="off" required [(ngModel)]="hardware.settings.location" name="location" #location="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="location.valid || location.pristine">A location is required!</div>
-					<div class="form-group">
-						<label for="weather_underground_scale">Scale</label>
-						<select class="form-control" id="weather_underground_scale" required [(ngModel)]="hardware.settings.scale" name="scale" #scale="ngModel">
-							<option value="celcius">Celcius</option>
-							<option value="fahrenheit">Fahrenheit</option>
+					<div class="form-group" *ngSwitchCase="'list'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<select class="form-control" id="hardware-setting-{{setting.name}}" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+							<option *ngFor="let option of setting.options" value="{{option.value}}">{{option.label}}</option>
 						</select>
 					</div>
+					<div class="form-group" *ngSwitchCase="'byte'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<input type="number" maxlength="3" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,3}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+					</div>
+					<div class="form-group" *ngSwitchCase="'short'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<input type="number" maxlength="5" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,5}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+					</div>
+					<div class="form-group" *ngSwitchCase="'int'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+					</div>
+					<div class="form-group" *ngSwitchCase="'double'" [class.has-error]="!field.valid && !field.pristine">
+						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9\.]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
+					</div>
+					<div class="form-group" *ngSwitchCase="'boolean'">
+						<div class="checkbox">
+							<label><input type="checkbox" [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">{{setting.label}}</label>
+						</div>
+					</div>
 					</ng-container>
-					<!-- / settings for weather underground -->
+					</ng-container>
+					</ng-container>
+					<!-- / settings -->
 
 				</div>
+
+
+
+<!-- fix the misalignment of buttons with ngSwitch -->
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!hardwareForm.form.valid || hardwareForm.form.pristine || loading">Save</button>
 					</div>
 
-					<!-- buttons for openzwave -->
-					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='openzwave'">
+					<!-- buttons for zwave -->
+					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='zwave'">
 						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Management <span class="caret"></span></button>
 						<ul class="dropdown-menu">
-							<li><a (click)="openzwaveIncludeMode();">Include Node</a></li>
-							<li><a (click)="openzwaveExcludeMode();">Exclude Node</a></li>
-							<li><a (click)="openzwaveHealNetwork();">Heal Network</a></li>
+							<li><a (click)="zwaveIncludeMode();">Include Node</a></li>
+							<li><a (click)="zwaveExcludeMode();">Exclude Node</a></li>
+							<li><a (click)="zwaveHealNetwork();">Heal Network</a></li>
 						</ul>
 					</div>
-					<!-- / buttons for openzwave -->
+					<!-- / buttons for zwave -->
+
+					<!-- buttons for zwavenodes -->
+					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.type=='zwave_node' && hardware.parent && hardware.parent.state=='ready'">
+						<button type="button" class="btn btn-primary btn-block dropdown-toggle" (click)="zwaveHealNode();">Heal Node</button>
+					</div>
+					<!-- / buttons for zwavenodes -->
 
 					<!-- buttons for dummy hardware -->
 					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown" *ngIf="hardware.state=='ready' && hardware.type=='dummy'">
@@ -159,9 +124,9 @@
 					<!-- / buttons for dummy hardware -->
 
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
-						[class.col-sm-offset-4]="hardware.state!='ready' || ['dummy','openzwave'].indexOf(hardware.type)==-1"
-						[class.col-md-offset-6]="hardware.state!='ready' || ['dummy','openzwave'].indexOf(hardware.type)==-1"
-						[class.col-lg-offset-8]="hardware.state!='ready' || ['dummy','openzwave'].indexOf(hardware.type)==-1"
+						[class.col-sm-offset-4]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
+						[class.col-md-offset-6]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
+						[class.col-lg-offset-8]="hardware.state!='ready' || ['dummy','zwave','zwave_node'].indexOf(hardware.type)==-1"
 					>
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteHardware()">Delete</button>
 					</div>
@@ -177,25 +142,26 @@
 <hardware [parent]="hardware"></hardware>
 <devices [hardware]="hardware"></devices>
 
-<!-- Dialog for OpenZWave Management In- and Exclude Actions -->
-<div class="modal fade" id="openzwave-action" role="dialog" *ngIf="hardware.type=='openzwave'">
+<!-- Dialog for Z-Wave Management In- and Exclude Actions -->
+<div class="modal fade" id="zwave-action" role="dialog" *ngIf="hardware.type=='zwave' || hardware.type=='zwave_node'">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
 			<div class="modal-header">
 				<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-				<h4 class="modal-title" id="myModalLabel">OpenZWave
-					<span *ngIf="openzwavemode=='include'">Include Mode</span>
-					<span *ngIf="openzwavemode=='exclude'">Exclude Mode</span>
-					<span *ngIf="openzwavemode=='heal'">Healing Network</span>
+				<h4 class="modal-title" id="myModalLabel">Z-Wave
+					<span *ngIf="zwavemode=='include'">Include Mode</span>
+					<span *ngIf="zwavemode=='exclude'">Exclude Mode</span>
+					<span *ngIf="zwavemode=='heal'">Healing Network</span>
 				</h4>
 			</div>
 			<div class="modal-body">
-				<i class="fa fa-spinner fa-pulse fa-3x fa-fw" *ngIf="openzwavemode!='heal'"></i>
-				<span *ngIf="openzwavemode=='heal'">Network healing started.</span>
+				<i class="fa fa-spinner fa-pulse fa-3x fa-fw" *ngIf="zwavemode!='heal'"></i>
+				<span *ngIf="zwavemode=='heal' && hardware.type=='zwave'">Network healing started.</span>
+				<span *ngIf="zwavemode=='heal' && hardware.type=='zwave_node'">Node healing started. If the node is battery powered, bring it close to the controller or the controller close to the node for optimal results.</span>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-primary" data-dismiss="modal" (click)="openzwaveExitMode()" *ngIf="openzwavemode!='heal'">Exit</button>
-				<button type="button" class="btn btn-primary" data-dismiss="modal" *ngIf="openzwavemode=='heal'">Ok</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal" (click)="zwaveExitMode()" *ngIf="zwavemode!='heal'">Exit</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal" *ngIf="zwavemode=='heal'">Ok</button>
 			</div>
 		</div>
 	</div>

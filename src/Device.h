@@ -8,10 +8,11 @@
 #include "WebServer.h"
 #include "Settings.h"
 
-#define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES	"_allowed_update_sources"
-#define DEVICE_SETTING_KEEP_HISTORY_PERIOD		"_keep_history_period"
-#define DEVICE_SETTING_UNITS						"_units"
-#define DEVICE_SETTING_FLAGS						"_flags"
+#define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
+#define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
+#define DEVICE_SETTING_UNITS                  "_units"
+#define DEVICE_SETTING_FLAGS	                  "_flags"
+#define DEVICE_SETTING_ALLOW_UNIT_CHANGE      "_allow_unit_change"
 
 namespace micasa {
 
@@ -20,8 +21,6 @@ namespace micasa {
 	class Hardware;
 
 	class Device : public Worker, public std::enable_shared_from_this<Device> {
-		
-		friend class Hardware;
 		
 	public:
 		enum Type {
@@ -39,33 +38,37 @@ namespace micasa {
 			API = 16,
 		}; // enum UpdateSource
 		
-		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
-		virtual const Type getType() const =0;
-		
-		const unsigned int getId() const { return this->m_id; };
-		const std::string getReference() const { return this->m_reference; };
-		const std::string& getLabel() const { return this->m_label; };
-		const std::string getName() const;
+
+		// This is the preferred way to create a device of specific type (hence the protected
+		// constructor).
+		static std::shared_ptr<Device> factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
+
+		unsigned int getId() const throw() { return this->m_id; };
+		std::string getReference() const throw() { return this->m_reference; };
+		std::string getLabel() const throw() { return this->m_label; };
+		std::string getName() const;
 		void setLabel( const std::string& label_ );
 		template<class T> bool updateValue( const unsigned int& source_, const typename T::t_value& value_ );
-		template<class T> const typename T::t_value& getValue() const;
-		Settings& getSettings() { return this->m_settings; };
-		std::shared_ptr<Hardware> getHardware() const { return this->m_hardware; }
-		virtual json getJson() const;
+		template<class T> typename T::t_value getValue() const;
+		std::shared_ptr<Settings> getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
+		std::chrono::time_point<std::chrono::system_clock> getLastUpdate() const throw() { return this->m_lastUpdate; };
+
+		virtual json getJson( bool full_ = false ) const;
+		virtual Type getType() const =0;
 		
 	protected:
+		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
+
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;
 		const std::string m_reference;
 		std::string m_label;
-		Settings m_settings;
+		std::shared_ptr<Settings> m_settings;
 		std::chrono::time_point<std::chrono::system_clock> m_lastUpdate;
-		
-	private:
-		static std::shared_ptr<Device> _factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
 
 	}; // class Device
 

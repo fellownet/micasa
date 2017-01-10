@@ -15,7 +15,7 @@ namespace micasa {
 	void Dummy::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		this->_installResourceHandlers();
-		this->_setState( READY );
+		this->setState( READY );
 		Hardware::start();
 	}
 	
@@ -31,7 +31,7 @@ namespace micasa {
 		// the general hardware delete resource handler.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"dummy-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
+			"api/hardware/" + std::to_string( this->m_id ), 101,
 			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
 				switch( method_ ) {
@@ -50,14 +50,16 @@ namespace micasa {
 								if ( input_["type"].get<std::string>() == "counter" ) {
 									auto device = this->_declareDevice<Counter>( std::to_string( ++index ), "Counter", {
 										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
 									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
 									output_["device"] = device->getJson();
 								} else if ( input_["type"].get<std::string>() == "level" ) {
 									auto device = this->_declareDevice<Level>( std::to_string( ++index ), "Level", {
 										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
 									}, true /* auto start */ );
 									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
 									output_["device"] = device->getJson();

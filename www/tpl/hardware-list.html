@@ -24,7 +24,7 @@
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
 							<li><a (click)="addHardware('harmony_hub');">Logitech Harmony Hub</a></li>
-							<li><a (click)="addHardware('openzwave');">OpenZWave</a></li>
+							<li><a (click)="addHardware('zwave');">Z-Wave</a></li>
 							<li><a (click)="addHardware('solaredge');">SolarEdge</a></li>
 							<li><a (click)="addHardware('weather_underground');">Weather Underground</a></li>
 						</ul>
@@ -54,7 +54,6 @@
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th></th>
 		<th [gridField]="'state'">State</th>
 		<th [gridField]="'label'">Label</th>
 		<th [gridField]="'type'">Type</th>
@@ -66,14 +65,11 @@
 	>
 		<!-- td>{{item.id}}</td -->
 		<td>{{item.name}}</td>
-		<td>
-			<i class="fa fa-moon-o" *ngIf="item.state=='sleeping'"></i>
-		</td>
 		<td><span class="label"
 			[class.label-default]="item.state=='disabled'"
 			[class.label-success]="item.state=='ready'"
 			[class.label-danger]="item.state=='failed'"
-			[class.label-info]="item.state=='sleeping'"
+			[class.label-info]="item.state=='sleeping' || item.state=='disconnected'"
 			[class.label-warning]="item.state=='initializing'"
 			>{{item.state}}</span></td>
 		<td>{{item.label}}</td>
@@ -89,7 +85,7 @@
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
 							<li><a (click)="addHardware('harmony_hub');">Logitech Harmony Hub</a></li>
-							<li><a (click)="addHardware('openzwave');">OpenZWave</a></li>
+							<li><a (click)="addHardware('zwave');">Z-Wave</a></li>
 							<li><a (click)="addHardware('solaredge');">SolarEdge</a></li>
 							<li><a (click)="addHardware('weather_underground');">Weather Underground</a></li>
 						</ul>

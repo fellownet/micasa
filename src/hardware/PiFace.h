@@ -10,11 +10,11 @@ namespace micasa {
 		PiFace( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~PiFace() { };
 		
-		const std::string getLabel() const override { return "PiFace"; };
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
+		std::string getLabel() const throw() override { return "PiFace"; };
+		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 
 	protected:
-		const std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 ); }
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) throw() override { return std::chrono::milliseconds( 1000 ); }
 
 	}; // class PiFace
 

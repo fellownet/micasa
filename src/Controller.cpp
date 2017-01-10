@@ -12,12 +12,8 @@
 #include "Database.h"
 #include "Utils.h"
 
-#ifdef _WITH_LIBUDEV
-#include <libudev.h>
-#endif // _WITH_LIBUDEV
-
 #ifdef _DEBUG
-#include <cassert>
+	#include <cassert>
 #endif // _DEBUG
 
 v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
@@ -27,11 +23,11 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		device = controller->_getDeviceById( v7_get_int( js_, arg0 ) );
+		device = controller->getDeviceById( v7_get_int( js_, arg0 ) );
 	} else if ( v7_is_string( arg0 ) ) {
-		device = controller->_getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+		device = controller->getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
 		if ( device == nullptr ) {
-			device = controller->_getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
+			device = controller->getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
 		}
 	}
 	if ( device == nullptr ) {
@@ -78,11 +74,11 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		device = controller->_getDeviceById( v7_get_int( js_, arg0 ) );
+		device = controller->getDeviceById( v7_get_int( js_, arg0 ) );
 	} else if ( v7_is_string( arg0 ) ) {
-		device = controller->_getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+		device = controller->getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
 		if ( device == nullptr ) {
-			device = controller->_getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
+			device = controller->getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
 		}
 	}
 	if ( device == nullptr ) {
@@ -92,16 +88,16 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 	v7_err js_error;
 	switch( device->getType() ) {
 		case micasa::Device::Type::SWITCH:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson().dump().c_str(), res_ );
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 		case micasa::Device::Type::TEXT:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson().dump().c_str(), res_ );
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 		case micasa::Device::Type::LEVEL:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson().dump().c_str(), res_ );
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 		case micasa::Device::Type::COUNTER:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson().dump().c_str(), res_ );
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 	}
 
@@ -117,8 +113,6 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-
-	using namespace std::chrono;
 
 	template<> void Controller::Task::setValue<Level>( const typename Level::t_value& value_ ) { this->levelValue = value_; };
 	template<> void Controller::Task::setValue<Counter>( const typename Counter::t_value& value_ ) { this->counterValue = value_; };
@@ -145,7 +139,7 @@ namespace micasa {
 		if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
 		}
-		v7_set( this->m_v7_js, root, "userData", ~0, userDataObj );
+		v7_set( this->m_v7_js, root, "userdata", ~0, userDataObj );
 
 		v7_set_method( this->m_v7_js, root, "updateDevice", &micasa_v7_update_device );
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
@@ -156,10 +150,18 @@ namespace micasa {
 		assert( g_webServer && "Global WebServer instance should be destroyed after global Controller instance." );
 		assert( g_database && "Global Database instance should be destroyed after global Controller instance." );
 		assert( g_logger && "Global Logger instance should be destroyed after global Controller instance." );
+#ifdef _WITH_LIBUDEV
+		assert( this->m_serialPortCallbacks.size() == 0 && "All serialport callbacks should be removed before the global Controller instance is destroyed." );
+#endif // _WITH_LIBUDEV
 #endif // _DEBUG
 
 		// Release the v7 javascript environment.
 		v7_destroy( this->m_v7_js );
+
+#ifdef _WITH_LIBUDEV
+		this->m_udevMonitorThread.join();
+#endif // _WITH_LIBUDEV
+
 	};
 
 	void Controller::start() {
@@ -189,7 +191,7 @@ namespace micasa {
 			}
 
 			Hardware::Type type = static_cast<Hardware::Type>( atoi( (*hardwareIt)["type"].c_str() ) );
-			std::shared_ptr<Hardware> hardware = Hardware::_factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
+			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
 
 			if ( (*hardwareIt)["enabled"] == "1" ) {
 				hardware->start();
@@ -200,15 +202,14 @@ namespace micasa {
 		}
 		hardwareLock.unlock();
 
-		// Install the script- and cron resource handlers.
+		// Install the script- and timer resource handlers.
 		this->_updateScriptResourceHandlers();
-		this->_updateCronResourceHandlers();
-		this->_updateUsbResourceHandlers();
+		this->_updateTimerResourceHandlers();
 
 		// Add generic resource handlers for the hardware- and device resources.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"controller",
-			"api/hardware",
+			"api/hardware", 100,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 				switch( method_ ) {
@@ -239,6 +240,8 @@ namespace micasa {
 									auto hardware = this->declareHardware( static_cast<Hardware::Type>( type ), reference, { } );
 
 									// A settings object can be passed along.
+									/*
+									is handled by hardware directly.
 									if (
 										input_.find( "settings") != input_.end()
 										&& input_["settings"].is_object()
@@ -249,9 +252,10 @@ namespace micasa {
 										}
 										hardware->setSettings( settings );
 									}
+									*/
 
 									output_["result"] = "OK";
-									output_["hardware"] = hardware->getJson();
+									output_["hardware"] = hardware->getJson( true );
 									g_webServer->touchResourceCallback( "controller" );
 								} else {
 									output_["result"] = "ERROR";
@@ -276,7 +280,7 @@ namespace micasa {
 		} ) ) );
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"controller",
-			"api/devices",
+			"api/devices", 100,
 			WebServer::Method::GET,
 			WebServer::t_callback( []( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 				if ( output_.is_null() ) {
@@ -284,6 +288,42 @@ namespace micasa {
 				}
 			} )
 		} ) ) );
+
+#ifdef _WITH_LIBUDEV
+		// libudev for detecting add- or remove usb device?
+		// http://www.signal11.us/oss/udev/
+		// If libudev is available we can use it to monitor disconenct and reconnect of the z-wave device. For
+		// instance, the Aeon labs z-wave stick can be disconnected to bring it closer to the node when including.
+		this->m_udev = udev_new();
+		if ( this->m_udev ) {
+			this->m_udevMonitor = udev_monitor_new_from_netlink( this->m_udev, "udev" );
+			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
+			udev_monitor_enable_receiving( this->m_udevMonitor );
+
+			// Start a new separate thread for the monitor.
+			this->m_udevMonitorThread = std::thread( [this]() {
+				while( ! this->m_shutdown ) {
+					udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
+					if ( dev ) {
+						std::string port = std::string( udev_device_get_devnode( dev ) );
+						std::string action = std::string( udev_device_get_action( dev ) );
+						std::lock_guard<std::mutex> lock( this->m_serialPortCallbacksMutex );
+						for ( auto callbackIt = this->m_serialPortCallbacks.begin(); callbackIt != this->m_serialPortCallbacks.end(); callbackIt++ ) {
+							callbackIt->second( port, action );
+						}
+						g_logger->logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
+						udev_device_unref( dev );
+					}
+					std::this_thread::sleep_for( milliseconds( 250 ) );
+				}
+				udev_monitor_unref( this->m_udevMonitor );
+				udev_unref( this->m_udev );
+				
+			} );
+		} else {
+			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to  setup device monitoring." );
+		}
+#endif // _WITH_LIBUDEV
 
 		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
@@ -294,8 +334,7 @@ namespace micasa {
 
 		g_webServer->removeResourceCallback( "controller" );
 		g_webServer->removeResourceCallback( "controller-scripts" );
-		g_webServer->removeResourceCallback( "controller-crons" );
-		g_webServer->removeResourceCallback( "controller-usb" );
+		g_webServer->removeResourceCallback( "controller-timers" );
 
 		Worker::stop();
 
@@ -314,7 +353,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::shared_ptr<Hardware> Controller::getHardware( const std::string reference_ ) const {
+	std::shared_ptr<Hardware> Controller::getHardware( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
@@ -324,6 +363,22 @@ namespace micasa {
 		return nullptr;
 	};
 
+	std::vector<std::shared_ptr<Hardware> > Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		std::vector<std::shared_ptr<Hardware> > children;
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto parent = (*hardwareIt)->getParent();
+			if (
+				parent != nullptr
+				&& parent.get() == &hardware_
+			) {
+				children.push_back( *hardwareIt );
+			}
+		}
+		return children;
+
+	};
+	
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ ) {
 		return this->declareHardware( type_, reference_, nullptr, settings_, start_ );
 	};
@@ -361,12 +416,12 @@ namespace micasa {
 		// the getHardware* methods which also use the lock.
 		lock.unlock();
 
-		std::shared_ptr<Hardware> hardware = Hardware::_factory( type_, id, reference_, parent_ );
+		std::shared_ptr<Hardware> hardware = Hardware::factory( type_, id, reference_, parent_ );
 
-		Settings& settings = hardware->getSettings();
-		settings.insert( settings_ );
-		if ( settings.isDirty() ) {
-			settings.commit( *hardware );
+		auto settings = hardware->getSettings();
+		settings->insert( settings_ );
+		if ( settings->isDirty() ) {
+			settings->commit( *hardware );
 		}
 
 		if ( start_ ) {
@@ -381,6 +436,94 @@ namespace micasa {
 
 		return hardware;
 	};
+	
+	bool Controller::removeHardware( const std::shared_ptr<Hardware> hardware_ ) {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		bool result = false;
+
+		// First all the childs are stopped and removed from the system. The database record is not yet
+		// removed because that is done when the parent is removed by foreign key constraints.
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
+			if ( (*hardwareIt)->getParent() == hardware_ ) {
+				g_webServer->removeResourceCallback( "hardware-" + std::to_string( (*hardwareIt)->getId() ) );
+				if ( (*hardwareIt)->isRunning() ) {
+					(*hardwareIt)->stop();
+				}
+
+				hardwareIt = this->m_hardware.erase( hardwareIt );
+				g_webServer->touchResourceCallback( "controller" );
+			} else {
+				hardwareIt++;
+			}
+		}
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
+			if ( (*hardwareIt) == hardware_ ) {
+				g_webServer->removeResourceCallback( "hardware-" + std::to_string( hardware_->getId() ) );
+				if ( hardware_->isRunning() ) {
+					hardware_->stop();
+				}
+
+				g_database->putQuery(
+					"DELETE FROM `hardware` "
+					"WHERE `id`=%d",
+					hardware_->getId()
+				);
+
+				this->m_hardware.erase( hardwareIt );
+				g_webServer->touchResourceCallback( "controller" );
+				result = true;
+				break;
+			} else {
+				hardwareIt++;
+			}
+		}
+		
+		return result;
+	};
+
+	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->getDevice( reference_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
+
+	std::shared_ptr<Device> Controller::getDeviceById( const unsigned int& id_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->getDeviceById( id_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
+
+	std::shared_ptr<Device> Controller::getDeviceByName( const std::string& name_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->getDeviceByName( name_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
+
+	std::shared_ptr<Device> Controller::getDeviceByLabel( const std::string& label_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto device = (*hardwareIt)->getDeviceByLabel( label_ );
+			if ( device != nullptr ) {
+				return device;
+			}
+		}
+		return nullptr;
+	};
 
 	template<class D> void Controller::newEvent( const D& device_, const unsigned int& source_ ) {
 		// Events originating from scripts should not cause another script run.
@@ -389,11 +532,14 @@ namespace micasa {
 			( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT
 			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
 		) {
+			auto interval = system_clock::now() - device_.getLastUpdate();
+
 			json event;
 			event["value"] = device_.getValue();
+			event["previous_value"] = device_.getPreviousValue();
+			event["interval"] = duration_cast<seconds>( interval ).count();
 			event["source"] = source_;
-			event["device"] = device_.getJson();
-			event["hardware"] = device_.getHardware()->getJson();
+			event["device"] = device_.getJson( false );
 
 			// The processing of the event is deliberatly done in a separate method because this method is templated
 			// and is essentially copied for each specialization.
@@ -414,13 +560,33 @@ namespace micasa {
 	template void Controller::newEvent( const Counter& device_, const unsigned int& source_ );
 	template void Controller::newEvent( const Text& device_, const unsigned int& source_ );
 
-	const milliseconds Controller::_work( const unsigned long int& iteration_ ) {
+#ifdef _WITH_LIBUDEV
+	void Controller::addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ ) {
+		std::lock_guard<std::mutex> lock( this->m_serialPortCallbacksMutex );
+#ifdef _DEBUG
+		assert( this->m_serialPortCallbacks.find( name_ ) == this->m_serialPortCallbacks.end() && "Serialport Callback name should be unique." );
+#endif // _DEBUG
+		this->m_serialPortCallbacks[name_] = callback_;
+	};
+
+	void Controller::removeSerialPortCallback( const std::string& name_ ) {
+		std::lock_guard<std::mutex> lock( this->m_serialPortCallbacksMutex );
+#ifdef _DEBUG
+		assert( this->m_serialPortCallbacks.find( name_ ) != this->m_serialPortCallbacks.end() && "Serialport Callback name should exist before being removed." );
+#endif // _DEBUG
+		this->m_serialPortCallbacks.erase( name_ );
+	};
+#endif // _WITH_LIBUDEV
+
+	milliseconds Controller::_work( const unsigned long int& iteration_ ) {
 		auto now = system_clock::now();
 
-		// See if we need to run the crons (every round minute).
-		static unsigned int minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
-		if ( minuteSinceEpoch < duration_cast<minutes>( now.time_since_epoch() ).count() ) {
-			this->_runCrons();
+		// See if we need to run the timers (every round minute).
+		static unsigned int lastMinuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
+		unsigned int minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
+		if ( lastMinuteSinceEpoch < minuteSinceEpoch ) {
+			lastMinuteSinceEpoch = minuteSinceEpoch;
+			this->_runTimers();
 		}
 
 		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
@@ -451,7 +617,7 @@ namespace micasa {
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
 
-		// This method should run a least every minute for cron jobs to run. The 5ms is a safe margin to make sure
+		// This method should run a least every minute for timer jobs to run. The 5ms is a safe margin to make sure
 		// the whole minute has passed.
 		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
 
@@ -480,6 +646,9 @@ namespace micasa {
 			v7_val_t dataObj;
 			if ( V7_OK != v7_parse_json( this->m_v7_js, data_.dump().c_str(), &dataObj ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
+#ifdef _DEBUG
+				g_logger->log( Logger::LogLevel::VERBOSE, this, data_.dump().c_str() );
+#endif // _DEBUG
 				return;
 			}
 			v7_set( this->m_v7_js, root, key_.c_str(), ~0, dataObj );
@@ -513,7 +682,7 @@ namespace micasa {
 						success = false;
 						break;
 					case V7_OK:
-						g_logger->logr( Logger::LogLevel::NORMAL, this, "Script \"%s\" executed.", (*scriptsIt).at( "name" ).c_str() );
+						g_logger->logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
 						break;
 				}
 
@@ -527,41 +696,43 @@ namespace micasa {
 				g_webServer->touchResourceCallback( "controller-scripts" );
 			}
 
+			// Remove the context data from the v7 environment.
+			v7_del( this->m_v7_js, root, key_.c_str(), ~0 );
+
 			// Get the userdata from the v7 environment and store it in settings for later use. The same logic
 			// applies here as V7_EXEC_EXCEPTION regarding the buffer.
 			// TODO do we need to do this after *every* script run, or maybe do this periodically.
-			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userData", ~0 );
+			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
+			this->m_settings.put( "userdata", std::string( p ) );
 			if ( p != buffer ) {
 				free( p );
 			}
-
-			this->m_settings.put( "userdata", std::string( buffer ) );
 			this->m_settings.commit();
 		} );
 		thread.detach();
 	};
 
-	void Controller::_runCrons() {
-		std::lock_guard<std::mutex> lock( this->m_cronsMutex );
+	void Controller::_runTimers() {
+		std::lock_guard<std::mutex> lock( this->m_timersMutex );
 
-		auto crons = g_database->getQuery(
+		auto timers = g_database->getQuery(
 			"SELECT DISTINCT c.`id`, c.`cron`, c.`name` "
-			"FROM `crons` c, `x_cron_scripts` x, `scripts` s "
-			"WHERE c.`id`=x.`cron_id` "
+			"FROM `timers` c, `x_timer_scripts` x, `scripts` s "
+			"WHERE c.`id`=x.`timer_id` "
 			"AND s.`id`=x.`script_id` "
 			"AND c.`enabled`=1 "
 			"AND s.`enabled`=1 "
 			"ORDER BY c.`id` ASC"
 		);
-		for ( auto cronIt = crons.begin(); cronIt != crons.end(); cronIt++ ) {
+		for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
 			try {
 				bool run = true;
 
 				// Split the cron string into exactly 5 fields; m h dom mon dow.
 				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
-				auto fields = stringSplit( (*cronIt)["cron"], ' ' );
+				auto fields = stringSplit( (*timerIt)["cron"], ' ' );
 				if ( fields.size() != 5 ) {
 					throw std::runtime_error( "invalid number of cron fields" );
 				}
@@ -651,63 +822,30 @@ namespace micasa {
 				}
 
 				if ( run ) {
-					json data = (*cronIt);
-					this->_runScripts( "cron", data, g_database->getQuery(
+					json data = (*timerIt);
+					this->_runScripts( "timer", data, g_database->getQuery(
 						"SELECT s.`id`, s.`name`, s.`code`, s.`runs` "
-						"FROM `x_cron_scripts` x, `scripts` s "
+						"FROM `x_timer_scripts` x, `scripts` s "
 						"WHERE x.`script_id`=s.`id` "
-						"AND x.`cron_id`=%q "
+						"AND x.`timer_id`=%q "
 						"AND s.`enabled`=1 "
 						"ORDER BY s.`id` ASC",
-						(*cronIt)["id"].c_str()
+						(*timerIt)["id"].c_str()
 					) );
 				}
 
 			} catch( std::exception ex_ ) {
 
-				// Something went wrong while parsing the cron. The cron is marked as disabled.
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for %s (%s).", (*cronIt).at( "name" ).c_str(), ex_.what() );
+				// Something went wrong while parsing the cron string. The timer is marked as disabled.
+				g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
 				g_database->putQuery(
-					"UPDATE `crons` "
+					"UPDATE `timers` "
 					"SET `enabled`=0 "
 					"WHERE `id`=%q",
-					(*cronIt).at( "id" ).c_str()
+					(*timerIt).at( "id" ).c_str()
 				);
 			}
 		}
-	};
-
-	std::shared_ptr<Device> Controller::_getDeviceById( const unsigned int& id_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->_getDeviceById( id_ );
-			if ( device != nullptr ) {
-				return device;
-			}
-		}
-		return nullptr;
-	};
-
-	std::shared_ptr<Device> Controller::_getDeviceByName( const std::string& name_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->_getDeviceByName( name_ );
-			if ( device != nullptr ) {
-				return device;
-			}
-		}
-		return nullptr;
-	};
-
-	std::shared_ptr<Device> Controller::_getDeviceByLabel( const std::string& label_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->_getDeviceByLabel( label_ );
-			if ( device != nullptr ) {
-				return device;
-			}
-		}
-		return nullptr;
 	};
 
 	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ ) {
@@ -779,7 +917,7 @@ namespace micasa {
 		this->wakeUp();
 	};
 
-	const Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
+	Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
 		int lastTokenType = 0;
 		TaskOptions result = { 0, 0, 1, 0, false, false };
 
@@ -848,7 +986,7 @@ namespace micasa {
 		// piece of hardware.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + std::to_string( hardware_->getId() ),
-			"api/hardware",
+			"api/hardware", 100,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this,hardware_]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 				if ( output_.is_null() ) {
@@ -891,7 +1029,7 @@ namespace micasa {
 					}
 				}
 
-				output_ += hardware_->getJson();
+				output_ += hardware_->getJson( false );
 			} )
 		} ) ) );
 
@@ -899,12 +1037,12 @@ namespace micasa {
 		// the ability to update or delete the hardware.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"hardware-" + std::to_string( hardware_->getId() ),
-			"api/hardware/" + std::to_string( hardware_->getId() ),
+			"api/hardware/" + std::to_string( hardware_->getId() ), 100,
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this,hardware_]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::GET: {
-						output_ = hardware_->getJson();
+						output_ = hardware_->getJson( true );
 						break;
 					}
 					case WebServer::Method::PUT:
@@ -912,61 +1050,42 @@ namespace micasa {
 						try {
 							// A name property can be used to set the custom name for the hardware.
 							if ( input_.find( "name" ) != input_.end() ) {
-								hardware_->getSettings().put( "name", input_["name"].get<std::string>() );
-								hardware_->getSettings().commit( *hardware_.get() );
+								hardware_->getSettings()->put( "name", input_["name"].get<std::string>() );
+								hardware_->getSettings()->commit( *hardware_.get() );
 							}
 
-							// The enabled property can be used to enable or disable the hardware.
+							// The enabled property can be used to enable or disable the hardware. For now this is only
+							// possible on parent/main hardware, no children. Note that a restart is still possible if
+							// the hardware specific resource handler needs it.
 							bool enabled = hardware_->isRunning();
-							if ( input_.find( "enabled") != input_.end() ) {
-								if ( input_["enabled"].is_boolean() ) {
-									enabled = input_["enabled"].get<bool>();
+							if ( hardware_->getParent() == nullptr ) {
+								if ( input_.find( "enabled") != input_.end() ) {
+									if ( input_["enabled"].is_boolean() ) {
+										enabled = input_["enabled"].get<bool>();
+									}
+									if ( input_["enabled"].is_number() ) {
+										enabled = input_["enabled"].get<unsigned int>() > 0;
+									}
+									g_database->putQuery(
+										"UPDATE `hardware` "
+										"SET `enabled`=%d "
+										"WHERE `id`=%d "
+										"OR `hardware_id`=%d", // also children
+										enabled ? 1 : 0,
+										hardware_->getId(),
+										hardware_->getId()
+									);
 								}
-								if ( input_["enabled"].is_number() ) {
-									enabled = input_["enabled"].get<unsigned int>() > 0;
-								}
-								g_database->putQuery(
-									"UPDATE `hardware` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d "
-									"OR `hardware_id`=%d",
-									enabled ? 1 : 0,
-									hardware_->getId(),
-									hardware_->getId()
-								);
 							}
 
-							// A settings object can be passed along.
-							if (
-								input_.find( "settings") != input_.end()
-								&& input_["settings"].is_object()
-							) {
-								std::map<std::string,std::string> settings;
-								for ( auto settingsIt = input_["settings"].begin(); settingsIt != input_["settings"].end(); settingsIt++ ) {
-									settings[settingsIt.key()] = settingsIt.value();
-								}
-								if ( hardware_->isRunning() ) {
-									hardware_->stop();
-								}
-								hardware_->setSettings( settings );
-							}
-
-							// Start or stop hardware. All children of the hardware are also started or stopped.
-							{
+							// Start or stop hardware. All children of the hardware are also started or stopped. This
+							// is done in a separate thread to allow the client to return immediately.
+							auto thread = std::thread( [this,enabled,hardware_]{
 								std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-								if ( enabled ) {
-									if ( ! hardware_->isRunning() ) {
-										hardware_->start();
-									}
-									for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-										if (
-											(*hardwareIt)->getParent() == hardware_
-											&& ! (*hardwareIt)->isRunning()
-										) {
-											(*hardwareIt)->start();
-										}
-									}
-								} else {
+								if (
+									! enabled
+									|| hardware_->needsRestart()
+								) {
 									if ( hardware_->isRunning() ) {
 										hardware_->stop();
 									}
@@ -979,7 +1098,21 @@ namespace micasa {
 										}
 									}
 								}
-							}
+								if ( enabled ) {
+									if ( ! hardware_->isRunning() ) {
+										hardware_->start();
+									}
+									for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+										if (
+											(*hardwareIt)->getParent() == hardware_
+											&& ! (*hardwareIt)->isRunning()
+										) {
+											(*hardwareIt)->start();
+										}
+									}
+								}
+							} );
+							thread.detach();
 
 							output_["result"] = "OK";
 							g_webServer->touchResourceCallback( "hardware-" + std::to_string( hardware_->getId() ) );
@@ -991,41 +1124,12 @@ namespace micasa {
 						break;
 					}
 					case WebServer::Method::DELETE: {
-						std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-
-						// First all the childs are stopped and removed from the system. The database record is not yet
-						// removed because that is done when the parent is removed by foreign key constraints.
-						for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-							if ( (*hardwareIt)->getParent() == hardware_ ) {
-								g_webServer->removeResourceCallback( "hardware-" + std::to_string( (*hardwareIt)->getId() ) );
-								if ( (*hardwareIt)->isRunning() ) {
-									(*hardwareIt)->stop();
-								}
-
-								hardwareIt = this->m_hardware.erase( hardwareIt );
-								g_webServer->touchResourceCallback( "controller" );
-							} else {
-								hardwareIt++;
-							}
-						}
-						for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-							if ( (*hardwareIt) == hardware_ ) {
-								g_webServer->removeResourceCallback( "hardware-" + std::to_string( hardware_->getId() ) );
-								if ( hardware_->isRunning() ) {
-									hardware_->stop();
-								}
-
-								g_database->putQuery(
-									"DELETE FROM `hardware` "
-									"WHERE `id`=%d",
-									hardware_->getId()
-								);
-
-								this->m_hardware.erase( hardwareIt );
-								g_webServer->touchResourceCallback( "controller" );
-								output_["result"] = "OK";
-								break;
-							}
+						if ( this->removeHardware( hardware_ ) ) {
+							output_["result"] = "OK";
+						} else {
+							output_["result"] = "ERROR";
+							output_["message"] = "Unable to update hardware.";
+							code_ = 400; // bad request
 						}
 						break;
 					}
@@ -1044,7 +1148,7 @@ namespace micasa {
 		// be used to add (post) new scripts.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 			"controller-scripts",
-			"api/scripts",
+			"api/scripts", 100,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
@@ -1106,7 +1210,7 @@ namespace micasa {
 			unsigned int scriptId = (*scriptIdsIt);
 			g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
 				"controller-scripts",
-				"api/scripts/" + std::to_string( scriptId ),
+				"api/scripts/" + std::to_string( scriptId ), 100,
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 				WebServer::t_callback( [this,scriptId]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
 					std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
@@ -1195,12 +1299,12 @@ namespace micasa {
 		}
 	};
 
-	void Controller::_updateCronResourceHandlers() const {
+	void Controller::_updateTimerResourceHandlers() const {
 
-		// First all current callbacks for crons are removed.
-		g_webServer->removeResourceCallback( "controller-crons" );
+		// First all current callbacks for timers are removed.
+		g_webServer->removeResourceCallback( "controller-timers" );
 
-		const auto setScripts = []( const json& scriptIds_, unsigned int cronId_ ) {
+		const auto setScripts = []( const json& scriptIds_, unsigned int timerId_ ) {
 			std::stringstream list;
 			unsigned int index = 0;
 			for ( auto scriptIdsIt = scriptIds_.begin(); scriptIdsIt != scriptIds_.end(); scriptIdsIt++ ) {
@@ -1209,58 +1313,58 @@ namespace micasa {
 					list << ( index > 0 ? "," : "" ) << scriptId;
 					index++;
 					g_database->putQuery(
-						"INSERT OR IGNORE INTO `x_cron_scripts` "
-						"(`cron_id`, `script_id`) "
+						"INSERT OR IGNORE INTO `x_timer_scripts` "
+						"(`timer_id`, `script_id`) "
 						"VALUES (%d, %d)",
-						cronId_,
+						timerId_,
 						scriptId.get<unsigned int>()
 					);
 				}
 			}
 			g_database->putQuery(
-				"DELETE FROM `x_cron_scripts` "
-				"WHERE `cron_id`=%d "
+				"DELETE FROM `x_timer_scripts` "
+				"WHERE `timer_id`=%d "
 				"AND `script_id` NOT IN (%q)",
-				cronId_,
+				timerId_,
 				list.str().c_str()
 			);
 		};
 
-		// The first callback is the general cron fetch callback that lists all available crons and can
-		// be used to add (post) new crons.
+		// The first callback is the general timer fetch callback that lists all available timers and can
+		// be used to add (post) new timers.
 		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"controller-crons",
-			"api/crons",
+			"controller-timers",
+			"api/timers", 100,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this,&setScripts]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
-				std::lock_guard<std::mutex> lock( this->m_cronsMutex );
+				std::lock_guard<std::mutex> lock( this->m_timersMutex );
 				switch( method_ ) {
 					case WebServer::Method::GET: {
 						output_ = json::array();
-						auto crons = g_database->getQuery<json>(
+						auto timers = g_database->getQuery<json>(
 							"SELECT `id`, `name`, `cron`, `enabled` "
-							"FROM `crons` "
+							"FROM `timers` "
 							"ORDER BY `id` ASC"
 						);
-						for ( auto cronsIt = crons.begin(); cronsIt != crons.end(); cronsIt++ ) {
-							json cron = (*cronsIt);
-							cron["scripts"] = g_database->getQueryColumn<unsigned int>(
+						for ( auto timersIt = timers.begin(); timersIt != timers.end(); timersIt++ ) {
+							json timer = (*timersIt);
+							timer["scripts"] = g_database->getQueryColumn<unsigned int>(
 								"SELECT s.`id` "
-								"FROM `scripts` s, `x_cron_scripts` x "
+								"FROM `scripts` s, `x_timer_scripts` x "
 								"WHERE s.`id`=x.`script_id` "
-								"AND x.`cron_id`=%d "
+								"AND x.`timer_id`=%d "
 								"ORDER BY s.`id` ASC",
-								(*cronsIt)["id"].get<unsigned int>()
+								(*timersIt)["id"].get<unsigned int>()
 							);
-							cron["devices"] = g_database->getQuery<json>(
+							timer["devices"] = g_database->getQuery<json>(
 								"SELECT d.`id`, x.`value` "
-								"FROM `devices` d, `x_cron_devices` x "
+								"FROM `devices` d, `x_timer_devices` x "
 								"WHERE d.`id`=x.`device_id` "
-								"AND x.`cron_id`=%d "
+								"AND x.`timer_id`=%d "
 								"ORDER BY d.`id` ASC",
-								(*cronsIt)["id"].get<unsigned int>()
+								(*timersIt)["id"].get<unsigned int>()
 							);
-							output_ += cron;
+							output_ += timer;
 						}
 						break;
 					}
@@ -1270,8 +1374,8 @@ namespace micasa {
 								input_.find( "name") != input_.end()
 								&& input_.find( "cron") != input_.end()
 							) {
-								auto cronId = g_database->putQuery(
-									"INSERT INTO `crons` (`name`, `cron`) "
+								auto timerId = g_database->putQuery(
+									"INSERT INTO `timers` (`name`, `cron`) "
 									"VALUES (%Q, %Q) ",
 									input_["name"].get<std::string>().c_str(),
 									input_["cron"].get<std::string>().c_str()
@@ -1280,17 +1384,17 @@ namespace micasa {
 									input_.find( "scripts") != input_.end()
 									&& input_["scripts"].is_array()
 								) {
-									setScripts( input_["scripts"], cronId );
+									setScripts( input_["scripts"], timerId );
 								}
 								output_["result"] = "OK";
-								output_["cron"] = g_database->getQueryRow<json>(
+								output_["timer"] = g_database->getQueryRow<json>(
 									"SELECT `id`, `name`, `cron` "
-									"FROM `crons` "
+									"FROM `timers` "
 									"WHERE `id`=%d "
 									"ORDER BY `id` ASC",
-									cronId
+									timerId
 								);
-								this->_updateCronResourceHandlers();
+								this->_updateTimerResourceHandlers();
 							} else {
 								output_["result"] = "ERROR";
 								output_["message"] = "Missing parameters.";
@@ -1298,7 +1402,7 @@ namespace micasa {
 							}
 						} catch( ... ) {
 							output_["result"] = "ERROR";
-							output_["message"] = "Unable to save cron.";
+							output_["message"] = "Unable to save timer.";
 							code_ = 400; // bad request
 						}
 						break;
@@ -1308,21 +1412,21 @@ namespace micasa {
 			} )
 		} ) ) );
 
-		// Then a specific resource handler is installed for each cron. This handler allows for retrieval as
-		// well as updating a cron.
-		auto cronIds = g_database->getQueryColumn<unsigned int>(
+		// Then a specific resource handler is installed for each timer. This handler allows for retrieval as
+		// well as updating a timer.
+		auto timerIds = g_database->getQueryColumn<unsigned int>(
 			"SELECT `id` "
-			"FROM `crons` "
+			"FROM `timers` "
 			"ORDER BY `id` ASC"
 		);
-		for ( auto cronIdsIt = cronIds.begin(); cronIdsIt != cronIds.end(); cronIdsIt++ ) {
-			unsigned int cronId = (*cronIdsIt);
+		for ( auto timerIdsIt = timerIds.begin(); timerIdsIt != timerIds.end(); timerIdsIt++ ) {
+			unsigned int timerId = (*timerIdsIt);
 			g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-				"controller-crons",
-				"api/crons/" + std::to_string( cronId ),
+				"controller-timers",
+				"api/timers/" + std::to_string( timerId ), 100,
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
-				WebServer::t_callback( [this,cronId,&setScripts]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
-					std::lock_guard<std::mutex> lock( this->m_cronsMutex );
+				WebServer::t_callback( [this,timerId,&setScripts]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
+					std::lock_guard<std::mutex> lock( this->m_timersMutex );
 					switch( method_ ) {
 						case WebServer::Method::PUT: {
 							try {
@@ -1331,12 +1435,12 @@ namespace micasa {
 									&& input_.find( "cron") != input_.end()
 								) {
 									g_database->putQuery(
-										"UPDATE `crons` "
+										"UPDATE `timers` "
 										"SET `name`=%Q, `cron`=%Q "
 										"WHERE `id`=%d",
 										input_["name"].get<std::string>().c_str(),
 										input_["cron"].get<std::string>().c_str(),
-										cronId
+										timerId
 									);
 								}
 
@@ -1344,7 +1448,7 @@ namespace micasa {
 									input_.find( "scripts") != input_.end()
 									&& input_["scripts"].is_array()
 								) {
-									setScripts( input_["scripts"], cronId );
+									setScripts( input_["scripts"], timerId );
 								}
 
 								// The enabled property can be used to enable or disable the script.
@@ -1357,27 +1461,27 @@ namespace micasa {
 										enabled = input_["enabled"].get<unsigned int>() > 0;
 									}
 									g_database->putQuery(
-										"UPDATE `crons` "
+										"UPDATE `timers` "
 										"SET `enabled`=%d "
 										"WHERE `id`=%d ",
 										enabled ? 1 : 0,
-										cronId
+										timerId
 									);
 								}
 
 								output_["result"] = "OK";
-								output_["cron"] = g_database->getQueryRow<json>(
+								output_["timer"] = g_database->getQueryRow<json>(
 									"SELECT `id`, `name`, `cron`, `enabled` "
-									"FROM `crons` "
+									"FROM `timers` "
 									"WHERE `id`=%d "
 									"ORDER BY `id` ASC",
-									cronId
+									timerId
 								);
-								g_webServer->touchResourceCallback( "controller-crons" );
+								g_webServer->touchResourceCallback( "controller-timers" );
 
 							} catch( ... ) {
 								output_["result"] = "ERROR";
-								output_["message"] = "Unable to save cron.";
+								output_["message"] = "Unable to save timer.";
 								code_ = 400; // bad request
 							}
 							break;
@@ -1385,41 +1489,41 @@ namespace micasa {
 						case WebServer::Method::GET: {
 							output_ = g_database->getQueryRow<json>(
 								"SELECT `id`, `name`, `cron`, `enabled` "
-								"FROM `crons` "
+								"FROM `timers` "
 								"WHERE `id`=%d "
 								"ORDER BY `id` ASC",
-								cronId
+								timerId
 							);
 							output_["scripts"] = g_database->getQueryColumn<unsigned int>(
 								"SELECT s.`id` "
-								"FROM `scripts` s, `x_cron_scripts` x "
+								"FROM `scripts` s, `x_timer_scripts` x "
 								"WHERE s.`id`=x.`script_id` "
-								"AND x.`cron_id`=%d "
+								"AND x.`timer_id`=%d "
 								"ORDER BY s.`id` ASC",
-								cronId
+								timerId
 							);
 							output_["devices"] = g_database->getQuery<json>(
 								"SELECT d.`id`, x.`value` "
-								"FROM `devices` d, `x_cron_devices` x "
+								"FROM `devices` d, `x_timer_devices` x "
 								"WHERE d.`id`=x.`device_id` "
-								"AND x.`cron_id`=%d "
+								"AND x.`timer_id`=%d "
 								"ORDER BY d.`id` ASC",
-								cronId
+								timerId
 							);
 							break;
 						}
 						case WebServer::Method::DELETE: {
 							try {
 								g_database->putQuery(
-									"DELETE FROM `crons` "
+									"DELETE FROM `timers` "
 									"WHERE `id`=%d",
-									cronId
+									timerId
 								);
-								this->_updateCronResourceHandlers();
+								this->_updateTimerResourceHandlers();
 								output_["result"] = "OK";
 							} catch( ... ) {
 								output_["result"] = "ERROR";
-								output_["message"] = "Unable to delete cron.";
+								output_["message"] = "Unable to delete timer.";
 								code_ = 400; // bad request
 							}
 							break;
@@ -1429,75 +1533,6 @@ namespace micasa {
 				} )
 			} ) ) );
 		}
-	};
-
-	void Controller::_updateUsbResourceHandlers() const {
-
-		// http://stackoverflow.com/questions/2530096/how-to-find-all-serial-devices-ttys-ttyusb-on-linux-without-opening-them
-		// http://www.signal11.us/oss/udev/
-		g_webServer->removeResourceCallback( "controller-usb" );
-
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
-			"controller-usb",
-			"api/usb",
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const json& input_, const WebServer::Method& method_, int& code_, json& output_ ) {
-
-				output_ = json::array();
-
-				// TODO find other means of obtaining the list of usb devices if libudev is not available.
-				
-#ifdef _WITH_LIBUDEV
-				// Create the udef object which is used to discover tty usb devices.
-				udev* udev = udev_new();
-				if ( ! udev ) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Unable to create udev." );
-					output_["result"] = "ERROR";
-					output_["message"] = "Unable to create udef.";
-					return;
-				}
-
-				// Iterate through the list of devices in the tty subsystem.
-				udev_enumerate* enumerate = udev_enumerate_new( udev );
-				udev_enumerate_add_match_is_initialized( enumerate );
-				udev_enumerate_add_match_subsystem( enumerate, "tty" );
-				udev_enumerate_scan_devices( enumerate );
-
-				udev_list_entry* devices = udev_enumerate_get_list_entry( enumerate );
-				udev_list_entry* dev_list_entry;
-				udev_list_entry_foreach( dev_list_entry, devices ) {
-
-					// Extract the full path to the tty device and create a udev device out of it.
-					const char* path = udev_list_entry_get_name( dev_list_entry );
-					udev_device* dev = udev_device_new_from_syspath( udev, path );
-
-					// Get the device node and see if it's valid. If so, it can be used as an usb device
-					// for various hardware. The parent usb device holds information on the device.
-					const char* node = udev_device_get_devnode( dev );
-					if ( node ) {
-						struct udev_device* parent = udev_device_get_parent_with_subsystem_devtype( dev, "usb", "usb_device" );
-						if ( parent ) {
-							output_ += {
-								{ "path", node },
-								{ "id_vendor", udev_device_get_sysattr_value( parent, "idVendor" ) ?: "" },
-								{ "id_product", udev_device_get_sysattr_value( parent, "idProduct" ) ?: "" },
-								{ "manufacturer", udev_device_get_sysattr_value( parent, "manufacturer" ) ?: "" },
-								{ "product", udev_device_get_sysattr_value( parent, "product" ) ?: "" },
-								{ "serial", udev_device_get_sysattr_value( parent, "serial" ) ?: "" }
-							};
-						}
-					}
-
-					udev_device_unref( dev );
-				}
-
-				// Free the enumerator object.
-				udev_enumerate_unref( enumerate );
-				udev_unref( udev );
-#endif // _WITH_LIBUDEV
-
-			} )
-		} ) ) );
 	};
 
 }; // namespace micasa
