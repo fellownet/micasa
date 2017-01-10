@@ -716,8 +716,8 @@ namespace micasa {
 									ValueID valueId( this->m_homeId, std::stoull( reference ) );
 									ValueID::ValueType type = valueId.GetType();
 									if ( type == ValueID::ValueType_Decimal ) {
-										success = success && setting["value"].get<float>() <= config["max"];
-										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && setting["value"].get<float>() <= config["max"].get<float>();
+										success = success && setting["value"].get<float>() >= config["min"].get<float>();
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<float>();
@@ -730,24 +730,24 @@ namespace micasa {
 											this->m_settings->put<bool>( reference, setting["value"].get<bool>() );
 										}
 									} else if ( type == ValueID::ValueType_Byte ) {
-										success = success && setting["value"].get<float>() <= config["max"];
-										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && setting["value"].get<unsigned int>() <= config["max"].get<unsigned int>();
+										success = success && setting["value"].get<unsigned int>() >= config["min"].get<unsigned int>();
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<uint8>();
 											this->m_settings->put<unsigned int>( reference, setting["value"].get<uint8>() );
 										}
 									} else if ( type == ValueID::ValueType_Short ) {
-										success = success && setting["value"].get<float>() <= config["max"];
-										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && setting["value"].get<int>() <= config["max"].get<int>();
+										success = success && setting["value"].get<int>() >= config["min"].get<int>();
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int16>();
 											this->m_settings->put<int>( reference, setting["value"].get<int16>() );
 										}
 									} else if ( type == ValueID::ValueType_Int ) {
-										success = success && setting["value"].get<float>() <= config["max"];
-										success = success && setting["value"].get<float>() >= config["min"];
+										success = success && setting["value"].get<int>() <= config["max"].get<int>();
+										success = success && setting["value"].get<int>() >= config["min"].get<int>();
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int32>();
