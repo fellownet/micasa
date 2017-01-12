@@ -29,7 +29,11 @@ namespace micasa {
 			"LIMIT 1"
 			, this->m_id
 		);
-		this->m_value = (Option)atoi( value.c_str() );
+		if ( ! value.empty() ) {
+			this->m_value = (Option)std::stoi( value );
+		} else {
+			this->m_value = Option::OFF;
+		}
 		Device::start();
 	};
 
@@ -73,7 +77,6 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Switch>( *this, source_ );
 			}
-			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {

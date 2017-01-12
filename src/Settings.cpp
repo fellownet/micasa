@@ -14,6 +14,7 @@ namespace micasa {
 	void Settings::insert( const std::map<std::string, std::string>& settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->m_settings.insert( settings_.begin(), settings_.end() );
+		this->m_dirty = true;
 	};
 	
 	bool Settings::contains( const std::initializer_list<std::string>& settings_ ) {

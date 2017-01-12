@@ -22,12 +22,14 @@ export class DevicesListComponent implements OnInit, OnChanges {
 	) {
 	};
 
-	ngOnInit() {
+	ngOnChanges( changes_: SimpleChanges ) {
 		this.getDevices();
 	};
 
-	ngOnChanges( changes_: SimpleChanges ) {
-		this.getDevices();
+	ngOnInit() {
+		if ( ! this.loading ) {
+			this.getDevices();
+		}
 	};
 
 	getDevices() {

@@ -1,23 +1,28 @@
-<div class="login-box-content" *ngIf="!isLoggedIn()">
+<div class="login-box-content">
 	<div class="login-box">
 		<div class="login-logo"><b>Mi</b>casa</div>
 		<div class="login-box-body">
-			<form>
+
+			<div class="callout callout-danger" *ngIf="error">
+				<p>{{error}}</p>
+			</div>
+
+			<form role="form" (ngSubmit)="doLogin()" #loginForm="ngForm" novalidate><!-- no validation by browser -->
 			<div class="form-group has-feedback">
 				<input type="text" class="form-control" placeholder="Location">
 				<span class="fa fa-globe form-control-feedback"></span>
 			</div>
-			<div class="form-group has-feedback">
-				<input type="text" class="form-control" placeholder="Username">
+			<div class="form-group has-feedback" [class.has-error]="!username.valid && !username.pristine">
+				<input type="text" class="form-control" placeholder="Username" autocomplete="off" required [(ngModel)]="credentials.username" name="username" #username="ngModel">
 				<span class="fa fa-user form-control-feedback"></span>
 			</div>
-			<div class="form-group has-feedback">
-				<input type="password" class="form-control" placeholder="Password">
+			<div class="form-group has-feedback" [class.has-error]="!password.valid && !password.pristine">
+				<input type="password" class="form-control" placeholder="Password" autocomplete="off" required [(ngModel)]="credentials.password" name="password" #password="ngModel">
 				<span class="fa fa-key form-control-feedback"></span>
 			</div>
 			<div class="row">
 				<div class="col-xs-offset-8 col-xs-4">
-					<button type="button" [disabled]="loading" class="btn btn-primary btn-block" (click)="doLogin()">Login</button>
+					<button type="submit" class="btn btn-primary btn-block" [disabled]="!loginForm.form.valid || loginForm.form.pristine || loading">Login</button>
 				</div>
 			</div>
 			</form>

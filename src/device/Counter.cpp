@@ -27,15 +27,17 @@ namespace micasa {
 		   , this->m_id
 		);
 
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ) + "/data", 100,
+			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			100,
+			WebServer::UserRights::VIEWER,
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
-				output_ = g_database->getQuery<json>(
+				output_["data"] = g_database->getQuery<json>(
 					"SELECT * FROM ( "
-						"SELECT printf(\"%%.3f\", `diff`) AS `value`, strftime('%%s',`date`) AS `timestamp` "
+						"SELECT printf(\"%%.3f\", `diff`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
 						"FROM `device_counter_trends` "
 						"WHERE `device_id`=%d "
 						"AND `date` < datetime('now','-%d day') "
@@ -52,8 +54,9 @@ namespace micasa {
 					") ",
 					this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 				);
+				output_["code"] = 200;
 			} )
-		} ) ) );
+		} );
 
 		Device::start();
 	};
@@ -94,7 +97,6 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Counter>( *this, source_ );
 			}
-			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {

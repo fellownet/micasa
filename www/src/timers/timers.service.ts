@@ -12,6 +12,7 @@ import {
 	RequestOptions
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
+import { UsersService }    from '../users/users.service';
 
 export class Timer {
 	id: number;
@@ -28,7 +29,8 @@ export class TimersService {
 
 	constructor(
 		private _router: Router,
-		private _http: Http
+		private _http: Http,
+		private _usersService: UsersService
 	) {
 	};
 
@@ -38,7 +40,7 @@ export class TimersService {
 	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
 		var me = this;
 		if ( route_.params['timer_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', scripts: [] } );
+			return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, scripts: [] } );
 		} else {
 			return new Observable( function( observer_: any ) {
 				me.getTimer( +route_.params['timer_id'] )
@@ -59,33 +61,28 @@ export class TimersService {
 	}
 
 	getTimers(): Observable<Timer[]> {
-		return this._http.get( this._timerUrlBase )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._timerUrlBase, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	getTimer( id_: Number ): Observable<Timer> {
-		return this._http.get( this._timerUrlBase + '/' + id_ )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._timerUrlBase + '/' + id_, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
-	private _handleError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
- 		}
-		return Observable.throw( message );
-	};
-
 	putTimer( timer_: Timer ): Observable<Timer> {
-		let headers = new Headers( { 'Content-Type': 'application/json' } );
+		let headers = new Headers( {
+			'Content-Type'  : 'application/json',
+			'Authorization' : this._usersService.getLoggedInToken()
+		} );
 		let options = new RequestOptions( { headers: headers } );
 		if ( timer_.id ) {
 			return this._http.put( this._timerUrlBase + '/' + timer_.id, timer_, options )
@@ -101,7 +98,9 @@ export class TimersService {
 	};
 
 	deleteTimer( timer_: Timer ): Observable<boolean> {
-		return this._http.delete( this._timerUrlBase + '/' + timer_.id )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.delete( this._timerUrlBase + '/' + timer_.id, options )
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )
@@ -111,7 +110,7 @@ export class TimersService {
 
 	private _extractData( response_: Response ) {
 		let body = response_.json();
-		return body || null;
+		return body.data || null;
 	};
 
 	private _handleHttpError( response_: Response | any ) {

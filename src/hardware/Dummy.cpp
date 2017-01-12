@@ -29,72 +29,77 @@ namespace micasa {
 
 		// Add resource handlers for creating dummy devices. Note that deleting devices is handled through
 		// the general hardware delete resource handler.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"dummy-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ), 101,
+			"api/hardware/" + std::to_string( this->m_id ),
+			101,
+			WebServer::UserRights::INSTALLER,
 			WebServer::Method::POST,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				switch( method_ ) {
 					case WebServer::Method::POST: {
+						if ( input_.find( "type") == input_.end() ) {
+							throw WebServer::ResourceException( { 400, "Device.Missing.Type", "Missing type." } );
+						}
+						if ( ! input_["type"].is_string() ) {
+							throw WebServer::ResourceException( { 400, "Device.Invalid.Type", "The supplied type is invalid." } );
+						}
+						if ( input_.find( "name") == input_.end() ) {
+							throw WebServer::ResourceException( { 400, "Device.Missing.Name", "Missing name." } );
+						}
+						if ( ! input_["name"].is_string() ) {
+							throw WebServer::ResourceException( { 400, "Device.Invalid.Name", "The supplied name is invalid." } );
+						}
+					
 						unsigned int index = g_database->getQueryValue<unsigned int>(
 							"SELECT MAX(`reference`) "
 							"FROM `devices` "
 							"WHERE `hardware_id`=%d"
 							, this->m_id
 						);
-						try {
-							if (
-								input_.find( "type" ) != input_.end()
-								&& input_.find( "name" ) != input_.end()
-							) {
-								if ( input_["type"].get<std::string>() == "counter" ) {
-									auto device = this->_declareDevice<Counter>( std::to_string( ++index ), "Counter", {
-										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
-									}, true /* auto start */ );
-									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
-									output_["device"] = device->getJson();
-								} else if ( input_["type"].get<std::string>() == "level" ) {
-									auto device = this->_declareDevice<Level>( std::to_string( ++index ), "Level", {
-										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
-									}, true /* auto start */ );
-									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
-									output_["device"] = device->getJson();
-								} else if ( input_["type"].get<std::string>() == "text" ) {
-									auto device = this->_declareDevice<Text>( std::to_string( ++index ), "Text", {
-										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									}, true /* auto start */ );
-									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
-									output_["device"] = device->getJson();
-								} else if ( input_["type"].get<std::string>() == "switch" ) {
-									auto device = this->_declareDevice<Switch>( std::to_string( ++index ), "Switch", {
-										{ "name", input_["name"].get<std::string>() },
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
-									}, true /* auto start */ );
-									device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
-									output_["device"] = device->getJson();
-								}
-								output_["result"] = "OK";
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Missing fields.";
-								code_ = 400; // bad request
-							}
-						} catch( ... ) {
-							output_["result"] = "ERROR";
-							output_["message"] = "Unable to create dummy device.";
-							code_ = 400; // bad request
+						index++;
+
+						if ( input_["type"].get<std::string>() == "counter" ) {
+							auto device = this->_declareDevice<Counter>( std::to_string( index ), "Counter", {
+								{ "name", input_["name"].get<std::string>() },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
+							}, true /* auto start */ );
+							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
+							output_["device"] = device->getJson();
+						} else if ( input_["type"].get<std::string>() == "level" ) {
+							auto device = this->_declareDevice<Level>( std::to_string( index ), "Level", {
+								{ "name", input_["name"].get<std::string>() },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
+							}, true /* auto start */ );
+							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
+							output_["device"] = device->getJson();
+						} else if ( input_["type"].get<std::string>() == "text" ) {
+							auto device = this->_declareDevice<Text>( std::to_string( index ), "Text", {
+								{ "name", input_["name"].get<std::string>() },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+							}, true /* auto start */ );
+							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
+							output_["device"] = device->getJson();
+						} else if ( input_["type"].get<std::string>() == "switch" ) {
+							auto device = this->_declareDevice<Switch>( std::to_string( index ), "Switch", {
+								{ "name", input_["name"].get<std::string>() },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+							}, true /* auto start */ );
+							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+							output_["device"] = device->getJson();
+						} else {
+							throw WebServer::ResourceException( { 400, "Device.Invalid.Type", "The supplied type is invalid." } );
 						}
+						
+						output_["code"] = 200;
 						break;
 					}
 					default: break;
 				}
 			} )
-		} ) ) );
+		} );
 	};
 
 }; // namespace micasa

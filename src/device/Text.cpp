@@ -59,7 +59,6 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Text>( *this, source_ );
 			}
-			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
 		} else {

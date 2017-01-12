@@ -79,7 +79,7 @@ namespace micasa {
 		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
-		bool removeHardware( const std::shared_ptr<Hardware> hardware_ );
+		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
 
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
@@ -100,7 +100,7 @@ namespace micasa {
 		mutable std::mutex m_taskQueueMutex;
 		mutable std::mutex m_scriptsMutex;
 		mutable std::mutex m_timersMutex;
-		Settings m_settings;
+		std::shared_ptr<Settings> m_settings;
 		v7* m_v7_js;
 		
 #ifdef _WITH_LIBUDEV

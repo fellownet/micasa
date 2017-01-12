@@ -18,5 +18,10 @@ namespace micasa {
 	std::string extractStringFromJson( const json& json_ );
 	const std::map<std::string, std::string> getSerialPorts();
 	std::map<std::string, std::string> extractSettingsFromJson( const json& data_ );
+
+	bool generateKeys( std::string& public_, std::string& private_ );
+	std::string generateHash( const std::string& input_, const std::string& privateKey_ );
+	std::string encrypt( const std::string& input_, const std::string& privateKey_ );
+	std::string decrypt( const std::string& input_, const std::string& publicKey_ );
 	
 }; // namespace micasa

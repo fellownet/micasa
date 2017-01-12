@@ -62,14 +62,6 @@ if( DEBUG )
 endif()
 
 #
-# Set SSL mode.
-#
-option( ENABLE_SSL "Build with SSL" NO )
-if( ENABLE_SSL )
-	add_definitions( -D_WITH_SSL )
-endif()
-
-#
 # Add and compile open-zwave project.
 #
 option( WITH_OPENZWAVE "Build with OpenZWave libraries" YES )

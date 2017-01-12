@@ -50,7 +50,6 @@ namespace micasa {
 				"WHERE `id`=%d"
 				, label_.c_str(), this->m_id
 			);
-			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 		}
 	};
 

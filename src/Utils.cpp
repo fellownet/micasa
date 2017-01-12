@@ -8,7 +8,13 @@
 #include <libudev.h>
 #endif // _WITH_LIBUDEV
 
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+
 namespace micasa {
+
+	using BIO_MEM_ptr = std::unique_ptr<BIO, decltype(&::BIO_free)>;
+
 
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, const bool strict_, std::string& result_ ) {
 		size_t startPos = haystack_.find( start_ );
@@ -144,5 +150,66 @@ namespace micasa {
 		}
 		return settings;
 	};
+
+	bool generateKeys( std::string& public_, std::string& private_ ) {
+
+		RSA* r = NULL;
+		BIGNUM* bne = NULL;
+		
+		int bits = 2048;
+		unsigned long e = RSA_F4;
+		
+		bne = BN_new();
+		if ( ! BN_set_word(bne,e) ) {
+			return false;
+		}
+		
+		r = RSA_new();
+		if ( ! RSA_generate_key_ex(r, bits, bne, NULL) ) {
+			return false;
+		}
+
+		BIO_MEM_ptr bio(BIO_new(BIO_s_mem()), ::BIO_free);
+		PEM_write_bio_RSAPublicKey( bio.get(), r);
+
+		BUF_MEM *mem = NULL;
+		BIO_get_mem_ptr(bio.get(), &mem);
+
+		public_.assign( mem->data, mem->length );
+
+
+
+
+
+		BIO_MEM_ptr bio2(BIO_new(BIO_s_mem()), ::BIO_free);
+		PEM_write_bio_RSAPrivateKey( bio2.get(), r, NULL, NULL, 0, NULL, NULL);
+
+		BUF_MEM *mem2 = NULL;
+		BIO_get_mem_ptr(bio2.get(), &mem2);
+
+		private_.assign( mem2->data, mem2->length );
+
+		return true;
+	};
+
+	std::string generateHash( const std::string& input_, const std::string& privateKey_ ) {
+		// TODO this needs to be implemented!!!!
+		return input_ + "HASHED";
+	};
+
+	std::string encrypt( const std::string& input_, const std::string& privateKey_ ) {
+		// TODO this needs to be implemented!!!!
+		return input_ + "ENCRYPTED";
+	};
+	
+	std::string decrypt( const std::string& input_, const std::string& publicKey_ ) {
+		// TODO this needs to be implemented!!!!
+		try {
+			return input_.substr( 0, input_.size() - 9 );
+		} catch( std::out_of_range ) {
+			return "";
+		}
+	};
+
 	
 } // namespace micasa

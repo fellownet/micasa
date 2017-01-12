@@ -21,11 +21,13 @@ namespace micasa {
 		// The settings for SolarEdge need to be entered before the hardware is started. Therefore the
 		// resource handler needs to be installed upon construction time. The resource will be destroyed by
 		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			"api/hardware/" + std::to_string( this->m_id ),
+			99,
+			WebServer::UserRights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "api_key", settings.at( "api_key" ) );
@@ -38,7 +40,7 @@ namespace micasa {
 					this->m_needsRestart = true;
 				}
 			} )
-		} ) ) );
+		} );
 	};
 	
 	void SolarEdge::start() {

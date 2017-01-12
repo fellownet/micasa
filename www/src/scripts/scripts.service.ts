@@ -12,12 +12,12 @@ import {
 	RequestOptions
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
+import { UsersService }    from '../users/users.service';
 
 export class Script {
 	id: number;
 	name: string;
 	code?: string;
-	runs?: number;
 	enabled: boolean;
 }
 
@@ -28,7 +28,8 @@ export class ScriptsService {
 
 	constructor(
 		private _router: Router,
-		private _http: Http
+		private _http: Http,
+		private _usersService: UsersService
 	) {
 	};
 
@@ -59,21 +60,28 @@ export class ScriptsService {
 	}
 
 	getScripts(): Observable<Script[]> {
-		return this._http.get( this._scriptUrlBase )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._scriptUrlBase, options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};
 
 	getScript( id_: Number ): Observable<Script> {
-		return this._http.get( this._scriptUrlBase + '/' + id_ )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._scriptUrlBase + '/' + id_, options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};
 
 	putScript( script_: Script ): Observable<Script> {
-		let headers = new Headers( { 'Content-Type': 'application/json' } );
+		let headers = new Headers( {
+			'Content-Type'  : 'application/json',
+			'Authorization' : this._usersService.getLoggedInToken()
+		} );
 		let options = new RequestOptions( { headers: headers } );
 		if ( script_.id ) {
 			return this._http.put( this._scriptUrlBase + '/' + script_.id, script_, options )
@@ -89,7 +97,9 @@ export class ScriptsService {
 	};
 
 	deleteScript( script_: Script ): Observable<boolean> {
-		return this._http.delete( this._scriptUrlBase + '/' + script_.id )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.delete( this._scriptUrlBase + '/' + script_.id, options )
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )
@@ -99,7 +109,7 @@ export class ScriptsService {
 
 	private _extractData( response_: Response ) {
 		let body = response_.json();
-		return body || null;
+		return body.data || null;
 	};
 
 	private _handleHttpError( response_: Response | any ) {

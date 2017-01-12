@@ -10,7 +10,7 @@ namespace micasa {
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
-		"`enabled` INTEGER DEFAULT 0, "
+		"`enabled` INTEGER DEFAULT 0 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
@@ -24,7 +24,7 @@ namespace micasa {
 		"`reference` VARCHAR(64) NOT NULL, "
 		"`type` INTEGER NOT NULL, "
 		"`label` VARCHAR(255) NOT NULL, "
-		"`enabled` INTEGER DEFAULT 1, "
+		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
@@ -93,6 +93,19 @@ namespace micasa {
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_trends_device_id` ON `device_level_trends`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_trends_date` ON `device_level_trends`( `date` )",
 
+		// Users
+		"CREATE TABLE IF NOT EXISTS `users` ( "
+		"`id` INTEGER PRIMARY KEY, "
+		"`name` VARCHAR(255) NOT NULL, "
+		"`username` VARCHAR(255) NOT NULL, "
+		"`password` VARCHAR(255) NOT NULL, "
+		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
+		"`rights` INTEGER DEFAULT 0 NOT NULL, "
+		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`last_login` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ) ",
+
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_users_username_password` ON `users`( `username`, `password` )",
+
 		// Settings
 		"CREATE TABLE IF NOT EXISTS `settings` ( "
 		"`key` VARCHAR(64) NOT NULL, "
@@ -119,14 +132,22 @@ namespace micasa {
 	
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_settings_device_id_key` ON `device_settings`( `device_id`, `key` )",
 
+		"CREATE TABLE IF NOT EXISTS `user_settings` ( "
+		"`user_id` INTEGER NOT NULL, "
+		"`key` VARCHAR(64) NOT NULL, "
+		"`value` TEXT NOT NULL, "
+		"`last_update` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"FOREIGN KEY ( `user_id` ) REFERENCES `users` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
+	
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_user_settings_user_id_key` ON `user_settings`( `user_id`, `key` )",
+
 		// Scripts
 		"CREATE TABLE IF NOT EXISTS `scripts` ( "
 		"`id` INTEGER PRIMARY KEY, "
 		"`name` VARCHAR(255) NOT NULL, "
 		"`code` TEXT, "
 		"`language` VARCHAR(64) NOT NULL DEFAULT 'javascript', "
-		"`runs` BIGINT DEFAULT 0, "
-		"`enabled` INTEGER DEFAULT 1, "
+		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL ) ",
 		
 		"CREATE TABLE IF NOT EXISTS `x_device_scripts` ( "
@@ -142,7 +163,7 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`name` VARCHAR(255) NOT NULL, "
 		"`cron` VARCHAR(64) NOT NULL, "
-		"`enabled` INTEGER DEFAULT 1, "
+		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL )",
 
 		"CREATE TABLE IF NOT EXISTS `x_timer_scripts` ( "

@@ -23,12 +23,14 @@ export class HardwareListComponent implements OnInit, OnChanges {
 	) {
 	};
 
-	ngOnInit() {
+	ngOnChanges( changes_: SimpleChanges ) {
 		this.getHardware();
 	};
 
-	ngOnChanges( changes_: SimpleChanges ) {
-		this.getHardware();
+	ngOnInit() {
+		if ( ! this.loading ) {
+			this.getHardware();
+		}
 	};
 
 	getHardware() {
