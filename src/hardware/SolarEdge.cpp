@@ -4,6 +4,7 @@
 #include "../Database.h"
 #include "../Controller.h"
 #include "../Utils.h"
+#include "../User.h"
 
 #include "json.hpp"
 
@@ -25,7 +26,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			99,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
@@ -36,7 +37,7 @@ namespace micasa {
 					this->m_settings->put( "site_id", settings.at( "site_id" ) );
 				} catch( std::out_of_range exception_ ) { };
 				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit( *this );
+					this->m_settings->commit();
 					this->m_needsRestart = true;
 				}
 			} )

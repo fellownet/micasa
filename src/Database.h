@@ -21,6 +21,13 @@ namespace micasa {
 	class Database final {
 
 	public:
+		struct NoResultsException: public std::runtime_error {
+			using runtime_error::runtime_error;
+		};
+		struct InvalidResultException: public std::runtime_error {
+			using runtime_error::runtime_error;
+		};
+
 		Database( std::string filename_ );
 		~Database();
 		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }

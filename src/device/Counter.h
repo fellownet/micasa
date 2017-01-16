@@ -7,6 +7,13 @@ namespace micasa {
 	class Counter final : public Device {
 
 	public:
+		enum class SubType: unsigned char {
+			GENERIC = 1,
+			ENERGY,
+			GAS,
+			WATER
+		}; // enum class SubType
+
 		enum Unit {
 			GENERIC = 1,
 			KILOWATTHOUR,
@@ -27,6 +34,7 @@ namespace micasa {
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		json getJson( bool full_ = false ) const override;
+		void setUnit( Unit unit_ );
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

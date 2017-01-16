@@ -18,6 +18,8 @@
 #include "Database.h"
 #include "Logger.h"
 #include "Utils.h"
+#include "Settings.h"
+#include "User.h"
 
 #include "json.hpp"
 
@@ -28,6 +30,7 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Database> g_database;
+	extern std::shared_ptr<Settings<> > g_settings;
 	
 	WebServer::WebServer() {
 #ifdef _DEBUG
@@ -36,8 +39,6 @@ namespace micasa {
 		assert( g_logger && "Global Database instance should be created before global WebServer instance." );
 #endif // _DEBUG
 		srand ( time( NULL ) );
-		this->m_settings = std::make_shared<Settings>();
-		this->m_settings->populate();
 	};
 
 	WebServer::~WebServer() {
@@ -64,8 +65,8 @@ namespace micasa {
 		// RESTful is supposed to be stateless :) so the acls of the user are encrypted and send to the client.
 		// We need a public/private key pair for that.
 		if (
-			this->m_settings->get( "public_key", "" ).empty()
-			|| this->m_settings->get( "private_key", "" ).empty()
+			g_settings->get( "public_key", "" ).empty()
+			|| g_settings->get( "private_key", "" ).empty()
 		) {
 			std::string publicKey;
 			std::string privateKey;
@@ -73,9 +74,9 @@ namespace micasa {
 				this->m_publicKey = publicKey;
 				this->m_privateKey = privateKey;
 
-				this->m_settings->put( "public_key", publicKey );
-				this->m_settings->put( "private_key", privateKey );
-				this->m_settings->commit();
+				g_settings->put( "public_key", publicKey );
+				g_settings->put( "private_key", privateKey );
+				g_settings->commit();
 
 				g_logger->log( Logger::LogLevel::NORMAL, this, "New ssl keys generated." );
 			} else {
@@ -83,13 +84,13 @@ namespace micasa {
 			}
 		}
 
-		// If there are no users defined in the database, a default one is created.
+		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
 			g_database->putQuery(
 				"INSERT INTO `users` (`name`, `username`, `password`, `rights`) "
 				"VALUES ( 'Administrator', 'admin', '%s', %d )",
 				generateHash( "admin", this->m_privateKey ).c_str(),
-				UserRights::ADMIN
+				User::Rights::ADMIN
 			);
 			g_logger->log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
@@ -238,17 +239,20 @@ namespace micasa {
 			
 				unsigned int size = 1024;
 				int length;
-				char* buffer = new char[size];
-				while ( -1 == ( length = mg_url_decode( (*paramsIt)[2].str().c_str(), (*paramsIt)[2].str().size(), buffer, size, 1 ) ) ) {
+				std::string value;
+				do {
+					char* buffer = new char[size];
+					length = mg_url_decode( (*paramsIt)[2].str().c_str(), (*paramsIt)[2].str().size(), buffer, size, 1 );
+					if ( length > -1 ) {
+						value.assign( buffer, length );
+					}
+					delete[] buffer;
 					size *= 2;
 					if ( size > 65536 ) {
 						break;
 					}
-					delete buffer;
-					buffer = new char[size];
-				}
-				
-				std::string value = std::string( buffer );
+				} while( length == -1 );
+
 				if ( key == "_method" ) {
 					methodStr = value;
 				} else if ( key == "_token" ) {
@@ -293,14 +297,26 @@ namespace micasa {
 				input[(*paramsIt).first] = (*paramsIt).second;
 			}
 
+
+
 			// Determine the access rights of the current client. If a valid token was provided, details of
 			// the token are added to the input aswell.
-			unsigned int rights = UserRights::PUBLIC;
+			unsigned int rights = User::Rights::PUBLIC;
 			if ( headers.find( "Authorization" ) != headers.end() ) {
 				try {
 					json token = json::parse( decrypt( headers["Authorization"], this->m_publicKey ) );
-					const unsigned int now = g_database->getQueryValue<unsigned int>( "SELECT strftime('%%s')" );
-					if ( token["valid"].get<unsigned int>() >= now ) {
+					
+					// See if there's a matching user in the database with the same rights.
+					auto result = g_database->getQueryRow(
+						"SELECT u.`rights`, strftime('%%s') AS now "
+						"FROM `users` u "
+						"WHERE `id`=%d ",
+						token["user_id"].get<unsigned int>()
+					);
+					if (
+						token["rights"].get<unsigned int>() == std::stoul( result["rights"] )
+						&& token["valid"].get<unsigned int>() >= std::stoul( result["now"] )
+					) {
 						rights = token["rights"].get<unsigned int>();
 					}
 					input["authorization"] = token;
@@ -351,14 +367,14 @@ namespace micasa {
 					output["code"] = exception_.code;
 					output["error"] = exception_.error;
 					output["message"] = exception_.message;
-#ifndef _DEBUG
+/*
 				} catch( ... ) {
 					// Most likely these are input inconsistencies thrown by the json library.
 					output["result"] = "ERROR";
 					output["code"] = 500;
 					output["error"] = "Resource.Failure";
 					output["message"] = "The requested resource failed to load.";
-#endif // ! _DEBUG
+*/
 				}
 
 			} else {
@@ -405,7 +421,7 @@ namespace micasa {
 			"webserver-users",
 			"api/users/login",
 			100,
-			UserRights::PUBLIC,
+			User::Rights::PUBLIC,
 			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_usersMutex );
@@ -424,32 +440,38 @@ namespace micasa {
 				}
 
 				std::string passwordHash = generateHash( input_["password"].get<std::string>(), this->m_privateKey );
-				auto result = g_database->getQueryRow<json>(
-					"SELECT `id`, `name`, `rights`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
-					"FROM `users` "
-					"WHERE `username`='%s' "
-					"AND `password`='%s' "
-					"AND `enabled`=1",
-					WEBSERVER_TOKEN_VALID_DURATION_MINUTES,
-					input_["username"].get<std::string>().c_str(),
-					passwordHash.c_str()
-				);
-				if ( result.size() > 0 ) {
-					// The GET request handler generates a token aswell.
-					// TODO centralize this code?
-					json token = {
-						{ "user_id", result["id"].get<unsigned int>() },
-						{ "rights", result["rights"].get<unsigned int>() },
-						{ "valid", result["valid"].get<unsigned int>() }
-					};
-					output_["data"] = {
-						{ "user", result },
-						{ "token", encrypt( token.dump(), this->m_privateKey ) }
-					};
-					output_["code"] = 201; // Created
-				} else {
+				json user;
+				try {
+					user = g_database->getQueryRow<json>(
+						"SELECT `id`, `name`, `rights`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
+						"FROM `users` "
+						"WHERE `username`='%s' "
+						"AND `password`='%s' "
+						"AND `enabled`=1",
+						WEBSERVER_TOKEN_VALID_DURATION_MINUTES,
+						input_["username"].get<std::string>().c_str(),
+						passwordHash.c_str()
+					);
+				} catch( const Database::NoResultsException& ex_ ) {
 					throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
 				}
+		
+				// Each user has a data property which can be retrieved and set through the api.
+//				auto userdata = g_settings->get( "userdata_" + user["id"].get<std::string>(), "{ }" );
+//				user["data"] =
+		
+				// The GET request handler generates a token aswell.
+				// TODO centralize this code?
+				json token = {
+					{ "user_id", user["id"].get<unsigned int>() },
+					{ "rights", user["rights"].get<unsigned int>() },
+					{ "valid", user["valid"].get<unsigned int>() }
+				};
+				output_["data"] = {
+					{ "user", user },
+					{ "token", encrypt( token.dump(), this->m_privateKey ) }
+				};
+				output_["code"] = 201; // Created
 			} )
 		} );
 
@@ -459,7 +481,7 @@ namespace micasa {
 			"webserver-users",
 			"api/users/login",
 			100,
-			UserRights::VIEWER,
+			User::Rights::VIEWER,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_usersMutex );
@@ -486,7 +508,7 @@ namespace micasa {
 					};
 					output_["code"] = 201; // Created
 				} else {
-					throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
+					throw WebServer::ResourceException( { 400, "Login.Failure", "The user is invalid." } );
 				}
 			} )
 		} );
@@ -496,7 +518,7 @@ namespace micasa {
 			"webserver-users",
 			"api/users",
 			100,
-			WebServer::UserRights::ADMIN,
+			User::Rights::ADMIN,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_usersMutex );
@@ -533,7 +555,7 @@ namespace micasa {
 							throw WebServer::ResourceException( { 400, "User.Missing.Rights", "Missing rights." } );
 						}
 						
-						unsigned int rights = UserRights::PUBLIC;
+						unsigned int rights = User::Rights::PUBLIC;
 						if ( input_.find( "rights") != input_.end() ) {
 							if ( input_["rights"].is_number() ) {
 								rights = input_["rights"].get<unsigned int>();
@@ -596,7 +618,7 @@ namespace micasa {
 				"webserver-users",
 				"api/users/" + std::to_string( userId ),
 				100,
-				WebServer::UserRights::ADMIN,
+				User::Rights::ADMIN,
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 				WebServer::t_callback( [this,userId]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 					std::lock_guard<std::mutex> lock( this->m_usersMutex );
@@ -656,7 +678,7 @@ namespace micasa {
 							}
 
 							if ( input_.find( "rights") != input_.end() ) {
-								unsigned int rights = UserRights::PUBLIC;
+								unsigned int rights = User::Rights::PUBLIC;
 								if ( input_["rights"].is_number() ) {
 									rights = input_["rights"].get<unsigned int>();
 								} else if ( input_["rights"].is_string() ) {

@@ -3,6 +3,7 @@
 #include "../Database.h"
 #include "../Hardware.h"
 #include "../Controller.h"
+#include "../User.h"
 
 namespace micasa {
 
@@ -18,20 +19,22 @@ namespace micasa {
 	};
 
 	void Counter::start() {
-		this->m_value = g_database->getQueryValue<int>(
-		   "SELECT `value` "
-		   "FROM `device_counter_history` "
-		   "WHERE `device_id`=%d "
-		   "ORDER BY `date` DESC "
-		   "LIMIT 1"
-		   , this->m_id
-		);
+		try {
+			this->m_value = g_database->getQueryValue<int>(
+			   "SELECT `value` "
+			   "FROM `device_counter_history` "
+			   "WHERE `device_id`=%d "
+			   "ORDER BY `date` DESC "
+			   "LIMIT 1"
+			   , this->m_id
+			);
+		} catch( const Database::NoResultsException& ex_ ) { }
 
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ) + "/data",
 			100,
-			WebServer::UserRights::VIEWER,
+			User::Rights::VIEWER,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
@@ -106,7 +109,7 @@ namespace micasa {
 	}
 	
 	json Counter::getJson( bool full_ ) const {
-		json result = Device::getJson();
+		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "counter";
 		result["unit"] = Counter::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
@@ -121,7 +124,7 @@ namespace micasa {
 				{ "label", "Unit" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "value", Counter::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) ) }
+				{ "value", this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) }
 			};
 			for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
 				setting["options"] += {
@@ -133,6 +136,10 @@ namespace micasa {
 		}
 		
 		return result;
+	};
+
+	void Counter::setUnit( Counter::Unit unit_ ) {
+		this->m_settings->put( DEVICE_SETTING_UNITS, unit_ );
 	};
 
 	std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {

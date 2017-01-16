@@ -17,18 +17,17 @@ namespace micasa {
 	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Device instances." );
-		assert( g_webServer && "Global Database instance should be created before Device instances." );
+		assert( g_database && "Global Database instance should be created before Device instances." );
 		assert( g_logger && "Global Logger instance should be created before Device instances." );
 #endif // _DEBUG
-		this->m_settings = std::make_shared<Settings>();
-		this->m_settings->populate( *this );
+		this->m_settings = std::make_shared<Settings<Device> >( *this );
 		this->m_lastUpdate = std::chrono::system_clock::now();
 	};
 	
 	Device::~Device() {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be destroyed after Device instances." );
-		assert( g_webServer && "Global Database instance should be destroyed after Device instances." );
+		assert( g_database && "Global Database instance should be destroyed after Device instances." );
 		assert( g_logger && "Global Logger instance should be destroyed after Device instances." );
 #endif // _DEBUG
 	};

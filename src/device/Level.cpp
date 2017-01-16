@@ -3,6 +3,7 @@
 #include "../Database.h"
 #include "../Hardware.h"
 #include "../Controller.h"
+#include "../User.h"
 
 namespace micasa {
 
@@ -25,20 +26,22 @@ namespace micasa {
 	};
 	
 	void Level::start() {
-		this->m_value = g_database->getQueryValue<double>(
-			"SELECT `value` "
-			"FROM `device_level_history` "
-			"WHERE `device_id`=%d "
-			"ORDER BY `date` DESC "
-			"LIMIT 1"
-			, this->m_id
-		);
+		try {
+			this->m_value = g_database->getQueryValue<double>(
+				"SELECT `value` "
+				"FROM `device_level_history` "
+				"WHERE `device_id`=%d "
+				"ORDER BY `date` DESC "
+				"LIMIT 1"
+				, this->m_id
+			);
+		} catch( const Database::NoResultsException& ex_ ) { }
 		
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
 			"api/devices/" + std::to_string( this->m_id ) + "/data",
 			100,
-			WebServer::UserRights::VIEWER,
+			User::Rights::VIEWER,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
@@ -115,7 +118,7 @@ namespace micasa {
 	json Level::getJson( bool full_ ) const {
 		std::stringstream ss;
 		ss << std::fixed << std::setprecision( 3 ) << this->getValue();
-		json result = Device::getJson();
+		json result = Device::getJson( full_ );
 		result["value"] = ss.str();
 		result["type"] = "level";
 		result["unit"] = Level::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
@@ -130,7 +133,7 @@ namespace micasa {
 				{ "label", "Unit" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "value", Level::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) ) }
+				{ "value", this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) }
 			};
 			for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
 				setting["options"] += {
@@ -142,6 +145,10 @@ namespace micasa {
 		}
 
 		return result;
+	};
+
+	void Level::setUnit( Level::Unit unit_ ) {
+		this->m_settings->put( DEVICE_SETTING_UNITS, unit_ );
 	};
 
 	std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
@@ -181,5 +188,26 @@ namespace micasa {
 			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
 	};
+
+/*
+	std::ostream& operator<<( std::ostream& out_, Level::SubType subType_ ) {
+		switch( subType_ ) {
+			case GENERIC: out_ << "Generic"; break;
+			case TEMPERATURE: out_ << "Temperature"; break;
+			case HUMIDITY:
+			case POWER               :
+			case PRESSURE            :
+			case LIGHT_INTENSITY     :
+			case THERMOSTAT_SETPOINT :
+			case VOLTAGE             :
+		
+			default: out_.setstate( std::ios_base::failbit );
+		}
+		return out_;
+	};
+	
+	std::istream& operator>>( std::istream& in_, Level::SubType subType_ ) {
+	};
+*/	
 
 }; // namespace micasa

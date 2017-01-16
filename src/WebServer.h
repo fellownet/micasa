@@ -11,7 +11,6 @@
 
 #include "Worker.h"
 #include "Network.h"
-#include "Settings.h"
 
 #include "json.hpp"
 
@@ -22,24 +21,6 @@ namespace micasa {
 	class WebServer final : public Worker {
 
 	public:
-		struct User {
-			const unsigned int id;
-			const unsigned short rights;
-		}; // struct User
-
-		enum UserRights {
-			// v Public
-			PUBLIC    = 1,
-			// v View all devices
-			VIEWER    = 2,
-			// v Update all device values + VIEWER rights
-			USER      = 3,
-			// v Add/remove hardware, devices, scripts, timers and devices + USER rights
-			INSTALLER = 4,
-			// v All rights
-			ADMIN     = 99
-		}; // enum UserRights
-
 		enum Method {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
@@ -70,6 +51,7 @@ namespace micasa {
 			const t_callback callback;
 		}; // struct ResourceCallback
 		
+		// TODO extend from std::runtime_error?
 		struct ResourceException {
 			const unsigned int code;
 			const std::string error;
@@ -92,7 +74,6 @@ namespace micasa {
 	private:
 		std::map<std::string, std::vector<std::shared_ptr<ResourceCallback> > > m_resources;
 		mutable std::mutex m_resourcesMutex;
-		std::shared_ptr<Settings> m_settings;
 		mutable std::mutex m_usersMutex;
 		std::string m_publicKey;
 		std::string m_privateKey;

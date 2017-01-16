@@ -10,7 +10,9 @@
 
 #include "Controller.h"
 #include "Database.h"
+#include "Settings.h"
 #include "Utils.h"
+#include "User.h"
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -108,25 +110,40 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 	return V7_OK;
 };
 
+v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
+	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	
+	v7_val_t arg0 = v7_arg( js_, 0 );
+	std::string script;
+	if (
+		v7_is_string( arg0 )
+		&& controller->_includeFromScript( v7_get_string( js_, &arg0, NULL ), script )
+	) {
+		v7_val_t js_result;
+		return v7_exec( js_, script.c_str(), &js_result );
+	} else {
+		return v7_throwf( js_, "Error", "Invalid script name." );
+	}
+}
+
 namespace micasa {
 
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
+	extern std::shared_ptr<Settings<> > g_settings;
 
 	template<> void Controller::Task::setValue<Level>( const typename Level::t_value& value_ ) { this->levelValue = value_; };
 	template<> void Controller::Task::setValue<Counter>( const typename Counter::t_value& value_ ) { this->counterValue = value_; };
 	template<> void Controller::Task::setValue<Switch>( const typename Switch::t_value& value_ ) { this->switchValue = value_; };
 	template<> void Controller::Task::setValue<Text>( const typename Text::t_value& value_ ) { this->textValue = value_; };
 
-	Controller::Controller() {
+	Controller::Controller(): Worker() {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before global Controller instance." );
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
 		assert( g_logger && "Global Logger instance should be created before global Controller instance." );
 #endif // _DEBUG
-		this->m_settings = std::make_shared<Settings>();
-		this->m_settings->populate();
 
 		// Initialize the v7 javascript environment.
 		this->m_v7_js = v7_create();
@@ -134,16 +151,17 @@ namespace micasa {
 		v7_set_user_data( this->m_v7_js, root, this );
 
 		v7_val_t userDataObj;
-		if ( V7_OK != v7_parse_json( this->m_v7_js, this->m_settings->get( "userdata", "{}" ).c_str(), &userDataObj ) ) {
+		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( "userdata", "{}" ).c_str(), &userDataObj ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
-		}
-		if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
+			if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
+			}
 		}
 		v7_set( this->m_v7_js, root, "userdata", ~0, userDataObj );
 
 		v7_set_method( this->m_v7_js, root, "updateDevice", &micasa_v7_update_device );
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
+		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 	};
 
 	Controller::~Controller() {
@@ -213,7 +231,7 @@ namespace micasa {
 			"controller",
 			"api/hardware",
 			99,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::GET,
 			WebServer::t_callback( []( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				output_["data"] = json::array();
@@ -225,7 +243,7 @@ namespace micasa {
 			"controller",
 			"api/devices",
 			99,
-			WebServer::UserRights::VIEWER,
+			User::Rights::VIEWER,
 			WebServer::Method::GET,
 			WebServer::t_callback( []( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				output_["data"] = json::array();
@@ -238,7 +256,7 @@ namespace micasa {
 			"controller",
 			"api/hardware",
 			100,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( input_.find( "type" ) != input_.end() ) {
@@ -354,11 +372,11 @@ namespace micasa {
 
 	};
 	
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ ) {
 		return this->declareHardware( type_, reference_, nullptr, settings_, start_ );
 	};
 
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ ) {
 #ifdef _DEBUG
 		assert( g_webServer->isRunning() && "WebServer should be running before declaring hardware." );
 #endif // _DEBUG
@@ -396,7 +414,7 @@ namespace micasa {
 		auto settings = hardware->getSettings();
 		settings->insert( settings_ );
 		if ( settings->isDirty() ) {
-			settings->commit( *hardware );
+			settings->commit();
 		}
 
 		if ( start_ ) {
@@ -653,14 +671,15 @@ namespace micasa {
 						g_logger->logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
 						break;
 				}
-
-				g_database->putQuery(
-					"UPDATE `scripts` "
-					"SET `enabled`=%d "
-					"WHERE `id`=%q",
-					success ? 1 : 0,
-					(*scriptsIt).at( "id" ).c_str()
-				);
+				
+				if ( ! success ) {
+					g_database->putQuery(
+						"UPDATE `scripts` "
+						"SET `enabled`=0 "
+						"WHERE `id`=%q",
+						(*scriptsIt).at( "id" ).c_str()
+					);
+				}
 			}
 
 			// Remove the context data from the v7 environment.
@@ -672,11 +691,11 @@ namespace micasa {
 			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
-			this->m_settings->put( "userdata", std::string( p ) );
+			g_settings->put( "userdata", std::string( p ) );
 			if ( p != buffer ) {
 				free( p );
 			}
-			this->m_settings->commit();
+			g_settings->commit();
 		} );
 		thread.detach();
 	};
@@ -853,6 +872,22 @@ namespace micasa {
 	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch>& device_, const typename Switch::t_value& value_, const std::string& options_ );
 	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text>& device_, const typename Text::t_value& value_, const std::string& options_ );
 
+	bool Controller::_includeFromScript( const std::string& name_, std::string& script_ ) {
+		// This is done without a lock because it is called from a script that is executed while holding the lock.
+		try {
+			script_ = g_database->getQueryValue<std::string>(
+				"SELECT `code` "
+				"FROM `scripts` "
+				"WHERE `name`=%Q "
+				"AND `enabled`=1",
+				name_.c_str()
+			);
+			return true;
+		} catch( const Database::NoResultsException& ex_ ) {
+			return false;
+		}
+	};
+
 	void Controller::_clearTaskQueue( const std::shared_ptr<Device>& device_ ) {
 		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
 		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
@@ -955,7 +990,7 @@ namespace micasa {
 			"hardware-" + std::to_string( hardware_->getId() ),
 			"api/hardware",
 			100,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this,hardware_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				
@@ -1008,7 +1043,7 @@ namespace micasa {
 			"hardware-" + std::to_string( hardware_->getId() ),
 			"api/hardware/" + std::to_string( hardware_->getId() ),
 			100,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this,hardware_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				switch( method_ ) {
@@ -1025,7 +1060,7 @@ namespace micasa {
 							&& input_["name"].is_string()
 						) {
 							hardware_->getSettings()->put( "name", input_["name"].get<std::string>() );
-							hardware_->getSettings()->commit( *hardware_.get() );
+							hardware_->getSettings()->commit();
 						}
 
 						// The enabled property can be used to enable or disable the hardware. For now this is only
@@ -1114,7 +1149,7 @@ namespace micasa {
 			"controller-scripts",
 			"api/scripts",
 			100,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
@@ -1192,7 +1227,7 @@ namespace micasa {
 				"controller-scripts",
 				"api/scripts/" + std::to_string( scriptId ),
 				100,
-				WebServer::UserRights::INSTALLER,
+				User::Rights::INSTALLER,
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 				WebServer::t_callback( [this,scriptId]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 					std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
@@ -1341,7 +1376,7 @@ namespace micasa {
 			"controller-timers",
 			"api/timers",
 			100,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this,&setScripts,&addTimerData]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_timersMutex );
@@ -1434,7 +1469,7 @@ namespace micasa {
 				"controller-timers",
 				"api/timers/" + std::to_string( timerId ),
 				100,
-				WebServer::UserRights::INSTALLER,
+				User::Rights::INSTALLER,
 				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 				WebServer::t_callback( [this,timerId,&setScripts,&addTimerData]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 					std::lock_guard<std::mutex> lock( this->m_timersMutex );

@@ -6,6 +6,7 @@
 #include "../Logger.h"
 #include "../Controller.h"
 #include "../WebServer.h"
+#include "../User.h"
 
 #include "../device/Level.h"
 #include "../device/Text.h"
@@ -386,7 +387,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
 					} );
 					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -399,7 +400,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
 					} );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -427,8 +428,8 @@ namespace micasa {
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 					) {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( Level::Unit::PERCENT ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources },
+							{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
 						} );
 						device->updateValue( source_, byteValue );
 						if ( "Unknown" != label ) {
@@ -464,14 +465,14 @@ namespace micasa {
 						|| "Water" == label
 					) {
 						auto device = this->_declareDevice<Counter>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+							{ DEVICE_SETTING_UNITS, unit }
 						} );
 						device->updateValue( source_, floatValue );
 					} else {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+							{ DEVICE_SETTING_UNITS, unit }
 						} );
 						device->updateValue( source_, floatValue );
 					}
@@ -486,8 +487,8 @@ namespace micasa {
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
 					auto device = this->_declareDevice<Level>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+						{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
 					} );
 					device->updateValue( source_, (unsigned int)byteValue );
 				}
@@ -673,7 +674,7 @@ namespace micasa {
 			"zwavenode-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
 			101,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
@@ -699,7 +700,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			99,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 
@@ -736,13 +737,13 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<float>();
-											this->m_settings->put<double>( reference, setting["value"].get<float>() );
+											this->m_settings->put( reference, setting["value"].get<float>() );
 										}
 									} else if ( type == ValueID::ValueType_Bool ) {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<bool>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<bool>();
-											this->m_settings->put<bool>( reference, setting["value"].get<bool>() );
+											this->m_settings->put( reference, setting["value"].get<bool>() );
 										}
 									} else if ( type == ValueID::ValueType_Byte ) {
 										success = success && setting["value"].get<unsigned int>() <= config["max"].get<unsigned int>();
@@ -750,7 +751,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<uint8>();
-											this->m_settings->put<unsigned int>( reference, setting["value"].get<uint8>() );
+											this->m_settings->put( reference, setting["value"].get<uint8>() );
 										}
 									} else if ( type == ValueID::ValueType_Short ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -758,7 +759,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int16>();
-											this->m_settings->put<int>( reference, setting["value"].get<int16>() );
+											this->m_settings->put( reference, setting["value"].get<int16>() );
 										}
 									} else if ( type == ValueID::ValueType_Int ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -766,7 +767,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int32>();
-											this->m_settings->put<int>( reference, setting["value"].get<int32>() );
+											this->m_settings->put( reference, setting["value"].get<int32>() );
 										}
 									} else if ( type == ValueID::ValueType_List ) {
 										bool exists = false;

@@ -27,6 +27,7 @@ extern "C" {
 	
 	v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ );
 	v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ );
+	v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ );
 } // extern "C"
 
 namespace micasa {
@@ -39,6 +40,7 @@ namespace micasa {
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
 		friend v7_err (::micasa_v7_update_device)( struct v7* js_, v7_val_t* res_ );
 		friend v7_err (::micasa_v7_get_device)( struct v7* js_, v7_val_t* res_ );
+		friend v7_err (::micasa_v7_include)( struct v7* js_, v7_val_t* res_ );
 
 #ifdef _WITH_LIBUDEV
 		typedef std::function<void( const std::string& serialPort_, const std::string& action_ )> t_serialPortCallback;
@@ -77,8 +79,8 @@ namespace micasa {
 		
 		std::shared_ptr<Hardware> getHardware( const std::string& reference_ ) const;
 		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ = false );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
 
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
@@ -100,7 +102,7 @@ namespace micasa {
 		mutable std::mutex m_taskQueueMutex;
 		mutable std::mutex m_scriptsMutex;
 		mutable std::mutex m_timersMutex;
-		std::shared_ptr<Settings> m_settings;
+		
 		v7* m_v7_js;
 		
 #ifdef _WITH_LIBUDEV
@@ -115,6 +117,7 @@ namespace micasa {
 		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runTimers();
 		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
+		bool _includeFromScript( const std::string& name_, std::string& script_ );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;

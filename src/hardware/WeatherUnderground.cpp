@@ -10,6 +10,7 @@
 #include "../Logger.h"
 #include "../Network.h"
 #include "../Utils.h"
+#include "../User.h"
 
 namespace micasa {
 
@@ -27,7 +28,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			99,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
@@ -41,7 +42,7 @@ namespace micasa {
 					this->m_settings->put( "scale", settings.at( "scale" ) );
 				} catch( std::out_of_range exception_ ) { };
 				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit( *this );
+					this->m_settings->commit();
 					this->m_needsRestart = true;
 				}
 			} )
@@ -149,8 +150,8 @@ namespace micasa {
 							&& ! data["temp_f"].is_null()
 						) {
 							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::FAHRENHEIT ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::FAHRENHEIT }
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
@@ -158,29 +159,29 @@ namespace micasa {
 						   && ! data["temp_c"].is_null()
 					   ) {
 							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::CELCIUS ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::CELCIUS }
 							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
 							auto device = this->_declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::PERCENT }
 							} );
 							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
 							auto device = this->_declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PASCAL ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::PASCAL }
 							} );
 							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
 							auto device = this->_declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
 							} );
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}

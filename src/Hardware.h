@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <map>
 #include <mutex>
 #include <vector>
@@ -12,6 +8,7 @@
 #include "Logger.h"
 #include "WebServer.h"
 #include "Device.h"
+#include "Settings.h"
 #include "Settings.h"
 
 namespace micasa {
@@ -57,6 +54,8 @@ namespace micasa {
 			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
 
+		static const constexpr char* settingsName = "hardware";
+
 		virtual ~Hardware();
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
@@ -75,7 +74,7 @@ namespace micasa {
 		void setState( const State& state_ );
 		std::string getReference() const throw() { return this->m_reference; };
 		std::string getName() const;
-		std::shared_ptr<Settings> getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Settings<Hardware> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getParent() const throw() { return this->m_parent; };
 		bool needsRestart() const throw() { return this->m_needsRestart; };
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
@@ -94,10 +93,10 @@ namespace micasa {
 		const Type m_type;
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
-		std::shared_ptr<Settings> m_settings;
+		std::shared_ptr<Settings<Hardware> > m_settings;
 		bool m_needsRestart = false;
 
-		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::map<std::string, std::string> settings_, const bool& start_ = false );
+		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ = false );
 
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.

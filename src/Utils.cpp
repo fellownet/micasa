@@ -189,6 +189,9 @@ namespace micasa {
 
 		private_.assign( mem2->data, mem2->length );
 
+		BN_clear_free(bne);
+		RSA_free( r );
+
 		return true;
 	};
 

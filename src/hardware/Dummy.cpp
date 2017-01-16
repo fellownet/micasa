@@ -1,5 +1,6 @@
 #include "Dummy.h"
 #include "../Database.h"
+#include "../User.h"
 
 #include "../device/Counter.h"
 #include "../device/Level.h"
@@ -33,7 +34,7 @@ namespace micasa {
 			"dummy-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			101,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::POST,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				switch( method_ ) {
@@ -62,30 +63,30 @@ namespace micasa {
 						if ( input_["type"].get<std::string>() == "counter" ) {
 							auto device = this->_declareDevice<Counter>( std::to_string( index ), "Counter", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API },
+								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
 							output_["device"] = device->getJson();
 						} else if ( input_["type"].get<std::string>() == "level" ) {
 							auto device = this->_declareDevice<Level>( std::to_string( index ), "Level", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, SETTING_TRUE }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API },
+								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
 							output_["device"] = device->getJson();
 						} else if ( input_["type"].get<std::string>() == "text" ) {
 							auto device = this->_declareDevice<Text>( std::to_string( index ), "Text", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
 							output_["device"] = device->getJson();
 						} else if ( input_["type"].get<std::string>() == "switch" ) {
 							auto device = this->_declareDevice<Switch>( std::to_string( index ), "Switch", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 							output_["device"] = device->getJson();

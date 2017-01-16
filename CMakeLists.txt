@@ -25,6 +25,7 @@ set( SRC
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
+	src/User.cpp
 	src/Settings.cpp
 	src/Database.cpp
 
@@ -141,6 +142,7 @@ set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -D
 # https://github.com/cesanta/v7
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
+add_definitions( -DV7_ENABLE_FILE=ON )
 
 #
 # Set compiler options.

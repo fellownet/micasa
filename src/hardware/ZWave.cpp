@@ -10,6 +10,7 @@
 #include "../Logger.h"
 #include "../Controller.h"
 #include "../Utils.h"
+#include "../User.h"
 
 // OpenZWave includes
 #include "Options.h"
@@ -46,7 +47,7 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ),
 			99,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
@@ -54,7 +55,7 @@ namespace micasa {
 					this->m_settings->put( "port", settings.at( "port" ) );
 				} catch( std::out_of_range exception_ ) { };
 				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit( *this );
+					this->m_settings->commit();
 					this->m_needsRestart = true;
 				}
 			} )
@@ -259,7 +260,7 @@ namespace micasa {
 					) {
 						this->m_homeId = homeId;
 						this->m_settings->put( "port", this->m_port );
-						this->m_settings->put<unsigned int>( "home_id", homeId );
+						this->m_settings->put( "home_id", homeId );
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Driver ready." );
 					} else {
 						Manager::Get()->RemoveDriver( this->m_port );
@@ -376,7 +377,7 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
 			101,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
@@ -401,7 +402,7 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ) + "/include",
 			101,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO also accept secure inclusion mode
@@ -437,7 +438,7 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
 			101,
-			WebServer::UserRights::INSTALLER,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {

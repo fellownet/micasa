@@ -1,53 +1,98 @@
 #pragma once
 
+#include <string>
 #include <map>
-#include <memory>
 #include <mutex>
+#include <iostream>
 #include <sstream>
-#include <vector>
+#include <iomanip>
 
-#define SETTING_TRUE  "true"
+#define SETTING_TRUE "true"
 #define SETTING_FALSE "false"
 
 namespace micasa {
 
-	class Hardware;
-	class Device;
-	
-	class Settings final {
+	class SettingValue: public std::string {
 		
 	public:
-		Settings() { };
-		~Settings() { };
+		SettingValue( const unsigned int& value_ );
+		SettingValue( const int& value_ );
+		SettingValue( const double& value_ );
+		SettingValue( const bool& value_ );
+		SettingValue( const std::string& value_ );
+	}; // class SettingValue
+
+	typedef std::pair<std::string, SettingValue> Setting;
+
+	template<class T> class SettingsHelper {
 		
-		const static std::string NOT_FOUND;
+	public:
+		SettingsHelper( const T& target_ );
 		
-		void insert( const std::map<std::string, std::string>& settings_ );
-		bool contains( const std::initializer_list<std::string>& settings_ );
-		bool contains( const std::string& key_ );
-		unsigned int count() const;
-		void populate();
-		void populate( const Hardware& hardware_ );
-		void populate( const Device& device_ );
 		void commit();
-		void commit( const Hardware& hardware_ );
-		void commit( const Device& device_ );
-		bool isDirty() const throw() { return this->m_dirty; }
+
+	protected:
+		const T& m_target;
+		std::map<std::string, std::string> m_settings;
+		std::vector<std::string> m_dirty;
+		mutable std::mutex m_settingsMutex;
+		
+	}; // class SettingsHelper
+
+	// For generic settings we're specializing the SettingsHelper class for type void.
+	template<> class SettingsHelper<void> {
+
+	public:
+		SettingsHelper();
+
+		void commit();
+
+	protected:
+		std::map<std::string, std::string> m_settings;
+		std::vector<std::string> m_dirty;
+		mutable std::mutex m_settingsMutex;
+
+	}; // class SettingsHelper<void>
+
+	// The actual Settings declaration follows below. These are the functions that do not require
+	// a specialization of any kind.
+	template<class T = void> class Settings: public SettingsHelper<T> {
+		
+	public:
+		using SettingsHelper<T>::SettingsHelper;
+		~Settings();
+		// NOTE destructors are 'inherited' (quotes because that's not exactly what happens, but the effect is the same :))
+
+		void insert( const std::vector<Setting>& settings_ );
+		bool contains( const std::initializer_list<std::string>& settings_ ) const;
+		bool contains( const std::string& key_ ) const;
+		unsigned int count() const;
+		bool isDirty() const;
 		
 		std::string get( const std::string& key_ ) const;
-		template<typename T> T get( const std::string& key_ ) const;
+		template<typename V> V get( const std::string& key_ ) const {
+			// Unfortunately, to be able to use all types, the implementation needs to be in the header.
+			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+			V value;
+			std::istringstream( this->m_settings.at( key_ ) ) >> std::boolalpha >> std::fixed >> std::setprecision( 3 ) >> value;
+			return value;
+		};
+		
 		std::string get( const std::string& key_, const std::string& default_ ) const;
-		template<typename T> T get( const std::string& key_, const T& default_ ) const;
-		Settings* put( const std::string& key_, const std::string& value_ );
-		template<typename T> Settings* put( const std::string& key_, const T& value_ );
-		const std::map<std::string,std::string> getAll( const std::string& keys_, const bool& keepNotFounds_ = false ) const;
-		const std::map<std::string,std::string> getAll( const std::vector<std::string>& keys_, const bool& keepNotFounds_ = false ) const;
-		
-	private:
-		std::map<std::string, std::string> m_settings;
-		mutable std::mutex m_settingsMutex;
-		bool m_dirty = false;
-		
+		template<typename V> V get( const std::string& key_, const V& default_ ) const {
+			// Unfortunately, to be able to use all types, the implementation needs to be in the header.
+			std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+			try {
+				V value;
+				std::istringstream( this->m_settings.at( key_ ) ) >> std::boolalpha >> std::fixed >> std::setprecision( 3 ) >> value;
+				return value;
+			} catch( std::out_of_range exception_ ) {
+				return default_;
+			}
+		};
+
+		void put( const std::string& key_, const SettingValue& value_ );
+
 	}; // class Settings
-	
+
 }; // namespace micasa
