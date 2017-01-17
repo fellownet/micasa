@@ -25,6 +25,7 @@ set( SRC
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
+	src/User.cpp
 	src/Settings.cpp
 	src/Database.cpp
 
@@ -59,14 +60,6 @@ if( DEBUG )
 	message( STATUS "Building DEBUG release" )
 	set( CMAKE_BUILD_TYPE Debug )
 	add_definitions( -D_DEBUG )
-endif()
-
-#
-# Set SSL mode.
-#
-option( ENABLE_SSL "Build with SSL" NO )
-if( ENABLE_SSL )
-	add_definitions( -D_WITH_SSL )
 endif()
 
 #
@@ -149,6 +142,7 @@ set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -D
 # https://github.com/cesanta/v7
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
+add_definitions( -DV7_ENABLE_FILE=ON )
 
 #
 # Set compiler options.

@@ -34,7 +34,8 @@ namespace micasa {
 		if ( SQLITE_OK == result ) {
 			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
 		} else {
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly.", this->m_filename.c_str() );
+			const char *error = sqlite3_errmsg( this->m_connection );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly (%s).", this->m_filename.c_str(), error );
 		}
 	};
 
@@ -129,6 +130,8 @@ namespace micasa {
 						result[key] = "";
 					}
 				}
+			} else {
+				throw NoResultsException( "resultset doesn't contain any rows" );
 			}
 		} );
 		va_end( arguments );
@@ -165,6 +168,8 @@ namespace micasa {
 							break;
 					}
 				}
+			} else {
+				throw NoResultsException( "resultset doesn't contain any rows" );
 			}
 		} );
 		va_end( arguments );
@@ -180,9 +185,9 @@ namespace micasa {
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
-#ifdef _DEBUG
-					assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 column." );
-#endif // _DEBUG
+					if ( sqlite3_column_count( statement_ ) != 1 ) {
+						throw InvalidResultException( "resultset doesn't contain exactly one column" );
+					}
 					const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
 					if ( valueC != NULL ) {
 						T value;
@@ -214,9 +219,9 @@ namespace micasa {
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
-#ifdef _DEBUG
-					assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 column." );
-#endif // _DEBUG
+					if ( sqlite3_column_count( statement_ ) != 1 ) {
+						throw InvalidResultException( "resultset doesn't contain exactly one column" );
+					}
 					const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
 					if ( valueC != NULL ) {
 						result.push_back( std::string( reinterpret_cast<const char*>( valueC ) ) );
@@ -237,10 +242,10 @@ namespace micasa {
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
-#ifdef _DEBUG
 			int columns = sqlite3_column_count( statement_ );
-			assert( 2 == columns && "Query result should contain exactly two columns." );
-#endif // _DEBUG
+			if ( 2 != columns ) {
+				throw InvalidResultException( "resultset doesn't contain exactly two columns" );
+			}
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 					std::string key = std::string( reinterpret_cast<const char*>( sqlite3_column_text( statement_, 0 ) ) );
@@ -268,13 +273,15 @@ namespace micasa {
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
-#ifdef _DEBUG
-				assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 value." );
-#endif // _DEBUG
+				if ( sqlite3_column_count( statement_ ) != 1 ) {
+					throw InvalidResultException( "resultset doesn't contain exactly one column" );
+				}
 				const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
 				if ( valueC != NULL ) {
 					result = std::string( reinterpret_cast<const char*>( valueC ) );
 				}
+			} else {
+				throw NoResultsException( "resultset doesn't contain any rows" );
 			}
 		} );
 		va_end( arguments );
@@ -298,13 +305,15 @@ namespace micasa {
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
-#ifdef _DEBUG
-				assert( sqlite3_column_count( statement_ ) == 1 && "Query result should contain exactly 1 value." );
-#endif // _DEBUG
+				if ( sqlite3_column_count( statement_ ) != 1 ) {
+					throw InvalidResultException( "resultset doesn't contain exactly one column" );
+				}
 				const unsigned char* valueC = sqlite3_column_text( statement_, 0 );
 				if ( valueC != NULL ) {
 					result = std::string( reinterpret_cast<const char*>( valueC ) );
 				}
+			} else {
+				throw NoResultsException( "resultset doesn't contain any rows" );
 			}
 		} );
 		va_end( arguments );
@@ -363,7 +372,12 @@ namespace micasa {
 		
 		sqlite3_stmt *statement;
 		if ( SQLITE_OK == sqlite3_prepare_v2( this->m_connection, query, -1, &statement, NULL ) ) {
-			process_( statement );
+			try {
+				process_( statement );
+			} catch( ... ) {
+				sqlite3_finalize( statement );
+				throw; // re-throw exception
+			}
 			sqlite3_finalize( statement );
 		} else {
 			const char *error = sqlite3_errmsg( this->m_connection );

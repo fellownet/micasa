@@ -6,6 +6,7 @@
 #include "../Logger.h"
 #include "../Controller.h"
 #include "../WebServer.h"
+#include "../User.h"
 
 #include "../device/Level.h"
 #include "../device/Text.h"
@@ -386,7 +387,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
 					} );
 					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -399,7 +400,7 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
 					} );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -427,8 +428,8 @@ namespace micasa {
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 					) {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( allowedUpdateSources ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( Level::Unit::PERCENT ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources },
+							{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
 						} );
 						device->updateValue( source_, byteValue );
 						if ( "Unknown" != label ) {
@@ -464,14 +465,14 @@ namespace micasa {
 						|| "Water" == label
 					) {
 						auto device = this->_declareDevice<Counter>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+							{ DEVICE_SETTING_UNITS, unit }
 						} );
 						device->updateValue( source_, floatValue );
 					} else {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_UNITS, std::to_string( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+							{ DEVICE_SETTING_UNITS, unit }
 						} );
 						device->updateValue( source_, floatValue );
 					}
@@ -486,8 +487,8 @@ namespace micasa {
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
 					auto device = this->_declareDevice<Level>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_UNITS, std::to_string( (unsigned int)Level::Unit::PERCENT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+						{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
 					} );
 					device->updateValue( source_, (unsigned int)byteValue );
 				}
@@ -526,7 +527,11 @@ namespace micasa {
 				if ( type == ValueID::ValueType_Decimal ) {
 					setting["type"] = "double";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
-					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
+						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					} else {
+						setting["max"] = std::numeric_limits<double>::max();
+					}
 					float floatValue = 0;
 					Manager::Get()->GetValueAsFloat( valueId_, &floatValue );
 					if ( this->m_settings->contains( reference ) ) {
@@ -552,7 +557,11 @@ namespace micasa {
 				} else if ( type == ValueID::ValueType_Byte ) {
 					setting["type"] = "byte";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
-					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
+						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					} else {
+						setting["max"] = std::numeric_limits<unsigned char>::max();
+					}
 					unsigned char byteValue = 0;
 					Manager::Get()->GetValueAsByte( valueId_, &byteValue );
 					if ( this->m_settings->contains( reference ) ) {
@@ -566,7 +575,11 @@ namespace micasa {
 				} else if ( type == ValueID::ValueType_Short ) {
 					setting["type"] = "short";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
-					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
+						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					} else {
+						setting["max"] = std::numeric_limits<short>::max();
+					}
 					short shortValue = 0;
 					Manager::Get()->GetValueAsShort( valueId_, &shortValue );
 					if ( this->m_settings->contains( reference ) ) {
@@ -580,7 +593,11 @@ namespace micasa {
 				} else if ( type == ValueID::ValueType_Int ) {
 					setting["type"] = "int";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
-					setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
+						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+					} else {
+						setting["max"] = std::numeric_limits<int>::max();
+					}
 					int intValue = 0;
 					Manager::Get()->GetValueAsInt( valueId_, &intValue );
 					if ( this->m_settings->contains( reference ) ) {
@@ -653,63 +670,62 @@ namespace micasa {
 
 		// Add resource handlers for network heal.
 		// http://www.openzwave.com/knowledge-base/deadnode
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"zwavenode-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/heal", 101,
+			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
+			101,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( parent->getState() == Hardware::State::READY ) {
 						Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
-						output_["result"] = "OK";
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
 					} else {
-						output_["result"] = "ERROR";
-						output_["message"] = "Controller not ready.";
-						code_ = 423; // Locked (WebDAV; RFC 4918)
+						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+						throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 					}
+					output_["code"] = 200;
 				} else {
-					output_["result"] = "ERROR";
-					output_["message"] = "Controller busy.";
-					code_ = 423; // Locked (WebDAV; RFC 4918)
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
 				}
 			} )
-		} ) ) );
+		} );
 		
 		// Add resource handler for settings update.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			"api/hardware/" + std::to_string( this->m_id ),
+			99,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
-				try {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 
-					// Obtain a lock on the static/shared OpenZWave library manager. If it takes too long to
-					// obtain the lock, the command will fail.
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+				// Obtain a lock on the static/shared OpenZWave library manager. If it takes too long to
+				// obtain the lock, the command will fail.
+				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
-						// Set the node name so it's persistant. This name is stored in the xml config file.
-						if ( input_.find( "name" ) != input_.end() ) {
-							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, input_["name"].get<std::string>() );
-						}
+					// Set the node name so it's persistant. This name is stored in the xml config file.
+					if ( input_.find( "name" ) != input_.end() ) {
+						Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, input_["name"].get<std::string>() );
+					}
 
-						// Then all pushed settings are processed. The settings should be pushed to the server in
-						// the same format as they are received.
-						if (
-							input_.find( "settings" ) != input_.end()
-							&& input_["settings"].is_array()
-						) {
-							bool success = true;
-							for ( auto settingIt = input_["settings"].begin(); success && settingIt != input_["settings"].end(); settingIt++ ) {
+					// Then all pushed settings are processed. The settings should be pushed to the server in
+					// the same format as they are received.
+					if ( input_.find( "settings" ) != input_.end() ) {
+						if ( input_["settings"].is_array() ) {
+							for ( auto settingIt = input_["settings"].begin(); settingIt != input_["settings"].end(); settingIt++ ) {
 								auto setting = (*settingIt);
 								if (
 									setting.find( "name" ) != setting.end()
 									&& setting.find( "value" ) != setting.end()
 									&& this->m_configuration.find( setting["name"].get<std::string>() ) != this->m_configuration.end()
 								) {
+									bool success = true;
 									auto reference = setting["name"].get<std::string>();
 									auto& config = this->m_configuration[reference];
 
@@ -721,13 +737,13 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<float>();
-											this->m_settings->put<double>( reference, setting["value"].get<float>() );
+											this->m_settings->put( reference, setting["value"].get<float>() );
 										}
 									} else if ( type == ValueID::ValueType_Bool ) {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<bool>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<bool>();
-											this->m_settings->put<bool>( reference, setting["value"].get<bool>() );
+											this->m_settings->put( reference, setting["value"].get<bool>() );
 										}
 									} else if ( type == ValueID::ValueType_Byte ) {
 										success = success && setting["value"].get<unsigned int>() <= config["max"].get<unsigned int>();
@@ -735,7 +751,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<uint8>();
-											this->m_settings->put<unsigned int>( reference, setting["value"].get<uint8>() );
+											this->m_settings->put( reference, setting["value"].get<uint8>() );
 										}
 									} else if ( type == ValueID::ValueType_Short ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -743,7 +759,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int16>();
-											this->m_settings->put<int>( reference, setting["value"].get<int16>() );
+											this->m_settings->put( reference, setting["value"].get<int16>() );
 										}
 									} else if ( type == ValueID::ValueType_Int ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -751,7 +767,7 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int32>();
-											this->m_settings->put<int>( reference, setting["value"].get<int32>() );
+											this->m_settings->put( reference, setting["value"].get<int32>() );
 										}
 									} else if ( type == ValueID::ValueType_List ) {
 										bool exists = false;
@@ -778,35 +794,22 @@ namespace micasa {
 									// Add a more descriptive message to the error if possible.
 									if ( ! success ) {
 										unsigned int index = valueId.GetIndex();
-										output_["message"] = "Invalid value for parameter " + std::to_string( index ) + ".";
+										throw WebServer::ResourceException( { 400, "Hardware.Invalid.Settings", "Invalid value for parameter " + std::to_string( index ) + "." } );
 									}
 								}
 							}
-
-							if ( success ) {
-								output_["result"] = "OK";
-							} else {
-								output_["result"] = "ERROR";
-								if ( output_.find( "message" ) == output_.end() ) {
-									output_["message"] = "Unable to update hardware.";
-								}
-								code_ = 400; // bad request > causes all other callbacks to not get called
-							}
+						} else {
+							throw WebServer::ResourceException( { 400, "Hardware.Invalid.Settings", "The supplied settings are invalid." } );
 						}
-					} else {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-						output_["result"] = "ERROR";
-						output_["message"] = "Hardware busy.";
-						code_ = 400; // bad request > causes all other callbacks to not get called
+
+						output_["code"] = 200;
 					}
-				} catch( ... ) {
-					output_["result"] = "ERROR";
-					output_["message"] = "Unable to update hardware.";
-					code_ = 400; // bad request > causes all other callbacks to not get called
+				} else {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
 				}
 			} )
-		} ) ) );
-		
+		} );
 	};
 
 }; // namespace micasa

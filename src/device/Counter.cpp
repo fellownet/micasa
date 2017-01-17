@@ -3,6 +3,7 @@
 #include "../Database.h"
 #include "../Hardware.h"
 #include "../Controller.h"
+#include "../User.h"
 
 namespace micasa {
 
@@ -18,24 +19,28 @@ namespace micasa {
 	};
 
 	void Counter::start() {
-		this->m_value = g_database->getQueryValue<int>(
-		   "SELECT `value` "
-		   "FROM `device_counter_history` "
-		   "WHERE `device_id`=%d "
-		   "ORDER BY `date` DESC "
-		   "LIMIT 1"
-		   , this->m_id
-		);
+		try {
+			this->m_value = g_database->getQueryValue<int>(
+			   "SELECT `value` "
+			   "FROM `device_counter_history` "
+			   "WHERE `device_id`=%d "
+			   "ORDER BY `date` DESC "
+			   "LIMIT 1"
+			   , this->m_id
+			);
+		} catch( const Database::NoResultsException& ex_ ) { }
 
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ) + "/data", 100,
+			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			100,
+			User::Rights::VIEWER,
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
-				output_ = g_database->getQuery<json>(
+				output_["data"] = g_database->getQuery<json>(
 					"SELECT * FROM ( "
-						"SELECT printf(\"%%.3f\", `diff`) AS `value`, strftime('%%s',`date`) AS `timestamp` "
+						"SELECT printf(\"%%.3f\", `diff`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
 						"FROM `device_counter_trends` "
 						"WHERE `device_id`=%d "
 						"AND `date` < datetime('now','-%d day') "
@@ -52,8 +57,9 @@ namespace micasa {
 					") ",
 					this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 				);
+				output_["code"] = 200;
 			} )
-		} ) ) );
+		} );
 
 		Device::start();
 	};
@@ -94,7 +100,6 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Counter>( *this, source_ );
 			}
-			g_webServer->touchResourceCallback( "device-" + std::to_string( this->m_id ) );
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
@@ -104,7 +109,7 @@ namespace micasa {
 	}
 	
 	json Counter::getJson( bool full_ ) const {
-		json result = Device::getJson();
+		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "counter";
 		result["unit"] = Counter::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
@@ -119,7 +124,7 @@ namespace micasa {
 				{ "label", "Unit" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "value", Counter::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) ) }
+				{ "value", this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) }
 			};
 			for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
 				setting["options"] += {
@@ -131,6 +136,10 @@ namespace micasa {
 		}
 		
 		return result;
+	};
+
+	void Counter::setUnit( Counter::Unit unit_ ) {
+		this->m_settings->put( DEVICE_SETTING_UNITS, unit_ );
 	};
 
 	std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {

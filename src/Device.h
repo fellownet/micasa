@@ -7,6 +7,7 @@
 
 #include "WebServer.h"
 #include "Settings.h"
+#include "Settings.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
@@ -38,6 +39,8 @@ namespace micasa {
 			API = 16,
 		}; // enum UpdateSource
 		
+		static const constexpr char* settingsName = "device";
+		
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 
@@ -52,7 +55,7 @@ namespace micasa {
 		void setLabel( const std::string& label_ );
 		template<class T> bool updateValue( const unsigned int& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
-		std::shared_ptr<Settings> getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
 		std::chrono::time_point<std::chrono::system_clock> getLastUpdate() const throw() { return this->m_lastUpdate; };
@@ -67,7 +70,7 @@ namespace micasa {
 		const unsigned int m_id;
 		const std::string m_reference;
 		std::string m_label;
-		std::shared_ptr<Settings> m_settings;
+		std::shared_ptr<Settings<Device> > m_settings;
 		std::chrono::time_point<std::chrono::system_clock> m_lastUpdate;
 
 	}; // class Device

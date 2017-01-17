@@ -9,11 +9,13 @@
 #include "Network.h"
 #include "WebServer.h"
 #include "Controller.h"
+#include "Settings.h"
 
 namespace micasa {
 	
 	std::shared_ptr<Logger> g_logger;
 	std::shared_ptr<Database> g_database;
+	std::shared_ptr<Settings<> > g_settings;
 	std::shared_ptr<Network> g_network;
 	std::shared_ptr<WebServer> g_webServer;
 	std::shared_ptr<Controller> g_controller;
@@ -86,6 +88,7 @@ int main( int argc_, char* argv_[] ) {
 
 	g_logger = std::make_shared<Logger>( static_cast<Logger::LogLevel>( logLevel ) );
 	g_database = std::make_shared<Database>( database );
+	g_settings = std::make_shared<Settings<> >();
 	g_network = std::make_shared<Network>();
 	g_webServer = std::make_shared<WebServer>();
 	g_controller = std::make_shared<Controller>();
@@ -105,6 +108,7 @@ int main( int argc_, char* argv_[] ) {
 	g_controller = NULL;
 	g_webServer = NULL;
 	g_network = NULL;
+	g_settings = NULL;
 	g_database = NULL;
 	g_logger = NULL;
 	

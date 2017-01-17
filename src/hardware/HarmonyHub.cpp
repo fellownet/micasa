@@ -6,6 +6,7 @@
 #include "../device/Switch.h"
 #include "../Network.h"
 #include "../Settings.h"
+#include "../User.h"
 
 #define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
 #define HARMONY_HUB_PING_INTERVAL_SEC	30
@@ -22,11 +23,13 @@ namespace micasa {
 		// The settings for the harmony hub need to be entered before the hardware is started. Therefore the
 		// resource handler needs to be installed upon construction time. The resource will be destroyed by
 		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			"api/hardware/" + std::to_string( this->m_id ),
+			99,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "address", settings.at( "address" ) );
@@ -35,11 +38,11 @@ namespace micasa {
 					this->m_settings->put( "port", settings.at( "port" ) );
 				} catch( std::out_of_range exception_ ) { };
 				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit( *this );
+					this->m_settings->commit();
 					this->m_needsRestart = true;
 				}
 			} )
-		} ) ) );
+		} );
 	};
 	
 	void HarmonyHub::start() {
@@ -94,21 +97,29 @@ namespace micasa {
 
 			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
 			this->m_connectionState = CONNECTING;
-			this->m_connection = g_network->connect( uri, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+			
+			// Instead of capturing 'this' we're capturing a shared_ptr to this. This way the instance will
+			// not be destroyed if the hardware gets removed because the callback still holds a shared pointer
+			// to it. When the callback gets destroyed, after the connection is properly closed, the hardware
+			// will be destroyed.
+			
+			auto sharedPtr = this->shared_from_this();
+			this->m_connection = g_network->connect( uri, Network::t_callback( [sharedPtr]( mg_connection* connection_, int event_, void* data_ ) {
+				auto me = std::dynamic_pointer_cast<HarmonyHub>( sharedPtr );
 				switch( event_ ) {
 					case MG_EV_CONNECT: {
 						int status = *(int*) data_;
 						if ( status == 0 ) {
 							mg_set_timer( connection_, 0 ); // clear timeout timer
-							this->_processConnection( true );
+							me->_processConnection( true );
 						} else {
-							this->_processConnection( false );
+							me->_processConnection( false );
 						}
-						mg_set_timer( this->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
 						break;
 					}
 					case MG_EV_RECV:
-						this->_processConnection( true );
+						me->_processConnection( true );
 						break;
 						
 					case MG_EV_POLL:
@@ -118,18 +129,18 @@ namespace micasa {
 						
 					case MG_EV_TIMER: {
 #ifdef _DEBUG
-						g_logger->log( Logger::LogLevel::DEBUG, this, "Sending ping." );
+						g_logger->log( Logger::LogLevel::DEBUG, me, "Sending ping." );
 #endif // _DEBUG
 						std::stringstream send;
 						send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
 						send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
-						mg_send( this->m_connection, send.str().c_str(), send.str().size() );
-						mg_set_timer( this->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						mg_send( me->m_connection, send.str().c_str(), send.str().size() );
+						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
 						break;
 					}
 						
 					default:
-						this->_processConnection( false );
+						me->_processConnection( false );
 						break;
 				}
 			} ) );
@@ -272,7 +283,7 @@ namespace micasa {
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
 										auto device = this->_declareDevice<Switch>( activityId, label, {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, std::to_string( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
 										} );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );

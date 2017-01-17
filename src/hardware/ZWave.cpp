@@ -10,6 +10,7 @@
 #include "../Logger.h"
 #include "../Controller.h"
 #include "../Utils.h"
+#include "../User.h"
 
 // OpenZWave includes
 #include "Options.h"
@@ -42,21 +43,23 @@ namespace micasa {
 		// The settings for ZWave need to be entered before the hardware is started. Therefore the
 		// resource handler needs to be installed upon construction time. The resource will be destroyed by
 		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ), 99, // just prior to the generic callback handler
+			"api/hardware/" + std::to_string( this->m_id ),
+			99,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "port", settings.at( "port" ) );
 				} catch( std::out_of_range exception_ ) { };
 				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit( *this );
+					this->m_settings->commit();
 					this->m_needsRestart = true;
 				}
 			} )
-		} ) ) );
+		} );
 	};
 
 	void ZWave::start() {
@@ -257,7 +260,7 @@ namespace micasa {
 					) {
 						this->m_homeId = homeId;
 						this->m_settings->put( "port", this->m_port );
-						this->m_settings->put<unsigned int>( "home_id", homeId );
+						this->m_settings->put( "home_id", homeId );
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Driver ready." );
 					} else {
 						Manager::Get()->RemoveDriver( this->m_port );
@@ -370,114 +373,100 @@ namespace micasa {
 		g_webServer->removeResourceCallback( "zwave-" + std::to_string( this->m_id ) );
 
 		// Add resource handlers for network heal.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/heal", 101,
+			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
+			101,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( this->getState() == Hardware::State::READY ) {
 						Manager::Get()->HealNetwork( this->m_homeId, true );
-						output_["result"] = "OK";
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
 					} else {
-						output_["result"] = "ERROR";
-						output_["message"] = "Controller not ready.";
-						code_ = 423; // Locked (WebDAV; RFC 4918)
+						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+						throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 					}
+					output_["code"] = 200;
 				} else {
-					output_["result"] = "ERROR";
-					output_["message"] = "Controller busy.";
-					code_ = 423; // Locked (WebDAV; RFC 4918)
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
 				}
 			} )
-		} ) ) );
+		} );
 
 		// Add resource handler for inclusion mode.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/include", 101,
+			"api/hardware/" + std::to_string( this->m_id ) + "/include",
+			101,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO also accept secure inclusion mode
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( method_ == WebServer::Method::PUT ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
-								output_["result"] = "OK";
 								g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Unable to activate inclusion mode.";
-								code_ = 500; // Internal Server Error
-								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
 							}
 						} else {
-							output_["result"] = "ERROR";
-							output_["message"] = "Controller not ready.";
-							code_ = 423; // Locked (WebDAV; RFC 4918)
+							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 						}
 					} else if ( method_ == WebServer::Method::DELETE ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							Manager::Get()->CancelControllerCommand( this->m_homeId );
-							output_["result"] = "OK";
 						} else {
-							output_["result"] = "ERROR";
-							output_["message"] = "Controller not ready.";
-							code_ = 409; // Conflict
+							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 						}
 					}
+					output_["code"] = 200;
 				} else {
-					output_["result"] = "ERROR";
-					output_["message"] = "Controller busy.";
-					code_ = 423; // Locked (WebDAV; RFC 4918)
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
 				}
 			} )
-		} ) ) );
+		} );
 
 		// Add resource handler for exclusion mode.
-		g_webServer->addResourceCallback( std::make_shared<WebServer::ResourceCallback>( WebServer::ResourceCallback( {
+		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/exclude", 101,
+			"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
+			101,
+			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const std::string& uri_, const nlohmann::json& input_, const WebServer::Method& method_, int& code_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( method_ == WebServer::Method::PUT ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
-								output_["result"] = "OK";
 								g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-							} else {
-								output_["result"] = "ERROR";
-								output_["message"] = "Unable to activate exclusion mode.";
-								code_ = 500; // Internal Server Error
-								g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
 							}
 						} else {
-							output_["result"] = "ERROR";
-							output_["message"] = "Controller not ready.";
-							code_ = 423; // Locked (WebDAV; RFC 4918)
+							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 						}
 					} else if ( method_ == WebServer::Method::DELETE ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							Manager::Get()->CancelControllerCommand( this->m_homeId );
-							output_["result"] = "OK";
 						} else {
-							output_["result"] = "ERROR";
-							output_["message"] = "Controller not ready.";
-							code_ = 409; // Conflict
+							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
 						}
 					}
+					output_["code"] = 200;
 				} else {
-					output_["result"] = "ERROR";
-					output_["message"] = "Controller busy.";
-					code_ = 423; // Locked (WebDAV; RFC 4918)
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
 				}
 			} )
-		} ) ) );
+		} );
 	};
 
 }; // namespace micasa

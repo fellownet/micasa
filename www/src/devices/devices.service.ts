@@ -13,6 +13,7 @@ import {
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
 import { Hardware }        from '../hardware/hardware.service';
+import { UsersService }    from '../users/users.service';
 
 export class Option {
 	label: string;
@@ -51,7 +52,8 @@ export class DevicesService implements Resolve<Device> {
 
 	constructor(
 		private _router: Router,
-		private _http: Http
+		private _http: Http,
+		private _usersService: UsersService
 	) {
 	};
 
@@ -95,21 +97,28 @@ export class DevicesService implements Resolve<Device> {
 		} else {
 			uri += '?enabled=1';
 		}
-		return this._http.get( uri )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( uri, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	getDevice( id_: Number ): Observable<Device> {
-		return this._http.get( this._deviceUrlBase + '/' + id_ )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._deviceUrlBase + '/' + id_, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	putDevice( device_: Device, updateValue_: boolean = false ): Observable<Device> {
-		let headers = new Headers( { 'Content-Type': 'application/json' } );
+		let headers = new Headers( {
+			'Content-Type'  : 'application/json',
+			'Authorization' : this._usersService.getLoggedInToken()
+		} );
 		let options = new RequestOptions( { headers: headers } );
 		// Value should not be sent along with the update to prevent server warnings for
 		// invalid update source.
@@ -119,32 +128,36 @@ export class DevicesService implements Resolve<Device> {
 		}
 		return this._http.put( this._deviceUrlBase + '/' + device_.id, data, options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	getData( device_: Device ): Observable<any[]> {
-		return this._http.get( this._deviceUrlBase + '/' + device_.id + '/data' )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( this._deviceUrlBase + '/' + device_.id + '/data', options )
 			.map( this._extractData )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	deleteDevice( device_: Device ): Observable<boolean> {
-		return this._http.delete( this._deviceUrlBase + '/' + device_.id )
+		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.delete( this._deviceUrlBase + '/' + device_.id, options )
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
 			} )
-			.catch( this._handleError )
+			.catch( this._handleHttpError )
 		;
 	};
 
 	private _extractData( response_: Response ) {
 		let body = response_.json();
-		return body || null;
+		return body.data || null;
 	};
 
-	private _handleError( response_: Response | any ) {
+	private _handleHttpError( response_: Response | any ) {
 		let message: string;
 		if ( response_ instanceof Response ) {
 			const body = response_.json() || '';
@@ -152,7 +165,7 @@ export class DevicesService implements Resolve<Device> {
 			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
 		} else {
 			message = response_.message ? response_.message : response_.toString();
- 		}
+		}
 		return Observable.throw( message );
 	};
 
