@@ -41,17 +41,17 @@ export class ScriptsService {
 		if ( route_.params['script_id'] == 'add' ) {
 			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
 		} else {
-			return new Observable( function( observer_: any ) {
+			return new Observable( function( subscriber_: any ) {
 				me.getScript( +route_.params['script_id'] )
 					.subscribe(
 						function( script_: Script ) {
-							observer_.next( script_ );
-							observer_.complete();
+							subscriber_.next( script_ );
+							subscriber_.complete();
 						},
 						function( error_: string ) {
 							me._router.navigate( [ '/scripts' ] );
-							observer_.next( null );
-							observer_.complete();
+							subscriber_.next( null );
+							subscriber_.complete();
 						}
 					)
 				;
@@ -60,7 +60,7 @@ export class ScriptsService {
 	}
 
 	getScripts(): Observable<Script[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._scriptUrlBase, options )
 			.map( this._extractData )
@@ -69,7 +69,7 @@ export class ScriptsService {
 	};
 
 	getScript( id_: Number ): Observable<Script> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._scriptUrlBase + '/' + id_, options )
 			.map( this._extractData )
@@ -80,7 +80,7 @@ export class ScriptsService {
 	putScript( script_: Script ): Observable<Script> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		if ( script_.id ) {
@@ -97,7 +97,7 @@ export class ScriptsService {
 	};
 
 	deleteScript( script_: Script ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._scriptUrlBase + '/' + script_.id, options )
 			.map( function( response_: Response ) {

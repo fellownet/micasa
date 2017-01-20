@@ -7,6 +7,7 @@
 #include "../Controller.h"
 #include "../WebServer.h"
 #include "../User.h"
+#include "../Utils.h"
 
 #include "../device/Level.h"
 #include "../device/Text.h"
@@ -35,25 +36,6 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<WebServer> g_webServer;
-
-	const std::map<std::string, unsigned int> ZWaveNode::UnitMapping = {
-		{ "Energy", Counter::Unit::KILOWATTHOUR },
-		{ "Power", Level::Unit::WATT },
-		{ "Voltage", Level::Unit::VOLT },
-		{ "Current", Level::Unit::AMPERES },
-		{ "Power Factor", Level::Unit::POWER_FACTOR },
-		{ "Gas", Counter::Unit::M3 },
-		{ "Water", Counter::Unit::M3 },
-		{ "Temperature", Level::Unit::CELCIUS },
-		{ "Luminance", Level::Unit::LUX },
-		{ "Relative Humidity", Level::Unit::GENERIC },
-		{ "Ultraviolet", Level::Unit::GENERIC },
-		{ "Velocity", Level::Unit::GENERIC },
-		{ "Barometric Pressure", Level::Unit::GENERIC },
-		{ "Dew Point", Level::Unit::GENERIC },
-		{ "CO2 Level", Level::Unit::GENERIC },
-		{ "Moisture", Level::Unit::GENERIC }
-	};
 
 	void ZWaveNode::start() {
 #ifdef _DEBUG
@@ -168,7 +150,7 @@ namespace micasa {
 		}
 	}
 
-	bool ZWaveNode::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
 		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
@@ -320,7 +302,7 @@ namespace micasa {
 		}
 	};
 
-	void ZWaveNode::_processValue( const ValueID& valueId_, unsigned int source_ ) {
+	void ZWaveNode::_processValue( const ValueID& valueId_, Device::UpdateSource source_ ) {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
 		std::string reference = std::to_string( valueId_.GetId() );
 		std::string units = Manager::Get()->GetValueUnits( valueId_ );
@@ -334,6 +316,7 @@ namespace micasa {
 			|| "Protocol Version" == label
 			|| "Application Version" == label
 			|| "Previous Reading" == label
+			|| "Power Factor" == label
 		) {
 			return;
 		}
@@ -368,10 +351,25 @@ namespace micasa {
 
 			case COMMAND_CLASS_SWITCH_BINARY:
 			case COMMAND_CLASS_SENSOR_BINARY: {
+				// Detect subtype.
+				// TODO improve detection
+				auto subtype = Switch::SubType::GENERIC;
+				auto hardwareLabel = this->getLabel();
+				std::transform( hardwareLabel.begin(), hardwareLabel.end(), hardwareLabel.begin(), ::tolower );
+				if ( hardwareLabel.find( "pir" ) != string::npos ) {
+					subtype = Switch::SubType::MOTION_DETECTOR;
+				} else if ( hardwareLabel.find( "motion" ) != string::npos ) {
+					subtype = Switch::SubType::MOTION_DETECTOR;
+				} else if ( hardwareLabel.find( "home security" ) != string::npos ) {
+					subtype = Switch::SubType::MOTION_DETECTOR;
+				} else if ( hardwareLabel.find( "door" ) != string::npos ) {
+					subtype = Switch::SubType::DOOR_CONTACT;
+				}
+			
 				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
 				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
 				// instruction.
-				unsigned int allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
+				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
 					allowedUpdateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
 
@@ -387,7 +385,9 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
+						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 					} );
 					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -400,7 +400,9 @@ namespace micasa {
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
 					auto device = this->_declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
+						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 					} );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
 					if ( "Unknown" != label ) {
@@ -415,7 +417,16 @@ namespace micasa {
 				// NOTE: for instance, the fibaro dimmer has several multilevel devices, such as start level-,
 				// step size and dimming duration. These should be handled through the configuration.
 				if ( "Level" == label ) {
-					unsigned int allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+					// Detect subtype.
+					// TODO improve detection
+					auto subtype = Level::SubType::GENERIC;
+					auto hardwareLabel = this->getLabel();
+					std::transform( hardwareLabel.begin(), hardwareLabel.end(), hardwareLabel.begin(), ::tolower );
+					if ( hardwareLabel.find( "dimmer" ) != string::npos ) {
+						subtype = Level::SubType::DIMMER;
+					}
+				
+					Device::UpdateSource allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
 
 					// If there's an update mutex available we need to make sure that it is properly notified of the
 					// execution of the update.
@@ -428,8 +439,10 @@ namespace micasa {
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 					) {
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, allowedUpdateSources },
-							{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
+							{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 						} );
 						device->updateValue( source_, byteValue );
 						if ( "Unknown" != label ) {
@@ -446,17 +459,6 @@ namespace micasa {
 					valueId_.GetType() == ValueID::ValueType_Decimal
 					&& false != Manager::Get()->GetValueAsFloat( valueId_, &floatValue )
 				) {
-					unsigned int unit = 1;
-					if ( ZWaveNode::UnitMapping.find( label ) != ZWaveNode::UnitMapping.end() ) {
-						unit = ZWaveNode::UnitMapping.at( label );
-						if (
-							label == "Temperature"
-							&& units == "F"
-						) {
-							unit = Level::Unit::FAHRENHEIT;
-						}
-					}
-
 					// TODO check units to see if any multiplication needs to take place (from watt kwh)?
 
 					if (
@@ -464,15 +466,47 @@ namespace micasa {
 						|| "Gas" == label
 						|| "Water" == label
 					) {
+						auto subtype = Counter::SubType::GENERIC;
+						auto unit = Counter::Unit::GENERIC;
+						if ( "Energy" == label ) {
+							subtype = Counter::SubType::ENERGY;
+							unit = Counter::Unit::KILOWATTHOUR;
+						} else if ( "Gas" == label ) {
+							subtype = Counter::SubType::GAS;
+							unit = Counter::Unit::M3;
+						} else if ( "Water" == label ) {
+							subtype = Counter::SubType::WATER;
+							unit = Counter::Unit::M3;
+						}
 						auto device = this->_declareDevice<Counter>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-							{ DEVICE_SETTING_UNITS, unit }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					} else {
+						auto subtype = Level::SubType::GENERIC;
+						auto unit = Level::Unit::GENERIC;
+						if ( "Power" == label ) {
+							subtype = Level::SubType::POWER;
+							unit = Level::Unit::WATT;
+						} else if ( "Voltage" == label ) {
+							subtype = Level::SubType::ELECTRICITY;
+							unit = Level::Unit::VOLT;
+						} else if ( "Current" == label ) {
+							subtype = Level::SubType::CURRENT;
+							unit = Level::Unit::AMPERES;
+						} else if ( "Temperature" == label ) {
+							subtype = Level::SubType::TEMPERATURE;
+							unit = Level::Unit::CELCIUS;
+						} else if ( "Luminance" == label ) {
+							subtype = Level::SubType::LUMINANCE;
+							unit = Level::Unit::LUX;
+						}
 						auto device = this->_declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-							{ DEVICE_SETTING_UNITS, unit }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					}
@@ -487,8 +521,9 @@ namespace micasa {
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
 					auto device = this->_declareDevice<Level>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-						{ DEVICE_SETTING_UNITS, Level::Unit::PERCENT }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::BATTERY_LEVEL ) },
+						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) }
 					} );
 					device->updateValue( source_, (unsigned int)byteValue );
 				}
@@ -672,7 +707,7 @@ namespace micasa {
 		// http://www.openzwave.com/knowledge-base/deadnode
 		g_webServer->addResourceCallback( {
 			"zwavenode-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
+			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
@@ -698,7 +733,7 @@ namespace micasa {
 		// Add resource handler for settings update.
 		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
+			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,

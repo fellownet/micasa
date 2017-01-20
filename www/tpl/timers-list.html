@@ -1,5 +1,9 @@
 <section class="content-header">
 <h1>Timers<small>tick tack</small></h1>
+<ol class="breadcrumb">
+	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
+	<li><a routerLink="/timers"><i class="fa fa-clock-o"></i> Timers</a></li>
+</ol>
 </section>
 
 <section class="content-body" *ngIf="timers.length==0 && !loading">

@@ -117,7 +117,7 @@ namespace micasa {
 				g_database->putQuery(
 					"DELETE FROM `settings` "
 					"WHERE `key`=%Q ",
-					setting->first.c_str()
+					( *dirtyIt ).c_str()
 				);
 			}
 		}
@@ -156,7 +156,14 @@ namespace micasa {
 	};
 
 	template<class T> bool Settings<T>::contains( const std::string& key_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		return this->m_settings.find( key_ ) != this->m_settings.end();
+	};
+
+	template<class T> void Settings<T>::remove( const std::string& key_ ) {
+		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
+		this->m_settings.erase( key_ );
+		this->m_dirty.push_back( key_ );
 	};
 
 	template<class T> unsigned int Settings<T>::count() const {
@@ -177,7 +184,7 @@ namespace micasa {
 	template<class T> std::string Settings<T>::get( const std::string& key_, const std::string& default_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		try {
-			return this->m_settings.at( key_ );
+			return this->m_settings.at( std::string( key_ ) );
 		} catch( std::out_of_range exception_ ) {
 			return default_;
 		}

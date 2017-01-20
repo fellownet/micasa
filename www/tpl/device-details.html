@@ -1,6 +1,7 @@
 <section class="content-header">
 <h1>{{device.name}}<small>{{device.hardware.name}}</small></h1>
 <ol class="breadcrumb">
+	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
 	<ng-container *ngIf="hardware">
 	<li><a routerLink="/hardware"><i class="fa fa-microchip"></i> Hardware</a></li>
 	<li><a routerLink="/hardware/{{hardware.id}}"><i class="fa fa-pencil"></i> {{hardware.name}}</a></li>
@@ -22,14 +23,16 @@
 
 	<div class="row">
 
+		<!--
 		<ng-container [ngSwitch]="device.type">
 			<counterwidget *ngSwitchCase="'counter'" [device]="device"></counterwidget>
 			<levelwidget *ngSwitchCase="'level'" [device]="device"></levelwidget>
 			<switchwidget *ngSwitchCase="'switch'" [device]="device"></switchwidget>
 			<textwidget *ngSwitchCase="'text'" [device]="device"></textwidget>
 		</ng-container>
+		-->
 
-		<div class="col-xs-12" [class.col-md-8]="device.type=='switch'">
+		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
 					<h3 class="box-title">Edit Device</h3>

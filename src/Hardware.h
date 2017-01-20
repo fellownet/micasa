@@ -18,7 +18,7 @@ namespace micasa {
 	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
 
 	public:
-		enum Type {
+		enum class Type: unsigned short {
 			HARMONY_HUB = 1,
 #ifdef _WITH_OPENZWAVE
 			ZWAVE,
@@ -34,6 +34,7 @@ namespace micasa {
 			DUMMY
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
+		ENUM_UTIL_W_TEXT( Type, TypeText );
 
 		enum State {
 			DISABLED = 1,
@@ -44,14 +45,15 @@ namespace micasa {
 			DISCONNECTED
 		}; // enum State
 		static const std::map<State, std::string> StateText;
+		ENUM_UTIL_W_TEXT( State, StateText );
 
 		struct PendingUpdate {
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
 			std::mutex conditionMutex;
 			bool done = false;
-			unsigned int source;
-			PendingUpdate( unsigned int source_ ) : source( source_ ) { };
+			Device::UpdateSource source;
+			PendingUpdate( Device::UpdateSource source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
 
 		static const constexpr char* settingsName = "hardware";
@@ -67,10 +69,8 @@ namespace micasa {
 		virtual void stop();
 
 		unsigned int getId() const throw() { return this->m_id; };
-		Type getType() const;
-		template<typename T> T getType() const;
-		State getState() const;
-		template<typename T> T getState() const;
+		Type getType() const throw() { return this->m_type; };
+		State getState() const throw() { return this->m_state; };
 		void setState( const State& state_ );
 		std::string getReference() const throw() { return this->m_reference; };
 		std::string getName() const;
@@ -84,7 +84,7 @@ namespace micasa {
 
 		virtual json getJson( bool full_ = false ) const;
 		virtual std::string getLabel() const =0;
-		virtual bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
+		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
 	protected:
 		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
@@ -101,15 +101,15 @@ namespace micasa {
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
 		// It also makes sure that the source of the update is remembered during this time.
-		bool _queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_ = 3000, const unsigned int& waitForResult_ = 30000 );
-		unsigned int _releasePendingUpdate( const std::string& reference_ );
+		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_ = 3000, const unsigned int& waitForResult_ = 30000 );
+		Device::UpdateSource _releasePendingUpdate( const std::string& reference_ );
 
 	private:
 		std::vector<std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
-		volatile State m_state = DISABLED;
+		State m_state = State::DISABLED;
 
 		void _installDeviceResourceHandlers( const std::shared_ptr<Device> device_ );
 

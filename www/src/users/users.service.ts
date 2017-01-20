@@ -35,13 +35,20 @@ export class User {
 	rights: ACL;
 }
 
+export class Login {
+	user: User;
+	token: string;
+	valid: number;
+	settings?: any;
+}
+
 @Injectable()
 export class UsersService implements CanActivate {
 
 	private _userUrlBase = 'api/users';
+	private _authUrlBase = 'api/user';
 
-	private _loggedInUser?: any; // not an exact user
-	private _loggedInToken?: string;
+	private _login?: Login;
 
 	// The redirectUrl property holds the url that's being navigated to while checking for
 	// logged in status.
@@ -52,10 +59,9 @@ export class UsersService implements CanActivate {
 		private _http: Http
 	) {
 		try {
-			this._loggedInUser = JSON.parse( localStorage.getItem( 'loggedInUser' ) );
-			this._loggedInToken = localStorage.getItem( 'loggedInToken' );
+			this._login = JSON.parse( localStorage.getItem( 'login' ) );
 		} catch( ex_ ) {
-			this._loggedInUser = this._loggedInToken = null;
+			this._login = null;
 		}
 	};
 
@@ -66,16 +72,20 @@ export class UsersService implements CanActivate {
 		me.redirectUrl = state_.url;
 
 		// Invalidate logged in user if the valid time has passed.
-		if ( me._loggedInUser ) {
+		if ( me._login ) {
 			let now: number = new Date().getTime() / 1000;
-			let diff: number = me._loggedInUser.valid - now;
+			let diff: number = me._login.valid - now;
 			if ( diff < 10 ) {
 				me._router.navigate( [ '/login' ] );
 				return false;
 			} else if ( diff < 60 * 5 ) {
-				me.refreshLogin()
-					.subscribe( // without a subscriber observer is never executed
-						function( success_: boolean ) {
+				me._refreshLogin()
+					.subscribe(
+						function( login_: Login ) {
+							var settings = me._login.settings;
+							me._login = login_;
+							me._login.settings = settings;
+							localStorage.setItem( 'login', JSON.stringify( me._login ) );
 							me._router.navigate( [ me.redirectUrl ] );
 						},
 						function( error_: string ) {
@@ -101,17 +111,17 @@ export class UsersService implements CanActivate {
 		if ( route_.params['user_id'] == 'add' ) {
 			return Observable.of( { id: NaN, name: 'New user', username: '', rights: ACL.Viewer, enabled: false } );
 		} else {
-			return new Observable( function( observer_: any ) {
+			return new Observable( function( subscriber_: any ) {
 				me.getUser( +route_.params['user_id'] )
 					.subscribe(
 						function( user_: User ) {
-							observer_.next( user_ );
-							observer_.complete();
+							subscriber_.next( user_ );
+							subscriber_.complete();
 						},
 						function( error_: string ) {
 							me._router.navigate( [ '/users' ] );
-							observer_.next( null );
-							observer_.complete();
+							subscriber_.next( null );
+							subscriber_.complete();
 						}
 					)
 				;
@@ -120,7 +130,7 @@ export class UsersService implements CanActivate {
 	}
 
 	getUsers(): Observable<User[]> {
-		let headers = new Headers( { 'Authorization': this.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._userUrlBase, options )
 			.map( this._extractData )
@@ -129,7 +139,7 @@ export class UsersService implements CanActivate {
 	};
 
 	getUser( id_: Number ): Observable<User> {
-		let headers = new Headers( { 'Authorization': this.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._userUrlBase + '/' + id_, options )
 			.map( this._extractData )
@@ -140,7 +150,7 @@ export class UsersService implements CanActivate {
 	putUser( user_: User ): Observable<User> {
 		let headers = new Headers( {
 			'Content-Type' : 'application/json',
-			'Authorization': this.getLoggedInToken()
+			'Authorization': this._login.token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		if ( user_.id ) {
@@ -157,7 +167,7 @@ export class UsersService implements CanActivate {
 	};
 
 	deleteUser( user_: User ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._userUrlBase + '/' + user_.id, options )
 			.map( function( response_: Response ) {
@@ -167,62 +177,112 @@ export class UsersService implements CanActivate {
 		;
 	};
 
-	doLogin( credentials_: Credentials ): Observable<boolean> {
+	// Authorization methods
+
+	private _doLogin( credentials_: Credentials ): Observable<Login> {
 		var me = this;
 		let headers = new Headers( { 'Content-Type': 'application/json' } );
 		let options = new RequestOptions( { headers: headers } );
-		return me._http.post( me._userUrlBase + '/login', credentials_, options )
-			.map( function( response_: Response ) {
-				let body = response_.json();
-				me._processLogin( body.data );
-				return true;
-			} )
+		return me._http.post( me._authUrlBase + '/login', credentials_, options )
+			.map( me._extractData )
 			.catch( me._handleHttpError )
 		;
+	};
+
+	private _refreshLogin(): Observable<Login> {
+		var me = this;
+		let headers = new Headers( { 'Authorization': me._login.token } );
+		let options = new RequestOptions( { headers: headers } );
+		return me._http.get( me._authUrlBase + '/refresh', options )
+			.map( me._extractData )
+			.catch( me._handleHttpError )
+		;
+	};
+
+	private _getSettings( token_: string ): Observable<any> {
+		var me = this;
+		let headers = new Headers( { 'Authorization': token_ } );
+		let options = new RequestOptions( { headers: headers } );
+		return me._http.get( me._authUrlBase + '/settings', options )
+			.map( me._extractData )
+			.catch( me._handleHttpError )
+		;
+	};
+
+	doLogin( credentials_: Credentials ): Observable<boolean> {
+		var me = this;
+		return new Observable<boolean>( function( subscriber_: any ) {
+			me._doLogin( credentials_ )
+				.subscribe(
+					function( login_: Login ) {
+						me._getSettings( login_.token )
+							.subscribe(
+								function( settings_: any ) {
+
+									// Prepare the screens array in settings. It should contain at least
+									// the dashboard.
+									if ( ! ( 'screens' in settings_ ) ) {
+										settings_.screens = [ {
+											index  : 0,
+											name   : 'Dashboard',
+											widgets: []
+										} ];
+									}
+
+									// Add the settings object to the previously received login object.
+									login_.settings = settings_;
+									me._login = login_;
+									localStorage.setItem( 'login', JSON.stringify( me._login ) );
+									subscriber_.next( true );
+									subscriber_.complete();
+								},
+								function( error_: string ) {
+									subscriber_.error( error_ );
+									subscriber_.complete();
+								}
+							)
+						;
+					},
+					function( error_: string ) {
+						subscriber_.error( error_ );
+						subscriber_.complete();
+					}
+				)
+			;
+		} );
 	};
 
 	doLogout(): void {
-		this._loggedInUser = this._loggedInToken = null;
-		localStorage.removeItem( 'loggedInUser' );
-		localStorage.removeItem( 'loggedInToken' );
-	};
-
-	refreshLogin(): Observable<boolean> {
-		var me = this;
-		let headers = new Headers( { 'Authorization': me.getLoggedInToken() } );
-		let options = new RequestOptions( { headers: headers } );
-		return me._http.get( me._userUrlBase + '/login', options )
-			.map( function( response_: Response ) {
-				let body = response_.json();
-				me._processLogin( body.data );
-				return true;
-			} )
-			.catch( me._handleHttpError )
-		;
+		this._login = null;
+		localStorage.removeItem( 'login' );
 	};
 
 	isLoggedIn( acl_?: ACL ): boolean {
 		if ( acl_ ) {
-			return this._loggedInUser && this._loggedInUser.rights >= acl_;
+			return this._login && this._login.user.rights >= acl_;
 		} else {
-			return !!this._loggedInUser;
+			return !!this._login;
 		}
 	};
 
-	getLoggedInToken(): string {
-		return this._loggedInToken;
+	getLogin(): Login {
+		return this._login;
 	};
 
-	private _processLogin( login_: any ) {
-		if ( login_.user ) {
-			this._loggedInUser = login_.user;
-			localStorage.setItem( 'loggedInUser', JSON.stringify( this._loggedInUser ) );
-		}
-		if ( login_.token ) {
-			this._loggedInToken = login_.token;
-			localStorage.setItem( 'loggedInToken', this._loggedInToken );
-		}
+	syncSettings(): Observable<any> {
+		let headers = new Headers( {
+			'Content-Type' : 'application/json',
+			'Authorization': this._login.token
+		} );
+		let options = new RequestOptions( { headers: headers } );
+		localStorage.setItem( 'login', JSON.stringify( this._login ) );
+		return this._http.put( this._authUrlBase + '/settings', { settings: this._login.settings }, options )
+			.map( this._extractData )
+			.catch( this._handleHttpError )
+		;
 	};
+
+	// Http request handlers.
 
 	private _extractData( response_: Response ) {
 		let body = response_.json();

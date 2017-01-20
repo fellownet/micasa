@@ -1,5 +1,9 @@
 <section class="content-header" *ngIf="!hardware || devices.length>0">
 <h1>Devices<small>the information that excites</small></h1>
+<ol class="breadcrumb">
+	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
+	<li><a routerLink="/devices"><i class="fa fa-thermometer-half"></i> Devices</a></li>
+</ol>
 </section>
 
 <section class="content-body" *ngIf="devices.length==0 && !loading && !hardware">
@@ -39,6 +43,7 @@
 		<th>Hardware</th>
 		<th [gridField]="'label'">Label</th>
 		<th [gridField]="'type'">Type</th>
+		<th [gridField]="'subtype'">SubType</th>
 	</tr>
 </thead>
 <tbody>
@@ -55,6 +60,7 @@
 		<td>{{device.hardware.name}}</td>
 		<td>{{device.label}}</td>
 		<td><span class="label label-default">{{device.type}}</span></td>
+		<td><span class="label label-default">{{device.subtype}}</span></td>
 	</tr>
 </tbody>
 <tfoot>

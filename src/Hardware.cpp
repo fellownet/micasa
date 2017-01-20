@@ -77,45 +77,42 @@ namespace micasa {
 
 	std::shared_ptr<Hardware> Hardware::factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) {
 		switch( type_ ) {
-			case HARMONY_HUB:
+			case Type::HARMONY_HUB:
 				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_ );
 				break;
 #ifdef _WITH_OPENZWAVE
-			case ZWAVE:
+			case Type::ZWAVE:
 				return std::make_shared<ZWave>( id_, type_, reference_, parent_ );
 				break;
-			case ZWAVE_NODE:
+			case Type::ZWAVE_NODE:
 				return std::make_shared<ZWaveNode>( id_, type_, reference_, parent_ );
 				break;
 #endif // _WITH_OPENZWAVE
-			case P1_METER:
+			case Type::P1_METER:
 				return std::make_shared<P1Meter>( id_, type_, reference_, parent_ );
 				break;
-			case PIFACE:
+			case Type::PIFACE:
 				return std::make_shared<PiFace>( id_, type_, reference_, parent_ );
 				break;
-			case PIFACE_BOARD:
+			case Type::PIFACE_BOARD:
 				return std::make_shared<PiFaceBoard>( id_, type_, reference_, parent_ );
 				break;
-			case RFXCOM:
+			case Type::RFXCOM:
 				return std::make_shared<RFXCom>( id_, type_, reference_, parent_ );
 				break;
-			case SOLAREDGE:
+			case Type::SOLAREDGE:
 				return std::make_shared<SolarEdge>( id_, type_, reference_, parent_ );
 				break;
-			case SOLAREDGE_INVERTER:
+			case Type::SOLAREDGE_INVERTER:
 				return std::make_shared<SolarEdgeInverter>( id_, type_, reference_, parent_ );
 				break;
-			case WEATHER_UNDERGROUND:
+			case Type::WEATHER_UNDERGROUND:
 				return std::make_shared<WeatherUnderground>( id_, type_, reference_, parent_ );
 				break;
-			case DUMMY:
+			case Type::DUMMY:
 				return std::make_shared<Dummy>( id_, type_, reference_, parent_ );
 				break;
 		}
-#ifdef _DEBUG
-		assert( true && "Hardware types should be defined in the Type enum." );
-#endif // _DEBUG
 		return nullptr;
 	}
 
@@ -131,10 +128,7 @@ namespace micasa {
 			, this->m_id
 		);
 		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
-			Device::Type type = static_cast<Device::Type>( atoi( (*devicesIt)["type"].c_str() ) );
-#ifdef _DEBUG
-			assert( type >= 1 && type <= 4 && "Device types should be defined in the Type enum." );
-#endif // _DEBUG
+			Device::Type type = Device::resolveType( (*devicesIt)["type"] );
 			std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), type, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["label"] );
 
 			if ( (*devicesIt)["enabled"] == "1" ) {
@@ -146,7 +140,7 @@ namespace micasa {
 		}
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
-		if ( this->getState() == DISABLED ) {
+		if ( this->getState() == State::DISABLED ) {
 			this->setState( INIT );
 		}
 		Worker::start();
@@ -170,29 +164,9 @@ namespace micasa {
 			this->m_settings->commit();
 		}
 
-		this->setState( DISABLED );
+		this->setState( State::DISABLED );
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
-	};
-
-	Hardware::Type Hardware::getType() const {
-		return this->m_type;
-	};
-	template<> unsigned int Hardware::getType() const {
-		return (unsigned int)this->m_type;
-	};
-	template<> std::string Hardware::getType() const {
-		return Hardware::TypeText.at( this->getType() );
-	};
-
-	Hardware::State Hardware::getState() const {
-		return this->m_state;
-	};
-	template<> unsigned int Hardware::getState() const {
-		return (unsigned int)this->m_state;
-	};
-	template<> std::string Hardware::getState() const {
-		return Hardware::StateText.at( this->getState() );
 	};
 
 	std::string Hardware::getName() const {
@@ -211,8 +185,8 @@ namespace micasa {
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
 			{ "enabled", this->isRunning() },
-			{ "type", this->getType<std::string>() },
-			{ "state", this->getState<std::string>() }
+			{ "type", Hardware::resolveType( this->m_type ) },
+			{ "state", Hardware::resolveState( this->m_state ) }
 		};
 		if ( this->m_parent ) {
 			result["parent"] = this->m_parent->getJson( full_ );
@@ -290,8 +264,11 @@ namespace micasa {
 
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `label`, `enabled` ) "
-			"VALUES ( %d, %Q, %d, %Q, %d )",
-			this->m_id, reference_.c_str(), static_cast<int>( T::type ), label_.c_str(),
+			"VALUES ( %d, %Q, %Q, %Q, %d )",
+			this->m_id,
+			reference_.c_str(),
+			Device::resolveType( T::type ).c_str(),
+			label_.c_str(),
 			start_ ? 1 : 0
 		);
 		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::factory( this->shared_from_this(), T::type, id, reference_, label_ ) );
@@ -325,7 +302,7 @@ namespace micasa {
 		// the output json array is being populated by multiple resource handlers, each one adding another device.
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( device_->getId() ),
-			"api/devices",
+			"^api/devices$",
 			100,
 			User::Rights::VIEWER,
 			WebServer::Method::GET,
@@ -367,7 +344,7 @@ namespace micasa {
 		// to update or delete the device.
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( device_->getId() ),
-			"api/devices/" + std::to_string( device_->getId() ),
+			"^api/devices/" + std::to_string( device_->getId() ) + "$",
 			100,
 			User::Rights::VIEWER,
 			WebServer::Method::GET,
@@ -387,7 +364,7 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( device_->getId() ),
-			"api/devices/" + std::to_string( device_->getId() ),
+			"^api/devices/" + std::to_string( device_->getId() ) + "$",
 			100,
 			User::Rights::USER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
@@ -444,7 +421,7 @@ namespace micasa {
 
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( device_->getId() ),
-			"api/devices/" + std::to_string( device_->getId() ),
+			"^api/devices/" + std::to_string( device_->getId() ) + "$",
 			100,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
@@ -464,26 +441,59 @@ namespace micasa {
 						}
 
 						auto settings = extractSettingsFromJson( input_ );
-						if ( settings.find( "unit" ) != settings.end() ) {
-							unsigned int unit = std::stoi( settings.at( "unit" ) );
-							switch( device_->getType() ) {
-								case Device::Type::COUNTER: {
-									if ( Counter::UnitText.find( (Counter::Unit)unit ) != Counter::UnitText.end() ) {
-										std::static_pointer_cast<Counter>( device_ )->setUnit( (Counter::Unit)unit );
-									} else {
-										throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
+						if (
+							settings.find( "unit" ) != settings.end()
+							&& device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
+						) {
+							try {
+								switch( device_->getType() ) {
+									case Device::Type::COUNTER: {
+										Counter::Unit unit = Counter::resolveUnit( settings.at( "unit" ) );
+										device_->getSettings()->put( "units", Counter::resolveUnit( unit ) );
+										break;
 									}
-									break;
-								}
-								case Device::Type::LEVEL: {
-									if ( Level::UnitText.find( (Level::Unit)unit ) != Level::UnitText.end() ) {
-										std::static_pointer_cast<Level>( device_ )->setUnit( (Level::Unit)unit );
-									} else {
-										throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
+									case Device::Type::LEVEL: {
+										Level::Unit unit = Level::resolveUnit( settings.at( "unit" ) );
+										device_->getSettings()->put( "units", Level::resolveUnit( unit ) );
+										break;
 									}
-									break;
+									default: break;
 								}
-								default: break;
+								device_->getSettings()->commit();
+							} catch( ... ) {
+								throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
+							}
+						}
+						if (
+							settings.find( "subtype" ) != settings.end()
+							&& device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false )
+						) {
+							try {
+								switch( device_->getType() ) {
+									case Device::Type::COUNTER: {
+										Counter::SubType subType = Counter::resolveSubType( settings.at( "subtype" ) );
+										device_->getSettings()->put( "subtype", Counter::resolveSubType( subType ) );
+										break;
+									}
+									case Device::Type::LEVEL: {
+										Level::SubType subType = Level::resolveSubType( settings.at( "subtype" ) );
+										device_->getSettings()->put( "subtype", Level::resolveSubType( subType ) );
+										break;
+									}
+									case Device::Type::SWITCH: {
+										Switch::SubType subType = Switch::resolveSubType( settings.at( "subtype" ) );
+										device_->getSettings()->put( "subtype", Switch::resolveSubType( subType ) );
+										break;
+									}
+									case Device::Type::TEXT: {
+										Text::SubType subType = Text::resolveSubType( settings.at( "subtype" ) );
+										device_->getSettings()->put( "subtype", Text::resolveSubType( subType ) );
+										break;
+									}
+								}
+								device_->getSettings()->commit();
+							} catch( ... ) {
+								throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
 							}
 						}
 
@@ -559,7 +569,7 @@ namespace micasa {
 		} );
 	};
 
-	bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto search = this->m_pendingUpdates.find( reference_ );
@@ -592,7 +602,7 @@ namespace micasa {
 		}
 	};
 
-	unsigned int Hardware::_releasePendingUpdate( const std::string& reference_ ) {
+	Device::UpdateSource Hardware::_releasePendingUpdate( const std::string& reference_ ) {
 		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search != this->m_pendingUpdates.end() ) {
@@ -603,7 +613,7 @@ namespace micasa {
 			pendingUpdate->condition.notify_all();
 			return pendingUpdate->source;
 		}
-		return 0;
+		return Device::resolveUpdateSource( 0 );
 	};
 
 } // namespace micasa

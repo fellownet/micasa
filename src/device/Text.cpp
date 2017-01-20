@@ -11,15 +11,25 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
 
+	const Device::Type Text::type = Device::Type::TEXT;
+
+	const std::map<Text::SubType, std::string> Text::SubTypeText = {
+		{ Text::SubType::GENERIC, "generic" },
+		{ Text::SubType::WIND_DIRECTION, "wind_direction" }
+	};
+
 	void Text::start() {
-		this->m_value = g_database->getQueryValue<std::string>(
-			"SELECT `value` "
-			"FROM `device_text_history` "
-			"WHERE `device_id`=%d "
-			"ORDER BY `date` DESC "
-			"LIMIT 1"
-			, this->m_id
-		);
+		try {
+			this->m_value = g_database->getQueryValue<std::string>(
+				"SELECT `value` "
+				"FROM `device_text_history` "
+				"WHERE `device_id`=%d "
+				"ORDER BY `date` DESC "
+				"LIMIT 1"
+				, this->m_id
+			);
+		} catch( const Database::NoResultsException& ex_ ) { }
+
 		Device::start();
 	};
 
@@ -27,10 +37,10 @@ namespace micasa {
 		Device::stop();
 	};
 	
-	bool Text::updateValue( const unsigned int& source_, const t_value& value_ ) {
+	bool Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		
 		// The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
@@ -53,8 +63,9 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_text_history` (`device_id`, `value`) "
-				"VALUES (%d, %Q)"
-				, this->m_id, value_.c_str()
+				"VALUES (%d, %Q)",
+				this->m_id,
+				value_.c_str()
 			);
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Text>( *this, source_ );
@@ -71,6 +82,27 @@ namespace micasa {
 		json result = Device::getJson();
 		result["value"] = this->getValue();
 		result["type"] = "text";
+		result["subtype"] = Text::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Text::resolveSubType( "generic" ) ) ) );
+
+		if ( full_ ) {
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "subtype" },
+					{ "label", "SubType" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["subtype"] }
+				};
+				for ( auto subTypeIt = Text::SubTypeText.begin(); subTypeIt != Text::SubTypeText.end(); subTypeIt++ ) {
+					setting["options"] += {
+						{ "value", subTypeIt->second },
+						{ "label", subTypeIt->second }
+					};
+				}
+				result["settings"] += setting;
+			}
+		}
+
 		return result;
 	};
 	

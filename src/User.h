@@ -5,13 +5,14 @@
 #include <vector>
 
 #include "Settings.h"
+#include "Utils.h"
 
 namespace micasa {
 
 	class User {
 
 	public:
-		enum Rights {
+		enum class Rights: unsigned short {
 			// v Public
 			PUBLIC    = 1,
 			// v View all devices
@@ -22,7 +23,8 @@ namespace micasa {
 			INSTALLER = 4,
 			// v All rights
 			ADMIN     = 99
-		}; // enum UserRights
+		}; // enum class Rights
+		ENUM_UTIL( Rights );
 
 		static const constexpr char* settingsName = "user";
 

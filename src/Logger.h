@@ -5,6 +5,8 @@
 #include <sstream>
 #include <stdarg.h>
 
+#include "Utils.h"
+
 #define MAX_LOG_LINE_LENGTH 2048
 
 namespace micasa {
@@ -12,13 +14,14 @@ namespace micasa {
 	class Logger final {
 
 	public:
-		typedef enum {
+		enum class LogLevel: int {
 			ERROR = -99,
 			WARNING = -98,
 			NORMAL = 0,
 			VERBOSE,
 			DEBUG,
-		} LogLevel;
+		}; // enum class LogLevel
+		ENUM_UTIL( LogLevel );
 
 		Logger( const LogLevel logLevel_ ) : m_logLevel( logLevel_ ) { };
 		~Logger() { };

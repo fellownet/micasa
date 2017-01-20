@@ -24,7 +24,7 @@ namespace micasa {
 		// the controller which uses the same identifier for specific hardware resources.
 		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
+			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,

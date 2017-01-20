@@ -7,33 +7,38 @@ namespace micasa {
 	class Level final : public Device {
 
 	public:
-		enum class SubType: unsigned char {
+		enum class SubType: unsigned short {
 			GENERIC = 1,
 			TEMPERATURE,
 			HUMIDITY,
 			POWER,
+			ELECTRICITY,
+			CURRENT,
 			PRESSURE,
-			LIGHT_INTENSITY,
+			LUMINANCE,
 			THERMOSTAT_SETPOINT,
-			VOLTAGE
+			BATTERY_LEVEL,
+			DIMMER
 		}; // enum class SubType
+		static const std::map<SubType, std::string> SubTypeText;
+		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
 
-		enum Unit {
+		enum class Unit: unsigned short {
 			GENERIC = 1,
 			PERCENT,
 			WATT,
 			VOLT,
 			AMPERES,
-			POWER_FACTOR,
 			CELCIUS,
 			FAHRENHEIT,
 			PASCAL,
 			LUX
-		}; // enum Unit
+		}; // enum class Unit
 		static const std::map<Unit, std::string> UnitText;
+		ENUM_UTIL_W_TEXT( Unit, UnitText );
 
 		typedef double t_value;
-		static const Device::Type type = Device::Type::LEVEL;
+		static const Device::Type type;
 		
 		Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
 
@@ -41,11 +46,10 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const unsigned int& source_, const t_value& value_ );
+		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		json getJson( bool full_ = false ) const override;
-		void setUnit( Unit unit_ );
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
@@ -55,8 +59,5 @@ namespace micasa {
 		t_value m_previousValue = 0;
 
 	}; // class Level
-
-	//std::ostream& operator<<( std::ostream& out_, Level::SubType subType_ );
-	//std::istream& operator>>( std::istream& in_, Level::SubType subType_ );
 
 }; // namespace micasa

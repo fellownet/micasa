@@ -1,6 +1,7 @@
 <section class="content-header">
 <h1>{{hardware.label}}</h1>
 <ol class="breadcrumb">
+	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
 	<li><a routerLink="/hardware"><i class="fa fa-microchip"></i> Hardware</a></li>
 	<ng-container *ngIf="hardware.parent">
 	<li><a routerLink="/hardware/{{hardware.parent.id}}"><i class="fa fa-pencil"></i> {{hardware.parent.label}}</a></li>

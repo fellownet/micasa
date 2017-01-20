@@ -12,13 +12,28 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
 
+	const Device::Type Level::type = Device::Type::LEVEL;
+
+	const std::map<Level::SubType, std::string> Level::SubTypeText = {
+		{ Level::SubType::GENERIC, "generic" },
+		{ Level::SubType::TEMPERATURE, "temperature" },
+		{ Level::SubType::HUMIDITY, "humidity" },
+		{ Level::SubType::POWER, "power" },
+		{ Level::SubType::ELECTRICITY, "electricity" },
+		{ Level::SubType::CURRENT, "current" },
+		{ Level::SubType::PRESSURE, "pressure" },
+		{ Level::SubType::LUMINANCE, "luminance" },
+		{ Level::SubType::THERMOSTAT_SETPOINT, "thermostat_setpoint" },
+		{ Level::SubType::BATTERY_LEVEL, "battery_level" },
+		{ Level::SubType::DIMMER, "dimmer" },
+	};
+
 	const std::map<Level::Unit, std::string> Level::UnitText = {
 		{ Level::Unit::GENERIC, "" },
 		{ Level::Unit::PERCENT, "%" },
 		{ Level::Unit::WATT, "Watt" },
 		{ Level::Unit::VOLT, "V" },
 		{ Level::Unit::AMPERES, "A" },
-		{ Level::Unit::POWER_FACTOR, "PF" },
 		{ Level::Unit::CELCIUS, "°C" },
 		{ Level::Unit::FAHRENHEIT, "°F" },
 		{ Level::Unit::PASCAL, "Pa" },
@@ -39,7 +54,7 @@ namespace micasa {
 		
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			"^api/devices/" + std::to_string( this->m_id ) + "/data$",
 			100,
 			User::Rights::VIEWER,
 			WebServer::Method::GET,
@@ -75,10 +90,10 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Level::updateValue( const unsigned int& source_, const t_value& value_ ) {
+	bool Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 
 		// The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
@@ -101,8 +116,9 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_level_history` (`device_id`, `value`) "
-				"VALUES (%d, %.3f)"
-				, this->m_id, value_
+				"VALUES (%d, %.3f)",
+				this->m_id,
+				value_
 			);
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Level>( *this, source_ );
@@ -121,34 +137,45 @@ namespace micasa {
 		json result = Device::getJson( full_ );
 		result["value"] = ss.str();
 		result["type"] = "level";
-		result["unit"] = Level::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
+		result["subtype"] = Level::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( "generic" ) ) ) );
+		result["unit"] = Level::resolveUnit( this->m_settings->get<Unit>( "units", this->m_settings->get<Unit>( DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( "generic" ) ) ) );
 
-		// If the unit of this device can be altered, the setting should be pushed to the client.
-		if (
-			full_
-			&& this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
-		) {
-			json setting = {
-				{ "name", "unit" },
-				{ "label", "Unit" },
-				{ "type", "list" },
-				{ "options", json::array() },
-				{ "value", this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) }
-			};
-			for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
-				setting["options"] += {
-					{ "value", static_cast<unsigned int>( unitIt->first ) },
-					{ "label", unitIt->second }
+		if ( full_ ) {
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "subtype" },
+					{ "label", "SubType" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["subtype"] }
 				};
+				for ( auto subTypeIt = Level::SubTypeText.begin(); subTypeIt != Level::SubTypeText.end(); subTypeIt++ ) {
+					setting["options"] += {
+						{ "value", subTypeIt->second },
+						{ "label", subTypeIt->second }
+					};
+				}
+				result["settings"] += setting;
 			}
-			result["settings"] += setting;
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "unit" },
+					{ "label", "Unit" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["unit"] }
+				};
+				for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
+					setting["options"] += {
+						{ "value", unitIt->second },
+						{ "label", unitIt->second }
+					};
+				}
+				result["settings"] += setting;
+			}
 		}
 
 		return result;
-	};
-
-	void Level::setUnit( Level::Unit unit_ ) {
-		this->m_settings->put( DEVICE_SETTING_UNITS, unit_ );
 	};
 
 	std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
@@ -188,26 +215,5 @@ namespace micasa {
 			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
 	};
-
-/*
-	std::ostream& operator<<( std::ostream& out_, Level::SubType subType_ ) {
-		switch( subType_ ) {
-			case GENERIC: out_ << "Generic"; break;
-			case TEMPERATURE: out_ << "Temperature"; break;
-			case HUMIDITY:
-			case POWER               :
-			case PRESSURE            :
-			case LIGHT_INTENSITY     :
-			case THERMOSTAT_SETPOINT :
-			case VOLTAGE             :
-		
-			default: out_.setstate( std::ios_base::failbit );
-		}
-		return out_;
-	};
-	
-	std::istream& operator>>( std::istream& in_, Level::SubType subType_ ) {
-	};
-*/	
 
 }; // namespace micasa

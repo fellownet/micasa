@@ -11,8 +11,12 @@
 
 #include "Worker.h"
 #include "Network.h"
+#include "User.h"
+#include "Utils.h"
 
 #include "json.hpp"
+
+#define WEBSERVER_SETTING_USER_SETTINGS_PREFIX "_user_settings_"
 
 namespace micasa {
 
@@ -21,7 +25,7 @@ namespace micasa {
 	class WebServer final : public Worker {
 
 	public:
-		enum Method {
+		enum class Method: unsigned short {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
 			GET     = 1,
@@ -38,7 +42,8 @@ namespace micasa {
 			DELETE  = 32,
 			// v Return available methods for resource or collection
 			OPTIONS = 64
-		}; // enum Method
+		}; // enum class Method
+		ENUM_UTIL( Method );
 		
 		typedef std::function<void( const json& input_, const Method& method_, json& output_ )> t_callback;
 		
@@ -46,8 +51,8 @@ namespace micasa {
 			const std::string reference;
 			const std::string uri;
 			const unsigned int sort;
-			const unsigned int rights;
-			const unsigned int methods;
+			const User::Rights rights;
+			const WebServer::Method methods;
 			const t_callback callback;
 		}; // struct ResourceCallback
 		
@@ -79,7 +84,7 @@ namespace micasa {
 		std::string m_privateKey;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
-		void _updateUserResourceHandlers();
+		void _installUserResourceHandler();
 
 	}; // class WebServer
 

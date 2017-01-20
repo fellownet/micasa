@@ -9,7 +9,7 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, " // functions as sqlite3 _rowid_ when named *exactly* INTEGER PRIMARY KEY
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
-		"`type` INTEGER NOT NULL, "
+		"`type` VARCHAR(32) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 0 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
@@ -22,7 +22,7 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`hardware_id` INTEGER NOT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
-		"`type` INTEGER NOT NULL, "
+		"`type` VARCHAR(32) NOT NULL, "
 		"`label` VARCHAR(255) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "

@@ -12,6 +12,15 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
 
+	const Device::Type Counter::type = Device::Type::COUNTER;
+
+	const std::map<Counter::SubType, std::string> Counter::SubTypeText = {
+		{ Counter::SubType::GENERIC, "generic" },
+		{ Counter::SubType::ENERGY, "energy" },
+		{ Counter::SubType::GAS, "gas" },
+		{ Counter::SubType::WATER, "water" },
+	};
+
 	const std::map<Counter::Unit, std::string> Counter::UnitText = {
 		{ Counter::Unit::GENERIC, "" },
 		{ Counter::Unit::KILOWATTHOUR, "kWh" },
@@ -32,7 +41,7 @@ namespace micasa {
 
 		g_webServer->addResourceCallback( {
 			"device-" + std::to_string( this->m_id ),
-			"api/devices/" + std::to_string( this->m_id ) + "/data",
+			"^api/devices/" + std::to_string( this->m_id ) + "/data$",
 			100,
 			User::Rights::VIEWER,
 			WebServer::Method::GET,
@@ -68,10 +77,10 @@ namespace micasa {
 		Device::stop();
 	};
 	
-	bool Counter::updateValue( const unsigned int& source_, const t_value& value_ ) {
+	bool Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 
 		// The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
@@ -94,8 +103,9 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_counter_history` (`device_id`, `value`) "
-				"VALUES (%d, %d)"
-				, this->m_id, value_
+				"VALUES (%d, %d)",
+				this->m_id,
+				value_
 			);
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Counter>( *this, source_ );
@@ -112,34 +122,45 @@ namespace micasa {
 		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "counter";
-		result["unit"] = Counter::UnitText.at( static_cast<Unit>( this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) ) );
+		result["subtype"] = Counter::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( "generic" ) ) ) );
+		result["unit"] = Counter::resolveUnit( this->m_settings->get<Unit>( "units", this->m_settings->get<Unit>( DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( "generic" ) ) ) );
 		
-		// If the unit of this device can be altered, the setting should be pushed to the client.
-		if (
-			full_
-			&& this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
-		) {
-			json setting = {
-				{ "name", "unit" },
-				{ "label", "Unit" },
-				{ "type", "list" },
-				{ "options", json::array() },
-				{ "value", this->m_settings->get<unsigned int>( DEVICE_SETTING_UNITS, 1 ) }
-			};
-			for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
-				setting["options"] += {
-					{ "value", static_cast<unsigned int>( unitIt->first ) },
-					{ "label", unitIt->second }
+		if ( full_ ) {
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "subtype" },
+					{ "label", "SubType" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["subtype"] }
 				};
+				for ( auto subTypeIt = Counter::SubTypeText.begin(); subTypeIt != Counter::SubTypeText.end(); subTypeIt++ ) {
+					setting["options"] += {
+						{ "value", subTypeIt->second },
+						{ "label", subTypeIt->second }
+					};
+				}
+				result["settings"] += setting;
 			}
-			result["settings"] += setting;
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "unit" },
+					{ "label", "Unit" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["unit"] }
+				};
+				for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
+					setting["options"] += {
+						{ "value", unitIt->second },
+						{ "label", unitIt->second }
+					};
+				}
+				result["settings"] += setting;
+			}
 		}
 		
 		return result;
-	};
-
-	void Counter::setUnit( Counter::Unit unit_ ) {
-		this->m_settings->put( DEVICE_SETTING_UNITS, unit_ );
 	};
 
 	std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {

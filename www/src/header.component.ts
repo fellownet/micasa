@@ -10,8 +10,7 @@ declare var $: any;
 export class HeaderComponent {
 
 	constructor() {
-
-	}
+	};
 
 	toggleMenu(): void {
 		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
@@ -19,6 +18,6 @@ export class HeaderComponent {
 		} else {
 			$( 'body' ).addClass( 'sidebar-open' );
 		}
-	}
+	};
 
 }

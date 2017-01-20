@@ -66,6 +66,7 @@ namespace micasa {
 		void insert( const std::vector<Setting>& settings_ );
 		bool contains( const std::initializer_list<std::string>& settings_ ) const;
 		bool contains( const std::string& key_ ) const;
+		void remove( const std::string& key_ );
 		unsigned int count() const;
 		bool isDirty() const;
 		
@@ -90,7 +91,7 @@ namespace micasa {
 				return default_;
 			}
 		};
-
+		
 		void put( const std::string& key_, const SettingValue& value_ );
 
 	}; // class Settings

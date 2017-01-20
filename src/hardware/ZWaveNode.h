@@ -29,15 +29,13 @@ namespace micasa {
 		void stop() override;
 
 		std::string getLabel() const override;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		json getJson( bool full_ = false ) const override;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
-		static const std::map<std::string, unsigned int> UnitMapping;
-
 		unsigned int m_homeId = 0;
 		unsigned int m_nodeId = 0;
 		bool m_doNamingUpdate = false;
@@ -46,7 +44,7 @@ namespace micasa {
 		std::vector<std::string> m_doConfigSync;
 
 		void _handleNotification( const Notification* notification_ );
-		void _processValue( const ValueID& valueId_, unsigned int source_ );
+		void _processValue( const ValueID& valueId_, Device::UpdateSource source_ );
 		void _installResourceHandlers();
 
 	}; // class ZWaveNode

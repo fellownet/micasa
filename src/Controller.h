@@ -51,7 +51,7 @@ namespace micasa {
 		
 		struct Task {
 			std::shared_ptr<Device> device;
-			unsigned int source;
+			Device::UpdateSource source;
 			t_scheduled scheduled;
 			
 			Text::t_value textValue;
@@ -88,7 +88,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 
-		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
+		template<class D> void newEvent( const D& device_, const Device::UpdateSource& source_ );
 
 #ifdef _WITH_LIBUDEV
 		void addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ );
@@ -123,8 +123,8 @@ namespace micasa {
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;
 		
 		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
-		void _updateScriptResourceHandlers() const;
-		void _updateTimerResourceHandlers() const;
+		void _installScriptResourceHandler() const;
+		void _installTimerResourceHandler() const;
 
 	}; // class Controller
 

@@ -385,7 +385,7 @@ namespace micasa {
 		}
 		
 #ifdef _DEBUG
-		//g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
 		
 		sqlite3_free( query );

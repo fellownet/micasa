@@ -8,12 +8,14 @@
 #include "WebServer.h"
 #include "Settings.h"
 #include "Settings.h"
+#include "Utils.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
-#define DEVICE_SETTING_UNITS                  "_units"
-#define DEVICE_SETTING_FLAGS	                  "_flags"
+#define DEVICE_SETTING_DEFAULT_UNITS          "_default_units"
 #define DEVICE_SETTING_ALLOW_UNIT_CHANGE      "_allow_unit_change"
+#define DEVICE_SETTING_DEFAULT_SUBTYPE        "_default_subtype"
+#define DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE   "_allow_subtype_change"
 
 namespace micasa {
 
@@ -24,20 +26,23 @@ namespace micasa {
 	class Device : public Worker, public std::enable_shared_from_this<Device> {
 		
 	public:
-		enum Type {
+		enum class Type: unsigned short {
 			COUNTER = 1,
 			LEVEL,
 			SWITCH,
 			TEXT,
 		}; // enum Type
+		static const std::map<Type, std::string> TypeText;
+		ENUM_UTIL_W_TEXT( Type, TypeText );
 		
-		enum UpdateSource {
+		enum class UpdateSource: unsigned short {
 			INIT = 1,
 			HARDWARE = 2,
 			TIMER = 4,
 			SCRIPT = 8,
 			API = 16,
 		}; // enum UpdateSource
+		ENUM_UTIL( UpdateSource );
 		
 		static const constexpr char* settingsName = "device";
 		
@@ -53,7 +58,7 @@ namespace micasa {
 		std::string getLabel() const throw() { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
-		template<class T> bool updateValue( const unsigned int& source_, const typename T::t_value& value_ );
+		template<class T> bool updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
 		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }

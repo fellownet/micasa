@@ -32,7 +32,7 @@ namespace micasa {
 		// the general hardware delete resource handler.
 		g_webServer->addResourceCallback( {
 			"dummy-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
+			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::POST,
@@ -63,7 +63,8 @@ namespace micasa {
 						if ( input_["type"].get<std::string>() == "counter" ) {
 							auto device = this->_declareDevice<Counter>( std::to_string( index ), "Counter", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true },
 								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
@@ -71,7 +72,8 @@ namespace micasa {
 						} else if ( input_["type"].get<std::string>() == "level" ) {
 							auto device = this->_declareDevice<Level>( std::to_string( index ), "Level", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API },
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true },
 								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
@@ -79,14 +81,16 @@ namespace micasa {
 						} else if ( input_["type"].get<std::string>() == "text" ) {
 							auto device = this->_declareDevice<Text>( std::to_string( index ), "Text", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
 							output_["device"] = device->getJson();
 						} else if ( input_["type"].get<std::string>() == "switch" ) {
 							auto device = this->_declareDevice<Switch>( std::to_string( index ), "Switch", {
 								{ "name", input_["name"].get<std::string>() },
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 							output_["device"] = device->getJson();

@@ -82,7 +82,7 @@ export class HardwareService {
 		if ( parent_ ) {
 			uri += '?hardware_id=' + parent_.id;
 		}
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( uri, options )
 			.map( this._extractData )
@@ -91,7 +91,7 @@ export class HardwareService {
 	};
 
 	getHardware( id_: Number ): Observable<Hardware> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._hardwareUrlBase + '/' + id_, options )
 			.map( this._extractData )
@@ -102,7 +102,7 @@ export class HardwareService {
 	putHardware( hardware_: Hardware ): Observable<Hardware> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id, hardware_, options )
@@ -114,7 +114,7 @@ export class HardwareService {
 	addHardware( type_: string ): Observable<Hardware> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		let data: any = {
@@ -128,7 +128,7 @@ export class HardwareService {
 	};
 
 	deleteHardware( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id, options )
 			.map( function( response_: Response ) {
@@ -156,7 +156,7 @@ export class HardwareService {
 	};
 
 	zwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {}, options )
 			.map( function( response_: Response ) {
@@ -167,7 +167,7 @@ export class HardwareService {
 	};
 
 	exitZWaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/include', options )
 			.map( function( response_: Response ) {
@@ -178,7 +178,7 @@ export class HardwareService {
 	};
 
 	zwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {}, options )
 			.map( function( response_: Response ) {
@@ -189,7 +189,7 @@ export class HardwareService {
 	};
 
 	exitZWaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', options )
 			.map( function( response_: Response ) {
@@ -200,7 +200,7 @@ export class HardwareService {
 	};
 
 	zwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {}, options )
 			.map( function( response_: Response ) {
@@ -211,7 +211,7 @@ export class HardwareService {
 	};
 
 	zwaveHealNode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {}, options )
 			.map( function( response_: Response ) {
@@ -224,7 +224,7 @@ export class HardwareService {
 	dummyAddDevice( hardware_: Hardware, type_: string ): Observable<Device> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		let data: any = {

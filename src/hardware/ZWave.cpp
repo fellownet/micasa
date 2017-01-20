@@ -45,7 +45,7 @@ namespace micasa {
 		// the controller which uses the same identifier for specific hardware resources.
 		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
+			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
@@ -375,7 +375,7 @@ namespace micasa {
 		// Add resource handlers for network heal.
 		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/heal",
+			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
@@ -400,7 +400,7 @@ namespace micasa {
 		// Add resource handler for inclusion mode.
 		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/include",
+			"^api/hardware/" + std::to_string( this->m_id ) + "/include$",
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
@@ -436,7 +436,7 @@ namespace micasa {
 		// Add resource handler for exclusion mode.
 		g_webServer->addResourceCallback( {
 			"zwave-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ) + "/exclude",
+			"^api/hardware/" + std::to_string( this->m_id ) + "/exclude$",
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,

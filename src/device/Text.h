@@ -7,8 +7,15 @@ namespace micasa {
 	class Text final : public Device {
 
 	public:
+		enum class SubType: unsigned short {
+			GENERIC = 1,
+			WIND_DIRECTION
+		}; // enum class SubType
+		static const std::map<SubType, std::string> SubTypeText;
+		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
+
 		typedef std::string t_value;
-		static const Device::Type type = Device::Type::TEXT;
+		static const Device::Type type;
 		
 		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
 
@@ -16,7 +23,7 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const unsigned int& source_, const t_value& value_ );
+		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		json getJson( bool full_ = false ) const override;

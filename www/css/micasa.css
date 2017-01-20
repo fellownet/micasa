@@ -1,4 +1,6 @@
+/*
 @import url(https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic);
+*/
 
 /* elements */
 
@@ -154,33 +156,46 @@ a:focus, button:focus {
 	margin: 0;
 	padding: 0;
 }
-.sidebar .menu > li > a {
+.sidebar .menu > li:not(.menu-header) > a {
 	padding: 12px 5px 12px 15px;
 	display: block;
 	position: relative;
 	border-left: 3px solid transparent;
 }
-.sidebar .menu > li:hover > a,
-.sidebar .menu > li.active > a {
+.sidebar .menu > li:not(.menu-header):hover > a,
+.sidebar .menu > li.active:not(.menu-header) > a {
 	color: #ffffff;
 	background: #1e282c;
 }
-.sidebar .menu > li.active > a {
+.sidebar .menu > li.active:not(.menu-header) > a {
 	border-left-color: #3c8dbc;
 }
-.sidebar .menu > li > a > .fa {
+.sidebar .menu > li:not(.menu-header) > a > .fa {
 	width: 20px;
 }
-.sidebar .menu > li .label {
+.sidebar .menu > li:not(.menu-header) .label {
 	margin-right: 5px;
 }
 .sidebar .menu .menu-header {
-	color: #4b646f;
 	background: #1a2226;
 	padding: 10px 25px 10px 15px;
+}
+.sidebar .menu .menu-header > a {
+	color: #4b646f;
+}
+.sidebar .menu .menu-header > a:hover {
+	color: #ffffff;
+}
+.sidebar .menu .menu-header > a > .fa {
+	width: 15px;
+}
+
+.sidebar .menu .menu-header > span {
+	color: #4b646f;
 	font-size: 13px;
 	text-transform: uppercase;
 }
+
 .sidebar .menu li > a > .pull-right-container {
 	position: absolute;
 	right: 10px;
@@ -215,6 +230,13 @@ a:focus, button:focus {
 	display: inline-block;
 	padding-left: 4px;
 	font-weight: 300;
+}
+.content .content-header > h1 a {
+	margin-top: -3px;
+	margin-left: 5px;
+}
+.content .content-header > h1 .fa {
+	margin-right: 5px;
 }
 .content .content-header > .breadcrumb {
 	float: right;
@@ -261,6 +283,7 @@ a:focus, button:focus {
 		-o-transform: translate(230px, 0);
 		transform: translate(230px, 0);
 	}
+
 }
 
 @media (max-width: 991px) {
@@ -324,7 +347,8 @@ a:focus, button:focus {
 .box-body .callout {
 	margin-bottom: 10px;
 }
-.box-body .table {
+.box-body .table,
+.box-body.table-responsive {
 	margin-bottom: 0;
 }
 .box-body p {

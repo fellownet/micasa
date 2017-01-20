@@ -23,7 +23,7 @@
 
 #include "json.hpp"
 
-#define WEBSERVER_TOKEN_VALID_DURATION_MINUTES 65
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 65
 
 namespace micasa {
 
@@ -90,12 +90,12 @@ namespace micasa {
 				"INSERT INTO `users` (`name`, `username`, `password`, `rights`) "
 				"VALUES ( 'Administrator', 'admin', '%s', %d )",
 				generateHash( "admin", this->m_privateKey ).c_str(),
-				User::Rights::ADMIN
+				User::resolveRights( User::Rights::ADMIN )
 			);
 			g_logger->log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
-		this->_updateUserResourceHandlers();
+		this->_installUserResourceHandler();
 		
 		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
@@ -179,17 +179,17 @@ namespace micasa {
 				outputStream << "<strong>Uri:</strong> " << resourceIt->first << "<br>";
 				outputStream << "<strong>Methods:</strong>";
 				
-				unsigned int methods = 0;
+				Method methods = WebServer::resolveMethod( 0 );
 				for ( auto callbackIt = resourceIt->second.begin(); callbackIt != resourceIt->second.end(); callbackIt++ ) {
 					methods |= (*callbackIt)->methods;
 				}
 				std::map<Method,std::string> availableMethods = {
-					{ Method::GET, "<a href=\"" + resourceIt->first + "\">GET</a>" },
+					{ Method::GET, "GET" },
 					{ Method::HEAD, "HEAD" },
-					{ Method::POST, "<a href=\"" + resourceIt->first + "?_method=POST\">POST</a>" },
-					{ Method::PUT, "<a href=\"" + resourceIt->first + "?_method=PUT\">PUT</a>" },
-					{ Method::PATCH, "<a href=\"" + resourceIt->first + "?_method=PATCH\">PATCH</a>" },
-					{ Method::DELETE, "<a href=\"" + resourceIt->first + "?_method=DELETE\">DELETE</a>" },
+					{ Method::POST, "POST" },
+					{ Method::PUT, "PUT" },
+					{ Method::PATCH, "PATCH" },
+					{ Method::DELETE, "DELETE" },
 					{ Method::OPTIONS, "OPTIONS" },
 				};
 				for ( auto methodIt = availableMethods.begin(); methodIt != availableMethods.end(); methodIt++ ) {
@@ -282,7 +282,7 @@ namespace micasa {
 			// the query string).
 			json input = json::object();
 			if (
-				( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
+				WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
 				&& message_->body.len > 2
 			) {
 				std::string body;
@@ -301,25 +301,27 @@ namespace micasa {
 
 			// Determine the access rights of the current client. If a valid token was provided, details of
 			// the token are added to the input aswell.
-			unsigned int rights = User::Rights::PUBLIC;
+			User::Rights rights = User::Rights::PUBLIC;
 			if ( headers.find( "Authorization" ) != headers.end() ) {
 				try {
 					json token = json::parse( decrypt( headers["Authorization"], this->m_publicKey ) );
+					rights = User::resolveRights( token["rights"].get<int>() );
+					input["authorization"] = token;
 					
 					// See if there's a matching user in the database with the same rights.
-					auto result = g_database->getQueryRow(
-						"SELECT u.`rights`, strftime('%%s') AS now "
-						"FROM `users` u "
-						"WHERE `id`=%d ",
-						token["user_id"].get<unsigned int>()
-					);
-					if (
-						token["rights"].get<unsigned int>() == std::stoul( result["rights"] )
-						&& token["valid"].get<unsigned int>() >= std::stoul( result["now"] )
-					) {
-						rights = token["rights"].get<unsigned int>();
-					}
-					input["authorization"] = token;
+//					auto result = g_database->getQueryRow(
+//						"SELECT u.`rights`, strftime('%%s') AS now "
+//						"FROM `users` u "
+//						"WHERE `id`=%d ",
+//						token["user_id"].get<unsigned int>()
+//					);
+//					if (
+//						token["rights"].get<int>() == std::stoi( result["rights"] )
+//						&& token["valid"].get<int>() >= std::stoi( result["now"] )
+//					) {
+//						rights = User::resolveRights( token["rights"].get<int>() );
+//					}
+//					input["authorization"] = token;
 				} catch( ... ) { }
 			}
 
@@ -332,7 +334,23 @@ namespace micasa {
 
 			// Find the requested resource in a critical section.
 			std::unique_lock<std::mutex> resourceLock( this->m_resourcesMutex );
-			auto resource = this->m_resources.find( uri );
+			auto resource = this->m_resources.begin();
+			for ( resource = this->m_resources.begin(); resource != this->m_resources.end(); resource++ ) {
+				std::regex pattern( resource->first );
+				std::smatch match;
+				if ( std::regex_search( uri, match, pattern ) ) {
+					
+					// Add each matched paramter to the input for the callback to determine which individual
+					// resource was accessed.
+					for ( unsigned int i = 1; i < match.size(); i++ ) {
+						if ( match.str( i ).size() > 0 ) {
+							input["$" + std::to_string( i )] = match.str( i );
+						}
+					}
+					
+					break;
+				}
+			}
 			if ( resource != this->m_resources.end() ) {
 			
 				// The entire vector of callbacks is copied to a local variable to be able to call each
@@ -358,7 +376,7 @@ namespace micasa {
 						&& output["code"].get<unsigned int>() != 200
 					) {
 						output["result"] = "ERROR";
-						output["code"] = 403;
+						output["code"] = 401;
 						output["error"] = "Resource.Access.Denied";
 						output["message"] = "Access denied to requested resource.";
 					}
@@ -367,14 +385,11 @@ namespace micasa {
 					output["code"] = exception_.code;
 					output["error"] = exception_.error;
 					output["message"] = exception_.message;
-/*
-				} catch( ... ) {
-					// Most likely these are input inconsistencies thrown by the json library.
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-*/
+//				} catch( ... ) {
+//					output["result"] = "ERROR";
+//					output["code"] = 500;
+//					output["error"] = "Resource.Failure";
+//					output["message"] = "The requested resource failed to load.";
 				}
 
 			} else {
@@ -410,337 +425,319 @@ namespace micasa {
 		}
 	};
 
-	void WebServer::_updateUserResourceHandlers() {
-
-		// First all current callbacks for scripts are removed.
-		this->removeResourceCallback( "webserver-users" );
-
-		// The first resource callback to add is to allow users to login and retrieve a token which can be
-		// used to authenticate all other requests.
+	void WebServer::_installUserResourceHandler() {
 		this->addResourceCallback( {
 			"webserver-users",
-			"api/users/login",
+			"^api/user/(login|refresh)$",
 			100,
 			User::Rights::PUBLIC,
-			WebServer::Method::POST,
+			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_usersMutex );
 
-				if ( input_.find( "username") == input_.end() ) {
-					throw WebServer::ResourceException( { 400, "Login.Missing.Username", "Missing username." } );
+				json user;
+				
+				// A client is allowed to provide a requested duration for the token.
+				unsigned int duration = WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES;
+				auto find = input_.find( "duration");
+				if ( find != input_.end() ) {
+					if ( (*find).is_number() ) {
+						duration = (*find).get<unsigned int>();
+					} else {
+						throw WebServer::ResourceException( { 400, "Login.Invalid.Duration", "The supplied duration is invalid." } );
+					}
 				}
-				if ( ! input_["username"].is_string() ) {
-					throw WebServer::ResourceException( { 400, "Login.Invalid.Username", "The supplied username is invalid." } );
-				}
-				if ( input_.find( "password") == input_.end() ) {
-					throw WebServer::ResourceException( { 400, "Login.Missing.Password", "Missing password." } );
-				}
-				if ( ! input_["password"].is_string() ) {
-					throw WebServer::ResourceException( { 400, "Login.Invalid.Password", "The supplied password is invalid." } );
+				
+				if (
+					method_ == WebServer::Method::POST
+					&& input_["$1"].get<std::string>() == "login"
+				) {
+					std::string username;
+					std::string password;
+					
+					auto find = input_.find( "username");
+					if ( find == input_.end() ) {
+						throw WebServer::ResourceException( { 400, "Login.Missing.Username", "Missing username." } );
+					} else if ( ! (*find).is_string() ) {
+						throw WebServer::ResourceException( { 400, "Login.Invalid.Username", "The supplied username is invalid." } );
+					} else {
+						username = (*find).get<std::string>();
+					}
+					
+					find = input_.find( "password");
+					if ( find == input_.end() ) {
+						throw WebServer::ResourceException( { 400, "Login.Missing.Password", "Missing password." } );
+					} else if ( ! (*find).is_string() ) {
+						throw WebServer::ResourceException( { 400, "Login.Invalid.Password", "The supplied password is invalid." } );
+					} else {
+						password = generateHash( (*find).get<std::string>(), this->m_privateKey );
+					}
+					
+					try {
+						user = g_database->getQueryRow<json>(
+							"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
+							"FROM `users` "
+							"WHERE `username`='%s' "
+							"AND `password`='%s' "
+							"AND `enabled`=1",
+							duration,
+							username.c_str(),
+							password.c_str()
+						);
+					} catch( const Database::NoResultsException& ex_ ) {
+						throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
+					}
+					output_["code"] = 201; // Created
+				} else if (
+					method_ == WebServer::Method::GET
+					&& input_["$1"].get<std::string>() == "refresh"
+				) {
+					auto find = input_.find( "authorization" );
+					if (
+						find == input_.end()
+						|| ! (*find).is_object()
+					) {
+						throw WebServer::ResourceException( { 401, "Resource.Access.Denied", "Access denied to requested resource." } );
+					}
+					user = g_database->getQueryRow<json>(
+						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
+						"FROM `users` "
+						"WHERE `id`=%d "
+						"AND `enabled`=1",
+						duration,
+						input_["authorization"]["user_id"].get<unsigned int>()
+					);
+					output_["code"] = 200;
+				} else {
+					throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 				}
 
-				std::string passwordHash = generateHash( input_["password"].get<std::string>(), this->m_privateKey );
-				json user;
-				try {
-					user = g_database->getQueryRow<json>(
-						"SELECT `id`, `name`, `rights`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
-						"FROM `users` "
-						"WHERE `username`='%s' "
-						"AND `password`='%s' "
-						"AND `enabled`=1",
-						WEBSERVER_TOKEN_VALID_DURATION_MINUTES,
-						input_["username"].get<std::string>().c_str(),
-						passwordHash.c_str()
-					);
-				} catch( const Database::NoResultsException& ex_ ) {
-					throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
-				}
-		
-				// Each user has a data property which can be retrieved and set through the api.
-//				auto userdata = g_settings->get( "userdata_" + user["id"].get<std::string>(), "{ }" );
-//				user["data"] =
-		
-				// The GET request handler generates a token aswell.
-				// TODO centralize this code?
 				json token = {
 					{ "user_id", user["id"].get<unsigned int>() },
 					{ "rights", user["rights"].get<unsigned int>() },
 					{ "valid", user["valid"].get<unsigned int>() }
 				};
+				auto valid = user["valid"].get<unsigned int>();
+				user.erase( "valid" );
 				output_["data"] = {
 					{ "user", user },
+					{ "valid", valid },
 					{ "token", encrypt( token.dump(), this->m_privateKey ) }
 				};
-				output_["code"] = 201; // Created
 			} )
 		} );
 
-		// The next callback that is installed can be used to refresh the token. It can only be accessed if a valid
-		// token was previously provided.
 		this->addResourceCallback( {
 			"webserver-users",
-			"api/users/login",
-			100,
-			User::Rights::VIEWER,
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				std::lock_guard<std::mutex> lock( this->m_usersMutex );
-				
-				auto result = g_database->getQueryRow<json>(
-					"SELECT `id`, `name`, `rights`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
-					"FROM `users` "
-					"WHERE `id`=%d "
-					"AND `enabled`=1",
-					WEBSERVER_TOKEN_VALID_DURATION_MINUTES,
-					input_["authorization"]["user_id"].get<unsigned int>()
-				);
-				if ( result.size() > 0 ) {
-					// The POST request handler generates a token aswell.
-					// TODO centralize this code?
-					json token = {
-						{ "user_id", result["id"].get<unsigned int>() },
-						{ "rights", result["rights"].get<unsigned int>() },
-						{ "valid", result["valid"].get<unsigned int>() }
-					};
-					output_["data"] = {
-						{ "user", result },
-						{ "token", encrypt( token.dump(), this->m_privateKey ) }
-					};
-					output_["code"] = 201; // Created
-				} else {
-					throw WebServer::ResourceException( { 400, "Login.Failure", "The user is invalid." } );
-				}
-			} )
-		} );
-
-		// This callback is used to fetch all users and to post/create new users.
-		this->addResourceCallback( {
-			"webserver-users",
-			"api/users",
+			"^api/users(/([0-9]+))?$",
 			100,
 			User::Rights::ADMIN,
-			WebServer::Method::GET | WebServer::Method::POST,
+			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
 				std::lock_guard<std::mutex> lock( this->m_usersMutex );
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_["data"] = g_database->getQuery<json>(
+			
+				json user = json::object();
+				int userId = -1;
+				auto find = input_.find( "$2" ); // inner uri regexp match
+				if ( find != input_.end() ) {
+					try {
+						userId = std::stoi( (*find).get<std::string>() );
+						user = g_database->getQueryRow<json>(
 							"SELECT `id`, `name`, `username`, `rights`, `enabled` "
 							"FROM `users` "
-							"ORDER BY `id` ASC"
+							"WHERE `id`=%d ",
+							userId
 						);
+					} catch( ... ) {
+						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+					}
+				}
+
+				switch( method_ ) {
+
+					case WebServer::Method::GET: {
+						if ( userId != -1 ) {
+							output_["data"] = user;
+						} else {
+							output_["data"] = g_database->getQuery<json>(
+								"SELECT `id`, `name`, `username`, `rights`, `enabled` "
+								"FROM `users` "
+								"ORDER BY `id` ASC"
+							);
+						}
 						output_["code"] = 200;
 						break;
 					}
-					case WebServer::Method::POST: {
-						if ( input_.find( "name") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Name", "Missing name." } );
-						}
-						if ( ! input_["name"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "User.Invalid.Name", "The supplied name is invalid." } );
-						}
-						if ( input_.find( "username") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Username", "Missing username." } );
-						}
-						if ( ! input_["username"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "User.Invalid.Username", "The supplied username is invalid." } );
-						}
-						if ( input_.find( "password") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Password", "Missing password." } );
-						}
-						if ( ! input_["password"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "User.Invalid.Password", "The supplied password is invalid." } );
-						}
-						if ( input_.find( "rights") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Rights", "Missing rights." } );
-						}
-						
-						unsigned int rights = User::Rights::PUBLIC;
-						if ( input_.find( "rights") != input_.end() ) {
-							if ( input_["rights"].is_number() ) {
-								rights = input_["rights"].get<unsigned int>();
-							} else if ( input_["rights"].is_string() ) {
-								rights = std::stoi( input_["rights"].get<std::string>() );
-							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Rights", "The supplied rights are invalid." } );
-							}
-						}
-
-						bool enabled = true;
-						if ( input_.find( "enabled") != input_.end() ) {
-							if ( input_["enabled"].is_boolean() ) {
-								enabled = input_["enabled"].get<bool>();
-							} else if ( input_["enabled"].is_number() ) {
-								enabled = input_["enabled"].get<unsigned int>() > 0;
-							} else if ( input_["enabled"].is_string() ) {
-								enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-							}
-						}
-
-						auto scriptId = g_database->putQuery(
-							"INSERT INTO `users` (`name`, `username`, `password`, `rights`, `enabled`) "
-							"VALUES (%Q, %Q, %Q, %d, %d) ",
-							input_["name"].get<std::string>().c_str(),
-							input_["username"].get<std::string>().c_str(),
-							generateHash( input_["password"].get<std::string>(), this->m_privateKey ).c_str(),
-							rights,
-							enabled ? 1 : 0
-						);
-						
-						output_["data"] = g_database->getQueryRow<json>(
-							"SELECT `id`, `name`, `username`, `rights`, `enabled` "
-							"FROM `users` "
-							"WHERE `id`=%d "
-							"ORDER BY `id` ASC",
-							scriptId
-						);
-						output_["code"] = 201; // Created
-						this->_updateUserResourceHandlers();
-						break;
-					}
-					default: break;
-				}
-			} )
-		} );
-
-		// Then a specific resource handler is installed for each user. This handler allows for retrieval as
-		// well as updating a user.
-		auto userIds = g_database->getQueryColumn<unsigned int>(
-			"SELECT `id` "
-			"FROM `users` "
-			"ORDER BY `id` ASC"
-		);
-		for ( auto userIdsIt = userIds.begin(); userIdsIt != userIds.end(); userIdsIt++ ) {
-			const unsigned int userId = (*userIdsIt);
-			this->addResourceCallback( {
-				"webserver-users",
-				"api/users/" + std::to_string( userId ),
-				100,
-				User::Rights::ADMIN,
-				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
-				WebServer::t_callback( [this,userId]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-					std::lock_guard<std::mutex> lock( this->m_usersMutex );
-					switch( method_ ) {
-						case WebServer::Method::GET: {
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `username`, `enabled`, `rights` "
-								"FROM `users` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								userId
-							);
-							output_["code"] = 200;
-							break;
-						}
-						case WebServer::Method::PUT: {
-							if ( input_.find( "name") != input_.end() ) {
-								if ( input_["name"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `users` "
-										"SET `name`=%Q "
-										"WHERE `id`=%d",
-										input_["name"].get<std::string>().c_str(),
-										userId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "User.Invalid.Name", "The supplied name is invalid." } );
-								}
-							}
-							
-							if ( input_.find( "username") != input_.end() ) {
-								if ( input_["username"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `users` "
-										"SET `username`=%Q "
-										"WHERE `id`=%d",
-										input_["username"].get<std::string>().c_str(),
-										userId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "User.Invalid.Username", "The supplied username is invalid." } );
-								}
-							}
-
-							if ( input_.find( "password") != input_.end() ) {
-								if ( input_["password"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `users` "
-										"SET `password`=%Q "
-										"WHERE `id`=%d",
-										generateHash( input_["password"].get<std::string>(), this->m_privateKey ).c_str(),
-										userId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "User.Invalid.Password", "The supplied password is invalid." } );
-								}
-							}
-
-							if ( input_.find( "rights") != input_.end() ) {
-								unsigned int rights = User::Rights::PUBLIC;
-								if ( input_["rights"].is_number() ) {
-									rights = input_["rights"].get<unsigned int>();
-								} else if ( input_["rights"].is_string() ) {
-									rights = std::stoi( input_["rights"].get<std::string>() );
-								} else {
-									throw WebServer::ResourceException( { 400, "User.Invalid.Rights", "The supplied rights are invalid." } );
-								}
-								g_database->putQuery(
-									"UPDATE `users` "
-									"SET `rights`=%d "
-									"WHERE `id`=%d ",
-									rights,
-									userId
-								);
-							}
-
-							if ( input_.find( "enabled") != input_.end() ) {
-								bool enabled = true;
-								if ( input_["enabled"].is_boolean() ) {
-									enabled = input_["enabled"].get<bool>();
-								} else if ( input_["enabled"].is_number() ) {
-									enabled = input_["enabled"].get<unsigned int>() > 0;
-								} else if ( input_["enabled"].is_string() ) {
-									enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-								} else {
-									throw WebServer::ResourceException( { 400, "User.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-								}
-								g_database->putQuery(
-									"UPDATE `users` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d ",
-									enabled ? 1 : 0,
-									userId
-								);
-							}
-
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `username`, `rights`, `enabled` "
-								"FROM `users` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								userId
-							);
-							output_["code"] = 200;
-							this->_updateUserResourceHandlers();
-							break;
-						}
-						case WebServer::Method::DELETE: {
+					
+					case WebServer::Method::DELETE: {
+						if ( userId != -1 ) {
 							g_database->putQuery(
 								"DELETE FROM `users` "
 								"WHERE `id`=%d",
 								userId
 							);
+							std::string setting = WEBSERVER_SETTING_USER_SETTINGS_PREFIX + std::to_string( userId );
+							g_settings->remove( setting );
+							g_settings->commit();
 							output_["code"] = 200;
-							this->_updateUserResourceHandlers();
-							break;
+						} else {
+							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
-						default: break;
+						break;
 					}
-				} )
-			} );
-		}
+					
+					case WebServer::Method::PUT:
+					case WebServer::Method::POST: {
+						auto find = input_.find( "name" );
+						if ( find != input_.end() ) {
+							if ( (*find).is_string() ) {
+								user["name"] = (*find).get<std::string>();
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Name", "The supplied name is invalid." } );
+							}
+						} else if ( userId == -1 ) {
+							throw WebServer::ResourceException( { 400, "User.Missing.Name", "Missing name." } );
+						}
+
+						find = input_.find( "username" );
+						if ( find != input_.end() ) {
+							if (
+								(*find).is_string()
+								&& (*find).get<std::string>().size() > 2
+								&& (*find).get<std::string>().size() <= 32
+							) {
+								user["username"] = (*find).get<std::string>();
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Username", "The supplied username is invalid." } );
+							}
+						} else if ( userId == -1 ) {
+							throw WebServer::ResourceException( { 400, "User.Missing.Username", "Missing username." } );
+						}
+
+						find = input_.find( "password" );
+						if ( find != input_.end() ) {
+							if (
+								(*find).is_string()
+								&& (*find).get<std::string>().size() > 2
+								&& (*find).get<std::string>().size() <= 32
+							) {
+								user["password"] = generateHash( (*find).get<std::string>(), this->m_privateKey );
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Password", "The supplied password is invalid." } );
+							}
+						} else if ( userId == -1 ) {
+							throw WebServer::ResourceException( { 400, "User.Missing.Password", "Missing password." } );
+						}
+						
+						find = input_.find( "rights" );
+						if ( find != input_.end() ) {
+							if ( (*find).is_string() ) {
+								user["rights"] = std::stoi( (*find).get<std::string>() );
+							} else if ( (*find).is_number() ) {
+								user["rights"] = (*find).get<unsigned short>();
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Rights", "The supplied rights are invalid." } );
+							}
+						} else if ( userId == -1 ) {
+							throw WebServer::ResourceException( { 400, "User.Missing.Rights", "Missing rights." } );
+						}
+
+						find = input_.find( "enabled" );
+						if ( find != input_.end() ) {
+							if ( (*find).is_string() ) {
+								user["enabled"] = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
+							} else if ( (*find).is_number() ) {
+								user["enabled"] = (*find).get<unsigned short>() > 0;
+							} else if ( (*find).is_boolean() ) {
+								user["enabled"] = (*find).get<bool>();
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+							}
+						} else if ( userId == -1 ) {
+							user["enabled"] = true;
+						}
+						
+						if ( userId == -1 ) {
+							userId = g_database->putQuery(
+								"INSERT INTO `users` (`name`, `username`, `password`, `rights`, `enabled`) "
+								"VALUES (%Q, %Q, %Q, %d, %d) ",
+								user["name"].get<std::string>().c_str(),
+								user["username"].get<std::string>().c_str(),
+								user["password"].get<std::string>().c_str(),
+								user["rights"].get<unsigned int>(),
+								user["enabled"].get<bool>() ? 1 : 0
+							);
+							user["id"] = userId;
+							output_["code"] = 201; // Created
+						} else {
+							g_database->putQuery(
+								"UPDATE `users` "
+								"SET `name`=%Q, `username`=%Q, `password`=%Q, `rights`=%d, `enabled`=%d "
+								"WHERE `id`=%d",
+								user["name"].get<std::string>().c_str(),
+								user["username"].get<std::string>().c_str(),
+								user["password"].get<std::string>().c_str(),
+								user["rights"].get<unsigned int>(),
+								user["enabled"].get<bool>() ? 1 : 0,
+								userId
+							);
+							output_["code"] = 200;
+						}
+						output_["data"] = user;
+						break;
+					}
+
+					default: break;
+				}
+			} )
+		} );
+		
+		this->addResourceCallback( {
+			"webserver-users",
+			"^api/user/settings$",
+			100,
+			User::Rights::VIEWER,
+			WebServer::Method::GET | WebServer::Method::PUT,
+			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
+				std::lock_guard<std::mutex> lock( this->m_usersMutex );
+
+				auto find = input_.find( "authorization" );
+				if (
+					find == input_.end()
+					|| ! (*find).is_object()
+				) {
+					throw WebServer::ResourceException( { 401, "Resource.Access.Denied", "Access denied to requested resource." } );
+				}
+				
+				std::string setting = WEBSERVER_SETTING_USER_SETTINGS_PREFIX + std::to_string( (*find)["user_id"].get<unsigned int>() );
+				
+				switch( method_ ) {
+
+					case WebServer::Method::GET: {
+						output_["data"] = json::parse( g_settings->get( setting, "{}" ) );
+						break;
+					}
+					
+					case WebServer::Method::PUT: {
+						find = input_.find( "settings" );
+						if ( find != input_.end() ) {
+							if ( (*find).is_object() ) {
+								g_settings->put( setting, (*find).dump() );
+								g_settings->commit();
+							} else {
+								throw WebServer::ResourceException( { 400, "User.Invalid.Settings", "The supplied settings are invalid." } );
+							}
+						} else {
+							throw WebServer::ResourceException( { 400, "User.Missing.Settings", "Missing settings." } );
+						}
+						break;
+					}
+					default: break;
+				}
+			
+				output_["code"] = 200;
+			} )
+		} );
 	};
 
 }; // namespace micasa

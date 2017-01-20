@@ -22,7 +22,7 @@ namespace micasa {
 		void stop() override;
 		
 		std::string getLabel() const throw() override { return "Weather Underground"; };
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		json getJson( bool full_ = false ) const override;
 		
 	protected:

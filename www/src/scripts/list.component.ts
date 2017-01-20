@@ -21,7 +21,6 @@ export class ScriptsListComponent implements OnInit {
 	) {
 	};
 
-
 	ngOnInit() {
 		this.getScripts();
 	};

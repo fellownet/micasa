@@ -81,7 +81,7 @@ namespace micasa {
 			) {
 				json telemetry = *data["data"]["telemetries"].rbegin();
 
-				unsigned int source = Device::UpdateSource::HARDWARE;
+				Device::UpdateSource source = Device::UpdateSource::HARDWARE;
 				if ( this->m_first ) {
 					source |= Device::UpdateSource::INIT;
 					this->m_first = false;
@@ -89,29 +89,33 @@ namespace micasa {
 				
 				if ( ! telemetry["totalActivePower"].empty() ) {
 					auto device = this->_declareDevice<Level>( this->getReference() + "(P)", "Power", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-						{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::WATT }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::POWER ) },
+						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::WATT ) }
 					} );
 					device->updateValue( source, telemetry["totalActivePower"].get<double>() );
 				}
 				if ( ! telemetry["totalEnergy"].empty() ) {
 					auto device = this->_declareDevice<Counter>( this->getReference() + "(E)", "Energy", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-						{ DEVICE_SETTING_UNITS, (unsigned int)Counter::Unit::KILOWATTHOUR }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( Counter::SubType::ENERGY ) },
+						{ DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( Counter::Unit::KILOWATTHOUR ) }
 					} );
 					device->updateValue( source, telemetry["totalEnergy"].get<int>() );
 				}
 				if ( ! telemetry["dcVoltage"].empty() ) {
 					auto device = this->_declareDevice<Level>( this->getReference() + "(DC)", "DC voltage", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-						{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::VOLT }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::ELECTRICITY ) },
+						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::VOLT ) }
 					} );
 					device->updateValue( source, telemetry["dcVoltage"].get<double>() );
 				}
 				if ( ! telemetry["temperature"].empty() ) {
 					auto device = this->_declareDevice<Level>( this->getReference() + "(T)", "Temperature", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-						{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::CELCIUS }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELCIUS ) }
 					} );
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}

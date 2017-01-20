@@ -14,6 +14,13 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
+	const std::map<Device::Type, std::string> Device::TypeText = {
+		{ Device::Type::COUNTER, "counter" },
+		{ Device::Type::LEVEL, "level" },
+		{ Device::Type::SWITCH, "switch" },
+		{ Device::Type::TEXT, "text" },
+	};
+
 	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
 #ifdef _DEBUG
 		assert( g_webServer && "Global WebServer instance should be created before Device instances." );
@@ -52,17 +59,17 @@ namespace micasa {
 		}
 	};
 
-	template<class T> bool Device::updateValue( const unsigned int& source_, const typename T::t_value& value_ ) {
+	template<class T> bool Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
 		auto target = dynamic_cast<T*>( this );
 #ifdef _DEBUG
 		assert( target && "Invalid device template specifier." );
 #endif // _DEBUG
 		return target->updateValue( source_, value_ );
 	};
-	template bool Device::updateValue<Counter>( const unsigned int& source_, const Counter::t_value& value_ );
-	template bool Device::updateValue<Level>( const unsigned int& source_, const Level::t_value& value_ );
-	template bool Device::updateValue<Switch>( const unsigned int& source_, const Switch::t_value& value_ );
-	template bool Device::updateValue<Text>( const unsigned int& source_, const Text::t_value& value_ );
+	template bool Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
+	template bool Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
+	template bool Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
+	template bool Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
 	
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
@@ -78,16 +85,16 @@ namespace micasa {
 	
 	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
 		switch( type_ ) {
-			case COUNTER:
+			case Type::COUNTER:
 				return std::make_shared<Counter>( hardware_, id_, reference_, label_ );
 				break;
-			case LEVEL:
+			case Type::LEVEL:
 				return std::make_shared<Level>( hardware_, id_, reference_, label_ );
 				break;
-			case SWITCH:
+			case Type::SWITCH:
 				return std::make_shared<Switch>( hardware_, id_, reference_, label_ );
 				break;
-			case TEXT:
+			case Type::TEXT:
 				return std::make_shared<Text>( hardware_, id_, reference_, label_ );
 				break;
 		}
@@ -95,12 +102,13 @@ namespace micasa {
 	};
 
 	json Device::getJson( bool full_ ) const {
+		auto updateSources = this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES );
 		json result = {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
 			{ "enabled", this->isRunning() },
-			{ "readonly", ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) == 0 ) },
+			{ "readonly", ( Device::resolveUpdateSource( updateSources & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) == 0 ) },
 			{ "hardware", this->m_hardware->getJson( false ) }
 		};
 		if ( full_ ) {

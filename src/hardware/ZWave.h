@@ -27,7 +27,7 @@ namespace micasa {
 		void stop() override;
 
 		std::string getLabel() const override;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return false; };
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return false; };
 		json getJson( bool full_ = false ) const override;
 
 	protected:

@@ -1,5 +1,9 @@
 <section class="content-header" *ngIf="!parent || hardware.length>0">
 <h1>Hardware<small>the things that keep your domotica system running</small></h1>
+<ol class="breadcrumb">
+	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
+	<li><a routerLink="/hardware"><i class="fa fa-microchip"></i> Hardware</a></li>
+</ol>
 </section>
 
 <section class="content-body" *ngIf="hardware.length==0 && !loading && !parent">

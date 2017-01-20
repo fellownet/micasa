@@ -38,6 +38,7 @@ export class Device {
 	name: string;
 	hardware: Hardware;
 	type: string;
+	subtype: string;
 	enabled: boolean;
 	value?: any; // is optional for updates
 	unit: string;
@@ -97,7 +98,7 @@ export class DevicesService implements Resolve<Device> {
 		} else {
 			uri += '?enabled=1';
 		}
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( uri, options )
 			.map( this._extractData )
@@ -106,7 +107,7 @@ export class DevicesService implements Resolve<Device> {
 	};
 
 	getDevice( id_: Number ): Observable<Device> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._deviceUrlBase + '/' + id_, options )
 			.map( this._extractData )
@@ -117,7 +118,7 @@ export class DevicesService implements Resolve<Device> {
 	putDevice( device_: Device, updateValue_: boolean = false ): Observable<Device> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		// Value should not be sent along with the update to prevent server warnings for
@@ -133,7 +134,7 @@ export class DevicesService implements Resolve<Device> {
 	};
 
 	getData( device_: Device ): Observable<any[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._deviceUrlBase + '/' + device_.id + '/data', options )
 			.map( this._extractData )
@@ -142,7 +143,7 @@ export class DevicesService implements Resolve<Device> {
 	};
 
 	deleteDevice( device_: Device ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._deviceUrlBase + '/' + device_.id, options )
 			.map( function( response_: Response ) {

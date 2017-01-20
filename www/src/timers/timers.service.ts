@@ -61,7 +61,7 @@ export class TimersService {
 	}
 
 	getTimers(): Observable<Timer[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._timerUrlBase, options )
 			.map( this._extractData )
@@ -70,7 +70,7 @@ export class TimersService {
 	};
 
 	getTimer( id_: Number ): Observable<Timer> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._timerUrlBase + '/' + id_, options )
 			.map( this._extractData )
@@ -81,7 +81,7 @@ export class TimersService {
 	putTimer( timer_: Timer ): Observable<Timer> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
+			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
 		if ( timer_.id ) {
@@ -98,7 +98,7 @@ export class TimersService {
 	};
 
 	deleteTimer( timer_: Timer ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._timerUrlBase + '/' + timer_.id, options )
 			.map( function( response_: Response ) {

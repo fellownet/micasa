@@ -1,6 +1,6 @@
-import { Component }             from '@angular/core';
-import { ACL, UsersService }     from './users/users.service';
-import { Screen, ScreenService } from './screen.service';
+import { Component, OnInit }      from '@angular/core';
+import { ACL, UsersService }      from './users/users.service';
+import { Screen, ScreensService } from './screens/screens.service';
 
 // Declaring $ as any prevents typescript errors when using jQuery.
 declare var $: any;
@@ -10,28 +10,42 @@ declare var $: any;
 	templateUrl : 'tpl/menu.html',
 } )
 
-export class MenuComponent  {
+export class MenuComponent implements OnInit {
+
+	public screens: Screen[] = [];
 
 	// Make the ACL's available in the template.
 	public ACL = ACL;
 
-	constructor( private _usersService: UsersService, private _screenService: ScreenService ) {
-	}
+	constructor( private _usersService: UsersService, private _screensService: ScreensService ) {
+	};
 
-	hasAccess( acl_: ACL ): boolean {
+	public ngOnInit() {
+		this.getScreens();
+	};
+
+	public getScreens() {
+		var me = this;
+		this._screensService.getScreens()
+			.subscribe(
+				function( screens_: Screen[] ) {
+					me.screens = screens_;
+				},
+				function( error_: String ) {
+					me.screens = []; // not even the dashboard :(
+				}
+			)
+		;
+	};
+
+	public hasAccess( acl_: ACL ): boolean {
 		return this._usersService.isLoggedIn( acl_ );
-	}
+	};
 
-	getScreens(): Screen[] {
-		return this._screenService.getScreens();
-	}
-
-	toggleMenu(): void {
+	public toggleMenu(): void {
 		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
 			$( 'body' ).removeClass( 'sidebar-open' );
-		} else {
-			$( 'body' ).addClass( 'sidebar-open' );
 		}
-	}
+	};
 
 }

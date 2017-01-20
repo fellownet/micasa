@@ -11,6 +11,16 @@ namespace micasa {
 	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
 
+	const Device::Type Switch::type = Device::Type::SWITCH;
+
+	const std::map<Switch::SubType, std::string> Switch::SubTypeText = {
+		{ Switch::SubType::GENERIC, "generic" },
+		{ Switch::SubType::LIGHT, "light" },
+		{ Switch::SubType::DOOR_CONTACT, "door_contact" },
+		{ Switch::SubType::BLINDS, "blinds" },
+		{ Switch::SubType::MOTION_DETECTOR, "motion_detector" },
+	};
+
 	const std::map<Switch::Option, std::string> Switch::OptionText = {
 		{ Switch::Option::ON, "On" },
 		{ Switch::Option::OFF, "Off" },
@@ -21,19 +31,18 @@ namespace micasa {
 	};
 	
 	void Switch::start() {
-		std::string value = g_database->getQueryValue<std::string>(
-			"SELECT `value` "
-			"FROM `device_switch_history` "
-			"WHERE `device_id`=%d "
-			"ORDER BY `date` DESC "
-			"LIMIT 1"
-			, this->m_id
-		);
-		if ( ! value.empty() ) {
-			this->m_value = (Option)std::stoi( value );
-		} else {
-			this->m_value = Option::OFF;
-		}
+		try {
+			std::string value = g_database->getQueryValue<std::string>(
+				"SELECT `value` "
+				"FROM `device_switch_history` "
+				"WHERE `device_id`=%d "
+				"ORDER BY `date` DESC "
+				"LIMIT 1"
+				, this->m_id
+			);
+			this->m_value = Switch::resolveOption( value );
+		} catch( const Database::NoResultsException& ex_ ) { }
+
 		Device::start();
 	};
 
@@ -41,13 +50,13 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Switch::updateValue( const unsigned int& source_, const Option& value_ ) {
+	bool Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
 #ifdef _DEBUG
 		assert( Switch::OptionText.find( value_ ) != Switch::OptionText.end() && "Switch should be defined." );
 #endif // _DEBUG
 		
 	   // The update source should be defined in settings by the declaring hardware.
-		if ( ( this->m_settings->get<unsigned int>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, 0 ) & source_ ) != source_ ) {
+		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
@@ -71,8 +80,9 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_switch_history` (`device_id`, `value`) "
-				"VALUES (%d, %d)"
-				, this->m_id, (unsigned int)value_
+				"VALUES (%d, %Q)",
+				this->m_id,
+				Switch::resolveOption( value_ ).c_str()
 			);
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Switch>( *this, source_ );
@@ -85,7 +95,7 @@ namespace micasa {
 		return success;
 	};
 	
-	bool Switch::updateValue( const unsigned int& source_, const t_value& value_ ) {
+	bool Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );
@@ -98,7 +108,27 @@ namespace micasa {
 		json result = Device::getJson();
 		result["value"] = this->getValue();
 		result["type"] = "switch";
-		// TODO also populate with possible switch options?
+		result["subtype"] = Switch::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( "generic" ) ) ) );
+
+		if ( full_ ) {
+			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+				json setting = {
+					{ "name", "subtype" },
+					{ "label", "SubType" },
+					{ "type", "list" },
+					{ "options", json::array() },
+					{ "value", result["subtype"] }
+				};
+				for ( auto subTypeIt = Switch::SubTypeText.begin(); subTypeIt != Switch::SubTypeText.end(); subTypeIt++ ) {
+					setting["options"] += {
+						{ "value", subTypeIt->second },
+						{ "label", subTypeIt->second }
+					};
+				}
+				result["settings"] += setting;
+			}
+		}
+
 		return result;
 	};
 

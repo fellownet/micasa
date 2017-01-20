@@ -8,6 +8,7 @@
 
 #include "Logger.h"
 #include "Worker.h"
+#include "Utils.h"
 
 extern "C" {
 	#include "mongoose.h"
@@ -25,19 +26,17 @@ namespace micasa {
 	
 	class Network final : public Worker {
 		
-		//  TODO working with std::function is painstakingly slow so reinstate this friend handler.
-		//friend void ::micasa_mg_handler( struct mg_connection *connection_, int event_, void* data_ );
-		
 	public:
 		typedef std::function<bool( mg_connection* connection_, int event_, void* data_ )> t_handler;
 		
-		enum Event {
+		enum class Event: unsigned short {
 			SUCCESS = 1,
 			FAILURE,
 			DATA,
 			TIMER,
 			CLOSE
-		}; // enum Event
+		}; // enum class Event
+		ENUM_UTIL( Event );
 
 		Network();
 		~Network();
