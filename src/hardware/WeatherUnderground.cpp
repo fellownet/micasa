@@ -30,7 +30,7 @@ namespace micasa {
 			99,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "api_key", settings.at( "api_key" ) );

@@ -81,6 +81,8 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
+		std::vector<std::shared_ptr<Device> > getAllDevices() const;
+		void removeDevice( const std::shared_ptr<Device> device_ );
 
 		virtual json getJson( bool full_ = false ) const;
 		virtual std::string getLabel() const =0;
@@ -110,8 +112,6 @@ namespace micasa {
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
 		State m_state = State::DISABLED;
-
-		void _installDeviceResourceHandlers( const std::shared_ptr<Device> device_ );
 
 	}; // class Hardware
 

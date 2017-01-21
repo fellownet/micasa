@@ -13,14 +13,12 @@ namespace micasa {
 
 	public:
 		enum class Rights: unsigned short {
-			// v Public
-			PUBLIC    = 1,
 			// v View all devices
-			VIEWER    = 2,
+			VIEWER    = 1,
 			// v Update all device values + VIEWER rights
-			USER      = 3,
+			USER      = 2,
 			// v Add/remove hardware, devices, scripts, timers and devices + USER rights
-			INSTALLER = 4,
+			INSTALLER = 3,
 			// v All rights
 			ADMIN     = 99
 		}; // enum class Rights
@@ -28,15 +26,17 @@ namespace micasa {
 
 		static const constexpr char* settingsName = "user";
 
-		User( const unsigned int id_, const std::string& name_, const unsigned short rights_ );
+		User( const unsigned int id_, const std::string name_, const Rights rights_ );
 		~User();
 
 		unsigned int getId() const throw() { return this->m_id; };
+		Rights getRights() const throw() { return this->m_rights; };
+		std::shared_ptr<Settings<User> > getSettings() const throw() { return this->m_settings; };
 
 	private:
 		const unsigned int m_id;
 		const std::string m_name;
-		const unsigned short m_rights;
+		const Rights m_rights;
 		std::shared_ptr<Settings<User> > m_settings;
 
 	}; // class User

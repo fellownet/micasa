@@ -45,7 +45,7 @@ namespace micasa {
 			100,
 			User::Rights::VIEWER,
 			WebServer::Method::GET,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO check range to fetch
 				output_["data"] = g_database->getQuery<json>(
 					"SELECT * FROM ( "
@@ -122,8 +122,8 @@ namespace micasa {
 		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "counter";
-		result["subtype"] = Counter::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( "generic" ) ) ) );
-		result["unit"] = Counter::resolveUnit( this->m_settings->get<Unit>( "units", this->m_settings->get<Unit>( DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( "generic" ) ) ) );
+		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
+		result["unit"] = this->m_settings->get( "units", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNITS, "" ) );
 		
 		if ( full_ ) {
 			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {

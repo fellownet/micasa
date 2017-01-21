@@ -49,7 +49,7 @@ namespace micasa {
 			99,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "port", settings.at( "port" ) );
@@ -379,7 +379,7 @@ namespace micasa {
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( this->getState() == Hardware::State::READY ) {
@@ -404,7 +404,7 @@ namespace micasa {
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				// TODO also accept secure inclusion mode
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
@@ -440,7 +440,7 @@ namespace micasa {
 			101,
 			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( method_ == WebServer::Method::PUT ) {

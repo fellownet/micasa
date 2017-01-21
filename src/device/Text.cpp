@@ -82,7 +82,7 @@ namespace micasa {
 		json result = Device::getJson();
 		result["value"] = this->getValue();
 		result["type"] = "text";
-		result["subtype"] = Text::resolveSubType( this->m_settings->get<SubType>( "subtype", this->m_settings->get<SubType>( DEVICE_SETTING_DEFAULT_SUBTYPE, Text::resolveSubType( "generic" ) ) ) );
+		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 
 		if ( full_ ) {
 			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {

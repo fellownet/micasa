@@ -134,7 +134,6 @@ namespace micasa {
 			if ( (*devicesIt)["enabled"] == "1" ) {
 				device->start();
 			}
-			this->_installDeviceResourceHandlers( device );
 
 			this->m_devices.push_back( device );
 		}
@@ -238,6 +237,32 @@ namespace micasa {
 		return nullptr;
 	};
 
+	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices() const {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		return std::vector<std::shared_ptr<Device> >( this->m_devices );
+	};
+
+	void Hardware::removeDevice( const std::shared_ptr<Device> device_ ) {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+			if ( (*devicesIt) == device_ ) {
+
+				if ( device_->isRunning() ) {
+					device_->stop();
+				}
+
+				g_database->putQuery(
+					"DELETE FROM `devices` "
+					"WHERE `id`=%d",
+					device_->getId()
+				);
+
+				this->m_devices.erase( devicesIt );
+				break;
+			}
+		}
+	};
+
 	template<class T> std::shared_ptr<T> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
@@ -282,7 +307,6 @@ namespace micasa {
 		if ( start_ ) {
 			device->start();
 		}
-		this->_installDeviceResourceHandlers( device );
 
 		this->m_devices.push_back( device );
 
@@ -293,281 +317,6 @@ namespace micasa {
 	template std::shared_ptr<Level> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 	template std::shared_ptr<Switch> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 	template std::shared_ptr<Text> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-
-	// TODO do not include settings / hardware etc when fetching the entire list > already taks a few seconds to
-	// build, needs to be optional. Maybe only include details in separate get requests for individual devices?
-	void Hardware::_installDeviceResourceHandlers( const std::shared_ptr<Device> device_ ) {
-
-		// The first handler to install is the list handler that outputs all the devices available. Note that
-		// the output json array is being populated by multiple resource handlers, each one adding another device.
-		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( device_->getId() ),
-			"^api/devices$",
-			100,
-			User::Rights::VIEWER,
-			WebServer::Method::GET,
-			WebServer::t_callback( [this,device_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-
-				// If a hardware_id property was provided, only devices belonging to that hardware id are being
-				// added to the device list.
-				auto hardwareIdIt = input_.find( "hardware_id" );
-				if (
-					hardwareIdIt != input_.end()
-					&& input_["hardware_id"].get<std::string>() != std::to_string( this->m_id )
-				) {
-					return;
-				}
-
-				// If the enabled flag was set only devices that are enabled or disabled are returned.
-				auto enabledIt = input_.find( "enabled" );
-				if ( enabledIt != input_.end() ) {
-					bool enabled = true;
-					if ( input_["enabled"].is_boolean() ) {
-						enabled = input_["enabled"].get<bool>();
-					}
-					if ( input_["enabled"].is_number() ) {
-						enabled = input_["enabled"].get<unsigned int>() > 0;
-					}
-					if ( enabled && ! device_->isRunning() ) {
-						return;
-					}
-					if ( ! enabled && device_->isRunning() ) {
-						return;
-					}
-				}
-
-				output_["data"] += device_->getJson( false );
-			} )
-		} );
-
-		// The second handler to install is the one that returns the details of a single device and the ability
-		// to update or delete the device.
-		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( device_->getId() ),
-			"^api/devices/" + std::to_string( device_->getId() ) + "$",
-			100,
-			User::Rights::VIEWER,
-			WebServer::Method::GET,
-			WebServer::t_callback( [this,device_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				output_["data"] = device_->getJson( true );
-				output_["data"]["scripts"] = g_database->getQueryColumn<unsigned int>(
-					"SELECT s.`id` "
-					"FROM `scripts` s, `x_device_scripts` x "
-					"WHERE s.`id`=x.`script_id` "
-					"AND x.`device_id`=%d "
-					"ORDER BY s.`id` ASC",
-					device_->getId()
-				);
-				output_["code"] = 200;
-			} )
-		} );
-		
-		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( device_->getId() ),
-			"^api/devices/" + std::to_string( device_->getId() ) + "$",
-			100,
-			User::Rights::USER,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this,device_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				if ( input_.find( "value" ) != input_.end() ) {
-					switch( device_->getType() ) {
-						case Device::Type::COUNTER:
-							if ( input_["value"].is_string() ) {
-								device_->updateValue<Counter>( Device::UpdateSource::API, std::stoi( input_["value"].get<std::string>() ) );
-							} else if ( input_["value"].is_number() ) {
-								device_->updateValue<Counter>( Device::UpdateSource::API, input_["value"].get<int>() );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
-							}
-							break;
-						case Device::Type::LEVEL:
-							if ( input_["value"].is_string() ) {
-								device_->updateValue<Level>( Device::UpdateSource::API, std::stof( input_["value"].get<std::string>() ) );
-							} else if ( input_["value"].is_number() ) {
-								device_->updateValue<Level>( Device::UpdateSource::API, input_["value"].get<double>() );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
-							}
-							break;
-						case Device::Type::SWITCH:
-							if ( input_["value"].is_string() ) {
-								device_->updateValue<Switch>( Device::UpdateSource::API, input_["value"].get<std::string>() );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
-							}
-							break;
-						case Device::Type::TEXT:
-							if ( input_["value"].is_string() ) {
-								device_->updateValue<Text>( Device::UpdateSource::API, input_["value"].get<std::string>() );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
-							}
-							break;
-					}
-				}
-
-				output_["data"] = device_->getJson( true );
-				output_["data"]["scripts"] = g_database->getQueryColumn<unsigned int>(
-					"SELECT s.`id` "
-					"FROM `scripts` s, `x_device_scripts` x "
-					"WHERE s.`id`=x.`script_id` "
-					"AND x.`device_id`=%d "
-					"ORDER BY s.`id` ASC",
-					device_->getId()
-				);
-				output_["code"] = 200;
-			} )
-		} );
-
-		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( device_->getId() ),
-			"^api/devices/" + std::to_string( device_->getId() ) + "$",
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
-			WebServer::t_callback( [this,device_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				switch( method_ ) {
-					case WebServer::Method::PUT:
-					case WebServer::Method::PATCH: {
-
-						// A name property can be used to set the custom name for a device.
-						if ( input_.find( "name" ) != input_.end() ) {
-							if ( input_["name"].is_string() ) {
-								device_->getSettings()->put( "name", input_["name"].get<std::string>() );
-								device_->getSettings()->commit();
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Name", "The supplied name is invalid." } );
-							}
-						}
-
-						auto settings = extractSettingsFromJson( input_ );
-						if (
-							settings.find( "unit" ) != settings.end()
-							&& device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
-						) {
-							try {
-								switch( device_->getType() ) {
-									case Device::Type::COUNTER: {
-										Counter::Unit unit = Counter::resolveUnit( settings.at( "unit" ) );
-										device_->getSettings()->put( "units", Counter::resolveUnit( unit ) );
-										break;
-									}
-									case Device::Type::LEVEL: {
-										Level::Unit unit = Level::resolveUnit( settings.at( "unit" ) );
-										device_->getSettings()->put( "units", Level::resolveUnit( unit ) );
-										break;
-									}
-									default: break;
-								}
-								device_->getSettings()->commit();
-							} catch( ... ) {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
-							}
-						}
-						if (
-							settings.find( "subtype" ) != settings.end()
-							&& device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false )
-						) {
-							try {
-								switch( device_->getType() ) {
-									case Device::Type::COUNTER: {
-										Counter::SubType subType = Counter::resolveSubType( settings.at( "subtype" ) );
-										device_->getSettings()->put( "subtype", Counter::resolveSubType( subType ) );
-										break;
-									}
-									case Device::Type::LEVEL: {
-										Level::SubType subType = Level::resolveSubType( settings.at( "subtype" ) );
-										device_->getSettings()->put( "subtype", Level::resolveSubType( subType ) );
-										break;
-									}
-									case Device::Type::SWITCH: {
-										Switch::SubType subType = Switch::resolveSubType( settings.at( "subtype" ) );
-										device_->getSettings()->put( "subtype", Switch::resolveSubType( subType ) );
-										break;
-									}
-									case Device::Type::TEXT: {
-										Text::SubType subType = Text::resolveSubType( settings.at( "subtype" ) );
-										device_->getSettings()->put( "subtype", Text::resolveSubType( subType ) );
-										break;
-									}
-								}
-								device_->getSettings()->commit();
-							} catch( ... ) {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
-							}
-						}
-
-						// A scripts array can be passed along to set the scripts to run when the device
-						// is updated.
-						if ( input_.find( "scripts") != input_.end() ) {
-							if ( input_["scripts"].is_array() ) {
-								std::vector<unsigned int> scripts = std::vector<unsigned int>( input_["scripts"].begin(), input_["scripts"].end() );
-								device_->setScripts( scripts );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Scripts", "The supplied scripts parameter is invalid." } );
-							}
-						}
-
-						if ( input_.find( "enabled") != input_.end() ) {
-							bool enabled = true;
-							if ( input_["enabled"].is_boolean() ) {
-								enabled = input_["enabled"].get<bool>();
-							} else if ( input_["enabled"].is_number() ) {
-								enabled = input_["enabled"].get<unsigned int>() > 0;
-							} else if ( input_["enabled"].is_string() ) {
-								enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-							} else {
-								throw WebServer::ResourceException( { 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-							}
-							if ( enabled ) {
-								if ( ! device_->isRunning() ) {
-									device_->start();
-								}
-							} else {
-								if ( device_->isRunning() ) {
-									device_->stop();
-								}
-							}
-							g_database->putQuery(
-								"UPDATE `devices` "
-								"SET `enabled`=%d "
-								"WHERE `id`=%d",
-								enabled ? 1 : 0,
-								device_->getId()
-							);
-						}
-
-						output_["code"] = 200;
-						break;
-					}
-					case WebServer::Method::DELETE: {
-						std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-						for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-							if ( (*devicesIt) == device_ ) {
-
-								g_webServer->removeResourceCallback( "device-" + std::to_string( device_->getId() ) );
-								if ( device_->isRunning() ) {
-									device_->stop();
-								}
-
-								g_database->putQuery(
-									"DELETE FROM `devices` "
-									"WHERE `id`=%d",
-									device_->getId()
-								);
-
-								this->m_devices.erase( devicesIt );
-								output_["code"] = 200;
-								break;
-							}
-						}
-						break;
-					}
-					default: break;
-				}
-			} )
-		} );
-	};
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.

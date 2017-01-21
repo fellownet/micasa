@@ -78,7 +78,9 @@ namespace micasa {
 		void stop();
 		
 		std::shared_ptr<Hardware> getHardware( const std::string& reference_ ) const;
+		std::shared_ptr<Hardware> getHardwareById( const unsigned int& id_ ) const;
 		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
+		std::vector<std::shared_ptr<Hardware> > getAllHardware() const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
@@ -87,6 +89,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
+		std::vector<std::shared_ptr<Device> > getAllDevices() const;
 
 		template<class D> void newEvent( const D& device_, const Device::UpdateSource& source_ );
 
@@ -100,10 +103,8 @@ namespace micasa {
 		mutable std::mutex m_hardwareMutex;
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;
-		mutable std::mutex m_scriptsMutex;
-		mutable std::mutex m_timersMutex;
-		
 		v7* m_v7_js;
+		mutable std::mutex m_jsMutex;
 		
 #ifdef _WITH_LIBUDEV
 		std::map<std::string, t_serialPortCallback> m_serialPortCallbacks;
@@ -122,10 +123,6 @@ namespace micasa {
 		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;
 		
-		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
-		void _installScriptResourceHandler() const;
-		void _installTimerResourceHandler() const;
-
 	}; // class Controller
 
 }; // namespace micasa

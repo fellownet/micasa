@@ -90,12 +90,12 @@ int main( int argc_, char* argv_[] ) {
 	g_database = std::make_shared<Database>( database );
 	g_settings = std::make_shared<Settings<> >();
 	g_network = std::make_shared<Network>();
-	g_webServer = std::make_shared<WebServer>();
 	g_controller = std::make_shared<Controller>();
+	g_webServer = std::make_shared<WebServer>();
 
 	g_network->start();
-	g_webServer->start();
 	g_controller->start();
+	g_webServer->start();
 
 	while ( ! g_shutdown ) 	{
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
@@ -105,8 +105,8 @@ int main( int argc_, char* argv_[] ) {
 	g_controller->stop();
 	g_network->stop();
 	
-	g_controller = NULL;
 	g_webServer = NULL;
+	g_controller = NULL;
 	g_network = NULL;
 	if ( g_settings->isDirty() ) {
 		g_settings->commit();

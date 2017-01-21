@@ -45,7 +45,7 @@ namespace micasa {
 		}; // enum class Method
 		ENUM_UTIL( Method );
 		
-		typedef std::function<void( const json& input_, const Method& method_, json& output_ )> t_callback;
+		typedef std::function<void( std::shared_ptr<User> user_, const json& input_, const Method& method_, json& output_ )> t_callback;
 		
 		struct ResourceCallback {
 			const std::string reference;
@@ -77,13 +77,17 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
 		
 	private:
-		std::map<std::string, std::vector<std::shared_ptr<ResourceCallback> > > m_resources;
+		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
 		mutable std::mutex m_resourcesMutex;
-		mutable std::mutex m_usersMutex;
 		std::string m_publicKey;
 		std::string m_privateKey;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
+
+		void _installHardwareResourceHandler();
+		void _installDeviceResourceHandler();
+		void _installScriptResourceHandler();
+		void _installTimerResourceHandler();
 		void _installUserResourceHandler();
 
 	}; // class WebServer
