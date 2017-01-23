@@ -1,0 +1,50 @@
+<!-- settings -->
+<ng-container *ngFor="let setting of settings">
+<ng-container *ngIf="showAdvancedSettings || setting.class!='advanced'">
+<ng-container [ngSwitch]="setting.type">
+<div class="form-group" *ngSwitchCase="'string'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<input type="text" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (keydown)="form.form.markAsDirty();">
+</div>
+<div class="form-group" *ngSwitchCase="'list'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<select class="form-control" id="hardware-setting-{{setting.name}}" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (change)="form.form.markAsDirty();">
+		<option *ngFor="let option of setting.options" value="{{option.value}}">{{option.label}}</option>
+	</select>
+</div>
+<div class="form-group" *ngSwitchCase="'byte'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<input type="number" maxlength="3" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,3}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (keydown)="form.form.markAsDirty();">
+</div>
+<div class="form-group" *ngSwitchCase="'short'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<input type="number" maxlength="5" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,5}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (keydown)="form.form.markAsDirty();">
+</div>
+<div class="form-group" *ngSwitchCase="'int'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (keydown)="form.form.markAsDirty();">
+</div>
+<div class="form-group" *ngSwitchCase="'double'" [class.has-error]="!field.valid && !field.pristine">
+	<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9\.]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (keydown)="form.form.markAsDirty();">
+</div>
+<div class="form-group" *ngSwitchCase="'boolean'">
+	<div class="checkbox">
+		<label><input type="checkbox" [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel" (change)="form.form.markAsDirty();">{{setting.label}}</label>
+	</div>
+</div>
+<div class="form-group" *ngSwitchCase="'display'">
+	<label>{{setting.label}}</label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
+	<span class="form-control" disabled="disabled">{{setting.value}}</span>
+</div>
+</ng-container>
+</ng-container>
+</ng-container>
+<!-- / settings -->

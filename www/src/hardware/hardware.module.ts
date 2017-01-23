@@ -1,7 +1,9 @@
 import { NgModule }                 from '@angular/core';
 import { CommonModule }             from '@angular/common';
 import { FormsModule }              from '@angular/forms';
+
 import { GridModule }               from '../grid/grid.module';
+import { SettingsModule }           from '../settings/settings.module';
 
 import { HardwareListComponent }    from './list.component';
 import { HardwareDetailsComponent } from './details.component';
@@ -16,7 +18,8 @@ import { DevicesModule }            from '../devices/devices.module';
 		FormsModule,
 		HardwareRoutingModule,
 		DevicesModule,
-		GridModule
+		GridModule,
+		SettingsModule
 	],
 	declarations: [
 		HardwareListComponent,

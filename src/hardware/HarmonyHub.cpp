@@ -45,6 +45,10 @@ namespace micasa {
 		} );
 	};
 	
+	HarmonyHub::~HarmonyHub() {
+		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+	};
+	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -283,7 +287,8 @@ namespace micasa {
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
 										auto device = this->_declareDevice<Switch>( activityId, label, {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) }
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
 										} );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );

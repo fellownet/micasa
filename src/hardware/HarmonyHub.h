@@ -21,7 +21,7 @@ namespace micasa {
 		ENUM_UTIL( ConnectionState );
 		
 		HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
-		~HarmonyHub() { };
+		~HarmonyHub();
 		
 		void start() override;
 		void stop() override;

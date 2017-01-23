@@ -22,7 +22,7 @@
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
-					<button type="button" class="btn btn-primary btn-xs pull-right" *ngIf="hasAdvancedSettings" (click)="showAdvancedSettings=!showAdvancedSettings"><span *ngIf="!showAdvancedSettings">Show Advanced</span><span *ngIf="showAdvancedSettings">Hide Advanced</span></button>
+					<button type="button" class="btn btn-primary btn-xs pull-right" *ngIf="settingsComponent.hasAdvancedSettings" (click)="settingsComponent.showAdvancedSettings=!settingsComponent.showAdvancedSettings"><span *ngIf="!settingsComponent.showAdvancedSettings">Show Advanced</span><span *ngIf="settingsComponent.showAdvancedSettings">Hide Advanced</span></button>
 					<h3 class="box-title">Edit Hardware</h3>
 				</div>
 
@@ -39,55 +39,9 @@
 						</div>
 					</div>
 
-					<!-- settings -->
-					<ng-container *ngFor="let setting of hardware.settings">
-					<ng-container *ngIf="showAdvancedSettings || setting.class!='advanced'">
-					<ng-container [ngSwitch]="setting.type">
-					<div class="form-group" *ngSwitchCase="'string'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="text" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-					</div>
-					<div class="form-group" *ngSwitchCase="'list'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<select class="form-control" id="hardware-setting-{{setting.name}}" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-							<option *ngFor="let option of setting.options" value="{{option.value}}">{{option.label}}</option>
-						</select>
-					</div>
-					<div class="form-group" *ngSwitchCase="'byte'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" maxlength="3" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,3}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-					</div>
-					<div class="form-group" *ngSwitchCase="'short'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" maxlength="5" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]{1,5}$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-					</div>
-					<div class="form-group" *ngSwitchCase="'int'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-					</div>
-					<div class="form-group" *ngSwitchCase="'double'" [class.has-error]="!field.valid && !field.pristine">
-						<label for="hardware-setting-{{setting.name}}">{{setting.label}}</label>
-						<div class="callout callout-info" *ngIf="setting.description && setting.description.length>0">{{setting.description}}</div>
-						<input type="number" min="{{setting.min}}" max="{{setting.max}}" pattern="^[0-9\.]+$" class="form-control" id="hardware-setting-{{setting.name}}" placeholder="{{setting.label}}" autocomplete="off" required [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">
-					</div>
-					<div class="form-group" *ngSwitchCase="'boolean'">
-						<div class="checkbox">
-							<label><input type="checkbox" [(ngModel)]="setting.value" name="{{setting.name}}" #field="ngModel">{{setting.label}}</label>
-						</div>
-					</div>
-					</ng-container>
-					</ng-container>
-					</ng-container>
-					<!-- / settings -->
+					<settings [settingsData]="hardware.settings" [settingsForm]="hardwareForm" #settingsComponent="settingsComponent"></settings>
 
 				</div>
-
-
 
 <!-- fix the misalignment of buttons with ngSwitch -->
 				<div class="box-footer row actionrow">

@@ -62,6 +62,10 @@ namespace micasa {
 		} );
 	};
 
+	ZWave::~ZWave() {
+		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+	};
+
 	void ZWave::start() {
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
@@ -284,6 +288,14 @@ namespace micasa {
 				case Notification::Type_AllNodesQueried:
 				case Notification::Type_AllNodesQueriedSomeDead: {
 					this->setState( Hardware::State::READY );
+					
+					// At this point we're going to instruct all nodes to report their configuration parameters.
+					g_logger->logr( Logger::LogLevel::WARNING, this, "Requesting all node configuration parameters." );
+					auto nodes = g_controller->getChildrenOfHardware( *this );
+					for ( auto nodeIt = nodes.begin(); nodeIt != nodes.end(); nodeIt++ ) {
+						auto node = std::static_pointer_cast<ZWaveNode>( *nodeIt );
+						Manager::Get()->RequestAllConfigParams( node->m_homeId, node->m_nodeId );
+					}
 					break;
 				}
 
@@ -305,14 +317,12 @@ namespace micasa {
 					break;
 				}
 
-				case Notification::Type_NodeProtocolInfo: {
+				case Notification::Type_NodeAdded: {
 					if (
 						homeId == this->m_homeId
 						&& nodeId > 1 // skip the controller (most likely node 1)
 					) {
-						std::string label = Manager::Get()->GetNodeType( homeId, nodeId );
 						g_controller->declareHardware( Hardware::Type::ZWAVE_NODE, reference.str(), this->shared_from_this(), {
-							{ "label", label },
 							{ "home_id", std::to_string( homeId ) },
 							{ "node_id", std::to_string( nodeId ) }
 						}, true /* auto start */ );
@@ -320,10 +330,7 @@ namespace micasa {
 				}
 
 				case Notification::Type_NodeNaming: {
-					if (
-						homeId == this->m_homeId
-						&& nodeId == 1 // most likely the controller node
-					) {
+					if ( node == nullptr ) {
 						std::string manufacturer = Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
 						std::string product = Manager::Get()->GetNodeProductName( homeId, nodeId );
 						std::string nodeName = Manager::Get()->GetNodeName( homeId, nodeId );
@@ -337,23 +344,6 @@ namespace micasa {
 							this->m_settings->put( "name", nodeName );
 						}
 					}
-					break;
-				}
-
-				case Notification::Type_NodeRemoved: {
-					// The NodeRemove notification is a bit tricky because it is also called upon application close.
-					// We're using it to remove hardware anyhow because the watcher is removed prior to the driver
-					// being removed.
-					if ( node != nullptr ) {
-						g_controller->removeHardware( node );
-					}
-					break;
-				};
-
-				case Notification::Type_ValueRemoved: {
-					// According to the documentation, this notification only occurs when a node is removed from the
-					// network, as apposed to the Type_NodeRemoved notification which also occurs when the application
-					// is shutting down.
 					break;
 				}
 

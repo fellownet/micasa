@@ -64,7 +64,9 @@ namespace micasa {
 							auto device = this->_declareDevice<Counter>( std::to_string( index ), "Counter", {
 								{ "name", input_["name"].get<std::string>() },
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( Counter::SubType::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true },
+								{ DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( Counter::Unit::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
@@ -73,7 +75,9 @@ namespace micasa {
 							auto device = this->_declareDevice<Level>( std::to_string( index ), "Level", {
 								{ "name", input_["name"].get<std::string>() },
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true },
+								{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_UNIT_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
@@ -82,6 +86,7 @@ namespace micasa {
 							auto device = this->_declareDevice<Text>( std::to_string( index ), "Text", {
 								{ "name", input_["name"].get<std::string>() },
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Text::resolveSubType( Text::SubType::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
@@ -90,6 +95,7 @@ namespace micasa {
 							auto device = this->_declareDevice<Switch>( std::to_string( index ), "Switch", {
 								{ "name", input_["name"].get<std::string>() },
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) },
 								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 							}, true /* auto start */ );
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );

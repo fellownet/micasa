@@ -1,8 +1,14 @@
-import { Component, OnInit }      from '@angular/core';
+import { Component, OnInit, Input }      from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Device, DevicesService } from './devices.service';
 import { Hardware }               from '../hardware/hardware.service';
 import { Script, ScriptsService } from '../scripts/scripts.service';
+import {
+	Screen,
+	Widget,
+	ScreensService
+}                                 from '../screens/screens.service';
+import { SettingsComponent }      from '../settings/settings.component';
 
 declare var Highcharts: any;
 
@@ -17,18 +23,23 @@ export class DeviceDetailsComponent implements OnInit {
 	device: Device;
 	hardware?: Hardware;
 	scripts: Script[] = [];
+	screens: Screen[] = [];
+
+	@Input( "settingsComponent" ) public settingsComponent: SettingsComponent;
 
 	constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
 		private _devicesService: DevicesService,
-		private _scriptsService: ScriptsService
+		private _scriptsService: ScriptsService,
+		private _screensService: ScreensService
 	) {
 	};
 
 	ngOnInit() {
 		var me = this;
 		this.getScripts();
+		this.getScreens();
 
 		this._route.data.subscribe( function( data_: any ) {
 			me.device = data_.device;
@@ -198,6 +209,20 @@ export class DeviceDetailsComponent implements OnInit {
 			.subscribe(
 				function( scripts_: Script[]) {
 					me.scripts = scripts_;
+				},
+				function( error_: String ) {
+					me.error = error_;
+				}
+			)
+		;
+	};
+
+	public getScreens() {
+		var me = this;
+		this._screensService.getScreens()
+			.subscribe(
+				function( screens_: Screen[] ) {
+					me.screens = screens_;
 				},
 				function( error_: String ) {
 					me.error = error_;

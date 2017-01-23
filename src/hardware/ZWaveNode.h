@@ -33,18 +33,17 @@ namespace micasa {
 		json getJson( bool full_ = false ) const override;
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 * 60 * 5 ); };
 
 	private:
 		unsigned int m_homeId = 0;
 		unsigned int m_nodeId = 0;
-		bool m_doNamingUpdate = false;
 		json m_configuration = json::object();
 		mutable std::mutex m_configurationMutex;
-		std::vector<std::string> m_doConfigSync;
 
 		void _handleNotification( const Notification* notification_ );
 		void _processValue( const ValueID& valueId_, Device::UpdateSource source_ );
+		void _updateNames();
 		void _installResourceHandlers();
 
 	}; // class ZWaveNode

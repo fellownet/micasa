@@ -57,4 +57,8 @@ export class DevicesListComponent implements OnInit, OnChanges {
 		}
 	};
 
+	emptyValue( value_: any ): boolean {
+		return String( value_ ).length == 0;
+	};
+
 }

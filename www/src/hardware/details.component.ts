@@ -1,10 +1,8 @@
-import { Component, OnInit }         from '@angular/core';
+import { Component, OnInit, Input }  from '@angular/core';
 import { Router, ActivatedRoute }    from '@angular/router';
-import {
-	Hardware, Setting, Option,
-	HardwareService
-}                                    from './hardware.service';
+import { Hardware, HardwareService } from './hardware.service';
 import { Device }                    from '../devices/devices.service';
+import { SettingsComponent }         from '../settings/settings.component';
 
 declare var $: any;
 
@@ -18,8 +16,7 @@ export class HardwareDetailsComponent implements OnInit {
 	error: String;
 	hardware: Hardware;
 
-	hasAdvancedSettings: boolean;
-	showAdvancedSettings: boolean;
+	@Input( "settingsComponent" ) public settingsComponent: SettingsComponent;
 
 	zwavemode: string;
 
@@ -34,11 +31,6 @@ export class HardwareDetailsComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.hardware = data_.hardware;
-			for ( let setting of me.hardware.settings ) {
-				if ( setting.class == 'advanced' ) {
-					me.hasAdvancedSettings = true;
-				}
-			}
 		} );
 	};
 

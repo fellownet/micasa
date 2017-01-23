@@ -224,6 +224,7 @@ a:focus, button:focus {
 .content .content-header > h1 {
 	margin: 0;
 	font-size: 24px;
+	max-width: calc(50% - 3em);
 }
 .content .content-header > h1 > small {
 	font-size: 15px;
@@ -298,6 +299,9 @@ a:focus, button:focus {
 	}
 	.content .content-header > .breadcrumb li:before {
 		color: #97a0b3;
+	}
+	.content .content-header > h1 {
+		max-width: 100%;
 	}
 }
 

@@ -50,6 +50,9 @@ namespace micasa {
 		assert( g_network && "Global Network instance should be destroyed after global WebServer instance." );
 		assert( g_database && "Global Database instance should be destroyed after global WebServer instance." );
 		assert( g_controller && "Global Controller instance should be destroyed after global WebServer instance." );
+		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Resource %s not removed.", (*resourceIt)->uri.c_str() );
+		}
 		assert( this->m_resources.size() == 0 && "All resources should be removed before the global WebServer instance is destroyed." );
 #endif // _DEBUG
 	};
@@ -361,15 +364,14 @@ namespace micasa {
 				output["code"] = exception_.code;
 				output["error"] = exception_.error;
 				output["message"] = exception_.message;
-			}
-/*
-			 catch( ... ) {
+#ifndef _DEBUG
+			} catch( ... ) {
 				output["result"] = "ERROR";
 				output["code"] = 500;
 				output["error"] = "Resource.Failure";
 				output["message"] = "The requested resource failed to load.";
+#endif // not _DEBUG
 			}
-*/
 
 #ifdef _DEBUG
 			assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
@@ -410,7 +412,7 @@ namespace micasa {
 				if ( find != input_.end() ) {
 					hardwareId = std::stoi( (*find).get<std::string>() );
 					if ( nullptr == ( hardware = g_controller->getHardwareById( hardwareId ) ) ) {
-						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+						return;
 					}
 				}
 
@@ -452,8 +454,6 @@ namespace micasa {
 						if ( hardwareId != -1 ) {
 							g_controller->removeHardware( hardware );
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -464,12 +464,12 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& hardwareId != -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& hardwareId == -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						}
 
 						if ( hardwareId == -1 ) {
@@ -590,7 +590,7 @@ namespace micasa {
 				if ( find != input_.end() ) {
 					deviceId = std::stoi( (*find).get<std::string>() );
 					if ( nullptr == ( device = g_controller->getDeviceById( deviceId ) ) ) {
-						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+						return;
 					}
 				}
 
@@ -672,8 +672,6 @@ namespace micasa {
 						) {
 							device->getHardware()->removeDevice( device );
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -794,8 +792,6 @@ namespace micasa {
 							device->getSettings()->commit();
 							output_["data"] = device->getJson( true );
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -845,8 +841,6 @@ namespace micasa {
 
 							output_["data"] = device->getJson( true );
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -880,7 +874,7 @@ namespace micasa {
 							scriptId
 						);
 					} catch( ... ) {
-						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+						return;
 					}
 				}
 				
@@ -908,8 +902,6 @@ namespace micasa {
 								scriptId
 							);
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -920,12 +912,12 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& scriptId != -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& scriptId == -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						}
 					
 						auto find = input_.find( "name" );
@@ -1040,7 +1032,7 @@ namespace micasa {
 						);
 						_addTimerData( timer );
 					} catch( ... ) {
-						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+						return;
 					}
 				}
 
@@ -1071,8 +1063,6 @@ namespace micasa {
 								timerId
 							);
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -1083,12 +1073,12 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& timerId != -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& timerId == -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							break;
 						}
 
 						auto find = input_.find( "name" );
@@ -1271,7 +1261,7 @@ namespace micasa {
 					);
 					output_["code"] = 200;
 				} else {
-					throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+					return;
 				}
 
 				json token = {
@@ -1310,7 +1300,7 @@ namespace micasa {
 							userId
 						);
 					} catch( ... ) {
-						throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+						return;
 					}
 				}
 
@@ -1341,8 +1331,6 @@ namespace micasa {
 							g_settings->remove( setting );
 							g_settings->commit();
 							output_["code"] = 200;
-						} else {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
 						}
 						break;
 					}
@@ -1353,12 +1341,12 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& userId != -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							return;
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& userId == -1
 						) {
-							throw WebServer::ResourceException( { 404, "Resource.Not.Found", "The requested resource was not found." } );
+							return;
 						}
 
 						auto find = input_.find( "name" );

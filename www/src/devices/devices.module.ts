@@ -1,7 +1,9 @@
 import { NgModule }               from '@angular/core';
 import { CommonModule }           from '@angular/common';
 import { FormsModule }            from '@angular/forms';
+
 import { GridModule }             from '../grid/grid.module';
+import { SettingsModule }         from '../settings/settings.module';
 
 import { DevicesListComponent }   from './list.component';
 import { DeviceDetailsComponent } from './details.component';
@@ -15,6 +17,7 @@ import { WidgetsModule }          from '../widgets/widgets.module';
 		FormsModule,
 		DevicesRoutingModule,
 		GridModule,
+		SettingsModule,
 		WidgetsModule
 	],
 	declarations: [

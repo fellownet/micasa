@@ -1,6 +1,6 @@
 <section class="content-header" *ngIf="!hardware || devices.length>0">
-<h1>Devices<small>the information that excites</small></h1>
-<ol class="breadcrumb">
+<h1>Devices</h1>
+<ol class="breadcrumb" *ngIf="!hardware">
 	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
 	<li><a routerLink="/devices"><i class="fa fa-thermometer-half"></i> Devices</a></li>
 </ol>
@@ -52,7 +52,7 @@
 	>
 		<!-- td>{{device.id}}</td -->
 		<td>{{device.name}}</td>
-		<td><span class="label"
+		<td><span class="label" *ngIf="!emptyValue(device.value)"
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"
 			[class.label-info]="device.value!='On' && device.value!='Off'"

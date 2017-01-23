@@ -44,6 +44,10 @@ namespace micasa {
 		} );
 	};
 	
+	SolarEdge::~SolarEdge() {
+		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
+	};
+	
 	void SolarEdge::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();

@@ -1,7 +1,7 @@
 import { NgModule }                 from '@angular/core';
 import { CommonModule }             from '@angular/common';
 import { FormsModule }              from '@angular/forms';
-import { GridModule }             from '../grid/grid.module';
+import { GridModule }               from '../grid/grid.module';
 
 import { ScriptsListComponent }     from './list.component';
 import { ScriptDetailsComponent }   from './details.component';

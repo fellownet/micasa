@@ -14,23 +14,7 @@ import {
 import { Observable }      from 'rxjs/Observable';
 import { Hardware }        from '../hardware/hardware.service';
 import { UsersService }    from '../users/users.service';
-
-export class Option {
-	label: string;
-	value: string;
-}
-
-export class Setting {
-	label: string;
-	description?: string;
-	name: string;
-	type: string;
-	class: string;
-	value?: any;
-	min?: number;
-	max?: number;
-	options?: Option[];
-}
+import { Setting }         from '../settings/settings.service';
 
 export class Device {
 	id: number;

@@ -42,16 +42,18 @@ namespace micasa {
 		assert( this->m_settings->contains( { "home_id", "node_id" } ) && "ZWaveNode should be declared with home_id and node_id." );
 #endif // _DEBUG
 
-		// TODO when this hardware is started and stopped while the zwave parent hardware keeps running,
-		// the state remains initializing > fix. Check the parent initializing state. If it is still initializing
-		// do nothing, otherwise query the node our self. This still might overlap, so additional tweaking is
-		// probably necessary.
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		this->m_homeId = this->m_settings->get<unsigned int>( "home_id" );
 		this->m_nodeId = this->m_settings->get<unsigned int>( "node_id" );
 
 		this->_installResourceHandlers();
+
+		// If the parent z-wave hardware is already running we can immediately set the state of this node
+		// to ready.
+		if ( this->getParent()->getState() == Hardware::State::READY ) {
+			this->setState( Hardware::State::READY );
+		}
 
 		Hardware::start();
 	};
@@ -61,76 +63,6 @@ namespace micasa {
 		g_webServer->removeResourceCallback( "zwavenode-" + std::to_string( this->m_id ) );
 		Hardware::stop();
 	};
-
-	std::chrono::milliseconds ZWaveNode::_work( const unsigned long int& iteration_ ) {
-		unsigned int wait = 1000 * 60 * 5; // 5 mins default
-		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-			if (
-				this->getState() == Hardware::State::READY
-				&& this->getParent()->getState() == Hardware::State::READY
-			) {
-
-				if ( this->m_doNamingUpdate ) {
-			
-					// Update the label of the node (which is the name the hardware reports).
-					std::string manufacturer = Manager::Get()->GetNodeManufacturerName( this->m_homeId, this->m_nodeId );
-					std::string product = Manager::Get()->GetNodeProductName( this->m_homeId, this->m_nodeId );
-					if ( ! manufacturer.empty() ) {
-						this->m_settings->put( "label", manufacturer + " " + product );
-					}
-
-					std::string nodeName = Manager::Get()->GetNodeName( this->m_homeId, this->m_nodeId );
-					if ( ! nodeName.empty() ) {
-						if ( this->m_settings->get( "name", "" ).empty() ) {
-							// If no name has been entered yet for this hardware, use the one from openzwave.
-							this->m_settings->put( "name", nodeName );
-						} else if ( nodeName != this->m_settings->get( "name" ) ) {
-							// Make sure the configured hardware name is the same as the node name used by
-							// openzwave and stored in the config xml file.
-							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, this->m_settings->get( "name" ) );
-						}
-					}
-					this->m_doNamingUpdate = false;
-				}
-
-				std::lock_guard<std::mutex> lock( this->m_configurationMutex );
-				if ( this->m_doConfigSync.size() > 0 ) {
-					
-					// Push all of our settings to the node to make sure it has the same settings as we do in
-					// the database.
-					for ( auto referenceIt = this->m_doConfigSync.begin(); referenceIt != this->m_doConfigSync.end(); referenceIt++ ) {
-						ValueID valueId( this->m_homeId, std::stoull( *referenceIt ) );
-						ValueID::ValueType type = valueId.GetType();
-						try {
-							auto& config = this->m_configuration[*referenceIt];
-							if ( type == ValueID::ValueType_Decimal ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<float>() );
-							} else if ( type == ValueID::ValueType_Bool ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<bool>() );
-							} else if ( type == ValueID::ValueType_Byte ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<uint8>() );
-							} else if ( type == ValueID::ValueType_Short ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<int16>() );
-							} else if ( type == ValueID::ValueType_Int ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<int32>() );
-							} else if ( type == ValueID::ValueType_List ) {
-								Manager::Get()->SetValueListSelection( valueId, config["value"].get<std::string>() );
-							} else if ( type == ValueID::ValueType_String ) {
-								Manager::Get()->SetValue( valueId, config["value"].get<std::string>() );
-							}
-						} catch( ... ) { }
-					}
-					g_logger->log( Logger::LogLevel::WARNING, this, "Configuration synchronized." );
-					this->m_doConfigSync.clear();
-				}
-			} else {
-				// Perform work method more often (every second) while still initializing.
-				wait = 1000;
-			}
-			ZWave::g_managerMutex.unlock();
-		}
-		return std::chrono::milliseconds( wait );
-	}
 
 	std::string ZWaveNode::getLabel() const {
 		return this->m_settings->get( "label", "Z-Wave Node" );
@@ -227,24 +159,22 @@ namespace micasa {
 		switch( notification_->GetType() ) {
 
 			case Notification::Type_EssentialNodeQueriesComplete: {
-				// This is the point after which the node can accept commands.
 				if ( this->getState() == Hardware::State::INIT ) {
 					g_logger->log( Logger::LogLevel::NORMAL, this, "Node ready." );
 					this->setState( Hardware::State::READY );
 				}
+				this->_updateNames();
 				break;
 			}
-			
+
 			case Notification::Type_NodeQueriesComplete: {
-				// Run any pending updates on the node immediately after the node is fully initialized.
-				this->wakeUp();
+				this->_updateNames();
 				break;
 			}
 
 			case Notification::Type_ValueAdded: {
 				ValueID valueId = notification_->GetValueID();
 				this->_processValue( valueId, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE );
-				this->m_doNamingUpdate = true;
 				break;
 			}
 
@@ -260,7 +190,7 @@ namespace micasa {
 						if ( this->getState() == Hardware::State::FAILED ) {
 							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is alive again." );
 						}
-						this->m_doNamingUpdate = true;
+						this->_updateNames();
 						this->setState( Hardware::State::READY );
 						break;
 					}
@@ -274,7 +204,7 @@ namespace micasa {
 							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is awake again." );
 						}
 						this->setState( Hardware::State::READY );
-						this->m_doNamingUpdate = true;
+						this->_updateNames();
 						break;
 					}
 					case Notification::Code_Sleep: {
@@ -290,9 +220,12 @@ namespace micasa {
 				break;
 			}
 
+			case Notification::Type_NodeProtocolInfo: {
+				this->_updateNames();
+			}
+
 			case Notification::Type_NodeNaming: {
-				this->m_doNamingUpdate = true;
-				this->wakeUp();
+				this->_updateNames();
 				break;
 			}
 
@@ -306,6 +239,8 @@ namespace micasa {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
 		std::string reference = std::to_string( valueId_.GetId() );
 		std::string units = Manager::Get()->GetValueUnits( valueId_ );
+		
+		//ValueID::ValueGenre genre = valueId_.GetGenre();
 
 		// Some values are not going to be processed ever and can be filtered out beforehand.
 		if (
@@ -533,7 +468,7 @@ namespace micasa {
 			case COMMAND_CLASS_WAKE_UP:
 			case COMMAND_CLASS_CONFIGURATION: {
 				std::lock_guard<std::mutex> lock( this->m_configurationMutex );
-				
+			
 				if (
 					commandClass == COMMAND_CLASS_WAKE_UP
 					&& label != "Wake-up Interval"
@@ -559,6 +494,7 @@ namespace micasa {
 				};
 
 				ValueID::ValueType type = valueId_.GetType();
+				
 				if ( type == ValueID::ValueType_Decimal ) {
 					setting["type"] = "double";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
@@ -569,26 +505,12 @@ namespace micasa {
 					}
 					float floatValue = 0;
 					Manager::Get()->GetValueAsFloat( valueId_, &floatValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get<double>( reference );
-						if ( floatValue != this->m_settings->get<double>( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = floatValue;
-					}
+					setting["value"] = floatValue;
 				} else if ( type == ValueID::ValueType_Bool ) {
 					setting["type"] = "boolean";
 					bool boolValue = 0;
 					Manager::Get()->GetValueAsBool( valueId_, &boolValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get<bool>( reference );
-						if ( boolValue != this->m_settings->get<bool>( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = boolValue;
-					}
+					setting["value"] = boolValue;
 				} else if ( type == ValueID::ValueType_Byte ) {
 					setting["type"] = "byte";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
@@ -599,14 +521,7 @@ namespace micasa {
 					}
 					unsigned char byteValue = 0;
 					Manager::Get()->GetValueAsByte( valueId_, &byteValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get<unsigned int>( reference );
-						if ( byteValue != this->m_settings->get<unsigned int>( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = byteValue;
-					}
+					setting["value"] = byteValue;
 				} else if ( type == ValueID::ValueType_Short ) {
 					setting["type"] = "short";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
@@ -617,14 +532,7 @@ namespace micasa {
 					}
 					short shortValue = 0;
 					Manager::Get()->GetValueAsShort( valueId_, &shortValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get<int>( reference );
-						if ( shortValue != this->m_settings->get<int>( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = shortValue;
-					}
+					setting["value"] = shortValue;
 				} else if ( type == ValueID::ValueType_Int ) {
 					setting["type"] = "int";
 					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
@@ -635,14 +543,7 @@ namespace micasa {
 					}
 					int intValue = 0;
 					Manager::Get()->GetValueAsInt( valueId_, &intValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get<int>( reference );
-						if ( intValue != this->m_settings->get<int>( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = intValue;
-					}
+					setting["value"] = intValue;
 				} else if ( type == ValueID::ValueType_Button ) {
 					// Perform action, such as reset to factory defaults.
 					// TODO these should actually be action resources directly, but how to name the resource?
@@ -652,14 +553,7 @@ namespace micasa {
 					setting["type"] = "list";
 					std::string listValue;
 					Manager::Get()->GetValueListSelection( valueId_, &listValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get( reference );
-						if ( listValue != this->m_settings->get( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = listValue;
-					}
+					setting["value"] = listValue;
 
 					setting["options"] = json::array();
 					std::vector<std::string> items;
@@ -674,14 +568,16 @@ namespace micasa {
 					setting["type"] = "string";
 					std::string stringValue;
 					Manager::Get()->GetValueAsString( valueId_, &stringValue );
-					if ( this->m_settings->contains( reference ) ) {
-						setting["value"] = this->m_settings->get( reference );
-						if ( stringValue != this->m_settings->get( reference ) ) {
-							this->m_doConfigSync.push_back( reference );
-						}
-					} else {
-						setting["value"] = stringValue;
-					}
+					setting["value"] = stringValue;
+				}
+				
+				// If the variable is readonly it's type is overridden to display, meaning that the client should
+				// show the value for informational purpose only.
+				if ( Manager::Get()->IsValueReadOnly( valueId_ ) ) {
+					setting["type"] = "display";
+					setting["readonly"] = true;
+				} else {
+					setting["readonly"] = false;
 				}
 
 				this->m_configuration[reference] = setting;
@@ -698,6 +594,31 @@ namespace micasa {
 				break;
 			}
 		}
+	};
+
+	void ZWaveNode::_updateNames() {
+		std::string type = Manager::Get()->GetNodeType( this->m_homeId, this->m_nodeId );
+		std::string manufacturer = Manager::Get()->GetNodeManufacturerName( this->m_homeId, this->m_nodeId );
+		std::string product = Manager::Get()->GetNodeProductName( this->m_homeId, this->m_nodeId );
+		if ( ! manufacturer.empty() ) {
+			this->m_settings->put( "label", manufacturer + " " + product );
+		} else if ( ! type.empty() ) {
+			this->m_settings->put( "label", type );
+		}
+
+		std::string nodeName = Manager::Get()->GetNodeName( this->m_homeId, this->m_nodeId );
+		if ( ! nodeName.empty() ) {
+			if ( this->m_settings->get( "name", "" ).empty() ) {
+				// If no name has been entered yet for this hardware, use the one from openzwave.
+				this->m_settings->put( "name", nodeName );
+			} else if ( nodeName != this->m_settings->get( "name" ) ) {
+				// Make sure the configured hardware name is the same as the node name used by
+				// openzwave and stored in the config xml file.
+				Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, this->m_settings->get( "name" ) );
+			}
+		}
+		
+		this->m_settings->commit();
 	};
 
 	void ZWaveNode::_installResourceHandlers() {
@@ -732,7 +653,7 @@ namespace micasa {
 		
 		// Add resource handler for settings update.
 		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
+			"zwavenode-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
 			User::Rights::INSTALLER,
@@ -745,16 +666,25 @@ namespace micasa {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
 					// Set the node name so it's persistant. This name is stored in the xml config file.
-					if ( input_.find( "name" ) != input_.end() ) {
-						Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, input_["name"].get<std::string>() );
+					auto find = input_.find( "name" );
+					if ( find != input_.end() ) {
+						if ( (*find).is_string() ) {
+							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, (*find).get<std::string>() );
+						} else {
+							throw WebServer::ResourceException( { 400, "Hardware.Invalid.Name", "The supplied name is invalid." } );
+						}
 					}
 
 					// Then all pushed settings are processed. The settings should be pushed to the server in
 					// the same format as they are received.
-					if ( input_.find( "settings" ) != input_.end() ) {
-						if ( input_["settings"].is_array() ) {
-							for ( auto settingIt = input_["settings"].begin(); settingIt != input_["settings"].end(); settingIt++ ) {
+					find = input_.find( "settings" );
+					if ( find != input_.end() ) {
+						if ( (*find).is_array() ) {
+
+							for ( auto settingIt = (*find).begin(); settingIt != (*find).end(); settingIt++ ) {
 								auto setting = (*settingIt);
+								
+								// Only process this setting if it exists in the configuration.
 								if (
 									setting.find( "name" ) != setting.end()
 									&& setting.find( "value" ) != setting.end()
@@ -763,22 +693,25 @@ namespace micasa {
 									bool success = true;
 									auto reference = setting["name"].get<std::string>();
 									auto& config = this->m_configuration[reference];
+									
+									if ( config["readonly"].get<bool>() ) {
+										continue;
+									}
 
 									ValueID valueId( this->m_homeId, std::stoull( reference ) );
 									ValueID::ValueType type = valueId.GetType();
+									
 									if ( type == ValueID::ValueType_Decimal ) {
 										success = success && setting["value"].get<float>() <= config["max"].get<float>();
 										success = success && setting["value"].get<float>() >= config["min"].get<float>();
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<float>();
-											this->m_settings->put( reference, setting["value"].get<float>() );
 										}
 									} else if ( type == ValueID::ValueType_Bool ) {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<bool>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<bool>();
-											this->m_settings->put( reference, setting["value"].get<bool>() );
 										}
 									} else if ( type == ValueID::ValueType_Byte ) {
 										success = success && setting["value"].get<unsigned int>() <= config["max"].get<unsigned int>();
@@ -786,7 +719,6 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<uint8>();
-											this->m_settings->put( reference, setting["value"].get<uint8>() );
 										}
 									} else if ( type == ValueID::ValueType_Short ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -794,7 +726,6 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int16>();
-											this->m_settings->put( reference, setting["value"].get<int16>() );
 										}
 									} else if ( type == ValueID::ValueType_Int ) {
 										success = success && setting["value"].get<int>() <= config["max"].get<int>();
@@ -802,7 +733,6 @@ namespace micasa {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<int32>();
-											this->m_settings->put( reference, setting["value"].get<int32>() );
 										}
 									} else if ( type == ValueID::ValueType_List ) {
 										bool exists = false;
@@ -816,17 +746,14 @@ namespace micasa {
 										success = success && Manager::Get()->SetValueListSelection( valueId, setting["value"].get<std::string>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<std::string>();
-											this->m_settings->put( reference, setting["value"].get<std::string>() );
 										}
 									} else if ( type == ValueID::ValueType_String ) {
 										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<std::string>() );
 										if ( success ) {
 											config["value"] = setting["value"].get<std::string>();
-											this->m_settings->put( reference, setting["value"].get<std::string>() );
 										}
 									}
 									
-									// Add a more descriptive message to the error if possible.
 									if ( ! success ) {
 										unsigned int index = valueId.GetIndex();
 										throw WebServer::ResourceException( { 400, "Hardware.Invalid.Settings", "Invalid value for parameter " + std::to_string( index ) + "." } );
