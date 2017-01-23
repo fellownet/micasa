@@ -40,7 +40,7 @@ namespace micasa {
 		} catch( const Database::NoResultsException& ex_ ) { }
 
 		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( this->m_id ),
+			"device-" + std::to_string( this->m_id ) + "-data",
 			"^api/devices/" + std::to_string( this->m_id ) + "/data$",
 			100,
 			User::Rights::VIEWER,
@@ -74,6 +74,7 @@ namespace micasa {
 	};
 
 	void Counter::stop() {
+		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) + "-data" );
 		Device::stop();
 	};
 	
