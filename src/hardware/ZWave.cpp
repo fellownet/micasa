@@ -349,6 +349,16 @@ namespace micasa {
 					}
 					break;
 				}
+				
+				case Notification::Type_NodeRemoved: {
+					// The NodeRemove notification is called on exclusion of nodes aswell as application shutdown.
+					// NOTE we're removing the watcher before the driver so this event should not be executed when
+					// the application is shutdown.
+					if ( node != nullptr ) {
+						g_controller->removeHardware( node );
+					}
+					break;
+				};
 
 				default: {
 					break;

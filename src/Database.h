@@ -1,18 +1,11 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
-#include <vector>
 #include <string>
-#include <vector>
-#include <sqlite3.h>
 #include <vector>
 #include <map>
 #include <mutex>
 
-#include "Logger.h"
+#include <sqlite3.h>
 
 #include "json.hpp"
 

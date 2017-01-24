@@ -1,14 +1,8 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <chrono>
 
 #include "../Hardware.h"
-#include "../Worker.h"
-#include "../WebServer.h"
 
 namespace micasa {
 
@@ -31,7 +25,7 @@ namespace micasa {
 	private:
 		bool m_first = true;
 		
-		void _processHttpReply( mg_connection* connection_, const http_message* message_ );
+		void _processHttpReply( const std::string& body_ );
 	
 	}; // class WeatherUnderground
 

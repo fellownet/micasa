@@ -5,11 +5,9 @@
 #include <vector>
 #include <memory>
 
-#include "Logger.h"
-#include "WebServer.h"
 #include "Device.h"
 #include "Settings.h"
-#include "Settings.h"
+#include "Worker.h"
 
 namespace micasa {
 

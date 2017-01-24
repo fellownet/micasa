@@ -37,7 +37,6 @@
 <table class="table table-hover" [gridData]="devices" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
-		<th [gridField]="'id'">Id</th>
 		<th [gridField]="'name'">Name</th>
 		<th>Value</th>
 		<th>Hardware</th>
@@ -50,7 +49,6 @@
 	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)"
 		[class.danger]="!device.enabled"
 	>
-		<td>{{device.id}}</td>
 		<td>{{device.name}}</td>
 		<td><span class="label" *ngIf="!emptyValue(device.value)"
 			[class.label-success]="device.value=='On'"

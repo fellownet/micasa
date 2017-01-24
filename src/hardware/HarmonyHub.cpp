@@ -3,10 +3,12 @@
 #include "json.hpp"
 
 #include "../Utils.h"
+#include "../WebServer.h"
 #include "../device/Switch.h"
 #include "../Network.h"
 #include "../Settings.h"
 #include "../User.h"
+#include "../Logger.h"
 
 #define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
 #define HARMONY_HUB_PING_INTERVAL_SEC	30

@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+#include "Logger.h"
+#include "WebServer.h"
 #include "Controller.h"
 #include "Database.h"
 #include "Settings.h"

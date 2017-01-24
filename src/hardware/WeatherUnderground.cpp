@@ -1,16 +1,21 @@
 #include <sstream>
 
-#include "json.hpp"
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
 
 #include "WeatherUnderground.h"
 #include "../device/Level.h"
 #include "../device/Text.h"
 #include "../device/Counter.h"
 #include "../device/Switch.h"
+#include "../WebServer.h"
 #include "../Logger.h"
 #include "../Network.h"
 #include "../Utils.h"
 #include "../User.h"
+
+#include "json.hpp"
 
 namespace micasa {
 
@@ -118,7 +123,10 @@ namespace micasa {
 
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
-				this->_processHttpReply( connection_, (http_message*)data_ );
+				std::string body;
+				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+				this->_processHttpReply( body );
+				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 			}  else if (
 				event_ == MG_EV_CLOSE
 				&& this->getState() == Hardware::State::INIT
@@ -131,12 +139,9 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 
-	void WeatherUnderground::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
-		std::string body;
-		body.assign( message_->body.p, message_->body.len );
-		
+	void WeatherUnderground::_processHttpReply( const std::string& body_ ) {
 		try {
-			json data = json::parse( body );
+			json data = json::parse( body_ );
 
 			if ( data["response"].is_object() ) {
 				if ( data["response"]["error"].is_null() ) {
@@ -215,8 +220,6 @@ namespace micasa {
 			this->setState( Hardware::State::FAILED );
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 		}
-		
-		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 	};
 	
 }; // namespace micasa

@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <thread>
 #include <chrono>
 #include <mutex>

@@ -6,7 +6,6 @@
 #include <set>
 #include <sstream>
 
-#include "Logger.h"
 #include "Worker.h"
 #include "Utils.h"
 
@@ -15,12 +14,6 @@ extern "C" {
 } // extern "C"
 
 #define MG_EV_SHUTDOWN 999
-
-/*
- terminology:
-	handler = internal
-	callback = external
- */
 
 namespace micasa {
 	

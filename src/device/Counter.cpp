@@ -1,5 +1,6 @@
 #include "Counter.h"
 
+#include "../Logger.h"
 #include "../Database.h"
 #include "../Hardware.h"
 #include "../Controller.h"

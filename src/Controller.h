@@ -6,10 +6,9 @@
 #include <iostream>
 #include <list>
 
-#include "WebServer.h"
-#include "Worker.h"
 #include "Hardware.h"
 #include "Settings.h"
+#include "Worker.h"
 
 #include "device/Counter.h"
 #include "device/Level.h"
@@ -70,7 +69,7 @@ namespace micasa {
 			bool clear;
 			bool recur;
 		}; // struct TaskOptions
-		
+
 		Controller();
 		~Controller();
 

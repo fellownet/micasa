@@ -1,7 +1,12 @@
 #include <memory>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 #include "Database.h"
 #include "Structs.h"
+#include "Logger.h"
 
 namespace micasa {
 

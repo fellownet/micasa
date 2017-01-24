@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <type_traits>
+
 #include "json.hpp"
 
 namespace micasa {

@@ -1,8 +1,10 @@
 #include "User.h"
 
+#include "Logger.h"
 #include "Database.h"
 #include "Controller.h"
 #include "Database.h"
+#include "Settings.h"
 
 #ifdef _DEBUG
 	#include <cassert>

@@ -1,5 +1,6 @@
 #include "Device.h"
 
+#include "Logger.h"
 #include "Hardware.h"
 #include "Database.h"
 

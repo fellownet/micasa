@@ -1,6 +1,11 @@
 #include <iostream>
 #include <sstream>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
+#include "Logger.h"
 #include "Hardware.h"
 #include "Database.h"
 #include "Controller.h"
@@ -11,7 +16,6 @@
 	#include "hardware/ZWave.h"
 	#include "hardware/ZWaveNode.h"
 #endif // _WITH_OPENZWAVE
-
 #include "hardware/WeatherUnderground.h"
 #include "hardware/PiFace.h"
 #include "hardware/PiFaceBoard.h"
@@ -22,15 +26,10 @@
 #include "hardware/SolarEdgeInverter.h"
 #include "hardware/Dummy.h"
 
-#ifdef _DEBUG
-	#include <cassert>
-#endif // _DEBUG
-
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Logger> g_logger;
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
@@ -60,7 +59,7 @@ namespace micasa {
 
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
 #ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be created before Hardware instances." );
+		assert( g_controller && "Global Controller instance should be created before Hardware instances." );
 		assert( g_database && "Global Database instance should be created before Hardware instances." );
 		assert( g_logger && "Global Logger instance should be created before Hardware instances." );
 #endif // _DEBUG
@@ -69,7 +68,7 @@ namespace micasa {
 
 	Hardware::~Hardware() {
 #ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be destroyed after Hardware instances." );
+		assert( g_controller && "Global Controller instance should be destroyed after Hardware instances." );
 		assert( g_database && "Global Database instance should be destroyed after Hardware instances." );
 		assert( g_logger && "Global Logger instance should be destroyed after Hardware instances." );
 #endif // _DEBUG
@@ -151,7 +150,6 @@ namespace micasa {
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
 				auto device = (*devicesIt);
-				g_webServer->removeResourceCallback( "device-" + std::to_string( device->getId() ) );
 				if ( device->isRunning() ) {
 					device->stop();
 				}

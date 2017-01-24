@@ -14,7 +14,12 @@
 #include <cstdlib>
 #include <regex>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 #include "WebServer.h"
+#include "Network.h"
 #include "Controller.h"
 #include "Database.h"
 #include "Logger.h"

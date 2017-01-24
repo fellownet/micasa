@@ -7,9 +7,6 @@
 #include <sstream>
 #include <iomanip>
 
-#define SETTING_TRUE "true"
-#define SETTING_FALSE "false"
-
 namespace micasa {
 
 	class SettingValue: public std::string {

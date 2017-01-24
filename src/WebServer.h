@@ -1,24 +1,24 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <mutex>
 #include <chrono>
 #include <map>
 #include <vector>
 
-#include "Worker.h"
-#include "Network.h"
-#include "User.h"
 #include "Utils.h"
+#include "Worker.h"
 
 #include "json.hpp"
+
+extern "C" {
+	#include "mongoose.h"
+} // extern "C"
 
 namespace micasa {
 
 	using namespace nlohmann;
+
+	class User;
 
 	class WebServer final : public Worker {
 

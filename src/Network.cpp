@@ -5,14 +5,15 @@
 // http://stackoverflow.com/questions/7698488/turn-a-simple-socket-into-an-ssl-socket
 // https://github.com/cesanta/mongoose/blob/master/examples/simplest_web_server/simplest_web_server.c
 
-#include "Network.h"
-
 #include <memory>
 #include <chrono>
 #include <iostream>
 
+#include "Network.h"
+#include "Logger.h"
+
 #ifdef _DEBUG
-#include <cassert>
+	#include <cassert>
 #endif // _DEBUG
 
 extern "C" {

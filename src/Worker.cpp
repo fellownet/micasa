@@ -1,5 +1,9 @@
 #include <iostream>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 #include "Worker.h"
 
 namespace micasa {

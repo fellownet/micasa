@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 namespace micasa {
 
 	const std::vector<std::string> c_queries = {

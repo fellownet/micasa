@@ -1,7 +1,9 @@
 #include <ctime>
 
 #include "SolarEdge.h"
+#include "../Logger.h"
 #include "../Database.h"
+#include "../Network.h"
 #include "../Controller.h"
 #include "../Utils.h"
 #include "../User.h"
@@ -97,7 +99,10 @@ namespace micasa {
 		
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
-				this->_processHttpReply( connection_, (http_message*)data_ );
+				std::string body;
+				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+				this->_processHttpReply( body );
+				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 			} else if (
 				event_ == MG_EV_CLOSE
 				&& this->getState() == Hardware::State::INIT
@@ -110,12 +115,9 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 60 );
 	};
 
-	void SolarEdge::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
-		std::string body;
-		body.assign( message_->body.p, message_->body.len );
-		
+	void SolarEdge::_processHttpReply( const std::string& body_ ) {
 		try {
-			json data = json::parse( body );
+			json data = json::parse( body_ );
 			if (
 				! data["reporters"].empty()
 				&& ! data["reporters"]["count"].empty()
@@ -147,8 +149,6 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 			this->setState( Hardware::State::FAILED );
 		}
-		
-		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 	};
 	
 }; // namespace micasa

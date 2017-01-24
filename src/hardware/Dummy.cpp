@@ -1,7 +1,8 @@
 #include "Dummy.h"
+#include "../Logger.h"
+#include "../WebServer.h"
 #include "../Database.h"
 #include "../User.h"
-
 #include "../device/Counter.h"
 #include "../device/Level.h"
 #include "../device/Text.h"
