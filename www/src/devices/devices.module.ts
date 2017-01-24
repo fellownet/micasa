@@ -9,7 +9,6 @@ import { DevicesListComponent }   from './list.component';
 import { DeviceDetailsComponent } from './details.component';
 import { DevicesService }         from './devices.service';
 import { DevicesRoutingModule }   from './routing.module';
-import { WidgetsModule }          from '../widgets/widgets.module';
 
 @NgModule( {
 	imports: [
@@ -17,8 +16,7 @@ import { WidgetsModule }          from '../widgets/widgets.module';
 		FormsModule,
 		DevicesRoutingModule,
 		GridModule,
-		SettingsModule,
-		WidgetsModule
+		SettingsModule
 	],
 	declarations: [
 		DevicesListComponent,

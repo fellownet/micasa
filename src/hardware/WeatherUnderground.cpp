@@ -28,9 +28,12 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "api_key", settings.at( "api_key" ) );
@@ -85,15 +88,15 @@ namespace micasa {
 					{ "type", "list" },
 					{ "options", {
 						{
-							{ "value", "celcius" },
-							{ "label", "Celcius" }
+							{ "value", "celsius" },
+							{ "label", "Celsius" }
 						},
 						{
 							{ "value", "fahrenheit" },
 							{ "label", "Fahrenheid" }
 						}
 					} },
-					{ "value", this->m_settings->get( "scale", "celcius" ) }
+					{ "value", this->m_settings->get( "scale", "celsius" ) }
 				}
 			};
 			return result;
@@ -160,13 +163,13 @@ namespace micasa {
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
-						   this->m_settings->get( "scale" ) == "celcius"
+						   this->m_settings->get( "scale" ) == "celsius"
 						   && ! data["temp_c"].is_null()
 					   ) {
 							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELCIUS ) }
+								{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELSIUS ) }
 							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}

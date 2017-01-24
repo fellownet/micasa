@@ -24,7 +24,8 @@
 
 #include "json.hpp"
 
-#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 65
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
+#define WEBSERVER_USER_WEBCLIENT_SETTING "_webclient"
 
 namespace micasa {
 
@@ -311,6 +312,22 @@ namespace micasa {
 						user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
 					}
 				} catch( ... ) { }
+			} else if (
+				input.find( "username" ) != input.end()
+				&& input.find( "password" ) != input.end()
+			) {
+				try {
+					auto userData = g_database->getQueryRow(
+						"SELECT `id`, `name`, `rights` "
+						"FROM `users` "
+						"WHERE `username`='%s' "
+						"AND `password`='%s' "
+						"AND `enabled`=1",
+						input["username"].get<std::string>().c_str(),
+						generateHash( input["password"].get<std::string>(), this->m_privateKey ).c_str()
+					);
+					user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
+				} catch( ... ) { }
 			}
 
 			// Prepare the output json object that is eventually send back to the client. Each API request
@@ -364,13 +381,11 @@ namespace micasa {
 				output["code"] = exception_.code;
 				output["error"] = exception_.error;
 				output["message"] = exception_.message;
-#ifndef _DEBUG
 			} catch( ... ) {
 				output["result"] = "ERROR";
 				output["code"] = 500;
 				output["error"] = "Resource.Failure";
 				output["message"] = "The requested resource failed to load.";
-#endif // not _DEBUG
 			}
 
 #ifdef _DEBUG
@@ -402,9 +417,11 @@ namespace micasa {
 			"webserver",
 			"^api/hardware(/([0-9]+))?$",
 			100,
-			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
 
 				std::shared_ptr<Hardware> hardware = nullptr;
 				int hardwareId = -1;
@@ -580,9 +597,11 @@ namespace micasa {
 			"webserver",
 			"^api/devices(/([0-9]+))?$",
 			100,
-			User::Rights::VIEWER,
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
+					return;
+				}
 
 				std::shared_ptr<Device> device = nullptr;
 				int deviceId = -1;
@@ -616,7 +635,10 @@ namespace micasa {
 							// being added to the list.
 							std::shared_ptr<Hardware> hardware = nullptr;
 							auto find = input_.find( "hardware_id" );
-							if ( find != input_.end() ) {
+							if (
+								find != input_.end()
+								&& user_->getRights() >= User::Rights::INSTALLER
+							) {
 								if ( (*find).is_number() ) {
 									hardware = g_controller->getHardwareById( (*find).get<unsigned int>() );
 								} else if ( (*find).is_string() ) {
@@ -627,10 +649,26 @@ namespace micasa {
 								}
 							}
 							
-							bool enabledFilter = false;
+							bool deviceIdsFilter = false;
+							std::vector<std::string> deviceIds;
+							find = input_.find( "device_ids" );
+							if ( find != input_.end() ) {
+								deviceIdsFilter = true;
+								if ( (*find).is_string() ) {
+									deviceIds = stringSplit( (*find).get<std::string>(), ',' );
+								} else {
+									throw WebServer::ResourceException( { 400, "Device.Invalid.DeviceIds", "The supplied device_ids parameter is invalid." } );
+								}
+
+							}
+							
+							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER ); // filter on enabled for non installers
 							bool enabled = true;
 							find = input_.find( "enabled" );
-							if ( find != input_.end() ) {
+							if (
+								find != input_.end()
+								&& user_->getRights() >= User::Rights::INSTALLER
+							) {
 								enabledFilter = true;
 								if ( (*find).is_boolean() ) {
 									enabled = (*find).get<bool>();
@@ -650,6 +688,11 @@ namespace micasa {
 										continue;
 									}
 									if ( ! enabled && (*deviceIt)->isRunning() ) {
+										continue;
+									}
+								}
+								if ( deviceIdsFilter ) {
+									if ( std::find( deviceIds.begin(), deviceIds.end(), std::to_string( (*deviceIt)->getId() ) ) == deviceIds.end() ) {
 										continue;
 									}
 								}
@@ -800,6 +843,7 @@ namespace micasa {
 						if (
 							user_->getRights() >= User::Rights::USER
 							&& deviceId != -1
+							&& ( device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & Device::UpdateSource::API ) == Device::UpdateSource::API
 						) {
 							auto find = input_.find( "value" );
 							if ( find != input_.end() ) {
@@ -857,9 +901,11 @@ namespace micasa {
 			"webserver",
 			"^api/scripts(/([0-9]+))?$",
 			100,
-			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
 
 				json script = json::object();
 				int scriptId = -1;
@@ -994,9 +1040,11 @@ namespace micasa {
 			"webserver",
 			"^api/timers(/([0-9]+))?$",
 			100,
-			User::Rights::INSTALLER,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
 
 				// This helper method adds device- and script data to a timer json object.
 				const auto _addTimerData = []( json& timer_ ) {
@@ -1188,75 +1236,42 @@ namespace micasa {
 			"webserver",
 			"^api/user/(login|refresh)$",
 			100,
-			User::resolveRights( 0 ),
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 
 				json user;
-				
-				// A client is allowed to provide a requested duration for the token.
-				unsigned int duration = WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES;
-				auto find = input_.find( "duration");
-				if ( find != input_.end() ) {
-					if ( (*find).is_number() ) {
-						duration = (*find).get<unsigned int>();
-					} else {
-						throw WebServer::ResourceException( { 400, "Login.Invalid.Duration", "The supplied duration is invalid." } );
-					}
-				}
-				
+			
 				if (
 					method_ == WebServer::Method::POST
 					&& input_["$1"].get<std::string>() == "login"
-					&& user_ == nullptr
 				) {
-					std::string username;
-					std::string password;
-					
-					auto find = input_.find( "username");
-					if ( find == input_.end() ) {
-						throw WebServer::ResourceException( { 400, "Login.Missing.Username", "Missing username." } );
-					} else if ( ! (*find).is_string() ) {
-						throw WebServer::ResourceException( { 400, "Login.Invalid.Username", "The supplied username is invalid." } );
-					} else {
-						username = (*find).get<std::string>();
-					}
-					
-					find = input_.find( "password");
-					if ( find == input_.end() ) {
-						throw WebServer::ResourceException( { 400, "Login.Missing.Password", "Missing password." } );
-					} else if ( ! (*find).is_string() ) {
-						throw WebServer::ResourceException( { 400, "Login.Invalid.Password", "The supplied password is invalid." } );
-					} else {
-						password = generateHash( (*find).get<std::string>(), this->m_privateKey );
-					}
-					
-					try {
-						user = g_database->getQueryRow<json>(
-							"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
-							"FROM `users` "
-							"WHERE `username`='%s' "
-							"AND `password`='%s' "
-							"AND `enabled`=1",
-							duration,
-							username.c_str(),
-							password.c_str()
-						);
-					} catch( const Database::NoResultsException& ex_ ) {
+				
+					// The _processHttpRequest has already checked the username and password, so if no user pas passed to
+					// this callback it means that either the username or password was invalid.
+					if ( user_ == nullptr ) {
 						throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
 					}
+					
+					// Get the rest of the user details necessary to provide a proper webtoken to the client.
+					user = g_database->getQueryRow<json>(
+						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid`, CAST(strftime('%%s','now') AS INTEGER) AS `created` "
+						"FROM `users` "
+						"WHERE `id`=%d ",
+						WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES,
+						user_->getId()
+					);
 					output_["code"] = 201; // Created
 				} else if (
 					method_ == WebServer::Method::GET
 					&& input_["$1"].get<std::string>() == "refresh"
-					&& user != nullptr
+					&& user_ != nullptr
 				) {
 					user = g_database->getQueryRow<json>(
-						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid` "
+						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid`, CAST(strftime('%%s','now') AS INTEGER) AS `created` "
 						"FROM `users` "
 						"WHERE `id`=%d "
 						"AND `enabled`=1",
-						duration,
+						WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES,
 						user_->getId()
 					);
 					output_["code"] = 200;
@@ -1270,10 +1285,13 @@ namespace micasa {
 					{ "valid", user["valid"].get<unsigned int>() }
 				};
 				auto valid = user["valid"].get<unsigned int>();
+				auto created = user["created"].get<unsigned int>();
 				user.erase( "valid" );
+				user.erase( "created" );
 				output_["data"] = {
 					{ "user", user },
 					{ "valid", valid },
+					{ "created", created },
 					{ "token", encrypt( token.dump(), this->m_privateKey ) }
 				};
 			} )
@@ -1283,9 +1301,11 @@ namespace micasa {
 			"webserver",
 			"^api/users(/([0-9]+))?$",
 			100,
-			User::Rights::ADMIN,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::ADMIN ) {
+					return;
+				}
 
 				json user = json::object();
 				int userId = -1;
@@ -1327,9 +1347,6 @@ namespace micasa {
 								"WHERE `id`=%d",
 								userId
 							);
-							std::string setting = WEBSERVER_SETTING_USER_SETTINGS_PREFIX + std::to_string( userId );
-							g_settings->remove( setting );
-							g_settings->commit();
 							output_["code"] = 200;
 						}
 						break;
@@ -1457,15 +1474,18 @@ namespace micasa {
 			"webserver",
 			"^api/user/settings$",
 			100,
-			User::Rights::VIEWER,
 			WebServer::Method::GET | WebServer::Method::PUT,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
+					return;
+				}
+			
+				json settings = json::parse( user_->getSettings()->get( WEBSERVER_USER_WEBCLIENT_SETTING, "{}" ) );
 
-				std::string setting = WEBSERVER_SETTING_USER_SETTINGS_PREFIX + std::to_string( user_->getId() );
 				switch( method_ ) {
 
 					case WebServer::Method::GET: {
-						output_["data"] = json::parse( g_settings->get( setting, "{}" ) );
+						output_["data"] = settings;
 						break;
 					}
 					
@@ -1473,8 +1493,15 @@ namespace micasa {
 						auto find = input_.find( "settings" );
 						if ( find != input_.end() ) {
 							if ( (*find).is_object() ) {
-								g_settings->put( setting, (*find).dump() );
-								g_settings->commit();
+							
+								// For efficiency it is not required for the client to push *all* settings every time. Thus we need to
+								// merge to settings that *are* provided with the onces we already had.
+								for ( auto settingsIt = (*find).begin(); settingsIt != (*find).end(); settingsIt++ ) {
+									settings[settingsIt.key()] = settingsIt.value();
+								}
+								user_->getSettings()->put( WEBSERVER_USER_WEBCLIENT_SETTING, settings.dump() );
+								user_->getSettings()->commit();
+						
 							} else {
 								throw WebServer::ResourceException( { 400, "User.Invalid.Settings", "The supplied settings are invalid." } );
 							}

@@ -47,9 +47,12 @@ namespace micasa {
 			"hardware-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				auto settings = extractSettingsFromJson( input_ );
 				try {
 					this->m_settings->put( "port", settings.at( "port" ) );
@@ -367,9 +370,12 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
 			101,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( this->getState() == Hardware::State::READY ) {
@@ -392,9 +398,12 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "/include$",
 			101,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				// TODO also accept secure inclusion mode
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
@@ -428,9 +437,12 @@ namespace micasa {
 			"zwave-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "/exclude$",
 			101,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 					if ( method_ == WebServer::Method::PUT ) {

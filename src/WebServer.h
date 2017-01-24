@@ -16,8 +16,6 @@
 
 #include "json.hpp"
 
-#define WEBSERVER_SETTING_USER_SETTINGS_PREFIX "_user_settings_"
-
 namespace micasa {
 
 	using namespace nlohmann;
@@ -51,7 +49,6 @@ namespace micasa {
 			const std::string reference;
 			const std::string uri;
 			const unsigned int sort;
-			const User::Rights rights;
 			const WebServer::Method methods;
 			const t_callback callback;
 		}; // struct ResourceCallback

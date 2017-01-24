@@ -1,23 +1,28 @@
 import { Component, Input, OnInit } from '@angular/core';
-import { Device, DevicesService }   from '../devices/devices.service';
+import { Widget }                   from '../screens.service';
+import { Device, DevicesService }   from '../../devices/devices.service';
 
 declare var Highcharts: any;
 
 @Component( {
-	selector: 'levelwidget',
+	selector   : 'levelwidget',
 	templateUrl: 'tpl/widgets/level.html'
 } )
 
 export class WidgetLevelComponent implements OnInit {
 
-	@Input( 'device' ) public device: Device;
-	public error: string;
+	private static _elementId = 0;
 
-	private _chart: any;
+	@Input( 'widgetConfig' ) public widget: Widget;
+
+	public error: string;
+	public elementId: number;
 
 	constructor(
 		private _devicesService: DevicesService
 	) {
+		++WidgetLevelComponent._elementId;
+		this.elementId = WidgetLevelComponent._elementId;
 	};
 
 	ngOnInit() {
@@ -26,7 +31,7 @@ export class WidgetLevelComponent implements OnInit {
 
 	getData() {
 		var me = this;
-		me._devicesService.getData( this.device )
+		me._devicesService.getData( this.widget.device )
 			.subscribe(
 				function( data_: any[] ) {
 					var data: Array<Array<any>> = [];
@@ -34,16 +39,16 @@ export class WidgetLevelComponent implements OnInit {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
 					}
 
-					Highcharts.stockChart( 'level_chart_target', {
+					Highcharts.stockChart( 'level_chart_target_' + me.elementId, {
 						chart: {
 							type: 'spline'
 						},
 						series: [ {
-							name: me.device.name,
+							name: me.widget.device.name,
 							data: data,
 							yAxis: 0,
 							tooltip: {
-								valueSuffix: ' ' + me.device.unit
+								valueSuffix: ' ' + me.widget.device.unit
 							}
 						} ]
 					} );

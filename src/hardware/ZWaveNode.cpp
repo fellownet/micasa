@@ -433,7 +433,7 @@ namespace micasa {
 							unit = Level::Unit::AMPERES;
 						} else if ( "Temperature" == label ) {
 							subtype = Level::SubType::TEMPERATURE;
-							unit = Level::Unit::CELCIUS;
+							unit = Level::Unit::CELSIUS;
 						} else if ( "Luminance" == label ) {
 							subtype = Level::SubType::LUMINANCE;
 							unit = Level::Unit::LUX;
@@ -630,9 +630,12 @@ namespace micasa {
 			"zwavenode-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
 			101,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
 				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
@@ -656,9 +659,11 @@ namespace micasa {
 			"zwavenode-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			99,
-			User::Rights::INSTALLER,
 			WebServer::Method::PUT | WebServer::Method::PATCH,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
 
 				// Obtain a lock on the static/shared OpenZWave library manager. If it takes too long to
 				// obtain the lock, the command will fail.

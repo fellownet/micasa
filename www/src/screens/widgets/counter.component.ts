@@ -1,23 +1,28 @@
 import { Component, Input, OnInit } from '@angular/core';
-import { Device, DevicesService }   from '../devices/devices.service';
+import { Widget }                   from '../screens.service';
+import { Device, DevicesService }   from '../../devices/devices.service';
 
 declare var Highcharts: any;
 
 @Component( {
-	selector: 'counterwidget',
+	selector   : 'counterwidget',
 	templateUrl: 'tpl/widgets/counter.html'
 } )
 
 export class WidgetCounterComponent implements OnInit {
 
-	@Input( 'device' ) public device: Device;
-	public error: string;
+	private static _elementId = 0;
 
-	private _chart: any;
+	@Input( 'widgetConfig' ) public widget: Widget;
+
+	public error: string;
+	public elementId: number;
 
 	constructor(
 		private _devicesService: DevicesService
 	) {
+		++WidgetCounterComponent._elementId;
+		this.elementId = WidgetCounterComponent._elementId;
 	};
 
 	ngOnInit() {
@@ -26,7 +31,7 @@ export class WidgetCounterComponent implements OnInit {
 
 	getData() {
 		var me = this;
-		me._devicesService.getData( this.device )
+		me._devicesService.getData( this.widget.device )
 			.subscribe(
 				function( data_: any[] ) {
 					var data: Array<Array<any>> = [];
@@ -34,16 +39,16 @@ export class WidgetCounterComponent implements OnInit {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
 					}
 
-					Highcharts.stockChart( 'counter_chart_target', {
+					Highcharts.stockChart( 'counter_chart_target_' + me.elementId, {
 						chart: {
 							type: 'column'
 						},
 						series: [ {
-							name: me.device.name,
+							name: me.widget.device.name,
 							data: data,
 							yAxis: 0,
 							tooltip: {
-								valueSuffix: ' ' + me.device.unit
+								valueSuffix: ' ' + me.widget.device.unit
 							}
 						} ]
 					} );

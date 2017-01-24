@@ -61,18 +61,26 @@
 						</div>
 					</div>
 
+					<!--
 					<div class="form-group">
 						<label>Screens</label>
 						<div class="checkbox" *ngFor="let screen of screens">
 							<label><input type="checkbox" value="{{screen.index}}">{{screen.name}}</label>
 						</div>
 					</div>
+					-->
 				</div>
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!deviceForm.form.valid || deviceForm.form.pristine || loading">Save</button>
 					</div>
-					<div class="col-xs-12 col-sm-offset-4 col-sm-4 col-md-offset-6 col-md-3 col-lg-offset-8 col-lg-2">
+					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown">
+						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add to Screen <span class="caret"></span></button>
+						<ul class="dropdown-menu">
+							<li *ngFor="let screen of screens"><a (click)="addToScreen(screen.index);"><i class="fa pull-right" [class.fa-dashboard]="screen.index == 0" [class.fa-th]="screen.index > 0"></i>{{screen.name}}</a></li>
+						</ul>
+					</div>
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteDevice()">Delete</button>
 					</div>
 				</div>

@@ -1,5 +1,6 @@
 import { Component, Input }       from '@angular/core';
-import { Device, DevicesService } from '../devices/devices.service';
+import { Widget }                   from '../screens.service';
+import { Device, DevicesService } from '../../devices/devices.service';
 
 @Component( {
 	selector: 'switchwidget',
@@ -8,24 +9,22 @@ import { Device, DevicesService } from '../devices/devices.service';
 
 export class WidgetSwitchComponent {
 
-	@Input( "device" ) public device: Device;
+	@Input( 'widgetConfig' ) public widget: Widget;
 
 	constructor(
 		private _devicesService: DevicesService
 	) {
 	};
 
-
-
 	toggleSwitch() {
 		// TODO support for other types of switches (blinds etc).
 		var me = this;
-		if ( me.device.value == 'On' ) {
-			me.device.value = 'Off';
+		if ( me.widget.device.value == 'On' ) {
+			me.widget.device.value = 'Off';
 		} else {
-			me.device.value = 'On';
+			me.widget.device.value = 'On';
 		}
-		this._devicesService.putDevice( me.device, true )
+		this._devicesService.patchDevice( me.widget.device, me.widget.device.value )
 			.subscribe(
 				function( device_: Device ) {
 				},

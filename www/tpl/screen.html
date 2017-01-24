@@ -23,4 +23,17 @@
 
 <section class="content-body">
 
+	<div class="row">
+
+	<ng-container *ngFor="let widget of screen.widgets">
+		<ng-container [ngSwitch]="widget.device.type">
+			<counterwidget *ngSwitchCase="'counter'" [widgetConfig]="widget"></counterwidget>
+			<levelwidget *ngSwitchCase="'level'" [widgetConfig]="widget"></levelwidget>
+			<switchwidget *ngSwitchCase="'switch'" [widgetConfig]="widget"></switchwidget>
+			<textwidget *ngSwitchCase="'text'" [widgetConfig]="widget"></textwidget>
+		</ng-container>
+	</ng-container>
+
+	</div>
+
 </section>

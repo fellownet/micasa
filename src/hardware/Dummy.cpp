@@ -34,9 +34,12 @@ namespace micasa {
 			"dummy-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
 			101,
-			User::Rights::INSTALLER,
 			WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
 				switch( method_ ) {
 					case WebServer::Method::POST: {
 						if ( input_.find( "type") == input_.end() ) {

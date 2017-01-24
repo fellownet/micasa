@@ -10,8 +10,6 @@ import {
 }                                 from '../screens/screens.service';
 import { SettingsComponent }      from '../settings/settings.component';
 
-declare var Highcharts: any;
-
 @Component( {
 	templateUrl: 'tpl/device-details.html'
 } )
@@ -50,109 +48,6 @@ export class DeviceDetailsComponent implements OnInit {
 		this._route.params.subscribe( function( params_: any ) {
 			if ( params_.hardware_id ) {
 				me.hardware = me.device.hardware;
-			}
-		} );
-
-		// The defaults for all chart types are set here, the one place that is in common for all
-		// widgets with charts.
-		let animationDuration: number = 300;
-
-		Highcharts.setOptions( {
-			global: {
-				timezoneOffset: new Date().getTimezoneOffset()
-			},
-			title: false,
-			credits: false,
-			rangeSelector: {
-				buttons: [ {
-					type: 'day',
-					count: 1,
-					text: '1d'
-				}, {
-					type: 'week',
-					count: 1,
-					text: '1w'
-				}, {
-					type: 'month',
-					count: 1,
-					text: '1m'
-				}, {
-					type: 'month',
-					count: 3,
-					text: '3m'
-				}, {
-					type: 'month',
-					count: 6,
-					text: '6m'
-				}, {
-					type: 'year',
-					count: 1,
-					text: '1y'
-				} ],
-				selected: 0,
-				inputEnabled: false
-			},
-			navigator: {
-				height: 75
-			},
-			scrollbar: {
-				enabled: false
-			},
-			legend: {
-				enabled: false
-			},
-			chart: {
-				animation: {
-					duration: animationDuration
-				},
-				zoomType: 'x',
-				alignTicks: false
-			},
-			xAxis: {
-				type: 'datetime',
-				ordinal: false
-			},
-			yAxis: {
-				labels: {
-					align: 'left',
-					x: 5
-				},
-				startOnTick: false,
-				endOnTick: false
-			},
-			plotOptions: {
-				column: {
-					color: '#3c8dbc',
-					animation: {
-						duration: animationDuration
-					},
-					pointPadding: 0.1, // space between bars when multiple series are used
-					groupPadding: 0 // space beween group of series bars
-				},
-				spline: {
-					color: '#3c8dbc',
-					animation: {
-						duration: animationDuration
-					},
-					lineWidth: 2,
-					states: {
-						hover: {
-							lineWidth: 2,
-							halo: false
-						}
-					},
-					marker: {
-						enabled: false,
-						states: {
-							hover: {
-								enabled: true,
-								symbol: 'circle',
-								radius: 6,
-								lineWidth: 2
-							}
-						}
-					}
-				}
 			}
 		} );
 	};
@@ -243,6 +138,32 @@ export class DeviceDetailsComponent implements OnInit {
 				this.device.scripts.splice( pos, 1 );
 			}
 		}
+	};
+
+	public addToScreen( index_: number ): void {
+		var me = this;
+		me.loading = true;
+
+		let screen: Screen = me.screens[index_];
+		let widget: Widget = { device_id: this.device.id };
+		screen.widgets.push( widget );
+
+		me._screensService.putScreen( screen )
+			.subscribe(
+				function( screen_: Screen ) {
+					me.loading = false;
+					if ( index_ > 0 ) {
+						me._router.navigate( [ '/screen', index_ ] );
+					} else {
+						me._router.navigate( [ '/dashboard' ] );
+					}
+				},
+				function( error_: string ) {
+					me.loading = false;
+					me.error = error_;
+				}
+			)
+		;
 	};
 
 }

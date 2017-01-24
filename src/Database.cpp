@@ -367,6 +367,10 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
 			return;
 		}
+
+#ifdef _DEBUG
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+#endif // _DEBUG
 		
 		std::lock_guard<std::mutex> lock( this->m_queryMutex );
 		
@@ -383,10 +387,6 @@ namespace micasa {
 			const char *error = sqlite3_errmsg( this->m_connection );
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 		}
-		
-#ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
-#endif // _DEBUG
 		
 		sqlite3_free( query );
 	};

@@ -90,6 +90,17 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
+	getDevicesByIds( deviceIds_: number[] ): Observable<Device[]> {
+		let uri: string = this._deviceUrlBase;
+		uri += '?device_ids=' + deviceIds_.join( ',' );
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.get( uri, options )
+			.map( this._extractData )
+			.catch( this._handleHttpError )
+		;
+	};
+
 	getDevice( id_: Number ): Observable<Device> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
@@ -99,19 +110,26 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	putDevice( device_: Device, updateValue_: boolean = false ): Observable<Device> {
+	putDevice( device_: Device ): Observable<Device> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
 		} );
 		let options = new RequestOptions( { headers: headers } );
-		// Value should not be sent along with the update to prevent server warnings for
-		// invalid update source.
 		let data: Device = Object.assign( {}, device_ );
-		if ( ! updateValue_ ) {
-			delete( data.value );
-		}
 		return this._http.put( this._deviceUrlBase + '/' + device_.id, data, options )
+			.map( this._extractData )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	patchDevice( device_: Device, value_: any ): Observable<Device> {
+		let headers = new Headers( {
+			'Content-Type'  : 'application/json',
+			'Authorization' : this._usersService.getLogin().token
+		} );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.patch( this._deviceUrlBase + '/' + device_.id, { value: value_ }, options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;

@@ -10,7 +10,7 @@ export class LoginComponent implements OnInit {
 
 	loading: Boolean = false;
 	error: String;
-	credentials: Credentials = { username: "", password: "" };
+	credentials: Credentials = { username: "", password: "", remember: false };
 
 	constructor(
 		private _router: Router,

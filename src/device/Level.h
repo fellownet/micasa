@@ -29,7 +29,7 @@ namespace micasa {
 			WATT,
 			VOLT,
 			AMPERES,
-			CELCIUS,
+			CELSIUS,
 			FAHRENHEIT,
 			PASCAL,
 			LUX

@@ -34,7 +34,7 @@ namespace micasa {
 		{ Level::Unit::WATT, "Watt" },
 		{ Level::Unit::VOLT, "V" },
 		{ Level::Unit::AMPERES, "A" },
-		{ Level::Unit::CELCIUS, "°C" },
+		{ Level::Unit::CELSIUS, "°C" },
 		{ Level::Unit::FAHRENHEIT, "°F" },
 		{ Level::Unit::PASCAL, "Pa" },
 		{ Level::Unit::LUX, "lx" },
@@ -56,9 +56,12 @@ namespace micasa {
 			"device-" + std::to_string( this->m_id ) + "-data",
 			"^api/devices/" + std::to_string( this->m_id ) + "/data$",
 			100,
-			User::Rights::VIEWER,
 			WebServer::Method::GET,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
+					return;
+				}
+
 				// TODO check range to fetch
 				output_["data"] = g_database->getQuery<json>(
 					"SELECT * FROM ( "

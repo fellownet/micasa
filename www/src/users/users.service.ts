@@ -17,6 +17,7 @@ import { Observable }      from 'rxjs/Observable';
 export class Credentials {
 	username: string;
 	password: string;
+	remember: boolean;
 }
 
 export enum ACL {
@@ -33,12 +34,16 @@ export class User {
 	username: string;
 	password?: string;
 	rights: ACL;
+	enabled: boolean;
 }
 
 export class Login {
 	user: User;
 	token: string;
 	valid: number;
+	created: number;
+	diff: number; // difference in server vs client timestamp
+	remember: boolean;
 	settings?: any;
 }
 
@@ -71,21 +76,37 @@ export class UsersService implements CanActivate {
 		var me = this;
 		me.redirectUrl = state_.url;
 
-		// Invalidate logged in user if the valid time has passed.
+		// Invalidate logged in user if the valid time has passed or retrieve a new token
+		// if the login is of certain age.
 		if ( me._login ) {
-			let now: number = new Date().getTime() / 1000;
-			let diff: number = me._login.valid - now;
-			if ( diff < 10 ) {
+
+			let now: number = ( new Date().getTime() / 1000 ) - me._login.diff;
+			let age: number = now - me._login.created;
+
+			if ( me._login.valid - now < 10 ) {
 				me._router.navigate( [ '/login' ] );
 				return false;
-			} else if ( diff < 60 * 5 ) {
+			} else if ( age > 60 * 60 ) { // one hour
 				me._refreshLogin()
 					.subscribe(
 						function( login_: Login ) {
-							var settings = me._login.settings;
+
+							// Update the retrieved login object with properties from the existing
+							// login object.
+							login_.settings = me._login.settings;
+							login_.remember = me._login.remember;
+
+							// Update the difference in server- vs client timestamp value.
+							let now: number = new Date().getTime() / 1000;
+							login_.diff = now - login_.created;
+
+							// Then update our login object with the new one.
 							me._login = login_;
-							me._login.settings = settings;
-							localStorage.setItem( 'login', JSON.stringify( me._login ) );
+
+							if ( me._login.remember ) {
+								localStorage.setItem( 'login', JSON.stringify( me._login ) );
+							}
+
 							me._router.navigate( [ me.redirectUrl ] );
 						},
 						function( error_: string ) {
@@ -215,6 +236,17 @@ export class UsersService implements CanActivate {
 			me._doLogin( credentials_ )
 				.subscribe(
 					function( login_: Login ) {
+
+						// Store the difference in server- vs client timestamp value.
+						let now: number = new Date().getTime() / 1000;
+						login_.diff = now - login_.created;
+
+						// Copy over the remember flag from the credentials so whenever login data is
+						// used it is known if it's temporary of persistent.
+						login_.remember = credentials_.remember;
+
+						// The settings for the current are fetched. Only after these settings are
+						// successfully retrieved the login is accepted.
 						me._getSettings( login_.token )
 							.subscribe(
 								function( settings_: any ) {
@@ -231,8 +263,14 @@ export class UsersService implements CanActivate {
 
 									// Add the settings object to the previously received login object.
 									login_.settings = settings_;
+
 									me._login = login_;
-									localStorage.setItem( 'login', JSON.stringify( me._login ) );
+									if ( me._login.remember ) {
+										localStorage.setItem( 'login', JSON.stringify( me._login ) );
+									} else {
+										localStorage.removeItem( 'login' );
+									}
+
 									subscriber_.next( true );
 									subscriber_.complete();
 								},
@@ -269,17 +307,30 @@ export class UsersService implements CanActivate {
 		return this._login;
 	};
 
-	syncSettings(): Observable<any> {
+	syncSettings( key_?: string ): Observable<any> {
 		let headers = new Headers( {
 			'Content-Type' : 'application/json',
 			'Authorization': this._login.token
 		} );
 		let options = new RequestOptions( { headers: headers } );
-		localStorage.setItem( 'login', JSON.stringify( this._login ) );
-		return this._http.put( this._authUrlBase + '/settings', { settings: this._login.settings }, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+
+		if ( this._login.remember ) {
+			localStorage.setItem( 'login', JSON.stringify( this._login ) );
+		}
+
+		if ( key_ ) {
+			let setting: any = {};
+			setting[key_] = ( key_ in this._login.settings ? this._login.settings[key_] : {} );
+			return this._http.put( this._authUrlBase + '/settings', { settings: setting }, options )
+				.map( this._extractData )
+				.catch( this._handleHttpError )
+			;
+		} else {
+			return this._http.put( this._authUrlBase + '/settings', { settings: this._login.settings }, options )
+				.map( this._extractData )
+				.catch( this._handleHttpError )
+			;
+		}
 	};
 
 	// Http request handlers.

@@ -1,12 +1,12 @@
 <div class="col-xs-12 col-md-4">
 	<div class="small-box bg-aqua" (click)="toggleSwitch()">
 		<div class="inner">
-			<h3>{{device.value}}</h3>
-			<p>{{device.name}}</p>
+			<h3>{{widget.device.value}}</h3>
+			<p>{{widget.device.name}}</p>
 		</div>
 		<div class="icon">
-			<i class="fa fa-toggle-on" *ngIf="device.value=='On'"></i>
-			<i class="fa fa-toggle-off" *ngIf="device.value=='Off'"></i>
+			<i class="fa fa-toggle-on" *ngIf="widget.device.value=='On'"></i>
+			<i class="fa fa-toggle-off" *ngIf="widget.device.value=='Off'"></i>
 		</div>
 	</div>
 </div>

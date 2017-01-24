@@ -115,7 +115,7 @@ namespace micasa {
 					auto device = this->_declareDevice<Level>( this->getReference() + "(T)", "Temperature", {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELCIUS ) }
+						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELSIUS ) }
 					} );
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}
