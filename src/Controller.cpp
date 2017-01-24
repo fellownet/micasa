@@ -460,8 +460,6 @@ namespace micasa {
 	};
 
 	template<class D> void Controller::newEvent( const D& device_, const Device::UpdateSource& source_ ) {
-		// Events originating from scripts should not cause another script run.
-		// TODO make this configurable per device?
 		if (
 			( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT
 			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
@@ -475,10 +473,9 @@ namespace micasa {
 			event["source"] = Device::resolveUpdateSource( source_ );
 			event["device"] = device_.getJson( false );
 
-			// The processing of the event is deliberatly done in a separate method because this method is templated
-			// and is essentially copied for each specialization.
-			// TODO Only fetch those scripts that are present in the script / device crosstable.
-			this->_runScripts( "event", event, g_database->getQuery(
+			// NOTE The processing of the event is deliberatly done in a separate method because this method is
+			// templated and is essentially copied for each specialization.
+			auto scripts = g_database->getQuery(
 				"SELECT s.`id`, s.`name`, s.`code` "
 				"FROM `scripts` s, `x_device_scripts` x "
 				"WHERE x.`script_id`=s.`id` "
@@ -486,7 +483,10 @@ namespace micasa {
 				"AND s.`enabled`=1 "
 				"ORDER BY `id` ASC",
 				device_.getId()
-			) );
+			);
+			if ( scripts.size() > 0 ) {
+				this->_runScripts( "event", event, scripts );
+			}
 		}
 	};
 	template void Controller::newEvent( const Switch& device_, const Device::UpdateSource& source_ );
@@ -569,8 +569,6 @@ namespace micasa {
 
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
 		// Event processing is done in a separate thread to prevent scripts from blocking hardare updates.
-		// TODO insert a task that checks if the script isn't running for more than xx seconds? This requires that
-		// we don't detach and keep track of the thread.
 		auto thread = std::thread( [this,key_,data_,scripts_]{
 			std::lock_guard<std::mutex> lock( this->m_jsMutex );
 
@@ -635,7 +633,6 @@ namespace micasa {
 
 			// Get the userdata from the v7 environment and store it in settings for later use. The same logic
 			// applies here as V7_EXEC_EXCEPTION regarding the buffer.
-			// TODO do we need to do this after *every* script run, or maybe do this periodically.
 			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
@@ -755,7 +752,7 @@ namespace micasa {
 
 				if ( run ) {
 					json data = (*timerIt);
-					this->_runScripts( "timer", data, g_database->getQuery(
+					auto scripts = g_database->getQuery(
 						"SELECT s.`id`, s.`name`, s.`code` "
 						"FROM `x_timer_scripts` x, `scripts` s "
 						"WHERE x.`script_id`=s.`id` "
@@ -763,7 +760,10 @@ namespace micasa {
 						"AND s.`enabled`=1 "
 						"ORDER BY s.`id` ASC",
 						(*timerIt)["id"].c_str()
-					) );
+					);
+					if ( scripts.size() > 0 ) {
+						this->_runScripts( "timer", data, scripts );
+					}
 				}
 
 			} catch( std::exception ex_ ) {
@@ -791,8 +791,8 @@ namespace micasa {
 		for ( int i = 0; i < abs( options.repeat ); i++ ) {
 			double delaySec = options.afterSec + ( i * options.forSec ) + ( i * options.repeatSec );
 
-			// TODO implement "recur" task option > if set do not set source to script so that the result of the
-			// task will also be executed by scripts. There needs to be some detection though to prevent a loop.
+			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
+			// the event handler will execute scripts even when the update comes from a script.
 			Task task = { device_, options.recur ? Device::resolveUpdateSource( 0 ) : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
 			task.setValue<D>( value_ );
 			this->_scheduleTask( std::make_shared<Task>( task ) );
@@ -837,8 +837,7 @@ namespace micasa {
 	void Controller::_clearTaskQueue( const std::shared_ptr<Device>& device_ ) {
 		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
 		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
-			// TODO check if comparing devices directly also works instead of their ids.
-			if ( (*taskQueueIt)->device->getId() == device_->getId() ) {
+			if ( (*taskQueueIt)->device == device_ ) {
 				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 			} else {
 				taskQueueIt++;

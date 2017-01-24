@@ -58,6 +58,13 @@ namespace micasa {
 			return false;
 		}
 		
+		// Do not process duplicate values.
+		// NOTE the openzwave has a bugfix in place where the actual node value is requested if the hardware reports
+		// the same value after an update. It depends on duplicate values not being sent to the hardware.
+		if ( this->m_value == value_ ) {
+			return true;
+		}
+		
 		// Make a local backup of the original value (the hardware might want to revert it).
 		Option previous = this->m_value;
 		this->m_value = value_;

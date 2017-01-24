@@ -88,6 +88,11 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
+		
+		// Do not process duplicate values.
+		if ( this->m_value == value_ ) {
+			return true;
+		}
 
 		// Make a local backup of the original value (the hardware might want to revert it).
 		t_value previous = this->m_value;

@@ -328,15 +328,14 @@ namespace micasa {
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 					} );
 					
-					// NOTE
-					// During testing it appears as if some nodes report the wrong dynamic value after an update. This
-					// is known to happen with some Fibaro FGS223 firmwares where the original value is reported while
-					// the new value does get set.
+					// NOTE During testing it appears as if some nodes report the wrong dynamic value after an update.
+					// This is known to happen with some Fibaro FGS223 firmwares where the original value is reported
+					// while the new value does get set.
 					Switch::Option deviceValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
 					if (
 						wasPendingUpdate
 						&& device->getValueOption() == deviceValue
-						&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // no need to query battery powered devices
+						&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
 					) {
 						g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
 						Manager::Get()->RequestNodeDynamic( this->m_homeId, this->m_nodeId );
