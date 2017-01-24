@@ -83,6 +83,8 @@ namespace micasa {
 	}
 
 	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+	
+		// The actual value is applied only after the affected node confirms the change.
 		apply_ = false;
 
 		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
@@ -307,11 +309,12 @@ namespace micasa {
 				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
 					allowedUpdateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
-
-					// If there's an update mutex available we need to make sure that it is properly notified of the
-					// execution of the update.
-					source_ |= this->_releasePendingUpdate( reference );
 				}
+
+				// If there's an update mutex available we need to make sure that it is properly notified of the
+				// execution of the update.
+				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
+
 				bool boolValue = false;
 				unsigned char byteValue = 0;
 				if (
@@ -324,7 +327,23 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 					} );
-					device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
+					
+					// NOTE
+					// During testing it appears as if some nodes report the wrong dynamic value after an update. This
+					// is known to happen with some Fibaro FGS223 firmwares where the original value is reported while
+					// the new value does get set.
+					Switch::Option deviceValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
+					if (
+						wasPendingUpdate
+						&& device->getValueOption() == deviceValue
+						&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // no need to query battery powered devices
+					) {
+						g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
+						Manager::Get()->RequestNodeDynamic( this->m_homeId, this->m_nodeId );
+					} else {
+						device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
+					}
+					
 					if ( "Unknown" != label ) {
 						device->setLabel( label );
 					}
@@ -340,6 +359,7 @@ namespace micasa {
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 					} );
 					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
+					
 					if ( "Unknown" != label ) {
 						device->setLabel( label );
 					}
@@ -365,10 +385,9 @@ namespace micasa {
 
 					// If there's an update mutex available we need to make sure that it is properly notified of the
 					// execution of the update.
-					source_ |= this->_releasePendingUpdate( reference );
+					this->_releasePendingUpdate( reference, source_ );
 
 					unsigned char byteValue = 0;
-
 					if (
 						valueId_.GetType() == ValueID::ValueType_Byte
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
@@ -380,6 +399,7 @@ namespace micasa {
 							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 						} );
 						device->updateValue( source_, byteValue );
+						
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}

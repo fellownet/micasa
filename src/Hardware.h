@@ -48,12 +48,14 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( State, StateText );
 
 		struct PendingUpdate {
+		public:
+			PendingUpdate( Device::UpdateSource source_ ) : source( source_ ) { };
+
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
 			std::mutex conditionMutex;
 			bool done = false;
 			Device::UpdateSource source;
-			PendingUpdate( Device::UpdateSource source_ ) : source( source_ ) { };
 		}; // struct PendingUpdate
 
 		static const constexpr char* settingsName = "hardware";
@@ -104,7 +106,7 @@ namespace micasa {
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
 		// It also makes sure that the source of the update is remembered during this time.
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_ = 3000, const unsigned int& waitForResult_ = 30000 );
-		Device::UpdateSource _releasePendingUpdate( const std::string& reference_ );
+		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
 
 	private:
 		std::vector<std::shared_ptr<Device> > m_devices;

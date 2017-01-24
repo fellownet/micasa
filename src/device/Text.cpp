@@ -45,13 +45,8 @@ namespace micasa {
 			return false;
 		}
 
-		// Do not process duplicate values.
-		if ( this->m_value == value_ ) {
-			return true;
-		}
-
 		// Make a local backup of the original value (the hardware might want to revert it).
-		this->m_previousValue = this->m_value;
+		t_value previous = this->m_value;
 		this->m_value = value_;
 		
 		// If the update originates from the hardware, do not send it to the hardware again!
@@ -67,13 +62,14 @@ namespace micasa {
 				this->m_id,
 				value_.c_str()
 			);
+			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Text>( *this, source_ );
 			}
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
 		} else {
-			this->m_value = this->m_previousValue;
+			this->m_value = previous;
 		}
 		return success;
 	};

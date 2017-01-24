@@ -22,9 +22,12 @@ namespace micasa {
 
 	public:
 		struct NoResultsException: public std::runtime_error {
+		public:
 			using runtime_error::runtime_error;
 		}; // struct NoResultsException
+
 		struct InvalidResultException: public std::runtime_error {
+		public:
 			using runtime_error::runtime_error;
 		}; // struct InvalidResultException
 

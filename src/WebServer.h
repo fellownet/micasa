@@ -54,7 +54,9 @@ namespace micasa {
 		}; // struct ResourceCallback
 		
 		struct ResourceException: public std::runtime_error {
+		public:
 			ResourceException( unsigned int code_, std::string error_, std::string message_ ) : std::runtime_error( message_ ), code( code_ ), error( error_ ), message( message_ ) { };
+			
 			const unsigned int code;
 			const std::string error;
 			const std::string message;

@@ -362,7 +362,7 @@ namespace micasa {
 					) {
 						// Release any pending updates and use the corresponding update source for our source.
 						Device::UpdateSource source = Device::UpdateSource::HARDWARE;
-						source |= this->_releasePendingUpdate( "hub" );
+						this->_releasePendingUpdate( "hub", source );
 
 						// Turn off the current activity when a different activity was started than the one currently
 						// active, or on full power off (=-1).

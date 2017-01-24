@@ -351,7 +351,8 @@ namespace micasa {
 		}
 	};
 
-	Device::UpdateSource Hardware::_releasePendingUpdate( const std::string& reference_ ) {
+	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ ) {
+		// TODO periodically remove unused pending updates?
 		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search != this->m_pendingUpdates.end() ) {
@@ -360,9 +361,10 @@ namespace micasa {
 			pendingUpdate->done = true;
 			notifyLock.unlock();
 			pendingUpdate->condition.notify_all();
-			return pendingUpdate->source;
+			source_ |= pendingUpdate->source;
+			return true;
 		}
-		return Device::resolveUpdateSource( 0 );
+		return false;
 	};
 
 } // namespace micasa

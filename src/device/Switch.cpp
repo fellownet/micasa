@@ -51,27 +51,18 @@ namespace micasa {
 	};
 
 	bool Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
-#ifdef _DEBUG
-		assert( Switch::OptionText.find( value_ ) != Switch::OptionText.end() && "Switch should be defined." );
-#endif // _DEBUG
 		
-	   // The update source should be defined in settings by the declaring hardware.
+		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return false;
 		}
 		
-		// Do not process duplicate values.
-		if ( this->m_value == value_ ) {
-			return true;
-		}
-
 		// Make a local backup of the original value (the hardware might want to revert it).
-		this->m_previousValue = this->m_value;
+		Option previous = this->m_value;
 		this->m_value = value_;
 		
-		// If the update originates from the hardware, do not send it to the hardware again. Also do not send the
-		// value to the hardware if it's the same as currently registered.
+		// If the update originates from the hardware, do not send it to the hardware again!
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
@@ -84,13 +75,14 @@ namespace micasa {
 				this->m_id,
 				Switch::resolveOption( value_ ).c_str()
 			);
+			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Switch>( *this, source_ );
 			}
 			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {
-			this->m_value = this->m_previousValue;
+			this->m_value = previous;
 		}
 		return success;
 	};
