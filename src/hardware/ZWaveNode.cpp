@@ -644,12 +644,12 @@ namespace micasa {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
 					} else {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-						throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+						throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 					}
 					output_["code"] = 200;
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
+					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
 				}
 			} )
 		} );
@@ -676,7 +676,7 @@ namespace micasa {
 						if ( (*find).is_string() ) {
 							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, (*find).get<std::string>() );
 						} else {
-							throw WebServer::ResourceException( { 400, "Hardware.Invalid.Name", "The supplied name is invalid." } );
+							throw WebServer::ResourceException( 400, "Hardware.Invalid.Name", "The supplied name is invalid." );
 						}
 					}
 
@@ -761,19 +761,19 @@ namespace micasa {
 									
 									if ( ! success ) {
 										unsigned int index = valueId.GetIndex();
-										throw WebServer::ResourceException( { 400, "Hardware.Invalid.Settings", "Invalid value for parameter " + std::to_string( index ) + "." } );
+										throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", "Invalid value for parameter " + std::to_string( index ) + "." );
 									}
 								}
 							}
 						} else {
-							throw WebServer::ResourceException( { 400, "Hardware.Invalid.Settings", "The supplied settings are invalid." } );
+							throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", "The supplied settings are invalid." );
 						}
 
 						output_["code"] = 200;
 					}
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
+					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
 				}
 			} )
 		} );

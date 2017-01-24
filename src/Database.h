@@ -23,10 +23,10 @@ namespace micasa {
 	public:
 		struct NoResultsException: public std::runtime_error {
 			using runtime_error::runtime_error;
-		};
+		}; // struct NoResultsException
 		struct InvalidResultException: public std::runtime_error {
 			using runtime_error::runtime_error;
-		};
+		}; // struct InvalidResultException
 
 		Database( std::string filename_ );
 		~Database();

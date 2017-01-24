@@ -43,16 +43,16 @@ namespace micasa {
 				switch( method_ ) {
 					case WebServer::Method::POST: {
 						if ( input_.find( "type") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Device.Missing.Type", "Missing type." } );
+							throw WebServer::ResourceException( 400, "Device.Missing.Type", "Missing type." );
 						}
 						if ( ! input_["type"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Device.Invalid.Type", "The supplied type is invalid." } );
+							throw WebServer::ResourceException( 400, "Device.Invalid.Type", "The supplied type is invalid." );
 						}
 						if ( input_.find( "name") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Device.Missing.Name", "Missing name." } );
+							throw WebServer::ResourceException( 400, "Device.Missing.Name", "Missing name." );
 						}
 						if ( ! input_["name"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Device.Invalid.Name", "The supplied name is invalid." } );
+							throw WebServer::ResourceException( 400, "Device.Invalid.Name", "The supplied name is invalid." );
 						}
 					
 						unsigned int index = g_database->getQueryValue<unsigned int>(
@@ -104,7 +104,7 @@ namespace micasa {
 							device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 							output_["device"] = device->getJson();
 						} else {
-							throw WebServer::ResourceException( { 400, "Device.Invalid.Type", "The supplied type is invalid." } );
+							throw WebServer::ResourceException( 400, "Device.Invalid.Type", "The supplied type is invalid." );
 						}
 						
 						output_["code"] = 200;

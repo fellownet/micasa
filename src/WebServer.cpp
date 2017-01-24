@@ -452,7 +452,7 @@ namespace micasa {
 									parent = g_controller->getHardwareById( std::stoi( (*find).get<std::string>() ) );
 								}
 								if ( parent == nullptr ) {
-									throw WebServer::ResourceException( { 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." } );
+									throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
 								}
 							}
 							
@@ -500,13 +500,13 @@ namespace micasa {
 										hardwareId = hardware->getId();
 										output_["code"] = 201; // Created
 									} catch( std::invalid_argument ) {
-										throw WebServer::ResourceException( { 400, "Hardware.Invalid.Type", "The supplied type is invalid." } );
+										throw WebServer::ResourceException( 400, "Hardware.Invalid.Type", "The supplied type is invalid." );
 									}
 								} else {
-									throw WebServer::ResourceException( { 400, "Hardware.Invalid.Type", "The supplied type is invalid." } );
+									throw WebServer::ResourceException( 400, "Hardware.Invalid.Type", "The supplied type is invalid." );
 								}
 							} else {
-								throw WebServer::ResourceException( { 400, "Hardware.Missing.Type", "Missing type." } );
+								throw WebServer::ResourceException( 400, "Hardware.Missing.Type", "Missing type." );
 							}
 						} else {
 							auto find = input_.find( "name" );
@@ -514,7 +514,7 @@ namespace micasa {
 								if ( (*find).is_string() ) {
 									hardware->getSettings()->put( "name", (*find).get<std::string>() );
 								} else {
-									throw WebServer::ResourceException( { 400, "Hardware.Invalid.Name", "The supplied name is invalid." } );
+									throw WebServer::ResourceException( 400, "Hardware.Invalid.Name", "The supplied name is invalid." );
 								}
 							}
 						}
@@ -645,7 +645,7 @@ namespace micasa {
 									hardware = g_controller->getHardwareById( std::stoi( (*find).get<std::string>() ) );
 								}
 								if ( hardware == nullptr ) {
-									throw WebServer::ResourceException( { 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." } );
+									throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
 								}
 							}
 							
@@ -657,7 +657,7 @@ namespace micasa {
 								if ( (*find).is_string() ) {
 									deviceIds = stringSplit( (*find).get<std::string>(), ',' );
 								} else {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.DeviceIds", "The supplied device_ids parameter is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.DeviceIds", "The supplied device_ids parameter is invalid." );
 								}
 
 							}
@@ -677,7 +677,7 @@ namespace micasa {
 								} else if ( (*find).is_string() ) {
 									enabled = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
 								} else {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." );
 								}
 							}
 							
@@ -729,7 +729,7 @@ namespace micasa {
 								if ( (*find).is_string() ) {
 									device->getSettings()->put( "name", (*find).get<std::string>() );
 								} else {
-									throw WebServer::ResourceException( { 400, "Script.Invalid.Name", "The supplied name is invalid." } );
+									throw WebServer::ResourceException( 400, "Script.Invalid.Name", "The supplied name is invalid." );
 								}
 							}
 
@@ -754,7 +754,7 @@ namespace micasa {
 										default: break;
 									}
 								} catch( ... ) {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.Unit", "The supplied unit is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.Unit", "The supplied unit is invalid." );
 								}
 							}
 							settingsFind = settings.find( "subtype" );
@@ -786,7 +786,7 @@ namespace micasa {
 										}
 									}
 								} catch( ... ) {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.SubType", "The supplied subtype is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.SubType", "The supplied subtype is invalid." );
 								}
 							}
 
@@ -798,7 +798,7 @@ namespace micasa {
 									std::vector<unsigned int> scripts = std::vector<unsigned int>( (*find).begin(), (*find).end() );
 									device->setScripts( scripts );
 								} else {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.Scripts", "The supplied scripts parameter is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.Scripts", "The supplied scripts parameter is invalid." );
 								}
 							}
 
@@ -812,7 +812,7 @@ namespace micasa {
 								} else if ( (*find).is_string() ) {
 									enabled = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
 								} else {
-									throw WebServer::ResourceException( { 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+									throw WebServer::ResourceException( 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." );
 								}
 								if ( enabled ) {
 									if ( ! device->isRunning() ) {
@@ -854,7 +854,7 @@ namespace micasa {
 										} else if ( (*find).is_number() ) {
 											device->updateValue<Counter>( Device::UpdateSource::API, (*find).get<int>() );
 										} else {
-											throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
+											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 										}
 										break;
 									case Device::Type::LEVEL:
@@ -863,21 +863,21 @@ namespace micasa {
 										} else if ( (*find).is_number() ) {
 											device->updateValue<Level>( Device::UpdateSource::API, (*find).get<double>() );
 										} else {
-											throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
+											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 										}
 										break;
 									case Device::Type::SWITCH:
 										if ( (*find).is_string() ) {
 											device->updateValue<Switch>( Device::UpdateSource::API, (*find).get<std::string>() );
 										} else {
-											throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
+											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 										}
 										break;
 									case Device::Type::TEXT:
 										if ( (*find).is_string() ) {
 											device->updateValue<Text>( Device::UpdateSource::API, (*find).get<std::string>() );
 										} else {
-											throw WebServer::ResourceException( { 400, "Device.Invalid.Value", "The supplied value is invalid." } );
+											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 										}
 										break;
 								}
@@ -971,10 +971,10 @@ namespace micasa {
 							if ( (*find).is_string() ) {
 								script["name"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Script.Invalid.Name", "The supplied name is invalid." } );
+								throw WebServer::ResourceException( 400, "Script.Invalid.Name", "The supplied name is invalid." );
 							}
 						} else if ( scriptId == -1 ) {
-							throw WebServer::ResourceException( { 400, "Script.Missing.Name", "Missing name." } );
+							throw WebServer::ResourceException( 400, "Script.Missing.Name", "Missing name." );
 						}
 
 						find = input_.find( "code" );
@@ -982,10 +982,10 @@ namespace micasa {
 							if ( (*find).is_string() ) {
 								script["code"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Script.Invalid.Code", "The supplied code is invalid." } );
+								throw WebServer::ResourceException( 400, "Script.Invalid.Code", "The supplied code is invalid." );
 							}
 						} else if ( scriptId == -1 ) {
-							throw WebServer::ResourceException( { 400, "Script.Missing.Code", "Missing code." } );
+							throw WebServer::ResourceException( 400, "Script.Missing.Code", "Missing code." );
 						}
 
 						find = input_.find( "enabled" );
@@ -997,7 +997,7 @@ namespace micasa {
 							} else if ( (*find).is_boolean() ) {
 								script["enabled"] = (*find).get<bool>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Script.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+								throw WebServer::ResourceException( 400, "Script.Invalid.Enabled", "The supplied enabled parameter is invalid." );
 							}
 						} else if ( scriptId == -1 ) {
 							script["enabled"] = true;
@@ -1134,10 +1134,10 @@ namespace micasa {
 							if ( (*find).is_string() ) {
 								timer["name"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Name", "The supplied name is invalid." } );
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Name", "The supplied name is invalid." );
 							}
 						} else if ( timerId == -1 ) {
-							throw WebServer::ResourceException( { 400, "Timer.Missing.Name", "Missing name." } );
+							throw WebServer::ResourceException( 400, "Timer.Missing.Name", "Missing name." );
 						}
 
 						find = input_.find( "cron" );
@@ -1145,10 +1145,10 @@ namespace micasa {
 							if ( (*find).is_string() ) {
 								timer["cron"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Cron", "The supplied cron is invalid." } );
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Cron", "The supplied cron is invalid." );
 							}
 						} else if ( timerId == -1 ) {
-							throw WebServer::ResourceException( { 400, "Timer.Missing.Cron", "Missing cron." } );
+							throw WebServer::ResourceException( 400, "Timer.Missing.Cron", "Missing cron." );
 						}
 
 						find = input_.find( "enabled" );
@@ -1160,7 +1160,7 @@ namespace micasa {
 							} else if ( (*find).is_boolean() ) {
 								timer["enabled"] = (*find).get<bool>();
 							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Enabled", "The supplied enabled parameter is invalid." );
 							}
 						} else if ( timerId == -1 ) {
 							timer["enabled"] = true;
@@ -1216,7 +1216,7 @@ namespace micasa {
 									list.str().c_str()
 								);
 							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Scripts", "The supplied scripts parameter is invalid." } );
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Scripts", "The supplied scripts parameter is invalid." );
 							}
 						}
 
@@ -1249,7 +1249,7 @@ namespace micasa {
 					// The _processHttpRequest has already checked the username and password, so if no user pas passed to
 					// this callback it means that either the username or password was invalid.
 					if ( user_ == nullptr ) {
-						throw WebServer::ResourceException( { 400, "Login.Failure", "The username and/or password is invalid." } );
+						throw WebServer::ResourceException( 400, "Login.Failure", "The username and/or password is invalid." );
 					}
 					
 					// Get the rest of the user details necessary to provide a proper webtoken to the client.
@@ -1371,10 +1371,10 @@ namespace micasa {
 							if ( (*find).is_string() ) {
 								user["name"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Name", "The supplied name is invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Name", "The supplied name is invalid." );
 							}
 						} else if ( userId == -1 ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Name", "Missing name." } );
+							throw WebServer::ResourceException( 400, "User.Missing.Name", "Missing name." );
 						}
 
 						find = input_.find( "username" );
@@ -1386,10 +1386,10 @@ namespace micasa {
 							) {
 								user["username"] = (*find).get<std::string>();
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Username", "The supplied username is invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Username", "The supplied username is invalid." );
 							}
 						} else if ( userId == -1 ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Username", "Missing username." } );
+							throw WebServer::ResourceException( 400, "User.Missing.Username", "Missing username." );
 						}
 
 						find = input_.find( "password" );
@@ -1401,10 +1401,10 @@ namespace micasa {
 							) {
 								user["password"] = generateHash( (*find).get<std::string>(), this->m_privateKey );
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Password", "The supplied password is invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Password", "The supplied password is invalid." );
 							}
 						} else if ( userId == -1 ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Password", "Missing password." } );
+							throw WebServer::ResourceException( 400, "User.Missing.Password", "Missing password." );
 						}
 						
 						find = input_.find( "rights" );
@@ -1414,10 +1414,10 @@ namespace micasa {
 							} else if ( (*find).is_number() ) {
 								user["rights"] = (*find).get<unsigned short>();
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Rights", "The supplied rights are invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Rights", "The supplied rights are invalid." );
 							}
 						} else if ( userId == -1 ) {
-							throw WebServer::ResourceException( { 400, "User.Missing.Rights", "Missing rights." } );
+							throw WebServer::ResourceException( 400, "User.Missing.Rights", "Missing rights." );
 						}
 
 						find = input_.find( "enabled" );
@@ -1429,7 +1429,7 @@ namespace micasa {
 							} else if ( (*find).is_boolean() ) {
 								user["enabled"] = (*find).get<bool>();
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Enabled", "The supplied enabled parameter is invalid." );
 							}
 						} else if ( userId == -1 ) {
 							user["enabled"] = true;
@@ -1503,10 +1503,10 @@ namespace micasa {
 								user_->getSettings()->commit();
 						
 							} else {
-								throw WebServer::ResourceException( { 400, "User.Invalid.Settings", "The supplied settings are invalid." } );
+								throw WebServer::ResourceException( 400, "User.Invalid.Settings", "The supplied settings are invalid." );
 							}
 						} else {
-							throw WebServer::ResourceException( { 400, "User.Missing.Settings", "Missing settings." } );
+							throw WebServer::ResourceException( 400, "User.Missing.Settings", "Missing settings." );
 						}
 						break;
 					}

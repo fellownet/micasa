@@ -383,12 +383,12 @@ namespace micasa {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
 					} else {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-						throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+						throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 					}
 					output_["code"] = 200;
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
+					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
 				}
 			} )
 		} );
@@ -414,20 +414,20 @@ namespace micasa {
 							}
 						} else {
 							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 						}
 					} else if ( method_ == WebServer::Method::DELETE ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							Manager::Get()->CancelControllerCommand( this->m_homeId );
 						} else {
 							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 						}
 					}
 					output_["code"] = 200;
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
+					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
 				}
 			} )
 		} );
@@ -452,20 +452,20 @@ namespace micasa {
 							}
 						} else {
 							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 						}
 					} else if ( method_ == WebServer::Method::DELETE ) {
 						if ( this->getState() == Hardware::State::READY ) {
 							Manager::Get()->CancelControllerCommand( this->m_homeId );
 						} else {
 							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( { 423, "Hardware.Not.Ready", "The hardware is not ready." } );
+							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
 						}
 					}
 					output_["code"] = 200;
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( { 423, "Hardware.Busy", "The hardware is busy." } );
+					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
 				}
 			} )
 		} );
