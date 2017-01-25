@@ -50,7 +50,7 @@ namespace micasa {
 		}
 
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		
+
 		this->m_serial = std::make_shared<Serial>(
 			this->m_settings->get( "port" ),
 			38400, // baud rate of rfxcom devices
@@ -63,7 +63,7 @@ namespace micasa {
 				while ( pos < length_ ) {
 
 					this->m_packet[this->m_packetPosition] = data_[pos];
-					
+
 					// Ignore first character if it's 00.
 					if (
 						this->m_packetPosition == 0
@@ -71,20 +71,22 @@ namespace micasa {
 					) {
 						continue;
 					}
-					
+
 					this->m_packetPosition++;
-					
+
 					if ( this->m_packetPosition >= sizeof( this->m_packet ) - 1 ) {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
 						this->m_packetPosition = 0;
 					}
-					
+
 					// The first (accepted) byte should contain the length of the packet.
 					if ( this->m_packetPosition > this->m_packet[0] ) {
-						this->_processPacket();
+						if ( false == this->_processPacket() ) {
+							g_logger->logr( Logger::LogLevel::ERROR, this, "Error while processing packet." );
+						}
 						this->m_packetPosition = 0;
 					}
-					
+
 					pos++;
 				}
 			} )
@@ -100,7 +102,7 @@ namespace micasa {
 
 		Hardware::start();
 	};
-	
+
 	void RFXCom::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
@@ -160,192 +162,125 @@ namespace micasa {
 		auto packet = reinterpret_cast<const tRBUF*>( &this->m_packet );
 
 		switch( type ) {
-			case pTypeLighting1:
-				//return (pLen == 0x07);
+			case pTypeTEMP_HUM:
+				return ( length + 1 == sizeof( packet->TEMP_HUM ) && this->_handleTempHumPacket( packet ) );
 				break;
 			case pTypeLighting2:
-				//return (pLen == 0x0B);
+				return ( length + 1 == sizeof( packet->LIGHTING2 ) && this->_handleLightning2Packet( packet ) );
 				break;
+
+
+			case pTypeLighting1:
 			case pTypeLighting3:
-				//return (pLen == 0x08);
-				break;
 			case pTypeLighting4:
-				//return (pLen == 0x09);
-				break;
 			case pTypeLighting5:
-				//return (pLen == 0x0A);
-				break;
 			case pTypeLighting6:
-				//return (pLen == 0x0B);
-				break;
 			case pTypeChime:
-				//return (pLen == 0x07);
-				break;
 			case pTypeFan:
-				//return (pLen == 0x08);
-				break;
 			case pTypeCurtain:
-				//return (pLen == 0x07);
-				break;
 			case pTypeBlinds:
-				//return (pLen == 0x09);
-				break;
 			case pTypeRFY:
-				//return (pLen == 0x0C);
-				break;
 			case pTypeHomeConfort:
-				//return (pLen == 0x0C);
-				break;
 			case pTypeSecurity1:
-				//return (pLen == 0x08);
-				break;
 			case pTypeSecurity2:
-				//return (pLen == 0x1C);
-				break;
 			case pTypeCamera:
-				//return (pLen == 0x06);
-				break;
 			case pTypeRemote:
-				//return (pLen == 0x06);
-				break;
 			case pTypeThermostat1:
-				//return (pLen == 0x09);
-				break;
 			case pTypeThermostat2:
-				//return (pLen == 0x06);
-				break;
 			case pTypeThermostat3:
-				//return (pLen == 0x08);
-				break;
 			case pTypeRadiator1:
-				//return (pLen == 0x0C);
-				break;
 			case pTypeBBQ:
-				//return (pLen == 0x0A);
-				break;
 			case pTypeTEMP_RAIN:
-				//return (pLen == 0x0A);
-				break;
 			case pTypeTEMP:
-				//return (pLen == 0x08);
-				break;
 			case pTypeHUM:
-				//return (pLen == 0x08);
-				break;
-
-			case pTypeTEMP_HUM:
-				return ( length == sizeof( packet->TEMP_HUM ) && this->_handleTempHumPacket( packet ) );
-				break;
-
 			case pTypeBARO:
-				//return (pLen == 0x09);
-				break;
 			case pTypeTEMP_HUM_BARO:
-				//return (pLen == 0x0D);
-				break;
 			case pTypeRAIN:
-				//return (pLen == 0x0B);
-				break;
 			case pTypeWIND:
-				//return (pLen == 0x10);
-				break;
 			case pTypeUV:
-				//return (pLen == 0x09);
-				break;
 			case pTypeDT:
-				//return (pLen == 0x0D);
-				break;
 			case pTypeCURRENT:
-				//return (pLen == 0x0D);
-				break;
 			case pTypeENERGY:
-				//return (pLen == 0x11);
 			case pTypeCURRENTENERGY:
-				//return (pLen == 0x13);
-				break;
 			case pTypePOWER:
-				//return (pLen == 0x0F);
-				break;
 			case pTypeWEIGHT:
-				//return (pLen == 0x08);
-				break;
 			case pTypeCARTELECTRONIC:
-				//return (pLen == 0x15);
-				break;
 			case pTypeRFXSensor:
-				//return (pLen == 0x07);
-				break;
 			case pTypeRFXMeter:
-				//return (pLen == 0x0A);
-				break;
 			case pTypeFS20:
-				//return (pLen == 0x09);
 				break;
 		}
-		
-		g_logger->logr( Logger::LogLevel::WARNING, this, "Unsupported packet type %02X with length %d.", type, length );
-		return false;
+
+		g_logger->logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X with length %d bytes.", type, length );
+		return true;
 	};
 
 	bool RFXCom::_handleTempHumPacket( const tRBUF* packet_ ) {
-	
-		std::cout << "TEMP HUM PACKET RECEIVED\n";
-	
-		return true;
-/*
-		std::string label;
-		switch( subtype ) {
-			case sTypeTH1:
-				label = "TH1 - THGN122/123/132,THGR122/228/238/268";
-				break;
-			case sTypeTH2:
-				label = "TH2 - THGR810,THGN800";
-				break;
-			case sTypeTH3:
-				label = "TH3 - RTGR328";
-				break;
-			case sTypeTH4:
-				label = "TH4 - THGR328";
-				break;
-			case sTypeTH5:
-				label = "TH5 - WTGR800";
-				break;
-			case sTypeTH6:
-				label = "TH6 - THGR918/928,THGRN228,THGN500";
-				break;
-			case sTypeTH7:
-				label = "TH7 - Cresta, TFA TS34C";
-				break;
-			case sTypeTH8:
-				label = "TH8 - WT260,WT260H,WT440H,WT450,WT450H";
-				break;
-			case sTypeTH9:
-				label = "TH9 - Viking 02038, 02035 (02035 has no humidity), TSS320";
-				break;
-			case sTypeTH10:
-				label = "TH10 - Rubicson/IW008T/TX95";
-				break;
-			case sTypeTH11:
-				label = "TH11 - Oregon EW109";
-				break;
-			case sTypeTH12:
-				label = "TH12 - Imagintronix/Opus TX300";
-				break;
-			case sTypeTH13:
-				label = "TH13 - Alecto WS1700 and compatibles";
-				break;
-			case sTypeTH14:
-				label = "TH14 - Alecto";
-				break;
-			default: {
-				std::stringstream ss;
-				ss << std::hex << "Unknown type " << (unsigned int)subtype << " for packet type " << (unsigned int)type;
-				label = ss.str();
-				break;
-			}
+
+		// TODO handle battery level and signal strength > maybe these are properties of a device and can
+		// be beneficial to all devices?
+
+		std::string reference = std::to_string( ( packet_->TEMP_HUM.id1 * 256 ) + packet_->TEMP_HUM.id2 );
+
+		float temperature;
+		if ( ! packet_->TEMP_HUM.tempsign ) {
+			temperature = float( ( packet_->TEMP_HUM.temperatureh * 256 ) + packet_->TEMP_HUM.temperaturel ) / 10.0f;
+		} else {
+			temperature = -( float( ( ( packet_->TEMP_HUM.temperatureh & 0x7F ) * 256 ) + packet_->TEMP_HUM.temperaturel ) / 10.0f );
 		}
-*/
-	
+		if (
+			temperature < -200
+			|| temperature > 380
+		) {
+			return false;
+		}
+
+		this->_declareDevice<Level>( reference + "(T)", "Temperature", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+			{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELSIUS ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, temperature );
+
+		unsigned int humidity = (unsigned int)packet_->TEMP_HUM.humidity;
+		if ( humidity > 100 ) {
+			return false;
+		}
+
+		this->_declareDevice<Level>( reference + "(H)", "Humidity", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::HUMIDITY ) },
+			{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, humidity );
+
+		return true;
+	};
+
+	bool RFXCom::_handleLightning2Packet( const tRBUF* packet_ ) {
+		char tmp[100];
+		sprintf( tmp,"%02X_%02X_%02X_%02X", packet_->LIGHTING2.id1, packet_->LIGHTING2.id2, packet_->LIGHTING2.id3, packet_->LIGHTING2.id4 );
+		std::string prefix = tmp;
+
+		// The group on/off commands do not create devices, they merely turn on/off existing devices
+		// within the group.
+		if (
+			packet_->LIGHTING2.cmnd == light2_sGroupOn
+			|| packet_->LIGHTING2.cmnd == light2_sGroupOff
+		) {
+			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sGroupOn ? Switch::Option::ON : Switch::Option::OFF );
+			auto devices = this->getAllDevices( prefix );
+			for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+				auto device = std::static_pointer_cast<Switch>( *devicesIt );
+				device->updateValue( Device::UpdateSource::HARDWARE, value );
+			}
+		} else {
+			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
+			this->_declareDevice<Switch>( prefix + std::to_string( packet_->LIGHTING2.unitcode ), "Switch", {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
+			} )->updateValue( Device::UpdateSource::HARDWARE, value );
+		}
+
+		return true;
 	};
 
 }; // namespace micasa

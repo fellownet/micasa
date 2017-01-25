@@ -191,7 +191,7 @@ namespace micasa {
 		if ( full_ ) {
 			result["settings"] = json::array();
 		}
-		
+
 		return result;
 	};
 
@@ -239,6 +239,17 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		return std::vector<std::shared_ptr<Device> >( this->m_devices );
 	};
+
+	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices( const std::string& prefix_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::vector<std::shared_ptr<Device> > result;
+		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
+			if ( (*devicesIt)->getReference().substr( 0, prefix_.size() ) == prefix_ ) {
+				result.push_back( *devicesIt );
+			}
+		}
+		return result;
+	}
 
 	void Hardware::removeDevice( const std::shared_ptr<Device> device_ ) {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );

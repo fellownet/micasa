@@ -82,6 +82,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 		std::vector<std::shared_ptr<Device> > getAllDevices() const;
+		std::vector<std::shared_ptr<Device> > getAllDevices( const std::string& prefix_ ) const;
 		void removeDevice( const std::shared_ptr<Device> device_ );
 
 		virtual json getJson( bool full_ = false ) const;

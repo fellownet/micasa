@@ -21,7 +21,7 @@ namespace micasa {
 
 		void start() override;
 		void stop() override;
-		
+
 		std::string getLabel() const throw() override { return "RFXCom"; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		json getJson( bool full_ = false ) const override;
@@ -36,6 +36,7 @@ namespace micasa {
 
 		bool _processPacket();
 		bool _handleTempHumPacket( const tRBUF* packet_ );
+		bool _handleLightning2Packet( const tRBUF* packet_ );
 
 	}; // class RFXCom
 
