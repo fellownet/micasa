@@ -14,15 +14,15 @@ namespace micasa {
 	class Database final {
 
 	public:
-		struct NoResultsException: public std::runtime_error {
+		class NoResultsException: public std::runtime_error {
 		public:
 			using runtime_error::runtime_error;
-		}; // struct NoResultsException
+		}; // class NoResultsException
 
-		struct InvalidResultException: public std::runtime_error {
+		class InvalidResultException: public std::runtime_error {
 		public:
 			using runtime_error::runtime_error;
-		}; // struct InvalidResultException
+		}; // class InvalidResultException
 
 		Database( std::string filename_ );
 		~Database();

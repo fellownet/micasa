@@ -22,6 +22,7 @@ set( SRC
 	src/Controller.cpp
 	src/Logger.cpp
 	src/Network.cpp
+	src/Serial.cpp
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp

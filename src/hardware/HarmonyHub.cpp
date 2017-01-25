@@ -22,9 +22,6 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		// The settings for the harmony hub need to be entered before the hardware is started. Therefore the
-		// resource handler needs to be installed upon construction time. The resource will be destroyed by
-		// the controller which uses the same identifier for specific hardware resources.
 		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",

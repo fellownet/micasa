@@ -2,7 +2,6 @@
 
 #include "SolarEdge.h"
 #include "../Logger.h"
-#include "../Database.h"
 #include "../Network.h"
 #include "../Controller.h"
 #include "../Utils.h"
@@ -13,7 +12,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<WebServer> g_webServer;
@@ -21,9 +19,6 @@ namespace micasa {
 	using namespace nlohmann;
 
 	SolarEdge::SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		// The settings for SolarEdge need to be entered before the hardware is started. Therefore the
-		// resource handler needs to be installed upon construction time. The resource will be destroyed by
-		// the controller which uses the same identifier for specific hardware resources.
 		g_webServer->addResourceCallback( {
 			"hardware-" + std::to_string( this->m_id ),
 			"^api/hardware/" + std::to_string( this->m_id ) + "$",
