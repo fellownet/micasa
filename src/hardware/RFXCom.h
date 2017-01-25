@@ -2,6 +2,11 @@
 
 #include "../Hardware.h"
 
+// BYTE is defined in WinDef.h and is used in RFXtrx.h, so we're using it here aswell.
+typedef unsigned char BYTE;
+
+#include "RFXtrx.h"
+
 #define RFXCOM_MAX_PACKET_SIZE 40
 
 namespace micasa {
@@ -29,7 +34,8 @@ namespace micasa {
 		unsigned int m_packetPosition = 0;
 		unsigned char m_packet[RFXCOM_MAX_PACKET_SIZE];
 
-		void _processPacket();
+		bool _processPacket();
+		bool _handleTempHumPacket( const tRBUF* packet_ );
 
 	}; // class RFXCom
 
