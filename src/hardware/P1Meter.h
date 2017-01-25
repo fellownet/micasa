@@ -20,7 +20,7 @@ namespace micasa {
 		json getJson( bool full_ = false ) const override;
 	
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) throw() override { return std::chrono::milliseconds( 1000 ); }
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 ); };
 
 	private:
 		std::shared_ptr<Serial> m_serial;

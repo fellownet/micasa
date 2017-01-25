@@ -56,19 +56,45 @@ namespace micasa {
 			Serial::Parity::PARITY_NONE,
 			Serial::StopBits::STOP_BITS_1,
 			Serial::FlowControl::FLOW_CONTROL_NONE,
-			std::make_shared<Serial::t_callback>( [this]( const std::string& data_ ) {
-			
+			std::make_shared<Serial::t_callback>( [this]( const unsigned char* data_, const size_t length_ ) {
+				size_t pos = 0;
+				while ( pos < length_ ) {
+
+					this->m_packet[this->m_packetPosition] = data_[pos];
+					
+					// Ignore first character if it's 00.
+					if (
+						this->m_packetPosition == 0
+						&& this->m_packet[0] == 0
+					) {
+						continue;
+					}
+					
+					this->m_packetPosition++;
+					
+					if ( this->m_packetPosition >= sizeof( this->m_packet ) - 1 ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
+						this->m_packetPosition = 0;
+					}
+					
+					// The first (accepted) byte should contain the length of the packet.
+					if ( this->m_packetPosition > this->m_packet[0] ) {
+						this->_processPacket();
+						this->m_packetPosition = 0;
+					}
+					
+					pos++;
+				}
 			} )
 		);
 
 		try {
 			this->m_serial->open();
+			this->setState( Hardware::State::READY );
 		} catch( Serial::SerialException exception_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
 			this->setState( Hardware::State::FAILED );
 		}
-
-		this->setState( Hardware::State::READY );
 
 		Hardware::start();
 	};
@@ -84,6 +110,15 @@ namespace micasa {
 		this->m_serial = nullptr;
 
 		Hardware::stop();
+	};
+
+	void RFXCom::_processPacket() {
+
+		uint8_t length = ((uint8_t*)&this->m_packet)[0];
+		uint8_t type = ((uint8_t*)&this->m_packet)[1];
+
+		std::cout << std::hex << "RECEIVED PACKET OF LENGTH " << length << " AND TYPE " << type << "\n";
+
 	};
 
 	json RFXCom::getJson( bool full_ ) const {

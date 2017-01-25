@@ -18,7 +18,7 @@ namespace micasa {
 		friend void (::micasa_serial_signal_handler)( int signal_ );
 		
 	public:
-		typedef std::function<void( const std::string& data_ )> t_callback;
+		typedef std::function<void( const unsigned char* data_, const size_t length_ )> t_callback;
 
 		class AlreadyOpenException: public std::logic_error {
 		public:
@@ -64,8 +64,6 @@ namespace micasa {
 		void open();
 		void close();
 
-		bool hasDataAvailable() const throw() { return this->m_dataAvailable; };
-
 		void setModemControlLine( const int modemLine_, const bool lineState_ );
 		bool getModemControlLine( const int modemLine_ ) const;
 
@@ -93,10 +91,6 @@ namespace micasa {
 		int m_fd = -1;
 		mutable std::mutex m_fdMutex;
 		termios m_oldSettings;
-		
-		std::queue<unsigned char> m_inputBuffer;
-		mutable std::mutex m_inputBufferMutex;
-		volatile bool m_dataAvailable = false;
 
 		void _signalReceived();
 	

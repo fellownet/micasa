@@ -2,6 +2,8 @@
 
 #include "../Hardware.h"
 
+#define RFXCOM_MAX_PACKET_SIZE 40
+
 namespace micasa {
 
 	class Serial;
@@ -20,10 +22,14 @@ namespace micasa {
 		json getJson( bool full_ = false ) const override;
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) throw() override { return std::chrono::milliseconds( 1000 ); }
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 ); };
 
 	private:
 		std::shared_ptr<Serial> m_serial;
+		unsigned int m_packetPosition = 0;
+		unsigned char m_packet[RFXCOM_MAX_PACKET_SIZE];
+
+		void _processPacket();
 
 	}; // class RFXCom
 

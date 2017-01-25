@@ -16,6 +16,8 @@
 
 #include "Serial.h"
 
+#define SERIAL_READ_BUFFER_SIZE 65 * 1024
+
 void micasa_serial_signal_handler( int signal_ ) {
 	if ( signal_ == SIGIO ) {
 		// Iterate through all the serial instances that are listening for data.
@@ -173,8 +175,6 @@ namespace micasa {
 			this->close();
 			throw Serial::SerialException( "Unable to set port settings." );
 		}
-		
-		this->m_dataAvailable = false;
 	}
 
 	void Serial::close() {
@@ -250,28 +250,28 @@ namespace micasa {
 		std::thread( [this]{
 			std::lock_guard<std::mutex> fdLock( this->m_fdMutex );
 
-std::cout << "IO SIGNAL RECEIVED\n";
-
 			// Determine if it was our serial port that received data.
 			int bytesAvailable = 0 ;
 			if ( ioctl( this->m_fd, FIONREAD, &bytesAvailable ) < 0 ) {
 				return;
 			}
-
-std::cout << "DATA AVAILABLE " << bytesAvailable << " BYTES\n";
-
-
-			std::lock_guard<std::mutex> bufferLock( this->m_inputBufferMutex );
-			for ( int i = 0; i < bytesAvailable; ++i ) {
+			
+			unsigned char data[bytesAvailable];
+			int length;
+			for ( length = 0; length < bytesAvailable; length++ ) {
 				unsigned char byte;
 				if ( read( this->m_fd, &byte, 1 ) > 0 ) {
-					this->m_inputBuffer.push( byte );
+					data[length] = byte;
 				} else {
 					break;
 				}
 			}
 
-			this->m_dataAvailable = true;
+			// Call the associated callback to inform listeners of new data.
+			if ( this->m_callback != nullptr ) {
+				(*this->m_callback)( data, length );
+			}
+
 		} ).detach();
 	};
 

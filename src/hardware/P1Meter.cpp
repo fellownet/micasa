@@ -59,8 +59,8 @@ namespace micasa {
 			Serial::Parity::PARITY_NONE,
 			Serial::StopBits::STOP_BITS_1,
 			Serial::FlowControl::FLOW_CONTROL_NONE,
-			std::make_shared<Serial::t_callback>( [this]( const std::string& data_ ) {
-			
+			std::make_shared<Serial::t_callback>( [this]( const unsigned char* data_, const size_t length_ ) {
+
 			} )
 		);
 
