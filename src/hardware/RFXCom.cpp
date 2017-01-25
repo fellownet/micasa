@@ -117,7 +117,7 @@ namespace micasa {
 		uint8_t length = ((uint8_t*)&this->m_packet)[0];
 		uint8_t type = ((uint8_t*)&this->m_packet)[1];
 
-		std::cout << std::hex << "RECEIVED PACKET OF LENGTH " << length << " AND TYPE " << type << "\n";
+		std::cout << "RECEIVED PACKET OF LENGTH " << (unsigned int)length << " AND TYPE " << (unsigned int)type << "\n";
 
 	};
 
