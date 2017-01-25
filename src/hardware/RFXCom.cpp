@@ -148,21 +148,28 @@ namespace micasa {
 	};
 
 	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+
 		// NOTE for now only LIGHTING2 devices are eligible to be set by the end-user, enhancements are needed if
 		// more types are added.
+
 		auto device = std::static_pointer_cast<Switch>( device_ );
 		auto parts = stringSplit( device_->getReference(), '|' );
 		unsigned long prefix = std::stoul( parts[0] );
 
 		tRBUF packet;
+		packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
+		packet.LIGHTING2.packettype = pTypeLighting2;
+		packet.LIGHTING2.subtype = std::stoi( parts[2] );
+
 		packet.LIGHTING2.id1 = ( prefix >> 24 ) & 0xff;
 		packet.LIGHTING2.id2 = ( prefix >> 16 ) & 0xff;
 		packet.LIGHTING2.id3 = ( prefix >> 8 ) & 0xff;
 		packet.LIGHTING2.id4 = prefix & 0xff;
+
 		packet.LIGHTING2.unitcode = std::stoi( parts[1] );
 		packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
-		
-		this->m_serial->write( (unsigned char*)&packet, sizeof( packet ) );
+
+		this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
 		return true;
 	};
 
@@ -181,6 +188,9 @@ namespace micasa {
 		auto packet = reinterpret_cast<const tRBUF*>( &this->m_packet );
 
 		switch( type ) {
+			case pTypeRecXmitMessage:
+				return packet->ICMND.subtype == sTypeTransmitterResponse;
+				break;
 			case pTypeTEMP_HUM:
 				return ( length + 1 == sizeof( packet->TEMP_HUM ) && this->_handleTempHumPacket( packet ) );
 				break;
@@ -275,11 +285,16 @@ namespace micasa {
 	};
 
 	bool RFXCom::_handleLightning2Packet( const tRBUF* packet_ ) {
+
 		unsigned long prefix = 0;
 		prefix |= ( packet_->LIGHTING2.id1 << 24 );
 		prefix |= ( packet_->LIGHTING2.id2 << 16 );
 		prefix |= ( packet_->LIGHTING2.id3 << 8 );
 		prefix |= packet_->LIGHTING2.id4;
+
+		std::stringstream ss;
+		ss << prefix << "|" << (int)packet_->LIGHTING2.unitcode << "|" << (int)packet_->LIGHTING2.subtype;
+		std::string reference = ss.str();
 
 		// The group on/off commands do not create devices, they merely turn on/off existing devices
 		// within the group.
@@ -295,7 +310,7 @@ namespace micasa {
 			}
 		} else {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
-			this->_declareDevice<Switch>( std::to_string( prefix ) + "|" + std::to_string( (int)packet_->LIGHTING2.unitcode ), "Switch", {
+			this->_declareDevice<Switch>( reference, "Switch", {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
 				{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
 			} )->updateValue( Device::UpdateSource::HARDWARE, value );
