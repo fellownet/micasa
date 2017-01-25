@@ -147,6 +147,25 @@ namespace micasa {
 		}
 	};
 
+	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		// NOTE for now only LIGHTING2 devices are eligible to be set by the end-user, enhancements are needed if
+		// more types are added.
+		auto device = std::static_pointer_cast<Switch>( device_ );
+		auto parts = stringSplit( device_->getReference(), '|' );
+		unsigned long prefix = std::stoul( parts[0] );
+
+		tRBUF packet;
+		packet.LIGHTING2.id1 = ( prefix >> 24 ) & 0xff;
+		packet.LIGHTING2.id2 = ( prefix >> 16 ) & 0xff;
+		packet.LIGHTING2.id3 = ( prefix >> 8 ) & 0xff;
+		packet.LIGHTING2.id4 = prefix & 0xff;
+		packet.LIGHTING2.unitcode = std::stoi( parts[1] );
+		packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
+		
+		this->m_serial->write( (unsigned char*)&packet, sizeof( packet ) );
+		return true;
+	};
+
 	bool RFXCom::_processPacket() {
 
 		// NOTE The packet is a union of all the available structs. All these structs have two bytes that indicate
@@ -236,7 +255,7 @@ namespace micasa {
 		}
 
 		this->_declareDevice<Level>( reference + "(T)", "Temperature", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
 			{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::CELSIUS ) }
 		} )->updateValue( Device::UpdateSource::HARDWARE, temperature );
@@ -247,7 +266,7 @@ namespace micasa {
 		}
 
 		this->_declareDevice<Level>( reference + "(H)", "Humidity", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::HUMIDITY ) },
 			{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) }
 		} )->updateValue( Device::UpdateSource::HARDWARE, humidity );
@@ -256,9 +275,11 @@ namespace micasa {
 	};
 
 	bool RFXCom::_handleLightning2Packet( const tRBUF* packet_ ) {
-		char tmp[100];
-		sprintf( tmp,"%02X_%02X_%02X_%02X", packet_->LIGHTING2.id1, packet_->LIGHTING2.id2, packet_->LIGHTING2.id3, packet_->LIGHTING2.id4 );
-		std::string prefix = tmp;
+		unsigned long prefix = 0;
+		prefix |= ( packet_->LIGHTING2.id1 << 24 );
+		prefix |= ( packet_->LIGHTING2.id2 << 16 );
+		prefix |= ( packet_->LIGHTING2.id3 << 8 );
+		prefix |= packet_->LIGHTING2.id4;
 
 		// The group on/off commands do not create devices, they merely turn on/off existing devices
 		// within the group.
@@ -267,15 +288,15 @@ namespace micasa {
 			|| packet_->LIGHTING2.cmnd == light2_sGroupOff
 		) {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sGroupOn ? Switch::Option::ON : Switch::Option::OFF );
-			auto devices = this->getAllDevices( prefix );
+			auto devices = this->getAllDevices( std::to_string( prefix ) );
 			for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 				auto device = std::static_pointer_cast<Switch>( *devicesIt );
 				device->updateValue( Device::UpdateSource::HARDWARE, value );
 			}
 		} else {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
-			this->_declareDevice<Switch>( prefix + std::to_string( packet_->LIGHTING2.unitcode ), "Switch", {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			this->_declareDevice<Switch>( std::to_string( prefix ) + "|" + std::to_string( (int)packet_->LIGHTING2.unitcode ), "Switch", {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
 				{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
 			} )->updateValue( Device::UpdateSource::HARDWARE, value );
 		}

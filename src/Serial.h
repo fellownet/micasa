@@ -63,6 +63,7 @@ namespace micasa {
 
 		void open();
 		void close();
+		void write( const unsigned char* data_, const size_t length_ );
 
 		void setModemControlLine( const int modemLine_, const bool lineState_ );
 		bool getModemControlLine( const int modemLine_ ) const;

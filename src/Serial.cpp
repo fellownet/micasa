@@ -207,6 +207,26 @@ namespace micasa {
 		this->m_fd = -1;
 	};
 
+	void Serial::write( const unsigned char* data_, const size_t length_ ) {
+		std::lock_guard<std::mutex> lock( this->m_fdMutex );
+	
+		if ( this->m_fd < 0 ) {
+			throw Serial::SerialException( "Port not open." );
+		}
+	
+		int written = -1;
+		do {
+			written = ::write( this->m_fd, data_, length_ );
+		} while (
+			written < 0
+			&& EAGAIN == errno
+		);
+
+		if ( written < 0 ) {
+			throw Serial::SerialException( strerror( errno ) );
+		}
+	};
+
 	void Serial::setModemControlLine( const int modemLine_, const bool lineState_ ) {
 		std::lock_guard<std::mutex> lock( this->m_fdMutex );
 	
