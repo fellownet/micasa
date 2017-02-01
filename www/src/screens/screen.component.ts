@@ -8,7 +8,7 @@ import { UsersService }           from '../users/users.service';
 
 export class ScreenComponent implements OnInit {
 
-	loading: Boolean = false;
+	loading: boolean = false;
 	error: String;
 	screen: Screen;
 

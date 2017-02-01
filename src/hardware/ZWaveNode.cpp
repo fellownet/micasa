@@ -1,16 +1,13 @@
 #include <chrono>
 
 #include "ZWaveNode.h"
+
 #include "ZWave/CommandClasses.h"
 
 #include "../Logger.h"
-#include "../Controller.h"
-#include "../WebServer.h"
 #include "../User.h"
-#include "../Utils.h"
 
 #include "../device/Level.h"
-#include "../device/Text.h"
 #include "../device/Counter.h"
 #include "../device/Switch.h"
 
@@ -33,9 +30,10 @@
 
 namespace micasa {
 
+	using namespace nlohmann;
+	using namespace OpenZWave;
+
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 
 	void ZWaveNode::start() {
 #ifdef _DEBUG
@@ -43,11 +41,9 @@ namespace micasa {
 #endif // _DEBUG
 
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-
+		
 		this->m_homeId = this->m_settings->get<unsigned int>( "home_id" );
 		this->m_nodeId = this->m_settings->get<unsigned int>( "node_id" );
-
-		this->_installResourceHandlers();
 
 		// If the parent z-wave hardware is already running we can immediately set the state of this node
 		// to ready.
@@ -56,11 +52,19 @@ namespace micasa {
 		}
 
 		Hardware::start();
+
+		// Add the devices that will initiate controller actions. NOTE this has to be done *after* the
+		// parent hardware instance is started to make sure previously created devices get picked up by the
+		// declareDevice method.
+		this->declareDevice<Switch>( "heal", "Node Heal", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void ZWaveNode::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		g_webServer->removeResourceCallback( "zwavenode-" + std::to_string( this->m_id ) );
 		Hardware::stop();
 	};
 
@@ -69,21 +73,50 @@ namespace micasa {
 	};
 
 	json ZWaveNode::getJson( bool full_ ) const {
-		if ( full_ ) {
-			std::lock_guard<std::mutex> lock( this->m_configurationMutex );
-			json result = Hardware::getJson( full_ );
-			result["settings"] = json::array();
-			for( auto const& setting: this->m_configuration ) {
-				result["settings"]+= setting;
-			}
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+		json result = Hardware::getJson( full_ );
+		for ( auto const& setting: this->m_configuration ) {
+			result[setting["name"].get<std::string>()] = setting.find( "value" ).value();
 		}
+		if ( full_ ) {
+			result["settings"] = this->getSettingsJson();
+		}
+		return result;
 	}
 
+	json ZWaveNode::getSettingsJson() const {
+		std::lock_guard<std::mutex> lock( this->m_configurationMutex );
+		json result = Hardware::getSettingsJson();
+		for ( auto setting: this->m_configuration ) {
+			setting.erase( "value" );
+			result += setting;
+		}
+		return result;
+	};
+
 	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-	
+		if ( device_->getType() == Device::Type::SWITCH ) {
+			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+
+				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
+				if (
+					this->getState() != Hardware::State::READY
+					|| parent->getState() == Hardware::State::READY
+					|| ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) == false
+				) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					return false;
+				}
+
+				Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
+				g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
+				this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
+
+				ZWave::g_managerMutex.unlock();
+				return true;
+			}
+		}
+
 		// The actual value is applied only after the affected node confirms the change.
 		apply_ = false;
 
@@ -147,6 +180,18 @@ namespace micasa {
 		}
 
 		return true;
+	};
+	
+	std::chrono::milliseconds ZWaveNode::_work( const unsigned long int& iteration_ ) {
+		// Because the action devices needed to be created after the hardware was started, they might not exist in
+		// the first iteration.
+		if ( iteration_ > 1 ) {
+			auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
+			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+			}
+		}
+		return std::chrono::milliseconds( 1000 * 60 * 15 );
 	};
 
 	void ZWaveNode::_handleNotification( const Notification* notification_ ) {
@@ -240,7 +285,7 @@ namespace micasa {
 	void ZWaveNode::_processValue( const ValueID& valueId_, Device::UpdateSource source_ ) {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
 		std::string reference = std::to_string( valueId_.GetId() );
-		std::string units = Manager::Get()->GetValueUnits( valueId_ );
+		std::string unit = Manager::Get()->GetValueUnits( valueId_ );
 		
 		//ValueID::ValueGenre genre = valueId_.GetGenre();
 
@@ -322,7 +367,7 @@ namespace micasa {
 					&& false != Manager::Get()->GetValueAsBool( valueId_, &boolValue )
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
-					auto device = this->_declareDevice<Switch>( reference, label, {
+					auto device = this->declareDevice<Switch>( reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
@@ -352,7 +397,7 @@ namespace micasa {
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
 					// TODO differentiate between blinds, switches etc (like open close on of etc).
-					auto device = this->_declareDevice<Switch>( reference, label, {
+					auto device = this->declareDevice<Switch>( reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
@@ -391,9 +436,9 @@ namespace micasa {
 						valueId_.GetType() == ValueID::ValueType_Byte
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 					) {
-						auto device = this->_declareDevice<Level>( reference, label, {
+						auto device = this->declareDevice<Level>( reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
-							{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) },
 							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
 							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
 						} );
@@ -432,10 +477,10 @@ namespace micasa {
 							subtype = Counter::SubType::WATER;
 							unit = Counter::Unit::M3;
 						}
-						auto device = this->_declareDevice<Counter>( reference, label, {
+						auto device = this->declareDevice<Counter>( reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( subtype ) },
-							{ DEVICE_SETTING_DEFAULT_UNITS, Counter::resolveUnit( unit ) }
+							{ DEVICE_SETTING_DEFAULT_UNIT, Counter::resolveUnit( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					} else {
@@ -457,10 +502,10 @@ namespace micasa {
 							subtype = Level::SubType::LUMINANCE;
 							unit = Level::Unit::LUX;
 						}
-						auto device = this->_declareDevice<Level>( reference, label, {
+						auto device = this->declareDevice<Level>( reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
-							{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( unit ) }
+							{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( unit ) }
 						} );
 						device->updateValue( source_, floatValue );
 					}
@@ -474,10 +519,10 @@ namespace micasa {
 					valueId_.GetType() == ValueID::ValueType_Byte
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
-					auto device = this->_declareDevice<Level>( reference, label, {
+					auto device = this->declareDevice<Level>( reference, label, {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::BATTERY_LEVEL ) },
-						{ DEVICE_SETTING_DEFAULT_UNITS, Level::resolveUnit( Level::Unit::PERCENT ) }
+						{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) }
 					} );
 					device->updateValue( source_, (unsigned int)byteValue );
 				}
@@ -516,11 +561,11 @@ namespace micasa {
 				
 				if ( type == ValueID::ValueType_Decimal ) {
 					setting["type"] = "double";
-					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["minimum"] = Manager::Get()->GetValueMin( valueId_ );
 					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
-						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+						setting["maximum"] = Manager::Get()->GetValueMax( valueId_ );
 					} else {
-						setting["max"] = std::numeric_limits<double>::max();
+						setting["maximum"] = std::numeric_limits<double>::max();
 					}
 					float floatValue = 0;
 					Manager::Get()->GetValueAsFloat( valueId_, &floatValue );
@@ -532,33 +577,33 @@ namespace micasa {
 					setting["value"] = boolValue;
 				} else if ( type == ValueID::ValueType_Byte ) {
 					setting["type"] = "byte";
-					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["minimum"] = Manager::Get()->GetValueMin( valueId_ );
 					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
-						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+						setting["maximum"] = Manager::Get()->GetValueMax( valueId_ );
 					} else {
-						setting["max"] = std::numeric_limits<unsigned char>::max();
+						setting["maximum"] = std::numeric_limits<unsigned char>::max();
 					}
 					unsigned char byteValue = 0;
 					Manager::Get()->GetValueAsByte( valueId_, &byteValue );
 					setting["value"] = byteValue;
 				} else if ( type == ValueID::ValueType_Short ) {
 					setting["type"] = "short";
-					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["minimum"] = Manager::Get()->GetValueMin( valueId_ );
 					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
-						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+						setting["maximum"] = Manager::Get()->GetValueMax( valueId_ );
 					} else {
-						setting["max"] = std::numeric_limits<short>::max();
+						setting["maximum"] = std::numeric_limits<short>::max();
 					}
 					short shortValue = 0;
 					Manager::Get()->GetValueAsShort( valueId_, &shortValue );
 					setting["value"] = shortValue;
 				} else if ( type == ValueID::ValueType_Int ) {
 					setting["type"] = "int";
-					setting["min"] = Manager::Get()->GetValueMin( valueId_ );
+					setting["minimum"] = Manager::Get()->GetValueMin( valueId_ );
 					if ( Manager::Get()->GetValueMax( valueId_ ) > Manager::Get()->GetValueMin( valueId_ ) ) {
-						setting["max"] = Manager::Get()->GetValueMax( valueId_ );
+						setting["maximum"] = Manager::Get()->GetValueMax( valueId_ );
 					} else {
-						setting["max"] = std::numeric_limits<int>::max();
+						setting["maximum"] = std::numeric_limits<int>::max();
 					}
 					int intValue = 0;
 					Manager::Get()->GetValueAsInt( valueId_, &intValue );
@@ -638,164 +683,6 @@ namespace micasa {
 		}
 		
 		this->m_settings->commit();
-	};
-
-	void ZWaveNode::_installResourceHandlers() {
-		g_webServer->removeResourceCallback( "zwavenode-" + std::to_string( this->m_id ) );
-
-		// Add resource handlers for network heal.
-		// http://www.openzwave.com/knowledge-base/deadnode
-		g_webServer->addResourceCallback( {
-			"zwavenode-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
-			101,
-			WebServer::Method::PUT,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-					if ( parent->getState() == Hardware::State::READY ) {
-						Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
-					} else {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-						throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-					}
-					output_["code"] = 200;
-				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
-				}
-			} )
-		} );
-		
-		// Add resource handler for settings update.
-		g_webServer->addResourceCallback( {
-			"zwavenode-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "$",
-			99,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				// Obtain a lock on the static/shared OpenZWave library manager. If it takes too long to
-				// obtain the lock, the command will fail.
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-					// Set the node name so it's persistant. This name is stored in the xml config file.
-					auto find = input_.find( "name" );
-					if ( find != input_.end() ) {
-						if ( (*find).is_string() ) {
-							Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, (*find).get<std::string>() );
-						} else {
-							throw WebServer::ResourceException( 400, "Hardware.Invalid.Name", "The supplied name is invalid." );
-						}
-					}
-
-					// Then all pushed settings are processed. The settings should be pushed to the server in
-					// the same format as they are received.
-					find = input_.find( "settings" );
-					if ( find != input_.end() ) {
-						if ( (*find).is_array() ) {
-
-							for ( auto settingIt = (*find).begin(); settingIt != (*find).end(); settingIt++ ) {
-								auto setting = (*settingIt);
-								
-								// Only process this setting if it exists in the configuration.
-								if (
-									setting.find( "name" ) != setting.end()
-									&& setting.find( "value" ) != setting.end()
-									&& this->m_configuration.find( setting["name"].get<std::string>() ) != this->m_configuration.end()
-								) {
-									bool success = true;
-									auto reference = setting["name"].get<std::string>();
-									auto& config = this->m_configuration[reference];
-									
-									if ( config["readonly"].get<bool>() ) {
-										continue;
-									}
-
-									ValueID valueId( this->m_homeId, std::stoull( reference ) );
-									ValueID::ValueType type = valueId.GetType();
-									
-									if ( type == ValueID::ValueType_Decimal ) {
-										success = success && setting["value"].get<float>() <= config["max"].get<float>();
-										success = success && setting["value"].get<float>() >= config["min"].get<float>();
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<float>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<float>();
-										}
-									} else if ( type == ValueID::ValueType_Bool ) {
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<bool>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<bool>();
-										}
-									} else if ( type == ValueID::ValueType_Byte ) {
-										success = success && setting["value"].get<unsigned int>() <= config["max"].get<unsigned int>();
-										success = success && setting["value"].get<unsigned int>() >= config["min"].get<unsigned int>();
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<uint8>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<uint8>();
-										}
-									} else if ( type == ValueID::ValueType_Short ) {
-										success = success && setting["value"].get<int>() <= config["max"].get<int>();
-										success = success && setting["value"].get<int>() >= config["min"].get<int>();
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int16>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<int16>();
-										}
-									} else if ( type == ValueID::ValueType_Int ) {
-										success = success && setting["value"].get<int>() <= config["max"].get<int>();
-										success = success && setting["value"].get<int>() >= config["min"].get<int>();
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<int32>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<int32>();
-										}
-									} else if ( type == ValueID::ValueType_List ) {
-										bool exists = false;
-										for ( auto itemsIt = config["options"].begin(); itemsIt != config["options"].end(); itemsIt++ ) {
-											if ( (*itemsIt)["value"] == setting["value"].get<std::string>() ) {
-												exists = true;
-												break;
-											}
-										}
-										success = success && exists;
-										success = success && Manager::Get()->SetValueListSelection( valueId, setting["value"].get<std::string>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<std::string>();
-										}
-									} else if ( type == ValueID::ValueType_String ) {
-										success = success && Manager::Get()->SetValue( valueId, setting["value"].get<std::string>() );
-										if ( success ) {
-											config["value"] = setting["value"].get<std::string>();
-										}
-									}
-									
-									if ( ! success ) {
-										unsigned int index = valueId.GetIndex();
-										throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", "Invalid value for parameter " + std::to_string( index ) + "." );
-									}
-								}
-							}
-						} else {
-							throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", "The supplied settings are invalid." );
-						}
-
-						output_["code"] = 200;
-					}
-				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
-				}
-			} )
-		} );
 	};
 
 }; // namespace micasa

@@ -31,7 +31,7 @@ export class WidgetCounterComponent implements OnInit {
 
 	getData() {
 		var me = this;
-		me._devicesService.getData( this.widget.device )
+		me._devicesService.getData( this.widget.device.id )
 			.subscribe(
 				function( data_: any[] ) {
 					var data: Array<Array<any>> = [];

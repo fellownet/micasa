@@ -1,18 +1,11 @@
 import { Injectable }      from '@angular/core';
 import {
-	Router,
-	Resolve,
-	RouterStateSnapshot,
-	ActivatedRouteSnapshot
-}                          from '@angular/router';
-import {
 	Http,
 	Response,
 	Headers,
 	RequestOptions
 }                          from '@angular/http';
 import { Observable }      from 'rxjs/Observable';
-import { Hardware }        from '../hardware/hardware.service';
 import { UsersService }    from '../users/users.service';
 import { Setting }         from '../settings/settings.service';
 
@@ -20,65 +13,40 @@ export class Device {
 	id: number;
 	label: string;
 	name: string;
-	hardware: Hardware;
+	hardware: string;
+	hardware_id: number;
 	type: string;
 	subtype: string;
 	enabled: boolean;
-	value?: any; // is optional for updates
+	value?: any;
 	unit: string;
+	last_update: number;
 	scripts?: number[];
 	settings?: Setting[];
+	readonly: boolean;
+	total_scripts: number;
+	total_timers: number;
 }
 
 @Injectable()
-export class DevicesService implements Resolve<Device> {
+export class DevicesService {
 
 	private _deviceUrlBase = 'api/devices';
 
-	constructor(
-		private _router: Router,
+	public constructor(
 		private _http: Http,
 		private _usersService: UsersService
 	) {
 	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the device and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Device> {
-		var me = this;
-		return new Observable( function( observer_: any ) {
-			me.getDevice( +route_.params['device_id'] )
-				.subscribe(
-					function( device_: Device ) {
-
-						// If a hardware id was provided (when coming from the hardware details
-						// component) it should match the one returned in device.
-						if (
-							route_.params['hardware_id']
-							&& +route_.params['hardware_id'] != device_.hardware.id
-						) {
-							me._router.navigate( [ '/hardware' ] );
-							observer_.next( null );
-						} else {
-							observer_.next( device_ );
-						}
-						observer_.complete();
-					},
-					function( error_: string ) {
-						me._router.navigate( [ '/devices' ] );
-						observer_.next( null );
-						observer_.complete();
-					}
-				)
-			;
-		} );
-	}
-
-	getDevices( hardware_?: Hardware ): Observable<Device[]> {
+	public getDevices( hardwareId_?: number, scriptId_?: number, deviceIds_?: number[] ): Observable<Device[]> {
 		let uri: string = this._deviceUrlBase;
-		if ( hardware_ ) {
-			uri += '?hardware_id=' + hardware_.id;
+		if ( hardwareId_ ) {
+			uri += '?hardware_id=' + hardwareId_;
+		} else if ( scriptId_ ) {
+			uri += '?enabled=1&script_id=' + scriptId_;
+		} else if ( deviceIds_ ) {
+			uri += '?enabled=1&device_ids=' + deviceIds_.join( ',' );
 		} else {
 			uri += '?enabled=1';
 		}
@@ -90,18 +58,7 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	getDevicesByIds( deviceIds_: number[] ): Observable<Device[]> {
-		let uri: string = this._deviceUrlBase;
-		uri += '?device_ids=' + deviceIds_.join( ',' );
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( uri, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	getDevice( id_: Number ): Observable<Device> {
+	public getDevice( id_: number ): Observable<Device> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._deviceUrlBase + '/' + id_, options )
@@ -110,7 +67,7 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	putDevice( device_: Device ): Observable<Device> {
+	public putDevice( device_: Device ): Observable<Device> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -123,7 +80,7 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	patchDevice( device_: Device, value_: any ): Observable<Device> {
+	public patchDevice( device_: Device, value_: any ): Observable<Device> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -135,16 +92,16 @@ export class DevicesService implements Resolve<Device> {
 		;
 	};
 
-	getData( device_: Device ): Observable<any[]> {
+	public getData( id_: number ): Observable<any[]> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._deviceUrlBase + '/' + device_.id + '/data', options )
+		return this._http.get( this._deviceUrlBase + '/' + id_ + '/data', options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};
 
-	deleteDevice( device_: Device ): Observable<boolean> {
+	public deleteDevice( device_: Device ): Observable<boolean> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._deviceUrlBase + '/' + device_.id, options )

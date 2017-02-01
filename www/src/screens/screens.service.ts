@@ -41,107 +41,6 @@ export class ScreensService implements Resolve<Screen> {
 		private _usersService: UsersService,
 		private _devicesService: DevicesService
 	) {
-		// The defaults for all chart types are set here, the one place that is in common for all
-		// widgets with charts.
-		let animationDuration: number = 300;
-		Highcharts.setOptions( {
-			global: {
-				timezoneOffset: new Date().getTimezoneOffset()
-			},
-			title: false,
-			credits: false,
-			rangeSelector: {
-				buttons: [ {
-					type: 'day',
-					count: 1,
-					text: '1d'
-				}, {
-					type: 'week',
-					count: 1,
-					text: '1w'
-				}, {
-					type: 'month',
-					count: 1,
-					text: '1m'
-				}, {
-					type: 'month',
-					count: 3,
-					text: '3m'
-				}, {
-					type: 'month',
-					count: 6,
-					text: '6m'
-				}, {
-					type: 'year',
-					count: 1,
-					text: '1y'
-				} ],
-				selected: 0,
-				inputEnabled: false
-			},
-			navigator: {
-				height: 75
-			},
-			scrollbar: {
-				enabled: false
-			},
-			legend: {
-				enabled: false
-			},
-			chart: {
-				animation: {
-					duration: animationDuration
-				},
-				zoomType: 'x',
-				alignTicks: false
-			},
-			xAxis: {
-				type: 'datetime',
-				ordinal: false
-			},
-			yAxis: {
-				labels: {
-					align: 'left',
-					x: 5
-				},
-				startOnTick: false,
-				endOnTick: false
-			},
-			plotOptions: {
-				column: {
-					color: '#3c8dbc',
-					animation: {
-						duration: animationDuration
-					},
-					pointPadding: 0.1, // space between bars when multiple series are used
-					groupPadding: 0 // space beween group of series bars
-				},
-				spline: {
-					color: '#3c8dbc',
-					animation: {
-						duration: animationDuration
-					},
-					lineWidth: 2,
-					states: {
-						hover: {
-							lineWidth: 2,
-							halo: false
-						}
-					},
-					marker: {
-						enabled: false,
-						states: {
-							hover: {
-								enabled: true,
-								symbol: 'circle',
-								radius: 6,
-								lineWidth: 2
-							}
-						}
-					}
-				}
-			}
-		} );
 	};
 
 	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Screen> {
@@ -169,7 +68,7 @@ export class ScreensService implements Resolve<Screen> {
 			widgetIds.push( screen.widgets[i].device_id );
 		}
 		return new Observable( function( subscriber_: any ) {
-			me._devicesService.getDevicesByIds( widgetIds )
+			me._devicesService.getDevices( undefined, undefined, widgetIds )
 				.subscribe(
 					function( devices_: Device[] ) {
 

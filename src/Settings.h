@@ -7,6 +7,8 @@
 #include <sstream>
 #include <iomanip>
 
+#include "json.hpp"
+
 namespace micasa {
 
 	class SettingValue: public std::string {
@@ -17,6 +19,7 @@ namespace micasa {
 		SettingValue( const double& value_ );
 		SettingValue( const bool& value_ );
 		SettingValue( const std::string& value_ );
+		SettingValue( const char* value_ );
 	}; // class SettingValue
 
 	typedef std::pair<std::string, SettingValue> Setting;
@@ -103,6 +106,10 @@ namespace micasa {
 		
 		std::map<std::string, std::string> getAll() const;
 		std::map<std::string, std::string> getAll( const std::string& prefix_ ) const;
+
+		// The method below is a specialized method for validating input coming from the web client against a set of
+		// setting defines that are also presented to the client.
+		bool verifiedPut( const nlohmann::json& configuration_, const nlohmann::json& input_, std::string& error_ );
 
 	}; // class Settings
 

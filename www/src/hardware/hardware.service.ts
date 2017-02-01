@@ -1,11 +1,5 @@
 import { Injectable }      from '@angular/core';
 import {
-	Router,
-	Resolve,
-	RouterStateSnapshot,
-	ActivatedRouteSnapshot
-}                          from '@angular/router';
-import {
 	Http,
 	Response,
 	Headers,
@@ -23,6 +17,7 @@ export class Hardware {
 	type: string;
 	enabled: boolean;
 	state: string;
+	last_update: number;
 	parent?: Hardware;
 	settings?: Setting[];
 }
@@ -31,40 +26,18 @@ export class Hardware {
 export class HardwareService {
 
 	private _hardwareUrlBase = 'api/hardware';
+	private _devicesUrlBase = 'api/devices';
 
-	constructor(
-		private _router: Router,
+	public constructor(
 		private _http: Http,
 		private _usersService: UsersService
 	) {
 	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the hardware and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Hardware> {
-		var me = this;
-		return new Observable( function( observer_: any ) {
-			me.getHardware( +route_.params['hardware_id'] )
-				.subscribe(
-					function( hardware_: Hardware ) {
-						observer_.next( hardware_ );
-						observer_.complete();
-					},
-					function( error_: String ) {
-						me._router.navigate( [ '/hardware' ] );
-						observer_.next( null );
-						observer_.complete();
-					}
-				)
-			;
-		} );
-	};
-
-	getHardwareList( parent_?: Hardware ): Observable<Hardware[]> {
+	public getList( hardwareId_?: Hardware ): Observable<Hardware[]> {
 		let uri: string = this._hardwareUrlBase;
-		if ( parent_ ) {
-			uri += '?hardware_id=' + parent_.id;
+		if ( hardwareId_ ) {
+			uri += '?hardware_id=' + hardwareId_;
 		}
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
@@ -74,7 +47,7 @@ export class HardwareService {
 		;
 	};
 
-	getHardware( id_: Number ): Observable<Hardware> {
+	public getHardware( id_: Number ): Observable<Hardware> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._hardwareUrlBase + '/' + id_, options )
@@ -83,7 +56,7 @@ export class HardwareService {
 		;
 	};
 
-	putHardware( hardware_: Hardware ): Observable<Hardware> {
+	public putHardware( hardware_: Hardware ): Observable<Hardware> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -95,7 +68,7 @@ export class HardwareService {
 		;
 	};
 
-	addHardware( type_: string ): Observable<Hardware> {
+	public addHardware( type_: string ): Observable<Hardware> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -111,12 +84,23 @@ export class HardwareService {
 		;
 	};
 
-	deleteHardware( hardware_: Hardware ): Observable<boolean> {
+	public deleteHardware( hardware_: Hardware ): Observable<boolean> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id, options )
 			.map( function( response_: Response ) {
 				return response_.json()['result'] == 'OK';
+			} )
+			.catch( this._handleHttpError )
+		;
+	};
+
+	public performAction( hardware_: Hardware, device_: Device ): Observable<boolean> {
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
+		let options = new RequestOptions( { headers: headers } );
+		return this._http.patch( this._devicesUrlBase + '/' + device_.id, { value: 'Activate' }, options )
+			.map( function( response_: Response ) {
+					return response_.json()['result'] == 'OK';
 			} )
 			.catch( this._handleHttpError )
 		;
@@ -138,93 +122,4 @@ export class HardwareService {
  		}
 		return Observable.throw( message );
 	};
-
-	zwaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/include', {}, options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	exitZWaveIncludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/include', options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	zwaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', {}, options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	exitZWaveExcludeMode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._hardwareUrlBase + '/' + hardware_.id + '/exclude', options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	zwaveHealNetwork( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {}, options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	zwaveHealNode( hardware_: Hardware ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.put( this._hardwareUrlBase + '/' + hardware_.id + '/heal', {}, options )
-			.map( function( response_: Response ) {
-					return response_.json()['result'] == 'OK';
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
-	dummyAddDevice( hardware_: Hardware, type_: string ): Observable<Device> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLogin().token
-		} );
-		let options = new RequestOptions( { headers: headers } );
-		let data: any = {
-			type: type_,
-			name: 'New Dummy Device'
-		};
-		return this._http.post( this._hardwareUrlBase + '/' + hardware_.id, data, options )
-			.map( function( response_: Response ) {
-				let body = response_.json();
-				if ( body && body.device ) {
-					return body.device;
-				}
-				return null;
-			} )
-			.catch( this._handleHttpError )
-		;
-	};
-
 }

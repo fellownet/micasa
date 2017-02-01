@@ -1,13 +1,21 @@
-import { Component, OnInit }      from '@angular/core';
-import { ACL, UsersService }      from './users/users.service';
-import { Screen, ScreensService } from './screens/screens.service';
+import {
+	Component,
+	OnInit
+}                  from '@angular/core';
+import {
+	ACL,
+	UsersService
+}                  from './users/users.service';
+import {
+	Screen,
+	ScreensService
+}                  from './screens/screens.service';
 
-// Declaring $ as any prevents typescript errors when using jQuery.
 declare var $: any;
 
 @Component( {
-	selector    : 'aside',
-	templateUrl : 'tpl/menu.html',
+	selector: 'aside',
+	templateUrl: 'tpl/menu.html',
 } )
 
 export class MenuComponent implements OnInit {
@@ -17,7 +25,10 @@ export class MenuComponent implements OnInit {
 	// Make the ACL's available in the template.
 	public ACL = ACL;
 
-	constructor( private _usersService: UsersService, private _screensService: ScreensService ) {
+	public constructor(
+		private _usersService: UsersService,
+		private _screensService: ScreensService
+	) {
 	};
 
 	public ngOnInit() {

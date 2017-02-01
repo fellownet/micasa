@@ -10,12 +10,7 @@
 #define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC  30000 // how long to wait for result
 #define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC 3000  // how long to block node while waiting for result
 
-#define OPENZWAVE_NODE_SETTING_CONFIGURATION "_ozw_configuration"
-
 namespace micasa {
-
-	using namespace nlohmann;
-	using namespace OpenZWave;
 
 	class ZWaveNode final : public Hardware {
 
@@ -30,21 +25,21 @@ namespace micasa {
 
 		std::string getLabel() const override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
-		json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getSettingsJson() const override;
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override { return std::chrono::milliseconds( 1000 * 60 * 5 ); };
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
 		unsigned int m_homeId = 0;
 		unsigned int m_nodeId = 0;
-		json m_configuration = json::object();
+		nlohmann::json m_configuration = nlohmann::json::object();
 		mutable std::mutex m_configurationMutex;
 
-		void _handleNotification( const Notification* notification_ );
-		void _processValue( const ValueID& valueId_, Device::UpdateSource source_ );
+		void _handleNotification( const OpenZWave::Notification* notification_ );
+		void _processValue( const OpenZWave::ValueID& valueId_, Device::UpdateSource source_ );
 		void _updateNames();
-		void _installResourceHandlers();
 
 	}; // class ZWaveNode
 

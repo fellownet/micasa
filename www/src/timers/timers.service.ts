@@ -1,25 +1,21 @@
-import { Injectable }      from '@angular/core';
-import {
-	Router,
-	Resolve,
-	RouterStateSnapshot,
-	ActivatedRouteSnapshot
-}                          from '@angular/router';
+import { Injectable }   from '@angular/core';
 import {
 	Http,
 	Response,
 	Headers,
 	RequestOptions
-}                          from '@angular/http';
-import { Observable }      from 'rxjs/Observable';
-import { UsersService }    from '../users/users.service';
+}                       from '@angular/http';
+import { Observable }   from 'rxjs/Observable';
+import { UsersService } from '../users/users.service';
 
 export class Timer {
 	id: number;
 	name: string;
 	cron: string;
 	enabled: boolean;
-	scripts: number[];
+	scripts?: number[];
+	device_id?: number;
+	value?: string;
 }
 
 @Injectable()
@@ -27,58 +23,39 @@ export class TimersService {
 
 	private _timerUrlBase = 'api/timers';
 
-	constructor(
-		private _router: Router,
+	public constructor(
 		private _http: Http,
 		private _usersService: UsersService
 	) {
 	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the timer and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
-		var me = this;
-		if ( route_.params['timer_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, scripts: [] } );
-		} else {
-			return new Observable( function( observer_: any ) {
-				me.getTimer( +route_.params['timer_id'] )
-					.subscribe(
-						function( timer_: Timer ) {
-							observer_.next( timer_ );
-							observer_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/timers' ] );
-							observer_.next( null );
-							observer_.complete();
-						}
-					)
-				;
-			} );
+	public getTimers( deviceId_?: number ): Observable<Timer[]> {
+		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
+		let options = new RequestOptions( { headers: headers } );
+		let uri: string = this._timerUrlBase;
+		if ( deviceId_ ) {
+			uri += '?device_id=' + deviceId_;
 		}
-	}
-
-	getTimers(): Observable<Timer[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._timerUrlBase, options )
+		return this._http.get( uri, options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};
 
-	getTimer( id_: Number ): Observable<Timer> {
+	public getTimer( id_: number, deviceId_?: number ): Observable<Timer> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._timerUrlBase + '/' + id_, options )
+		let uri: string = this._timerUrlBase + '/' + id_;
+		if ( deviceId_ ) {
+			uri += '?device_id=' + deviceId_;
+		}
+		return this._http.get( uri, options )
 			.map( this._extractData )
 			.catch( this._handleHttpError )
 		;
 	};
 
-	putTimer( timer_: Timer ): Observable<Timer> {
+	public putTimer( timer_: Timer ): Observable<Timer> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -97,7 +74,7 @@ export class TimersService {
 		}
 	};
 
-	deleteTimer( timer_: Timer ): Observable<boolean> {
+	public deleteTimer( timer_: Timer ): Observable<boolean> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._timerUrlBase + '/' + timer_.id, options )

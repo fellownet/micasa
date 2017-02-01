@@ -14,7 +14,8 @@ namespace micasa {
 			LIGHT,
 			DOOR_CONTACT,
 			BLINDS,
-			MOTION_DETECTOR
+			MOTION_DETECTOR,
+			ACTION
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
 		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
@@ -23,11 +24,11 @@ namespace micasa {
 			ON = 1,
 			OFF = 2,
 			OPEN = 4,
-			CLOSED = 8,
-			STOPPED = 16,
-			STARTED = 32,
+			CLOSE = 8,
+			STOP = 16,
+			START = 32,
 			IDLE = 64,
-			ACTIVATED = 128
+			ACTIVATE = 128
 		}; // enum class Option
 		static const std::map<Switch::Option, std::string> OptionText;
 		ENUM_UTIL_W_TEXT( Option, OptionText );
@@ -47,7 +48,9 @@ namespace micasa {
 		const Option getPreviousValueOption() const throw() { return this->m_previousValue; };
 		t_value getValue() const throw() { return OptionText.at( this->m_value ); };
 		t_value getPreviousValue() const throw() { return OptionText.at( this->m_previousValue ); };
-		json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getSettingsJson() const override;
+		nlohmann::json getData() const override;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

@@ -1,16 +1,18 @@
 <section class="content-header">
-<h1>{{device.name}}<small>{{device.hardware.name}}</small></h1>
-<ol class="breadcrumb">
-	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
-	<ng-container *ngIf="hardware">
-	<li><a routerLink="/hardware"><i class="fa fa-microchip"></i> Hardware</a></li>
-	<li><a routerLink="/hardware/{{hardware.id}}"><i class="fa fa-pencil"></i> {{hardware.name}}</a></li>
-	</ng-container>
-	<ng-container *ngIf="!hardware">
-	<li><a routerLink="/devices"><i class="fa fa-thermometer-half"></i> Devices</a></li>
-	</ng-container>
-	<li><span><i class="fa fa-pencil"></i> Edit</span></li>
-</ol>
+<a *ngIf="hardware && !hardware.parent" routerLink="/hardware/{{hardware.id}}/device/{{device.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<a *ngIf="hardware && hardware.parent" routerLink="/hardware/{{hardware.parent.id}}/{{hardware.id}}/device/{{device.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<a *ngIf="script" routerLink="/scripts/{{script.id}}/device/{{device.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<a *ngIf="!hardware && !script" routerLink="/devices/{{device.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+
+<a *ngIf="hardware && !hardware.parent" routerLink="/hardware/{{hardware.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="hardware && hardware.parent" routerLink="/hardware/{{hardware.parent.id}}/{{hardware.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="script" routerLink="/scripts/{{script.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="!hardware && !script" routerLink="/devices" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+
+<h1>{{device.name}}
+<small *ngIf="script">{{script.name}}</small>
+<small *ngIf="!script">{{device.hardware}}</small>
+</h1>
 </section>
 
 <section class="content-body">
@@ -21,73 +23,125 @@
 		<p>{{error}}</p>
 	</div>
 
+	<ng-container [ngSwitch]="device.type">
+
+	<ng-container *ngSwitchCase="'counter'">
 	<div class="row">
-
-		<!--
-		<ng-container [ngSwitch]="device.type">
-			<counterwidget *ngSwitchCase="'counter'" [device]="device"></counterwidget>
-			<levelwidget *ngSwitchCase="'level'" [device]="device"></levelwidget>
-			<switchwidget *ngSwitchCase="'switch'" [device]="device"></switchwidget>
-			<textwidget *ngSwitchCase="'text'" [device]="device"></textwidget>
-		</ng-container>
-		-->
-
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
-					<button type="button" class="btn btn-primary btn-xs pull-right" *ngIf="settingsComponent.hasAdvancedSettings" (click)="settingsComponent.showAdvancedSettings=!settingsComponent.showAdvancedSettings"><span *ngIf="!settingsComponent.showAdvancedSettings">Show Advanced</span><span *ngIf="settingsComponent.showAdvancedSettings">Hide Advanced</span></button>
-					<h3 class="box-title">Edit Device</h3>
+					<i class="fa fa-bar-chart"></i>
+					<h3 class="box-title">{{device.name}}</h3>
 				</div>
+				<div class="box-body chart-box" id="counter_chart_target"></div>
 
-				<form role="form" (ngSubmit)="submitDevice()" #deviceForm="ngForm">
-				<div class="box-body">
-					<div class="form-group" [class.has-error]="!name.valid && !name.pristine">
-						<label for="device_name">Name</label>
-						<input type="text" class="form-control" id="device_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="device.name" name="name" #name="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
-					<div class="form-group">
-						<div class="checkbox">
-							<label><input type="checkbox" value="1" [(ngModel)]="device.enabled" name="enabled">Enabled</label>
-						</div>
-					</div>
-
-					<settings [settingsData]="device.settings" [settingsForm]="deviceForm" #settingsComponent="settingsComponent"></settings>
-
-					<div class="form-group" *ngIf="scripts.length>0">
-						<label>Scripts</label>
-						<div class="checkbox" *ngFor="let script of scripts">
-							<label><input type="checkbox" value="{{script.id}}" [checked]="device.scripts.indexOf(script.id) >= 0" (change)="updateSelectedScripts(script.id,$event);deviceForm.form.markAsDirty();">{{script.name}}</label>
-						</div>
-					</div>
-
-					<!--
-					<div class="form-group">
-						<label>Screens</label>
-						<div class="checkbox" *ngFor="let screen of screens">
-							<label><input type="checkbox" value="{{screen.index}}">{{screen.name}}</label>
-						</div>
-					</div>
-					-->
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
-				<div class="box-footer row actionrow">
-					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-success btn-block" [disabled]="!deviceForm.form.valid || deviceForm.form.pristine || loading">Save</button>
-					</div>
-					<div class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add to Screen <span class="caret"></span></button>
-						<ul class="dropdown-menu">
-							<li *ngFor="let screen of screens"><a (click)="addToScreen(screen.index);"><i class="fa pull-right" [class.fa-dashboard]="screen.index == 0" [class.fa-th]="screen.index > 0"></i>{{screen.name}}</a></li>
-						</ul>
-					</div>
-					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="button" class="btn btn-danger btn-block" (click)="deleteDevice()">Delete</button>
-					</div>
-				</div>
-				</form>
-
 			</div>
 		</div>
 	</div>
+	</ng-container>
+
+	<ng-container *ngSwitchCase="'level'">
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-header with-border">
+					<i class="fa fa-line-chart"></i>
+					<h3 class="box-title">{{device.name}}</h3>
+				</div>
+				<div class="box-body chart-box" id="level_chart_target"></div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	</ng-container>
+
+	<ng-container *ngSwitchCase="'text'">
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-body table-responsive no-padding">
+
+<table class="table" [gridData]="data" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">
+<thead>
+	<tr>
+		<!-- th [gridField]="'id'">Id</th -->
+		<th [gridField]="'timestamp'">Updated</th>
+		<th [gridField]="'value'">Value</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let item of grid.page">
+		<td>{{item.timestamp | timestamp}}</td>
+		<td>{{item.value}}</td>
+	</tr>
+</tbody>
+<tfoot>
+	<tr>
+		<td colspan="2" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+	</tr>
+</tfoot>
+</table>
+
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	</ng-container>
+
+	<ng-container *ngSwitchCase="'switch'">
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-body table-responsive no-padding">
+
+<table class="table" [gridData]="data" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">
+<thead>
+	<tr>
+		<!-- th [gridField]="'id'">Id</th -->
+		<th [gridField]="'timestamp'">Updated</th>
+		<th [gridField]="'value'">Value</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let item of grid.page">
+		<td>{{item.timestamp | timestamp}}</td>
+		<td><span class="label"
+			[class.label-success]="item.value=='On'"
+			[class.label-danger]="item.value=='Off'"
+			[class.label-primary]="item.value=='Stop'"
+			[class.label-warning]="item.value=='Idle'"
+			[class.label-info]="item.value!='On' && item.value!='Off' && item.value!='Stop' && item.value!='Idle'"
+			>{{item.value}}</span>
+		</td>
+	</tr>
+</tbody>
+<tfoot>
+	<tr>
+		<td colspan="2" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+	</tr>
+</tfoot>
+</table>
+
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	</ng-container>
+
+	</ng-container>
 
 </section>

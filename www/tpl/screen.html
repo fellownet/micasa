@@ -1,9 +1,6 @@
 <section class="content-header">
-<h1>{{screen.name}} <a *ngIf="screen.index >= 1" routerLink="/screen/{{screen.index}}/edit" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i> Edit</a></h1>
-<ol class="breadcrumb">
-	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
-	<li *ngIf="screen.index >= 1"><a routerLink="/screen/{{screen.index}}"><i class="fa fa-th"></i> {{screen.name}}</a></li>
-</ol>
+<a *ngIf="screen.index >= 1" routerLink="/screen/{{screen.index}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<h1>{{screen.name}}</h1>
 </section>
 
 <section class="content-body" *ngIf="screen.widgets.length==0 && !loading">

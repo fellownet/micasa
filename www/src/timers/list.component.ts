@@ -1,54 +1,57 @@
-import { Component, OnInit }      from '@angular/core';
-import { Router }                 from '@angular/router';
-import { Timer, TimersService }   from './timers.service';
+import {
+	Component,
+	OnInit,
+	Input
+}                  from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                  from '@angular/router';
 
-declare var $: any;
-declare var ace: any;
+import { Timer }   from './timers.service';
+import { Device }  from '../devices/devices.service';
 
 @Component( {
+	selector: 'timers',
 	templateUrl: 'tpl/timers-list.html',
 } )
 
 export class TimersListComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	timers: Timer[] = [];
+	public loading: boolean = false;
+	public error: String;
+	public timers: Timer[];
 
-	constructor(
+	@Input() public device?: Device; // gets set when used from the device edit component
+
+	public constructor(
 		private _router: Router,
-		private _timersService: TimersService
+		private _route: ActivatedRoute
 	) {
 	};
 
-
-	ngOnInit() {
-		this.getTimers();
-	};
-
-	getTimers() {
+	public ngOnInit() {
 		var me = this;
-		me.loading = true;
-		this._timersService.getTimers()
-			.subscribe(
-				function( timers_: Timer[]) {
-					me.loading = false;
-					me.timers = timers_;
-				},
-				function( error_: String ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
-		;
+		this._route.data.subscribe( function( data_: any ) {
+			me.timers = data_.timers;
+		} );
 	};
 
-	selectTimer( timer_: Timer ) {
-		this._router.navigate( [ '/timers', timer_.id ] );
+	public selectTimer( timer_: Timer ) {
+		this.loading = true;
+		if ( this.device ) {
+			this._router.navigate( [ '/devices', this.device.id, 'timers', timer_.id ] );
+		} else {
+			this._router.navigate( [ '/timers', timer_.id ] );
+		}
 	};
 
-	addTimer() {
-		this._router.navigate( [ '/timers', 'add' ] );
+	public addTimer() {
+		this.loading = true;
+		if ( this.device ) {
+			this._router.navigate( [ '/devices', this.device.id, 'timers', 'add' ] );
+		} else {
+			this._router.navigate( [ '/timers', 'add' ] );
+		}
 	};
-
 }

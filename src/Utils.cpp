@@ -5,7 +5,7 @@
 #include <iostream>
 
 #ifdef _WITH_LIBUDEV
-#include <libudev.h>
+	#include <libudev.h>
 #endif // _WITH_LIBUDEV
 
 #include <openssl/rsa.h>
@@ -13,8 +13,9 @@
 
 namespace micasa {
 
-	using BIO_MEM_ptr = std::unique_ptr<BIO, decltype(&::BIO_free)>;
+	using namespace nlohmann;
 
+	using BIO_MEM_ptr = std::unique_ptr<BIO, decltype(&::BIO_free)>;
 
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, const bool strict_, std::string& result_ ) {
 		size_t startPos = haystack_.find( start_ );
@@ -39,18 +40,14 @@ namespace micasa {
 		return std::equal( search_.begin(), search_.end(), haystack_.begin() );
 	};
 	
-	std::vector<std::string> stringSplit( const std::string& input_, const char& delim_ ) {
+	std::vector<std::string> stringSplit( const std::string& input_, const char delim_ ) {
 		std::vector<std::string> results;
-		stringSplit( input_, delim_, results );
-		return results;
-	};
-	
-	void stringSplit( const std::string& input_, const char& delim_, std::vector<std::string>& results_ ) {
 		std::string token = "";
 		std::stringstream stream( input_ );
 		while( std::getline( stream, token, delim_ ) ) {
-			results_.push_back( token );
+			results.push_back( token );
 		}
+		return results;
 	};
 	
 	std::string randomString( size_t length_ ) {
@@ -128,27 +125,6 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 		
 		return results;
-	};
-
-	std::map<std::string, std::string> extractSettingsFromJson( const json& data_ ) {
-		std::map<std::string, std::string> settings;
-		if (
-			data_.find( "settings" ) != data_.end()
-			&& data_["settings"].is_array()
-		) {
-			for ( auto settingsIt = data_["settings"].begin(); settingsIt != data_["settings"].end(); settingsIt++ ) {
-				try {
-					if (
-						(*settingsIt).is_object()
-						&& (*settingsIt).find( "name" ) != (*settingsIt).end()
-						&& (*settingsIt).find( "value" ) != (*settingsIt).end()
-					) {
-						settings[(*settingsIt)["name"]] = extractStringFromJson( (*settingsIt)["value"] );
-					}
-				} catch( ... ) { }
-			}
-		}
-		return settings;
 	};
 
 	bool generateKeys( std::string& public_, std::string& private_ ) {

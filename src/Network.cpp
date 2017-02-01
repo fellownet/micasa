@@ -9,12 +9,13 @@
 #include <chrono>
 #include <iostream>
 
-#include "Network.h"
-#include "Logger.h"
-
 #ifdef _DEBUG
 	#include <cassert>
 #endif // _DEBUG
+
+#include "Network.h"
+
+#include "Logger.h"
 
 extern "C" {
 	void micasa_mg_handler( mg_connection* connection_, int event_, void* data_ ) {

@@ -212,6 +212,7 @@ namespace micasa {
 	// The above template is specialized for the types listed below.
 	template std::vector<int> Database::getQueryColumn( const std::string query_, ... ) const;
 	template std::vector<unsigned int> Database::getQueryColumn( const std::string query_, ... ) const;
+	template std::vector<unsigned long> Database::getQueryColumn( const std::string query_, ... ) const;
 	template std::vector<double> Database::getQueryColumn( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
@@ -299,6 +300,7 @@ namespace micasa {
 	// The above template is specialized for the types listed below.
 	template int Database::getQueryValue( const std::string query_, ... ) const;
 	template unsigned int Database::getQueryValue( const std::string query_, ... ) const;
+	template unsigned long Database::getQueryValue( const std::string query_, ... ) const;
 	template double Database::getQueryValue( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own

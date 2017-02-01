@@ -1,6 +1,6 @@
-	<header class="header" *ngIf="isLoggedIn()"></header>
-	<aside class="sidebar" *ngIf="isLoggedIn()"></aside>
+<header class="header" *ngIf="isLoggedIn()"></header>
+<aside class="sidebar" *ngIf="isLoggedIn()"></aside>
 
-	<section class="content"><!--  [class.not-logged-in]="!isLoggedIn()" -->
-		<router-outlet></router-outlet>
-	</section>
+<section class="content">
+	<router-outlet></router-outlet>
+</section>

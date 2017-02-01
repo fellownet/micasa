@@ -1,14 +1,22 @@
-import { Directive, Input, OnInit } from '@angular/core';
+import {
+	Directive,
+	Input,
+	OnInit,
+	OnChanges,
+	SimpleChanges
+}                 from '@angular/core';
 
 @Directive( {
 	selector: 'table[gridData]',
 	exportAs: 'GridDirective'
 } )
 
-export class GridDirective {
+export class GridDirective implements OnInit, OnChanges {
 
 	@Input( "gridData" ) public data: any[] = [];
+
 	@Input( "gridSort" ) private _defaultSortField: string;
+	@Input( "gridOrder" ) private _defaultSortOrder: string;
 	@Input( "gridPageSize" ) private _pageSize: number = 15;
 
 	private _sortField: string = '';
@@ -17,16 +25,22 @@ export class GridDirective {
 
 	public page: any[] = [];
 
-	constructor(
+	public constructor(
 	) {
 	};
 
-	ngOnInit() {
+	public ngOnChanges( changes_: SimpleChanges ) {
 		if ( this._defaultSortField ) {
 			this._sortField = this._defaultSortField;
+			if ( this._defaultSortOrder ) {
+				this._sortOrder = this._defaultSortOrder.toLowerCase() == 'desc' ? 'desc' : 'asc';
+			}
 			this._sort();
 		}
 		this._slice();
+	};
+
+	public ngOnInit() {
 	};
 
 	public setSort( sortField_: string, sortOrder_: string ) {

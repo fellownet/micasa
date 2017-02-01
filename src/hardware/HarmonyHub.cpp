@@ -2,10 +2,8 @@
 
 #include "json.hpp"
 
-#include "../Utils.h"
-#include "../WebServer.h"
-#include "../device/Switch.h"
 #include "../Network.h"
+#include "../device/Switch.h"
 #include "../Settings.h"
 #include "../User.h"
 #include "../Logger.h"
@@ -17,39 +15,8 @@ namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
-	extern std::shared_ptr<WebServer> g_webServer;
 
 	using namespace nlohmann;
-	
-	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "$",
-			99,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "address", settings.at( "address" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "port", settings.at( "port" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
-	
-	HarmonyHub::~HarmonyHub() {
-		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
-	};
 	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
@@ -66,28 +33,32 @@ namespace micasa {
 	};
 
 	json HarmonyHub::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["address"] = this->m_settings->get( "address", "" );
+		result["port"] = this->m_settings->get( "port", "" );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
-			result["settings"] = {
-				{
-					{ "name", "address" },
-					{ "label", "Address" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "address", "" ) }
-				},
-				{
-					{ "name", "port" },
-					{ "label", "Port" },
-					{ "type", "short" },
-					{ "min", "1" },
-					{ "max", "65536" },
-					{ "value", this->m_settings->get( "port", "" ) }
-				}
-			};
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
+	};
+
+	json HarmonyHub::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		result += {
+			{ "name", "address" },
+			{ "label", "Address" },
+			{ "type", "string" },
+			{ "class", this->m_settings->contains( "address" ) ? "advanced" : "normal" }
+		};
+		result += {
+			{ "name", "port" },
+			{ "label", "Port" },
+			{ "type", "short" },
+			{ "min", "1" },
+			{ "max", "65536" },
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+		};
+		return result;
 	};
 
 	std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
@@ -288,7 +259,7 @@ namespace micasa {
 									std::string activityId = activity["id"].get<std::string>();
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										auto device = this->_declareDevice<Switch>( activityId, label, {
+										auto device = this->declareDevice<Switch>( activityId, label, {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
 											{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
 										} );

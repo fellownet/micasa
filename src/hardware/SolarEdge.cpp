@@ -1,11 +1,10 @@
 #include <ctime>
 
 #include "SolarEdge.h"
+
 #include "../Logger.h"
 #include "../Network.h"
 #include "../Controller.h"
-#include "../Utils.h"
-#include "../User.h"
 
 #include "json.hpp"
 
@@ -14,40 +13,9 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 	
 	using namespace nlohmann;
 
-	SolarEdge::SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "$",
-			99,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "api_key", settings.at( "api_key" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "site_id", settings.at( "site_id" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
-	
-	SolarEdge::~SolarEdge() {
-		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
-	};
-	
 	void SolarEdge::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -59,26 +27,28 @@ namespace micasa {
 	};
 
 	json SolarEdge::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["api_key"] = this->m_settings->get( "api_key", "" );
+		result["site_id"] = this->m_settings->get( "site_id", "" );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
-			result["settings"] = {
-				{
-					{ "name", "api_key" },
-					{ "label", "API Key" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "api_key", "" ) }
-				},
-				{
-					{ "name", "site_id" },
-					{ "label", "Site ID" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "site_id", "" ) }
-				}
-			};
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
+	};
+
+	json SolarEdge::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		result += {
+			{ "name", "api_key" },
+			{ "label", "API Key" },
+			{ "type", "string" }
+		};
+		result += {
+			{ "name", "site_id" },
+			{ "label", "Site ID" },
+			{ "type", "string" }
+		};
+		return result;
 	};
 	
 	std::chrono::milliseconds SolarEdge::_work( const unsigned long int& iteration_ ) {

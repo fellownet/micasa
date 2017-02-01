@@ -5,21 +5,21 @@
 #include <map>
 #include <chrono>
 
-#include "WebServer.h"
+#include "Worker.h"
 #include "Settings.h"
 #include "Settings.h"
 #include "Utils.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
-#define DEVICE_SETTING_DEFAULT_UNITS          "_default_units"
+#define DEVICE_SETTING_DEFAULT_UNIT           "_default_unit"
 #define DEVICE_SETTING_ALLOW_UNIT_CHANGE      "_allow_unit_change"
 #define DEVICE_SETTING_DEFAULT_SUBTYPE        "_default_subtype"
 #define DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE   "_allow_subtype_change"
+#define DEVICE_SETTING_ADDED_MANUALLY         "_added_manually"
+#define DEVICE_SETTING_MINIMUM_USER_RIGHTS    "_minimum_user_rights"
 
 namespace micasa {
-
-	using namespace nlohmann;
 
 	class Hardware;
 
@@ -63,10 +63,12 @@ namespace micasa {
 		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
-		std::chrono::time_point<std::chrono::system_clock> getLastUpdate() const throw() { return this->m_lastUpdate; };
+		void touch();
 
-		virtual json getJson( bool full_ = false ) const;
+		virtual nlohmann::json getJson( bool full_ = false ) const;
+		virtual nlohmann::json getSettingsJson() const;
 		virtual Type getType() const =0;
+		virtual nlohmann::json getData() const =0;
 		
 	protected:
 		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
@@ -76,7 +78,6 @@ namespace micasa {
 		const std::string m_reference;
 		std::string m_label;
 		std::shared_ptr<Settings<Device> > m_settings;
-		std::chrono::time_point<std::chrono::system_clock> m_lastUpdate;
 
 	}; // class Device
 

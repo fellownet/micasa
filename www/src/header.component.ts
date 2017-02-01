@@ -9,15 +9,14 @@ declare var $: any;
 
 export class HeaderComponent {
 
-	constructor() {
+	public constructor() {
 	};
 
-	toggleMenu(): void {
+	public toggleMenu(): void {
 		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
 			$( 'body' ).removeClass( 'sidebar-open' );
 		} else {
 			$( 'body' ).addClass( 'sidebar-open' );
 		}
 	};
-
 }

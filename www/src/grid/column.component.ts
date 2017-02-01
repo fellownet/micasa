@@ -1,5 +1,9 @@
-import { Component, Input } from '@angular/core';
-import { GridDirective }    from "./grid.directive";
+import {
+	Component,
+	Input
+}                        from '@angular/core';
+
+import { GridDirective } from "./grid.directive";
 
 @Component( {
 	selector: 'th[gridField]',
@@ -15,12 +19,12 @@ export class GridColumnComponent {
 
 	@Input( 'gridField' ) public field: string;
 
-	constructor(
+	public constructor(
 		private _grid: GridDirective
 	) {
 	};
 
-	sort() {
+	public sort() {
 		if ( this._grid.getSortField() == this.field ) {
 			this._grid.setSort( this.field, this._grid.getSortOrder() == 'asc' ? 'desc' : 'asc' );
 		} else {
@@ -28,12 +32,11 @@ export class GridColumnComponent {
 		}
 	};
 
-	isSortedByMe(): any {
+	public isSortedByMe(): any {
 		if ( this._grid.getSortField() == this.field ) {
 			return this._grid.getSortOrder();
 		} else {
 			return false;
 		}
-	}
-
+	};
 }

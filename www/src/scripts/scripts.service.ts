@@ -1,23 +1,18 @@
-import { Injectable }      from '@angular/core';
-import {
-	Router,
-	Resolve,
-	RouterStateSnapshot,
-	ActivatedRouteSnapshot
-}                          from '@angular/router';
+import { Injectable }   from '@angular/core';
 import {
 	Http,
 	Response,
 	Headers,
 	RequestOptions
-}                          from '@angular/http';
-import { Observable }      from 'rxjs/Observable';
-import { UsersService }    from '../users/users.service';
+}                       from '@angular/http';
+import { Observable }   from 'rxjs/Observable';
+import { UsersService } from '../users/users.service';
 
 export class Script {
 	id: number;
 	name: string;
 	code?: string;
+	device_ids?: number[];
 	enabled: boolean;
 }
 
@@ -26,40 +21,13 @@ export class ScriptsService {
 
 	private _scriptUrlBase = 'api/scripts';
 
-	constructor(
-		private _router: Router,
+	public constructor(
 		private _http: Http,
 		private _usersService: UsersService
 	) {
 	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the script and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script> {
-		var me = this;
-		if ( route_.params['script_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
-		} else {
-			return new Observable( function( subscriber_: any ) {
-				me.getScript( +route_.params['script_id'] )
-					.subscribe(
-						function( script_: Script ) {
-							subscriber_.next( script_ );
-							subscriber_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/scripts' ] );
-							subscriber_.next( null );
-							subscriber_.complete();
-						}
-					)
-				;
-			} );
-		}
-	}
-
-	getScripts(): Observable<Script[]> {
+	public getScripts(): Observable<Script[]> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._scriptUrlBase, options )
@@ -68,7 +36,7 @@ export class ScriptsService {
 		;
 	};
 
-	getScript( id_: Number ): Observable<Script> {
+	public getScript( id_: Number ): Observable<Script> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._scriptUrlBase + '/' + id_, options )
@@ -77,7 +45,7 @@ export class ScriptsService {
 		;
 	};
 
-	putScript( script_: Script ): Observable<Script> {
+	public putScript( script_: Script ): Observable<Script> {
 		let headers = new Headers( {
 			'Content-Type'  : 'application/json',
 			'Authorization' : this._usersService.getLogin().token
@@ -96,7 +64,7 @@ export class ScriptsService {
 		}
 	};
 
-	deleteScript( script_: Script ): Observable<boolean> {
+	public deleteScript( script_: Script ): Observable<boolean> {
 		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._scriptUrlBase + '/' + script_.id, options )

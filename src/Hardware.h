@@ -11,8 +11,6 @@
 
 namespace micasa {
 
-	using namespace nlohmann;
-
 	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
 
 	public:
@@ -76,16 +74,21 @@ namespace micasa {
 		std::string getName() const;
 		std::shared_ptr<Settings<Hardware> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getParent() const throw() { return this->m_parent; };
-		bool needsRestart() const throw() { return this->m_needsRestart; };
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 		std::vector<std::shared_ptr<Device> > getAllDevices() const;
 		std::vector<std::shared_ptr<Device> > getAllDevices( const std::string& prefix_ ) const;
+		template<class T> std::shared_ptr<T> declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		void removeDevice( const std::shared_ptr<Device> device_ );
+		void touch();
 
-		virtual json getJson( bool full_ = false ) const;
+		virtual nlohmann::json getJson( bool full_ = false ) const;
+		virtual nlohmann::json getSettingsJson() const;
+		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
+		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
+
 		virtual std::string getLabel() const =0;
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
@@ -97,9 +100,6 @@ namespace micasa {
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
 		std::shared_ptr<Settings<Hardware> > m_settings;
-		bool m_needsRestart = false;
-
-		template<class T> std::shared_ptr<T> _declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ = false );
 
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
 		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.

@@ -9,8 +9,9 @@ namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
+
+	using namespace nlohmann;
 
 	const Device::Type Text::type = Device::Type::TEXT;
 
@@ -48,6 +49,9 @@ namespace micasa {
 		
 		// Do not process duplicate values.
 		if ( this->m_value == value_ ) {
+			if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+				this->touch();
+			}
 			return true;
 		}
 
@@ -72,40 +76,59 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Text>( *this, source_ );
 			}
-			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", value_.c_str() );
 		} else {
 			this->m_value = previous;
+		}
+		if (
+			success
+			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+		) {
+			this->touch();
 		}
 		return success;
 	};
 
 	json Text::getJson( bool full_ ) const {
-		json result = Device::getJson();
+		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "text";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
-
 		if ( full_ ) {
-			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
-				json setting = {
-					{ "name", "subtype" },
-					{ "label", "SubType" },
-					{ "type", "list" },
-					{ "options", json::array() },
-					{ "value", result["subtype"] }
-				};
-				for ( auto subTypeIt = Text::SubTypeText.begin(); subTypeIt != Text::SubTypeText.end(); subTypeIt++ ) {
-					setting["options"] += {
-						{ "value", subTypeIt->second },
-						{ "label", subTypeIt->second }
-					};
-				}
-				result["settings"] += setting;
-			}
+			result["settings"] = this->getSettingsJson();
 		}
-
 		return result;
+	};
+
+	json Text::getSettingsJson() const {
+		json result = Device::getSettingsJson();
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			json setting = {
+				{ "name", "subtype" },
+				{ "label", "SubType" },
+				{ "type", "list" },
+				{ "options", json::array() },
+				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" }
+			};
+			for ( auto subTypeIt = Text::SubTypeText.begin(); subTypeIt != Text::SubTypeText.end(); subTypeIt++ ) {
+				setting["options"] += {
+					{ "value", subTypeIt->second },
+					{ "label", subTypeIt->second }
+				};
+			}
+			result += setting;
+		}
+		return result;
+	};
+	
+	json Text::getData() const {
+		return g_database->getQuery<json>(
+			"SELECT `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
+			"FROM `device_text_history` "
+			"WHERE `device_id`=%d "
+			"ORDER BY `date` ASC ",
+			this->m_id
+		);
 	};
 	
 	std::chrono::milliseconds Text::_work( const unsigned long int& iteration_ ) {

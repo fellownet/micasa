@@ -224,7 +224,6 @@ a:focus, button:focus {
 .content .content-header > h1 {
 	margin: 0;
 	font-size: 24px;
-	max-width: calc(50% - 3em);
 }
 .content .content-header > h1 > small {
 	font-size: 15px;
@@ -232,37 +231,9 @@ a:focus, button:focus {
 	padding-left: 4px;
 	font-weight: 300;
 }
-.content .content-header > h1 a {
-	margin-top: -3px;
+.content .content-header a.btn.pull-right,
+.content .content-header button.btn.pull-right {
 	margin-left: 5px;
-}
-.content .content-header > h1 .fa {
-	margin-right: 5px;
-}
-.content .content-header > .breadcrumb {
-	float: right;
-	background: transparent;
-	margin-top: 0;
-	margin-bottom: 0;
-	font-size: 12px;
-	padding: 7px 5px;
-	position: absolute;
-	top: 0;
-	right: 10px;
-	border-radius: 2px;
-}
-.content .content-header > .breadcrumb > li > span,
-.content .content-header > .breadcrumb > li > a {
-	color: #444;
-	text-decoration: none;
-	display: inline-block;
-}
-.content .content-header > .breadcrumb > li > span > .fa,
-.content .content-header > .breadcrumb > li > a > .fa {
-	margin-right: 5px;
-}
-.content .content-header > .breadcrumb > li + li:before {
-	content: '>\00a0';
 }
 
 .content .content-body {
@@ -285,24 +256,6 @@ a:focus, button:focus {
 		transform: translate(230px, 0);
 	}
 
-}
-
-@media (max-width: 991px) {
-	.content .content-header > .breadcrumb {
-		position: relative;
-		margin-top: 5px;
-		top: 0;
-		right: 0;
-		float: none;
-		background: #d2d6de;
-		padding-left: 10px;
-	}
-	.content .content-header > .breadcrumb li:before {
-		color: #97a0b3;
-	}
-	.content .content-header > h1 {
-		max-width: 100%;
-	}
 }
 
 /* content boxes */
@@ -345,6 +298,10 @@ a:focus, button:focus {
 	margin: 0;
 	line-height: 1;
 }
+.box-header button.pull-right,
+.box-header a.pull-right {
+	margin-left: 5px;
+}
 .box-body {
 	padding: 10px 10px 0 10px;
 }
@@ -354,6 +311,14 @@ a:focus, button:focus {
 .box-body .table,
 .box-body.table-responsive {
 	margin-bottom: 0;
+}
+.box-body .table td.icon {
+	width: 30px;
+	text-align: center;
+}
+.box-body .table td.icon .fa {
+	position: relative;
+	top: 1px;
 }
 .box-body p {
 	margin-bottom: 10px;
@@ -508,6 +473,9 @@ a:focus, button:focus {
 	border-width: 1px;
 	border: 1px solid transparent;
 }
+.btn .fa {
+	margin-right: 5px;
+}
 .btn-selected {
 	background-color: #CCC;
 }
@@ -521,6 +489,15 @@ a:focus, button:focus {
 	padding: 0;
 }
 .table th a {
+	cursor: pointer;
+}
+.table tr.disabled {
+	background-color:#E8E8E8;
+}
+.table tr.disabled:hover {
+	background-color:#EEEEEE;
+}
+.dropdown-menu li {
 	cursor: pointer;
 }
 
@@ -594,9 +571,6 @@ div.paging {
 .fa.red {
 	color: #dd4b39;
 	font-size: 1.2em;
-}
-.dropdown-menu .pull-right {
-	margin-top:4px;
 }
 
 /* dashboard */

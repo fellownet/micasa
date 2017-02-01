@@ -10,8 +10,9 @@ namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
+
+	using namespace nlohmann;
 
 	const Device::Type Counter::type = Device::Type::COUNTER;
 
@@ -40,45 +41,10 @@ namespace micasa {
 			);
 		} catch( const Database::NoResultsException& ex_ ) { }
 
-		g_webServer->addResourceCallback( {
-			"device-" + std::to_string( this->m_id ) + "-data",
-			"^api/devices/" + std::to_string( this->m_id ) + "/data$",
-			100,
-			WebServer::Method::GET,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
-					return;
-				}
-
-				// TODO check range to fetch
-				output_["data"] = g_database->getQuery<json>(
-					"SELECT * FROM ( "
-						"SELECT printf(\"%%.3f\", `diff`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
-						"FROM `device_counter_trends` "
-						"WHERE `device_id`=%d "
-						"AND `date` < datetime('now','-%d day') "
-						"ORDER BY `date` ASC "
-					")"
-					"UNION ALL "
-					"SELECT * FROM ( "
-						"SELECT printf(\"%%.3f\", max(`value`)-min(`value`)) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 60 * 60 ) ) AS `timestamp` "
-						"FROM `device_counter_history` "
-						"WHERE `device_id`=%d "
-						"AND `date` >= datetime('now','-%d day') "
-						"GROUP BY `timestamp` "
-						"ORDER BY `date` ASC "
-					") ",
-					this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
-				);
-				output_["code"] = 200;
-			} )
-		} );
-
 		Device::start();
 	};
 
 	void Counter::stop() {
-		g_webServer->removeResourceCallback( "device-" + std::to_string( this->m_id ) + "-data" );
 		Device::stop();
 	};
 	
@@ -92,6 +58,9 @@ namespace micasa {
 		
 		// Do not process duplicate values.
 		if ( this->m_value == value_ ) {
+			if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+				this->touch();
+			}
 			return true;
 		}
 
@@ -116,10 +85,15 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Counter>( *this, source_ );
 			}
-			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
 		} else {
 			this->m_value = previous;
+		}
+		if (
+			success
+			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+		) {
+			this->touch();
 		}
 		return success;
 	}
@@ -129,44 +103,70 @@ namespace micasa {
 		result["value"] = this->getValue();
 		result["type"] = "counter";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
-		result["unit"] = this->m_settings->get( "units", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNITS, "" ) );
-		
+		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
 		if ( full_ ) {
-			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
-				json setting = {
-					{ "name", "subtype" },
-					{ "label", "SubType" },
-					{ "type", "list" },
-					{ "options", json::array() },
-					{ "value", result["subtype"] }
-				};
-				for ( auto subTypeIt = Counter::SubTypeText.begin(); subTypeIt != Counter::SubTypeText.end(); subTypeIt++ ) {
-					setting["options"] += {
-						{ "value", subTypeIt->second },
-						{ "label", subTypeIt->second }
-					};
-				}
-				result["settings"] += setting;
-			}
-			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
-				json setting = {
-					{ "name", "unit" },
-					{ "label", "Unit" },
-					{ "type", "list" },
-					{ "options", json::array() },
-					{ "value", result["unit"] }
-				};
-				for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
-					setting["options"] += {
-						{ "value", unitIt->second },
-						{ "label", unitIt->second }
-					};
-				}
-				result["settings"] += setting;
-			}
+			result["settings"] = this->getSettingsJson();
 		}
-		
 		return result;
+	};
+
+	json Counter::getSettingsJson() const {
+		json result = Device::getSettingsJson();
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			json setting = {
+				{ "name", "subtype" },
+				{ "label", "SubType" },
+				{ "type", "list" },
+				{ "options", json::array() },
+				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" }
+			};
+			for ( auto subTypeIt = Counter::SubTypeText.begin(); subTypeIt != Counter::SubTypeText.end(); subTypeIt++ ) {
+				setting["options"] += {
+					{ "value", subTypeIt->second },
+					{ "label", subTypeIt->second }
+				};
+			}
+			result += setting;
+		}
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
+			json setting = {
+				{ "name", "unit" },
+				{ "label", "Unit" },
+				{ "type", "list" },
+				{ "options", json::array() },
+				{ "class", this->m_settings->contains( "unit" ) ? "advanced" : "normal" }
+			};
+			for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
+				setting["options"] += {
+					{ "value", unitIt->second },
+					{ "label", unitIt->second }
+				};
+			}
+			result += setting;
+		}
+		return result;
+	};
+
+	json Counter::getData() const {
+		return g_database->getQuery<json>(
+			"SELECT * FROM ( "
+				"SELECT printf(\"%%.3f\", `diff`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
+				"FROM `device_counter_trends` "
+				"WHERE `device_id`=%d "
+				"AND `date` < datetime('now','-%d day') "
+				"ORDER BY `date` ASC "
+			")"
+			"UNION ALL "
+			"SELECT * FROM ( "
+				"SELECT printf(\"%%.3f\", max(`value`)-min(`value`)) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 60 * 60 ) ) AS `timestamp` "
+				"FROM `device_counter_history` "
+				"WHERE `device_id`=%d "
+				"AND `date` >= datetime('now','-%d day') "
+				"GROUP BY `timestamp` "
+				"ORDER BY `date` ASC "
+			") ",
+			this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+		);
 	};
 
 	std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {

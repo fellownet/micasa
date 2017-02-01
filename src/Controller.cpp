@@ -8,13 +8,11 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-#include "Logger.h"
-#include "WebServer.h"
 #include "Controller.h"
+
+#include "Logger.h"
 #include "Database.h"
 #include "Settings.h"
-#include "Utils.h"
-#include "User.h"
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -129,6 +127,9 @@ v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
 }
 
 namespace micasa {
+
+	using namespace nlohmann;
+	using namespace std::chrono;
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
@@ -466,12 +467,9 @@ namespace micasa {
 			( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT
 			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
 		) {
-			auto interval = system_clock::now() - device_.getLastUpdate();
-
 			json event;
 			event["value"] = device_.getValue();
 			event["previous_value"] = device_.getPreviousValue();
-			event["interval"] = duration_cast<seconds>( interval ).count();
 			event["source"] = Device::resolveUpdateSource( source_ );
 			event["device"] = device_.getJson( false );
 
@@ -552,7 +550,7 @@ namespace micasa {
 
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
-
+		
 		// This method should run a least every minute for timer jobs to run. The 5ms is a safe margin to make sure
 		// the whole minute has passed.
 		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
@@ -649,13 +647,10 @@ namespace micasa {
 
 	void Controller::_runTimers() {
 		auto timers = g_database->getQuery(
-			"SELECT DISTINCT c.`id`, c.`cron`, c.`name` "
-			"FROM `timers` c, `x_timer_scripts` x, `scripts` s "
-			"WHERE c.`id`=x.`timer_id` "
-			"AND s.`id`=x.`script_id` "
-			"AND c.`enabled`=1 "
-			"AND s.`enabled`=1 "
-			"ORDER BY c.`id` ASC"
+			"SELECT DISTINCT `id`, `cron`, `name` "
+			"FROM `timers` "
+			"WHERE `enabled`=1 "
+			"ORDER BY `id` ASC"
 		);
 		for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
 			try {
@@ -753,6 +748,8 @@ namespace micasa {
 				}
 
 				if ( run ) {
+					
+					// First run the scripts that are associated with this timer.
 					json data = (*timerIt);
 					auto scripts = g_database->getQuery(
 						"SELECT s.`id`, s.`name`, s.`code` "
@@ -765,6 +762,36 @@ namespace micasa {
 					);
 					if ( scripts.size() > 0 ) {
 						this->_runScripts( "timer", data, scripts );
+					}
+					
+					// Then update the devices that are associated with this timer.
+					auto devices = g_database->getQuery(
+						"SELECT x.`device_id`, x.`value` "
+						"FROM `x_timer_devices` x, `devices` d "
+						"WHERE x.`device_id`=d.`id` "
+						"AND x.`timer_id`=%q "
+						"AND d.`enabled`=1 "
+						"ORDER BY d.`id` ASC",
+						(*timerIt)["id"].c_str()
+					);
+					if ( devices.size() > 0 ) {
+						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
+							switch( device->getType() ) {
+								case Device::Type::SWITCH:
+									std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::TIMER, Switch::resolveOption( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::COUNTER:
+									std::static_pointer_cast<Counter>( device )->updateValue( Device::UpdateSource::TIMER, std::stoi( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::LEVEL:
+									std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::TIMER, std::stod( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::TEXT:
+									std::static_pointer_cast<Text>( device )->updateValue( Device::UpdateSource::TIMER, (*devicesIt)["value"] );
+									break;
+							}
+						}
 					}
 				}
 
@@ -782,7 +809,7 @@ namespace micasa {
 		}
 	};
 
-	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ ) {
+	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
 		TaskOptions options = this->_parseTaskOptions( options_ );
 
 		if ( options.clear ) {
@@ -815,10 +842,10 @@ namespace micasa {
 
 		return true;
 	};
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level>& device_, const typename Level::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Counter>& device_, const typename Counter::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch>& device_, const typename Switch::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text>& device_, const typename Text::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
 
 	bool Controller::_includeFromScript( const std::string& name_, std::string& script_ ) {
 		// This is done without a lock because it is called from a script that is executed while holding the lock.
@@ -836,7 +863,7 @@ namespace micasa {
 		}
 	};
 
-	void Controller::_clearTaskQueue( const std::shared_ptr<Device>& device_ ) {
+	void Controller::_clearTaskQueue( const std::shared_ptr<Device> device_ ) {
 		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
 		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
 			if ( (*taskQueueIt)->device == device_ ) {
@@ -870,8 +897,7 @@ namespace micasa {
 		int lastTokenType = 0;
 		TaskOptions result = { 0, 0, 1, 0, false, false };
 
-		std::vector<std::string> optionParts;
-		stringSplit( options_, ' ', optionParts );
+		std::vector<std::string> optionParts = stringSplit( options_, ' ' );
 		for ( auto partsIt = optionParts.begin(); partsIt != optionParts.end(); ++partsIt ) {
 			std::string part = *partsIt;
 			std::transform( part.begin(), part.end(), part.begin(), ::toupper );

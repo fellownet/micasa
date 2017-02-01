@@ -7,8 +7,15 @@ import { SettingsModule }         from '../settings/settings.module';
 
 import { DevicesListComponent }   from './list.component';
 import { DeviceDetailsComponent } from './details.component';
+import { DeviceEditComponent }    from './edit.component';
 import { DevicesService }         from './devices.service';
 import { DevicesRoutingModule }   from './routing.module';
+import { DeviceResolver }         from './device.resolver';
+import { DevicesListResolver }    from './list.resolver';
+import { DataResolver }           from './data.resolver';
+import { TimestampPipe }          from './timestamp.pipe';
+
+import { TimersModule }           from '../timers/timers.module';
 
 @NgModule( {
 	imports: [
@@ -16,19 +23,25 @@ import { DevicesRoutingModule }   from './routing.module';
 		FormsModule,
 		DevicesRoutingModule,
 		GridModule,
-		SettingsModule
+		SettingsModule,
+		TimersModule
 	],
 	declarations: [
 		DevicesListComponent,
-		DeviceDetailsComponent
+		DeviceEditComponent,
+		DeviceDetailsComponent,
+		TimestampPipe
 	],
 	providers: [
-		DevicesService
+		DevicesService,
+		DeviceResolver,
+		DevicesListResolver,
+		DataResolver
 	],
 	exports: [
-		// The devices components are also used in the hardware details component
+		// The devices components are also used in the hardware edit component
 		DevicesListComponent,
-		DeviceDetailsComponent
+		DeviceEditComponent
 	]
 } )
 

@@ -5,12 +5,15 @@
 	#include <cassert>
 #endif // _DEBUG
 
-#include "Logger.h"
 #include "Hardware.h"
+
+#include "Logger.h"
 #include "Database.h"
-#include "Controller.h"
-#include "Utils.h"
-#include "User.h"
+
+#include "device/Level.h"
+#include "device/Counter.h"
+#include "device/Text.h"
+#include "device/Switch.h"
 
 #ifdef _WITH_OPENZWAVE
 	#include "hardware/ZWave.h"
@@ -28,8 +31,9 @@
 
 namespace micasa {
 
+	using namespace nlohmann;
+
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Logger> g_logger;
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
@@ -59,7 +63,6 @@ namespace micasa {
 
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
 #ifdef _DEBUG
-		assert( g_controller && "Global Controller instance should be created before Hardware instances." );
 		assert( g_database && "Global Database instance should be created before Hardware instances." );
 		assert( g_logger && "Global Logger instance should be created before Hardware instances." );
 #endif // _DEBUG
@@ -68,7 +71,6 @@ namespace micasa {
 
 	Hardware::~Hardware() {
 #ifdef _DEBUG
-		assert( g_controller && "Global Controller instance should be destroyed after Hardware instances." );
 		assert( g_database && "Global Database instance should be destroyed after Hardware instances." );
 		assert( g_logger && "Global Logger instance should be destroyed after Hardware instances." );
 #endif // _DEBUG
@@ -183,16 +185,51 @@ namespace micasa {
 			{ "name", this->getName() },
 			{ "enabled", this->isRunning() },
 			{ "type", Hardware::resolveType( this->m_type ) },
-			{ "state", Hardware::resolveState( this->m_state ) }
+			{ "state", Hardware::resolveState( this->m_state ) },
+			{ "last_update", g_database->getQueryValue<unsigned long>(
+				"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) "
+				"FROM `hardware` "
+				"WHERE `id`=%d ",
+				this->getId()
+			) }
 		};
 		if ( this->m_parent ) {
-			result["parent"] = this->m_parent->getJson( full_ );
+			result["parent"] = this->m_parent->getJson( false );
 		}
 		if ( full_ ) {
-			result["settings"] = json::array();
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
+	};
+
+	json Hardware::getSettingsJson() const {
+		json result = json::array();
+
+		json setting = {
+			{ "name", "name" },
+			{ "label", "Name" },
+			{ "type", "string" },
+			{ "maxlength", 64 },
+			{ "minlength", 3 }
+		};
+		result += setting;
+
+		setting = {
+			{ "name", "enabled" },
+			{ "label", "Enabled" },
+			{ "type", "boolean" }
+		};
+		result += setting;
 
 		return result;
+	};
+
+	json Hardware::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
+		return json::object();
+	};
+
+	json Hardware::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
+		return json::array();
 	};
 
 	std::shared_ptr<Device> Hardware::getDevice( const std::string& reference_ ) const {
@@ -272,7 +309,27 @@ namespace micasa {
 		}
 	};
 
-	template<class T> std::shared_ptr<T> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ ) {
+	void Hardware::touch() {
+		if ( this->m_parent ) {
+			g_database->putQuery(
+				"UPDATE `hardware` "
+				"SET `updated`=datetime('now') "
+				"WHERE `id`=%d "
+				"OR `id`=%d ",
+				this->getId(),
+				this->m_parent->getId()
+			);
+		} else {
+			g_database->putQuery(
+				"UPDATE `hardware` "
+				"SET `updated`=datetime('now') "
+				"WHERE `id`=%d ",
+				this->getId()
+			);
+		}
+	};
+
+	template<class T> std::shared_ptr<T> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ ) {
 		// TODO also declare relationships with other devices, such as energy and power, or temperature
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
 		// can be altered at will by the client (maybe they want temperature and pressure).
@@ -322,19 +379,20 @@ namespace micasa {
 		return device;
 
 	};
-	template std::shared_ptr<Counter> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Level> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Switch> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Text> Hardware::_declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
+	template std::shared_ptr<Counter> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
+	template std::shared_ptr<Level> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
+	template std::shared_ptr<Switch> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
+	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		// See if there's already a pending update present, in which case we need to use it to start locking.
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search == this->m_pendingUpdates.end() ) {
 			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_ );
 		}
-		std::shared_ptr<PendingUpdate>& pendingUpdate = this->m_pendingUpdates[reference_];
+		std::shared_ptr<PendingUpdate> pendingUpdate = this->m_pendingUpdates[reference_];
 		pendingUpdatesLock.unlock();
 
 		if ( pendingUpdate->updateMutex.try_lock_for( std::chrono::milliseconds( blockNewUpdate_ ) ) ) {
@@ -342,6 +400,7 @@ namespace micasa {
 
 				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
 				pendingUpdate->condition.wait_for( notifyLock, std::chrono::milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
+				
 				// Spurious wakeups are someting we have to live with; there's no way to determine if the amount
 				// of time was passed or if a spurious wakeup occured.
 

@@ -1,64 +1,61 @@
-import { Component, OnInit }               from '@angular/core';
-import { Input, OnChanges, SimpleChanges } from '@angular/core';
-import { Router }                          from '@angular/router';
-import { Device, DevicesService }          from './devices.service';
-import { Hardware }                        from '../hardware/hardware.service';
+import {
+	Component,
+	OnInit,
+	Input
+}                   from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                   from '@angular/router';
+
+import { Device }   from './devices.service';
+import { Hardware } from '../hardware/hardware.service';
+import { Script }   from '../scripts/scripts.service';
+
 
 @Component( {
-	selector: 'devices',
-	templateUrl: 'tpl/devices-list.html'
+	selector    : 'devices',
+	templateUrl : 'tpl/devices-list.html',
+	exportAs    : 'listComponent' // can be used to communicate with parent component
 } )
 
-export class DevicesListComponent implements OnInit, OnChanges {
+export class DevicesListComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	devices: Device[] = [];
-	@Input() hardware: Hardware; // gets set when used from the hardware details component
+	public loading: boolean = false;
+	public error: String;
+	public devices: Device[];
 
-	constructor(
+	@Input() public hardware?: Hardware; // gets set when used from the hardware edit component
+	@Input() public parent?: Hardware;
+	@Input() public script?: Script; // gets set when used from scripts
+
+	public constructor(
 		private _router: Router,
-		private _devicesService: DevicesService
+		private _route: ActivatedRoute
 	) {
 	};
 
-	ngOnChanges( changes_: SimpleChanges ) {
-		this.getDevices();
-	};
-
-	ngOnInit() {
-		if ( ! this.loading ) {
-			this.getDevices();
-		}
-	};
-
-	getDevices() {
+	public ngOnInit() {
 		var me = this;
-		me.loading = true;
-		me._devicesService.getDevices( me.hardware )
-			.subscribe(
-				function( devices_: Device[] ) {
-					me.loading = false;
-					me.devices = devices_;
-				},
-				function( error_: String ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
+		this._route.data
+			.subscribe( function( data_: any ) {
+				me.devices = data_.devices;
+			} )
 		;
 	};
 
-	selectDevice( device_: Device ) {
+	public selectDevice( device_: Device ) {
+		this.loading = true;
 		if ( this.hardware ) {
-			this._router.navigate( [ '/hardware', this.hardware.id, device_.id ] );
+			if ( this.parent ) {
+				this._router.navigate( [ '/hardware', this.parent.id, this.hardware.id, 'device', device_.id, 'edit' ] );
+			} else {
+				this._router.navigate( [ '/hardware', this.hardware.id, 'device', device_.id, 'edit' ] );
+			}
+		} else if ( this.script ) {
+			this._router.navigate( [ '/scripts', this.script.id, 'device', device_.id, 'edit' ] );
 		} else {
-			this._router.navigate( [ '/devices', device_.id ] );
+			this._router.navigate( [ '/devices', device_.id, 'edit' ] );
 		}
 	};
-
-	emptyValue( value_: any ): boolean {
-		return String( value_ ).length == 0;
-	};
-
 }

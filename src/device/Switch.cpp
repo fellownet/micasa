@@ -9,8 +9,9 @@ namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Controller> g_controller;
+
+	using namespace nlohmann;
 
 	const Device::Type Switch::type = Device::Type::SWITCH;
 
@@ -20,15 +21,18 @@ namespace micasa {
 		{ Switch::SubType::DOOR_CONTACT, "door_contact" },
 		{ Switch::SubType::BLINDS, "blinds" },
 		{ Switch::SubType::MOTION_DETECTOR, "motion_detector" },
+		{ Switch::SubType::ACTION, "action" },
 	};
 
 	const std::map<Switch::Option, std::string> Switch::OptionText = {
 		{ Switch::Option::ON, "On" },
 		{ Switch::Option::OFF, "Off" },
 		{ Switch::Option::OPEN, "Open" },
-		{ Switch::Option::CLOSED, "Closed" },
-		{ Switch::Option::STOPPED, "Stopped" },
-		{ Switch::Option::STARTED, "Started" },
+		{ Switch::Option::CLOSE, "Close" },
+		{ Switch::Option::STOP, "Stop" },
+		{ Switch::Option::START, "Start" },
+		{ Switch::Option::IDLE, "Idle" },
+		{ Switch::Option::ACTIVATE, "Activate" },
 	};
 	
 	void Switch::start() {
@@ -62,7 +66,13 @@ namespace micasa {
 		// Do not process duplicate values.
 		// NOTE the openzwave has a bugfix in place where the actual node value is requested if the hardware reports
 		// the same value after an update. It depends on duplicate values not being sent to the hardware.
-		if ( this->m_value == value_ ) {
+		if (
+			this->m_value == value_
+			&& value_ != Option::ACTIVATE // needs to be executed every time
+		) {
+			if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+				this->touch();
+			}
 			return true;
 		}
 		
@@ -87,10 +97,15 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Switch>( *this, source_ );
 			}
-			this->m_lastUpdate = std::chrono::system_clock::now(); // after newEvent so the interval can be determined
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( value_ ).c_str() );
 		} else {
 			this->m_value = previous;
+		}
+		if (
+			success
+			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+		) {
+			this->touch();
 		}
 		return success;
 	};
@@ -105,31 +120,62 @@ namespace micasa {
 	};
 
 	json Switch::getJson( bool full_ ) const {
-		json result = Device::getJson();
+		json result = Device::getJson( full_ );
 		result["value"] = this->getValue();
 		result["type"] = "switch";
-		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
-
+		
+		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
+		result["subtype"] = subtype;
+		if ( subtype == resolveSubType( Switch::SubType::BLINDS ) ) {
+			result["inverted"] = this->m_settings->get( "inverted", false );
+		}
+		
 		if ( full_ ) {
-			if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
-				json setting = {
-					{ "name", "subtype" },
-					{ "label", "SubType" },
-					{ "type", "list" },
-					{ "options", json::array() },
-					{ "value", result["subtype"] }
+			result["settings"] = this->getSettingsJson();
+		}
+		
+		return result;
+	};
+
+	json Switch::getSettingsJson() const {
+		json result = Device::getSettingsJson();
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			json setting = {
+				{ "name", "subtype" },
+				{ "label", "SubType" },
+				{ "type", "list" },
+				{ "options", json::array() },
+				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" }
+			};
+			for ( auto subTypeIt = Switch::SubTypeText.begin(); subTypeIt != Switch::SubTypeText.end(); subTypeIt++ ) {
+				json option = {
+					{ "value", subTypeIt->second },
+					{ "label", subTypeIt->second }
 				};
-				for ( auto subTypeIt = Switch::SubTypeText.begin(); subTypeIt != Switch::SubTypeText.end(); subTypeIt++ ) {
-					setting["options"] += {
-						{ "value", subTypeIt->second },
-						{ "label", subTypeIt->second }
+				if ( subTypeIt->first == Switch::SubType::BLINDS ) {
+					option["settings"] = {
+						{
+							{ "name", "inverted" },
+							{ "label", "Inverted" },
+							{ "type", "boolean" }
+						}
 					};
 				}
-				result["settings"] += setting;
+				setting["options"] += option;
 			}
+			result += setting;
 		}
-
 		return result;
+	};
+
+	json Switch::getData() const {
+		return g_database->getQuery<json>(
+			"SELECT `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
+			"FROM `device_switch_history` "
+			"WHERE `device_id`=%d "
+			"ORDER BY `date` ASC ",
+			this->m_id
+		);
 	};
 
 	std::chrono::milliseconds Switch::_work( const unsigned long int& iteration_ ) {

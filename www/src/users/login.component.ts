@@ -1,6 +1,15 @@
-import { Component, OnInit }               from '@angular/core';
-import { Router }                          from '@angular/router';
-import { Credentials, User, UsersService } from './users.service';
+import {
+	Component,
+	OnInit
+}                from '@angular/core';
+import {
+	Router
+}                from '@angular/router';
+import {
+	Credentials,
+	User,
+	UsersService
+}                from './users.service';
 
 @Component( {
 	templateUrl: 'tpl/login.html',
@@ -8,22 +17,22 @@ import { Credentials, User, UsersService } from './users.service';
 
 export class LoginComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	credentials: Credentials = { username: "", password: "", remember: false };
+	public loading: boolean = false;
+	public error: String;
+	public credentials: Credentials = { username: "", password: "", remember: false };
 
-	constructor(
+	public constructor(
 		private _router: Router,
 		private _usersService: UsersService
 	) {
 	};
 
-	ngOnInit() {
+	public ngOnInit() {
 		// This allows a redirect to /login to also be used for logging out.
 		this._usersService.doLogout();
 	};
 
-	doLogin(): void {
+	public doLogin(): void {
 		var me = this;
 		me.loading = true;
 		me.error = null;
@@ -48,5 +57,4 @@ export class LoginComponent implements OnInit {
 			)
 		;
 	};
-
 }

@@ -26,7 +26,9 @@ namespace micasa {
 		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
-		json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getSettingsJson() const override;
+		nlohmann::json getData() const override;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

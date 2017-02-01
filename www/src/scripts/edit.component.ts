@@ -1,30 +1,39 @@
-import { Component, OnInit }      from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
-import { Script, ScriptsService } from './scripts.service';
+import {
+	Component,
+	OnInit
+}                  from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                  from '@angular/router';
 
-declare var $: any;
+import {
+	Script,
+	ScriptsService
+}                  from './scripts.service';
+
 declare var ace: any;
 
 @Component( {
-	templateUrl: 'tpl/script-details.html',
+	templateUrl: 'tpl/script-edit.html',
 } )
 
-export class ScriptDetailsComponent implements OnInit {
+export class ScriptEditComponent implements OnInit {
 
-	loading: boolean = false;
-	error: String;
-	script: Script;
+	public loading: boolean = false;
+	public error: String;
+	public script: Script;
 
 	private _editor: any;
 
-	constructor(
+	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
 		private _scriptsService: ScriptsService
 	) {
 	};
 
-	ngOnInit() {
+	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.script = data_.script;
@@ -39,14 +48,13 @@ export class ScriptDetailsComponent implements OnInit {
 		} );
 	};
 
-	submitScript() {
+	public submitScript() {
 		var me = this;
 		me.loading = true;
 		me.script.code = me._editor.getValue();
 		this._scriptsService.putScript( me.script )
 			.subscribe(
 				function( script_: Script ) {
-					me.loading = false;
 					me._router.navigate( [ '/scripts' ] );
 				},
 				function( error_: string ) {
@@ -57,16 +65,16 @@ export class ScriptDetailsComponent implements OnInit {
 		;
 	};
 
-	deleteScript() {
+	public deleteScript() {
 		var me = this;
 		me.loading = true;
 		me._scriptsService.deleteScript( me.script )
 			.subscribe(
 				function( success_: boolean ) {
-					me.loading = false;
 					if ( success_ ) {
 						me._router.navigate( [ '/scripts' ] );
 					} else {
+						me.loading = false;
 						this.error = 'Unable to delete script.';
 					}
 				},

@@ -2,7 +2,6 @@ import { Injectable }      from '@angular/core';
 import {
 	CanActivate,
 	Router,
-	Resolve,
 	RouterStateSnapshot,
 	ActivatedRouteSnapshot
 }                          from '@angular/router';
@@ -57,9 +56,9 @@ export class UsersService implements CanActivate {
 
 	// The redirectUrl property holds the url that's being navigated to while checking for
 	// logged in status.
-	redirectUrl: string;
+	public redirectUrl: string;
 
-	constructor(
+	public constructor(
 		private _router: Router,
 		private _http: Http
 	) {
@@ -72,7 +71,7 @@ export class UsersService implements CanActivate {
 
 	// This method is called for all routes that require an active user. Pretty much all routes
 	// require an active user, except for the login route.
-	canActivate( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): boolean {
+	public canActivate( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): boolean {
 		var me = this;
 		me.redirectUrl = state_.url;
 
@@ -122,35 +121,9 @@ export class UsersService implements CanActivate {
 			me._router.navigate( [ '/login' ] );
 			return false;
 		}
-	}
+	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the user and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<User> {
-		var me = this;
-		if ( route_.params['user_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New user', username: '', rights: ACL.Viewer, enabled: false } );
-		} else {
-			return new Observable( function( subscriber_: any ) {
-				me.getUser( +route_.params['user_id'] )
-					.subscribe(
-						function( user_: User ) {
-							subscriber_.next( user_ );
-							subscriber_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/users' ] );
-							subscriber_.next( null );
-							subscriber_.complete();
-						}
-					)
-				;
-			} );
-		}
-	}
-
-	getUsers(): Observable<User[]> {
+	public getUsers(): Observable<User[]> {
 		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._userUrlBase, options )
@@ -159,7 +132,7 @@ export class UsersService implements CanActivate {
 		;
 	};
 
-	getUser( id_: Number ): Observable<User> {
+	public getUser( id_: Number ): Observable<User> {
 		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.get( this._userUrlBase + '/' + id_, options )
@@ -168,7 +141,7 @@ export class UsersService implements CanActivate {
 		;
 	};
 
-	putUser( user_: User ): Observable<User> {
+	public putUser( user_: User ): Observable<User> {
 		let headers = new Headers( {
 			'Content-Type' : 'application/json',
 			'Authorization': this._login.token
@@ -187,7 +160,7 @@ export class UsersService implements CanActivate {
 		}
 	};
 
-	deleteUser( user_: User ): Observable<boolean> {
+	public deleteUser( user_: User ): Observable<boolean> {
 		let headers = new Headers( { 'Authorization': this._login.token } );
 		let options = new RequestOptions( { headers: headers } );
 		return this._http.delete( this._userUrlBase + '/' + user_.id, options )
@@ -230,7 +203,7 @@ export class UsersService implements CanActivate {
 		;
 	};
 
-	doLogin( credentials_: Credentials ): Observable<boolean> {
+	public doLogin( credentials_: Credentials ): Observable<boolean> {
 		var me = this;
 		return new Observable<boolean>( function( subscriber_: any ) {
 			me._doLogin( credentials_ )
@@ -290,12 +263,12 @@ export class UsersService implements CanActivate {
 		} );
 	};
 
-	doLogout(): void {
+	public doLogout(): void {
 		this._login = null;
 		localStorage.removeItem( 'login' );
 	};
 
-	isLoggedIn( acl_?: ACL ): boolean {
+	public isLoggedIn( acl_?: ACL ): boolean {
 		if ( acl_ ) {
 			return this._login && this._login.user.rights >= acl_;
 		} else {
@@ -303,11 +276,11 @@ export class UsersService implements CanActivate {
 		}
 	};
 
-	getLogin(): Login {
+	public getLogin(): Login {
 		return this._login;
 	};
 
-	syncSettings( key_?: string ): Observable<any> {
+	public syncSettings( key_?: string ): Observable<any> {
 		let headers = new Headers( {
 			'Content-Type' : 'application/json',
 			'Authorization': this._login.token
@@ -332,8 +305,6 @@ export class UsersService implements CanActivate {
 			;
 		}
 	};
-
-	// Http request handlers.
 
 	private _extractData( response_: Response ) {
 		let body = response_.json();

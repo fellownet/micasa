@@ -19,18 +19,15 @@
 #endif // _DEBUG
 
 #include "WebServer.h"
+
 #include "Network.h"
 #include "Controller.h"
 #include "Database.h"
 #include "Logger.h"
-#include "Utils.h"
 #include "Settings.h"
 #include "User.h"
 
 #include "json.hpp"
-
-#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
-#define WEBSERVER_USER_WEBCLIENT_SETTING "_webclient"
 
 namespace micasa {
 
@@ -39,6 +36,8 @@ namespace micasa {
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Settings<> > g_settings;
+	
+	using namespace nlohmann;
 	
 	WebServer::WebServer() {
 #ifdef _DEBUG
@@ -124,38 +123,15 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		this->removeResourceCallback( "webserver" );
+		{
+			std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+			this->m_resources.clear();
+		}
 
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 	
-	void WebServer::addResourceCallback( const ResourceCallback& callback_ ) {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		this->m_resources.push_back( std::make_shared<WebServer::ResourceCallback>( callback_ ) );
-		std::sort( this->m_resources.begin(), this->m_resources.end(), [=]( std::shared_ptr<ResourceCallback>& a_, std::shared_ptr<ResourceCallback>& b_ ) {
-			return a_->sort < b_->sort;
-		} );
-
-#ifdef _DEBUG
-		g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback installed at %s.", callback_.uri.c_str() );
-#endif // _DEBUG
-	};
-
-	void WebServer::removeResourceCallback( const std::string& reference_ ) {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
-		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); ) {
-			if ( (*resourceIt)->reference == reference_ ) {
-#ifdef _DEBUG
-				g_logger->logr( Logger::LogLevel::DEBUG, this, "Resource callback removed at %s.", (*resourceIt)->uri.c_str() );
-#endif // _DEBUG
-				resourceIt = this->m_resources.erase( resourceIt );
-			} else {
-				resourceIt++;
-			}
-		}
-	};
-
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 
 		// Determine wether or not the request is an API request or a request for static files. Static files
@@ -173,43 +149,6 @@ namespace micasa {
 			options.index_files = "index.html";
 			options.enable_directory_listing = "no";
 			mg_serve_http( connection_, message_, options );
-
-#ifdef _DEBUG
-
-		} else if ( uri == "api" ) {
-
-			// Serve the list of API endpoints (resource callbacks) at /api if we're running a DEBUG build.
-			std::stringstream outputStream;
-			outputStream << "<!doctype html>" << "<html><body style=\"font-family:sans-serif;\">";
-			for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-				outputStream << "<strong>Uri:</strong> " << (*resourceIt)->uri << "<br>";
-				outputStream << "<strong>Methods:</strong>";
-				
-				Method methods = (*resourceIt)->methods;
-				std::map<Method,std::string> availableMethods = {
-					{ Method::GET, "GET" },
-					{ Method::HEAD, "HEAD" },
-					{ Method::POST, "POST" },
-					{ Method::PUT, "PUT" },
-					{ Method::PATCH, "PATCH" },
-					{ Method::DELETE, "DELETE" },
-					{ Method::OPTIONS, "OPTIONS" },
-				};
-				for ( auto methodIt = availableMethods.begin(); methodIt != availableMethods.end(); methodIt++ ) {
-					if ( ( methods & methodIt->first ) == methodIt->first ) {
-						outputStream << " " << methodIt->second;
-					}
-				}
-
-				outputStream << "<br><br>";
-			}
-			
-			std::string output = outputStream.str();
-			mg_send_head( connection_, 200, output.length(), "Content-Type: text/html" );
-			mg_send( connection_, output.c_str(), output.length() );
-			connection_->flags |= MG_F_SEND_AND_CLOSE;
-
-#endif // _DEBUG
 
 		} else {
 
@@ -418,10 +357,10 @@ namespace micasa {
 	};
 
 	void WebServer::_installHardwareResourceHandler() {
-		this->addResourceCallback( {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/hardware(/([0-9]+))?$",
-			100,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -486,12 +425,12 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& hardwareId != -1
 						) {
-							break;
+							break; // POST is only allowed for creating new hardware
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& hardwareId == -1
 						) {
-							break;
+							break; // PUT is only allowed for updating existing hardware
 						}
 
 						if ( hardwareId == -1 ) {
@@ -512,15 +451,6 @@ namespace micasa {
 								}
 							} else {
 								throw WebServer::ResourceException( 400, "Hardware.Missing.Type", "Missing type." );
-							}
-						} else {
-							auto find = input_.find( "name" );
-							if ( find != input_.end() ) {
-								if ( (*find).is_string() ) {
-									hardware->getSettings()->put( "name", (*find).get<std::string>() );
-								} else {
-									throw WebServer::ResourceException( 400, "Hardware.Invalid.Name", "The supplied name is invalid." );
-								}
 							}
 						}
 
@@ -549,13 +479,24 @@ namespace micasa {
 							}
 						}
 
+						// Then all provided settings are verified and stored in the hardware object of the device.
+						std::string error;
+						if ( ! hardware->getSettings()->verifiedPut( hardware->getSettingsJson(), input_, error ) ) {
+							throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", error );
+						}
+						bool restart = false;
+						if ( hardware->getSettings()->isDirty() ) {
+							hardware->getSettings()->commit();
+							restart = true;
+						}
+
 						// Start or stop hardware. All children of the hardware are also started or stopped. This
 						// is done in a separate thread to allow the client to return immediately.
-						std::thread( [this,enabled,hardware]{
+						std::thread( [hardware,enabled,restart]{
 							auto hardwareList = g_controller->getAllHardware();
 							if (
 								! enabled
-								|| hardware->needsRestart()
+								|| restart
 							) {
 								if ( hardware->isRunning() ) {
 									hardware->stop();
@@ -584,7 +525,6 @@ namespace micasa {
 							}
 						} ).detach();
 						
-						hardware->getSettings()->commit();
 						output_["data"] = hardware->getJson( true );
 						output_["code"] = 200;
 						break;
@@ -592,16 +532,16 @@ namespace micasa {
 
 					default: break;
 				}
-
 			} )
-		} );
+		) );
 	};
 
+
 	void WebServer::_installDeviceResourceHandler() {
-		this->addResourceCallback( {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/devices(/([0-9]+))?$",
-			100,
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
@@ -653,18 +593,44 @@ namespace micasa {
 									throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
 								}
 							}
-							
+
 							bool deviceIdsFilter = false;
 							std::vector<std::string> deviceIds;
+							
+							// If a script_id was provided it needs to be translated to a list of device ids we can filter on.
+							find = input_.find( "script_id" );
+							if (
+								find != input_.end()
+								&& user_->getRights() >= User::Rights::INSTALLER
+							) {
+								deviceIdsFilter = true;
+								unsigned int scriptId = 0;
+								if ( (*find).is_number() ) {
+									scriptId = (*find).get<unsigned int>();
+								} else if ( (*find).is_string() ) {
+									scriptId = std::stoi( (*find).get<std::string>() );
+								}
+								if ( scriptId > 0 ) {
+									deviceIds = g_database->getQueryColumn<std::string>(
+										"SELECT DISTINCT `device_id` "
+										"FROM `x_device_scripts` "
+										"WHERE `script_id`=%d "
+										"ORDER BY `device_id` ASC",
+										scriptId
+									);
+								}
+							}
+							
+							// A client can also request a specific list of devices by supplying a device_ids property.
 							find = input_.find( "device_ids" );
 							if ( find != input_.end() ) {
 								deviceIdsFilter = true;
 								if ( (*find).is_string() ) {
-									deviceIds = stringSplit( (*find).get<std::string>(), ',' );
+									auto additionalDeviceIds = stringSplit( (*find).get<std::string>(), ',' );
+									deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
 								} else {
 									throw WebServer::ResourceException( 400, "Device.Invalid.DeviceIds", "The supplied device_ids parameter is invalid." );
 								}
-
 							}
 							
 							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER ); // filter on enabled for non installers
@@ -729,84 +695,9 @@ namespace micasa {
 							user_->getRights() >= User::Rights::INSTALLER
 							&& deviceId != -1
 						) {
-							auto find = input_.find( "name" );
-							if ( find != input_.end() ) {
-								if ( (*find).is_string() ) {
-									device->getSettings()->put( "name", (*find).get<std::string>() );
-								} else {
-									throw WebServer::ResourceException( 400, "Script.Invalid.Name", "The supplied name is invalid." );
-								}
-							}
 
-							auto settings = extractSettingsFromJson( input_ );
-							auto settingsFind = settings.find( "unit" );
-							if (
-								settingsFind != settings.end()
-								&& device->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
-							) {
-								try {
-									switch( device->getType() ) {
-										case Device::Type::COUNTER: {
-											Counter::Unit unit = Counter::resolveUnit( settingsFind->second );
-											device->getSettings()->put( "units", Counter::resolveUnit( unit ) );
-											break;
-										}
-										case Device::Type::LEVEL: {
-											Level::Unit unit = Level::resolveUnit( settingsFind->second );
-											device->getSettings()->put( "units", Level::resolveUnit( unit ) );
-											break;
-										}
-										default: break;
-									}
-								} catch( ... ) {
-									throw WebServer::ResourceException( 400, "Device.Invalid.Unit", "The supplied unit is invalid." );
-								}
-							}
-							settingsFind = settings.find( "subtype" );
-							if (
-								settingsFind != settings.end()
-								&& device->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false )
-							) {
-								try {
-									switch( device->getType() ) {
-										case Device::Type::COUNTER: {
-											Counter::SubType subType = Counter::resolveSubType( settingsFind->second );
-											device->getSettings()->put( "subtype", Counter::resolveSubType( subType ) );
-											break;
-										}
-										case Device::Type::LEVEL: {
-											Level::SubType subType = Level::resolveSubType( settingsFind->second );
-											device->getSettings()->put( "subtype", Level::resolveSubType( subType ) );
-											break;
-										}
-										case Device::Type::SWITCH: {
-											Switch::SubType subType = Switch::resolveSubType( settingsFind->second );
-											device->getSettings()->put( "subtype", Switch::resolveSubType( subType ) );
-											break;
-										}
-										case Device::Type::TEXT: {
-											Text::SubType subType = Text::resolveSubType( settingsFind->second );
-											device->getSettings()->put( "subtype", Text::resolveSubType( subType ) );
-											break;
-										}
-									}
-								} catch( ... ) {
-									throw WebServer::ResourceException( 400, "Device.Invalid.SubType", "The supplied subtype is invalid." );
-								}
-							}
-
-							// A scripts array can be passed along to set the scripts to run when the device
-							// is updated.
-							find = input_.find( "scripts");
-							if ( find != input_.end() ) {
-								if ( (*find).is_array() ) {
-									std::vector<unsigned int> scripts = std::vector<unsigned int>( (*find).begin(), (*find).end() );
-									device->setScripts( scripts );
-								} else {
-									throw WebServer::ResourceException( 400, "Device.Invalid.Scripts", "The supplied scripts parameter is invalid." );
-								}
-							}
-
+							// Process the enabled flag first. It needs to be removed from the input afterwards because it
+							// is also present in the configuration but doesn't need to go into the settings table.
 							find = input_.find( "enabled");
 							if ( find != input_.end() ) {
 								bool enabled = true;
@@ -837,7 +728,25 @@ namespace micasa {
 								);
 							}
 
+							// A scripts array can be passed along to set the scripts to run when the device is updated.
+							find = input_.find( "scripts");
+							if ( find != input_.end() ) {
+								if ( (*find).is_array() ) {
+									std::vector<unsigned int> scripts = std::vector<unsigned int>( (*find).begin(), (*find).end() );
+									device->setScripts( scripts );
+								} else {
+									throw WebServer::ResourceException( 400, "Device.Invalid.Scripts", "The supplied scripts parameter is invalid." );
+								}
+							}
+
+							// Then all provided settings are verified and stored in the settings object of the device.
+							std::string error;
+							if ( ! device->getSettings()->verifiedPut( device->getSettingsJson(), input_, error ) ) {
+								throw WebServer::ResourceException( 400, "Device.Invalid.Settings", error );
+							}
+
 							device->getSettings()->commit();
+							
 							output_["data"] = device->getJson( true );
 							output_["code"] = 200;
 						}
@@ -846,9 +755,9 @@ namespace micasa {
 
 					case WebServer::Method::PATCH: {
 						if (
-							user_->getRights() >= User::Rights::USER
-							&& deviceId != -1
+							deviceId != -1
 							&& ( device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & Device::UpdateSource::API ) == Device::UpdateSource::API
+							&& user_->getRights() >= device->getSettings()->get<User::Rights>( DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::Rights::USER )
 						) {
 							auto find = input_.find( "value" );
 							if ( find != input_.end() ) {
@@ -898,14 +807,38 @@ namespace micasa {
 				}
 
 			} )
-		} );
+		) );
+
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
+			"webserver",
+			"^api/devices/([0-9]+)/data$",
+			WebServer::Method::GET,
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
+					return;
+				}
+				
+				std::shared_ptr<Device> device = nullptr;
+				int deviceId = -1;
+				auto find = input_.find( "$1" ); // inner uri regexp match
+				if ( find != input_.end() ) {
+					deviceId = std::stoi( (*find).get<std::string>() );
+					if ( nullptr == ( device = g_controller->getDeviceById( deviceId ) ) ) {
+						return;
+					}
+				}
+				
+				output_["data"] = device->getData();
+				output_["code"] = 200;
+			} )
+		) );
 	};
 
 	void WebServer::_installScriptResourceHandler() {
-		this->addResourceCallback( {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/scripts(/([0-9]+))?$",
-			100,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -934,6 +867,13 @@ namespace micasa {
 					case WebServer::Method::GET: {
 						if ( scriptId != -1 ) {
 							output_["data"] = script;
+							output_["data"]["device_ids"] = g_database->getQueryColumn<unsigned int>(
+								"SELECT DISTINCT `device_id` "
+								"FROM `x_device_scripts` "
+								"WHERE `script_id`=%d "
+								"ORDER BY `device_id` ASC",
+								script["id"].get<unsigned int>()
+							);
 						} else {
 							output_["data"] = g_database->getQuery<json>(
 								"SELECT `id`, `name`, `code`, `enabled` "
@@ -1037,39 +977,19 @@ namespace micasa {
 					default: break;
 				}
 			} )
-		} );
+		) );
 	};
 
 	void WebServer::_installTimerResourceHandler() {
-		this->addResourceCallback( {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/timers(/([0-9]+))?$",
-			100,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
 					return;
 				}
-
-				// This helper method adds device- and script data to a timer json object.
-				const auto _addTimerData = []( json& timer_ ) {
-					timer_["scripts"] = g_database->getQueryColumn<unsigned int>(
-						"SELECT s.`id` "
-						"FROM `scripts` s, `x_timer_scripts` x "
-						"WHERE s.`id`=x.`script_id` "
-						"AND x.`timer_id`=%d "
-						"ORDER BY s.`id` ASC",
-						timer_["id"].get<unsigned int>()
-					);
-					timer_["devices"] = g_database->getQuery<json>(
-						"SELECT d.`id`, x.`value` "
-						"FROM `devices` d, `x_timer_devices` x "
-						"WHERE d.`id`=x.`device_id` "
-						"AND x.`timer_id`=%d "
-						"ORDER BY d.`id` ASC",
-						timer_["id"].get<unsigned int>()
-					);
-				};
 
 				json timer = json::object();
 				int timerId = -1;
@@ -1083,7 +1003,6 @@ namespace micasa {
 							"WHERE `id`=%d ",
 							timerId
 						);
-						_addTimerData( timer );
 					} catch( ... ) {
 						return;
 					}
@@ -1094,14 +1013,66 @@ namespace micasa {
 					case WebServer::Method::GET: {
 						if ( timerId != -1 ) {
 							output_["data"] = timer;
+							auto find = input_.find( "device_id" );
+							if ( find != input_.end() ) {
+								unsigned int deviceId;
+								if ( (*find).is_string() ) {
+									deviceId = std::stoi( (*find).get<std::string>() );
+								} else if ( (*find).is_number() ) {
+									deviceId = (*find).get<unsigned int>();
+								} else {
+									throw WebServer::ResourceException( 400, "Timer.Invalid.Device", "The supplied device id is invalid." );
+								}
+								output_["data"]["value"] = g_database->getQueryValue<std::string>(
+									"SELECT `value` "
+									"FROM `x_timer_devices` "
+									"WHERE `timer_id`=%d "
+									"AND `device_id`=%d",
+									timerId,
+									deviceId
+								);
+							} else {
+								// Stand-alone timers can be associated with scripts. Provide a list of already associated
+								// scripts for these timers on the edit page.
+								output_["data"]["scripts"] = g_database->getQueryColumn<unsigned int>(
+									"SELECT s.`id` "
+									"FROM `scripts` s, `x_timer_scripts` x "
+									"WHERE s.`id`=x.`script_id` "
+									"AND x.`timer_id`=%d "
+									"ORDER BY s.`id` ASC",
+									timerId
+								);
+							}
 						} else {
-							output_["data"] = g_database->getQuery<json>(
-								"SELECT `id`, `name`, `cron`, `enabled` "
-								"FROM `timers` "
-								"ORDER BY `id` ASC"
-							);
-							for ( auto outputIt = output_["data"].begin(); outputIt != output_["data"].end(); outputIt++ ) {
-								_addTimerData( *outputIt );
+							// If a device id was provided only those timers that are set for the device should be returned.
+							auto find = input_.find( "device_id" );
+							if ( find != input_.end() ) {
+								unsigned int deviceId;
+								if ( (*find).is_string() ) {
+									deviceId = std::stoi( (*find).get<std::string>() );
+								} else if ( (*find).is_number() ) {
+									deviceId = (*find).get<unsigned int>();
+								} else {
+									throw WebServer::ResourceException( 400, "Timer.Invalid.Device", "The supplied device id is invalid." );
+								}
+								output_["data"] = g_database->getQuery<json>(
+									"SELECT t.`id`, t.`name`, t.`cron`, t.`enabled`, x.`value` "
+									"FROM `timers` t, `x_timer_devices` x "
+									"WHERE t.`id`=x.`timer_id` "
+									"AND x.`device_id`=%d "
+									"ORDER BY t.`id` ASC",
+									deviceId
+								);
+							} else {
+								// No device id was provided, so only the timers that are not associated with any devices are
+								// returned.
+								output_["data"] = g_database->getQuery<json>(
+									"SELECT t.`id`, t.`name`, t.`cron`, t.`enabled` "
+									"FROM `timers` t LEFT JOIN `x_timer_devices` x "
+									"ON t.`id`=x.`timer_id` "
+									"WHERE x.`device_id` IS NULL "
+									"ORDER BY t.`id` ASC"
+								);
 							}
 						}
 						output_["code"] = 200;
@@ -1224,23 +1195,60 @@ namespace micasa {
 								throw WebServer::ResourceException( 400, "Timer.Invalid.Scripts", "The supplied scripts parameter is invalid." );
 							}
 						}
+						
+						find = input_.find( "device_id");
+						if ( find != input_.end() ) {
+							unsigned int deviceId;
+							if ( (*find).is_string() ) {
+								deviceId = std::stoi( (*find).get<std::string>() );
+							} else if ( (*find).is_number() ) {
+								deviceId = (*find).get<unsigned int>();
+							} else {
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Device", "The supplied device id is invalid." );
+							}
+							auto device = g_controller->getDeviceById( deviceId );
+							if ( device == nullptr ) {
+								throw WebServer::ResourceException( 400, "Timer.Invalid.Device", "The supplied device id is invalid." );
+							}
+							
+							// Validate the supplied value. NOTE the timer/device cross table stores all types of values
+							// as a string.
+							find = input_.find( "value");
+							if ( find != input_.end() ) {
+								std::string value;
+								if ( (*find).is_string() ) {
+									value = (*find).get<std::string>();
+								} else if ( (*find).is_number() ) {
+									value = std::to_string( (*find).get<unsigned int>() );
+								} else {
+									throw WebServer::ResourceException( 400, "Timer.Invalid.Value", "The supplied value is invalid." );
+								}
+								g_database->putQuery(
+									"REPLACE INTO `x_timer_devices` "
+									"(`timer_id`, `device_id`, `value`) "
+									"VALUES (%d, %d, %Q)",
+									timerId,
+									deviceId,
+									value.c_str()
+								);
+							}
+						}
 
-						_addTimerData( timer );
 						output_["data"] = timer;
 					}
 					
 					default: break;
 				}
 			} )
-		} );
+		) );
 	};
 
 
 	void WebServer::_installUserResourceHandler() {
-		this->addResourceCallback( {
+		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/user/(login|refresh)$",
-			100,
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 
@@ -1300,12 +1308,11 @@ namespace micasa {
 					{ "token", encrypt( token.dump(), this->m_privateKey ) }
 				};
 			} )
-		} );
+		) );
 
-		this->addResourceCallback( {
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/users(/([0-9]+))?$",
-			100,
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::ADMIN ) {
@@ -1473,12 +1480,11 @@ namespace micasa {
 					default: break;
 				}
 			} )
-		} );
+		) );
 		
-		this->addResourceCallback( {
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/user/settings$",
-			100,
 			WebServer::Method::GET | WebServer::Method::PUT,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
@@ -1520,7 +1526,7 @@ namespace micasa {
 			
 				output_["code"] = 200;
 			} )
-		} );
+		) );
 	};
 
 }; // namespace micasa

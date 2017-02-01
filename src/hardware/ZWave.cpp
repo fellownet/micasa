@@ -9,7 +9,6 @@
 
 #include "../Logger.h"
 #include "../Controller.h"
-#include "../Utils.h"
 #include "../User.h"
 
 // OpenZWave includes
@@ -32,39 +31,14 @@ void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* not
 
 namespace micasa {
 
+	using namespace nlohmann;
+	using namespace OpenZWave;
+
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 
 	std::timed_mutex ZWave::g_managerMutex;
 	unsigned int ZWave::g_managerWatchers = 0;
-
-	ZWave::ZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "$",
-			99,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "port", settings.at( "port" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
-
-	ZWave::~ZWave() {
-		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
-	};
 
 	void ZWave::start() {
 		if ( ! this->m_settings->contains( { "port" } ) ) {
@@ -121,8 +95,6 @@ namespace micasa {
 		g_managerWatchers++;
 		lock.unlock();
 		
-		this->_installResourceHandlers();
-
 #ifdef _WITH_LIBUDEV
 		// If libudev is available we can detect if a device is added or removed from the system.
 		g_controller->addSerialPortCallback( "openzwave_" + this->m_id, [this]( const std::string& serialPort_, const std::string& action_ ) {
@@ -171,12 +143,29 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 		Hardware::start();
+
+		// Add the devices that will initiate controller actions. NOTE this has to be done *after* the
+		// parent hardware instance is started to make sure previously created devices get picked up by the
+		// declareDevice method.
+		this->declareDevice<Switch>( "heal", "Network Heal", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		this->declareDevice<Switch>( "include", "Inclusion Mode", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		this->declareDevice<Switch>( "exclude", "Exclusion Mode", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void ZWave::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-
-		g_webServer->removeResourceCallback( "zwave-" + std::to_string( this->m_id ) );
 
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		Manager::Get()->RemoveWatcher( micasa_openzwave_notification_handler, this );
@@ -203,34 +192,115 @@ namespace micasa {
 	};
 
 	json ZWave::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["port"] = this->m_settings->get( "port", "" );
 		if ( full_ ) {
-			json setting = {
-				{ "name", "port" },
-				{ "label", "Port" },
-				{ "type", "string" },
-				{ "value", this->m_settings->get( "port", "" ) }
-			};
+			result["settings"] = this->getSettingsJson();
+		}
+		return result;
+	};
+
+	json ZWave::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		json setting = {
+			{ "name", "port" },
+			{ "label", "Port" },
+			{ "type", "string" },
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+		};
 
 #ifdef _WITH_LIBUDEV
-			json options = json::array();
-			auto ports = getSerialPorts();
-			for ( auto portsIt = ports.begin(); portsIt != ports.end(); portsIt++ ) {
-				json option = json::object();
-				option["value"] = portsIt->first;
-				option["label"] = portsIt->second;
-				options += option;
-			}
+		json options = json::array();
+		auto ports = getSerialPorts();
+		for ( auto portsIt = ports.begin(); portsIt != ports.end(); portsIt++ ) {
+			json option = json::object();
+			option["value"] = portsIt->first;
+			option["label"] = portsIt->second;
+			options += option;
+		}
 
-			setting["type"] = "list";
-			setting["options"] = options;
+		setting["type"] = "list";
+		setting["options"] = options;
 #endif // _WITH_LIBUDEV
 
-			json result = Hardware::getJson( full_ );
-			result["settings"] = { setting };
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+		result += setting;
+		return result;
+	};
+
+	bool ZWave::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		if ( device_->getType() == Device::Type::SWITCH ) {
+			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+			
+				if (
+					this->getState() != Hardware::State::READY
+					|| ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) == false
+				) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					return false;
+				}
+			
+				if ( device->getReference() == "heal" ) {
+					
+					Manager::Get()->HealNetwork( this->m_homeId, true );
+					g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
+					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
+
+				} else if ( device->getReference() == "include" ) {
+
+					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
+						g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
+
+						// Wake up the worker thread after xx microsecnds to cancel the in-/exclusion mode.
+						this->m_performCancel = true;
+						this->wakeUpAfter( std::chrono::milliseconds( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES ) );
+					} else {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
+					}
+
+				} else if ( device->getReference() == "exclude" ) {
+
+					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
+						g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
+
+						// Wake up the worker thread after xx microsecnds to cancel the in-/exclusion mode.
+						this->m_performCancel = true;
+						this->wakeUpAfter( std::chrono::milliseconds( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES ) );
+					} else {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
+					}
+				}
+
+				ZWave::g_managerMutex.unlock();
+				return true;
+			}
 		}
+		
+		return false;
+	};
+
+	std::chrono::milliseconds ZWave::_work( const unsigned long int& iteration_ ) {
+		// Because the action devices needed to be created after the hardware was started, they might not exist in
+		// the first iteration.
+		if ( iteration_ > 1 ) {
+			if ( this->m_performCancel ) {
+				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+					Manager::Get()->CancelControllerCommand( this->m_homeId );
+					
+					std::static_pointer_cast<Switch>( this->getDevice( "include" ) )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+					std::static_pointer_cast<Switch>( this->getDevice( "exclude" ) )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+					
+					this->m_performCancel = false;
+				} else {
+					return std::chrono::milliseconds( 1000 * 60 );
+				}
+			}
+			auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
+			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+			}
+		}
+		return std::chrono::milliseconds( 1000 * 60 * 15 );
 	};
 
 	void ZWave::_handleNotification( const Notification* notification_ ) {
@@ -367,115 +437,6 @@ namespace micasa {
 		} else {
 			g_logger->logr( Logger::LogLevel::VERBOSE, this, "OpenZWave notification \"%s\" missed.", notification_->GetAsString().c_str() );
 		}
-	};
-
-	void ZWave::_installResourceHandlers() const {
-		g_webServer->removeResourceCallback( "zwave-" + std::to_string( this->m_id ) );
-
-		// Add resource handlers for network heal.
-		g_webServer->addResourceCallback( {
-			"zwave-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "/heal$",
-			101,
-			WebServer::Method::PUT,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-					if ( this->getState() == Hardware::State::READY ) {
-						Manager::Get()->HealNetwork( this->m_homeId, true );
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
-					} else {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-						throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-					}
-					output_["code"] = 200;
-				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
-				}
-			} )
-		} );
-
-		// Add resource handler for inclusion mode.
-		g_webServer->addResourceCallback( {
-			"zwave-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "/include$",
-			101,
-			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				// TODO also accept secure inclusion mode
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-					if ( method_ == WebServer::Method::PUT ) {
-						if ( this->getState() == Hardware::State::READY ) {
-							if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
-								g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-							}
-						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-						}
-					} else if ( method_ == WebServer::Method::DELETE ) {
-						if ( this->getState() == Hardware::State::READY ) {
-							Manager::Get()->CancelControllerCommand( this->m_homeId );
-						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-						}
-					}
-					output_["code"] = 200;
-				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
-				}
-			} )
-		} );
-
-		// Add resource handler for exclusion mode.
-		g_webServer->addResourceCallback( {
-			"zwave-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "/exclude$",
-			101,
-			WebServer::Method::PUT | WebServer::Method::DELETE,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-					if ( method_ == WebServer::Method::PUT ) {
-						if ( this->getState() == Hardware::State::READY ) {
-							if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
-								g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-							}
-						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-						}
-					} else if ( method_ == WebServer::Method::DELETE ) {
-						if ( this->getState() == Hardware::State::READY ) {
-							Manager::Get()->CancelControllerCommand( this->m_homeId );
-						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
-							throw WebServer::ResourceException( 423, "Hardware.Not.Ready", "The hardware is not ready." );
-						}
-					}
-					output_["code"] = 200;
-				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
-					throw WebServer::ResourceException( 423, "Hardware.Busy", "The hardware is busy." );
-				}
-			} )
-		} );
 	};
 
 }; // namespace micasa

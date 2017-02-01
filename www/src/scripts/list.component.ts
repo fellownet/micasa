@@ -1,9 +1,13 @@
-import { Component, OnInit }      from '@angular/core';
-import { Router }                 from '@angular/router';
-import { Script, ScriptsService } from './scripts.service';
+import {
+	Component,
+	OnInit
+}                  from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                  from '@angular/router';
 
-declare var $: any;
-declare var ace: any;
+import { Script }  from './scripts.service';
 
 @Component( {
 	templateUrl: 'tpl/scripts-list.html',
@@ -11,42 +15,30 @@ declare var ace: any;
 
 export class ScriptsListComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	scripts: Script[] = [];
+	public loading: boolean = false;
+	public error: String;
+	public scripts: Script[];
 
-	constructor(
+	public constructor(
 		private _router: Router,
-		private _scriptsService: ScriptsService
+		private _route: ActivatedRoute
 	) {
 	};
 
-	ngOnInit() {
-		this.getScripts();
-	};
-
-	getScripts() {
+	public ngOnInit() {
 		var me = this;
-		me.loading = true;
-		this._scriptsService.getScripts()
-			.subscribe(
-				function( scripts_: Script[]) {
-					me.loading = false;
-					me.scripts = scripts_;
-				},
-				function( error_: String ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
-		;
+		this._route.data.subscribe( function( data_: any ) {
+			me.scripts = data_.scripts;
+		} );
 	};
 
-	selectScript( script_: Script ) {
+	public selectScript( script_: Script ) {
+		this.loading = true;
 		this._router.navigate( [ '/scripts', script_.id ] );
 	};
 
-	addScript() {
+	public addScript() {
+		this.loading = true;
 		this._router.navigate( [ '/scripts', 'add' ] );
 	};
 

@@ -1,48 +1,14 @@
 #include "P1Meter.h"
 
 #include "../Logger.h"
-#include "../Controller.h"
-#include "../WebServer.h"
-#include "../User.h"
 #include "../Serial.h"
-#include "../Utils.h"
 
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 
-	P1Meter::P1Meter( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"^api/hardware/" + std::to_string( this->m_id ) + "$",
-			99,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
-				}
-
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "port", settings.at( "port" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "baudrate", std::stoi( settings.at( "baudrate" ) ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
-
-	P1Meter::~P1Meter() {
-		g_webServer->removeResourceCallback( "hardware-" + std::to_string( this->m_id ) );
-	};
-
+	using namespace nlohmann;
+	
 	void P1Meter::start() {
 		if ( ! this->m_settings->contains( { "port", "baudrate" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
@@ -89,54 +55,54 @@ namespace micasa {
 	};
 
 	json P1Meter::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["port"] = this->m_settings->get( "port", "" );
+		result["baudrate"] = this->m_settings->get<unsigned int>( "baudrate", 115200 );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
+		}
+		return result;
+	};
 
-			result["settings"] = json::array();
-	
-			json setting = {
-				{ "name", "port" },
-				{ "label", "Port" },
-				{ "type", "string" },
-				{ "value", this->m_settings->get( "port", "" ) }
-			};
+	json P1Meter::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		json setting = {
+			{ "name", "port" },
+			{ "label", "Port" },
+			{ "type", "string" }
+		};
 
 #ifdef _WITH_LIBUDEV
-			json options = json::array();
-			auto ports = getSerialPorts();
-			for ( auto portsIt = ports.begin(); portsIt != ports.end(); portsIt++ ) {
-				json option = json::object();
-				option["value"] = portsIt->first;
-				option["label"] = portsIt->second;
-				options += option;
-			}
+		json options = json::array();
+		auto ports = getSerialPorts();
+		for ( auto portsIt = ports.begin(); portsIt != ports.end(); portsIt++ ) {
+			json option = json::object();
+			option["value"] = portsIt->first;
+			option["label"] = portsIt->second;
+			options += option;
+		}
 
-			setting["type"] = "list";
-			setting["options"] = options;
+		setting["type"] = "list";
+		setting["options"] = options;
 #endif // _WITH_LIBUDEV
 		
-			result["settings"] += setting;
-			
-			result["settings"] += {
-				{ "name", "baudrate" },
-				{ "label", "Baudrate" },
-				{ "type", "list" },
-				{ "value", this->m_settings->get<unsigned int>( "baudrate", 115200 ) },
-				{ "options", {
-					{
-						{ "value", 9600 },
-						{ "label", "9600" }
-					}, {
-						{ "value", 115200 },
-						{ "label", "115200" }
-					}
-				} }
-			};
+		result += setting;
+		result += {
+			{ "name", "baudrate" },
+			{ "label", "Baudrate" },
+			{ "type", "list" },
+			{ "options", {
+				{
+					{ "value", 9600 },
+					{ "label", "9600" }
+				}, {
+					{ "value", 115200 },
+					{ "label", "115200" }
+				}
+			} }
+		};
 
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
-		}
+		return result;
 	};
 
 }; // namespace micasa

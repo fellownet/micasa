@@ -1,0 +1,62 @@
+<section class="content-header">
+<a *ngIf="!hardware.parent" routerLink="/hardware" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="hardware.parent" routerLink="/hardware/{{hardware.parent.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<h1>{{hardware.name}} <small *ngIf="hardware.parent">{{hardware.parent.name}}</small></h1>
+</section>
+
+<section class="content-body">
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-header with-border">
+					<button type="button" class="btn btn-primary btn-xs pull-right" *ngIf="hasAdvancedSettings" (click)="settingsComponent.toggleAdvancedSettings()"><span *ngIf="!settingsComponent.showAdvancedSettings">Show Advanced</span><span *ngIf="settingsComponent.showAdvancedSettings">Hide Advanced</span></button>
+					<h3 class="box-title">Edit Hardware</h3>
+				</div>
+
+				<form role="form" (ngSubmit)="submitHardware(hardwareForm)" #hardwareForm="ngForm">
+				<div class="box-body">
+					<settings [settings]="hardware.settings" [form]="hardwareForm" [values]="hardware" #settingsComponent="settingsComponent"></settings>
+				</div>
+
+				<div class="box-footer row actionrow">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<button type="submit" class="btn btn-success btn-block" [disabled]="!hardwareForm.form.valid || hardwareForm.form.pristine || loading">Save</button>
+					</div>
+
+					<div *ngIf="hasActionDevices" class="col-xs-12 col-sm-4 col-md-offset-3 col-md-3 col-lg-offset-6 col-lg-2 dropdown">
+						<button type="button" class="btn btn-primary btn-block dropdown-toggle" [disabled]="loading" data-toggle="dropdown">Actions <span class="caret"></span></button>
+						<ul class="dropdown-menu">
+							<ng-container *ngFor="let device of devices">
+							<li *ngIf="device.subtype=='action'"><a (click)="performAction(device);">{{device.label}}</a></li>
+							</ng-container>
+						</ul>
+					</div>
+
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
+						[class.col-sm-offset-4]="!hasActionDevices"
+						[class.col-md-offset-6]="!hasActionDevices"
+						[class.col-lg-offset-8]="!hasActionDevices"
+					>
+						<button type="button" class="btn btn-danger btn-block" [disabled]="loading" (click)="deleteHardware()">Delete</button>
+					</div>
+				</div>
+				</form>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>
+
+<devices [hardware]="hardware" [parent]="hardware.parent" #devicesList="listComponent"></devices>
+<hardware [parent]="hardware"></hardware>

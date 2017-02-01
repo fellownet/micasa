@@ -20,11 +20,6 @@ namespace micasa {
 	public:
 		typedef std::function<void( const unsigned char* data_, const size_t length_ )> t_callback;
 
-		class AlreadyOpenException: public std::logic_error {
-		public:
-			using logic_error::logic_error;
-		}; // class AlreadyOpenException
-
 		class SerialException: public std::logic_error {
 		public:
 			using logic_error::logic_error;

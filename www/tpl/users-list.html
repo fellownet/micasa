@@ -1,9 +1,5 @@
 <section class="content-header">
 <h1>Users</h1>
-<ol class="breadcrumb">
-	<li><a routerLink="/dashboard"><i class="fa fa-dashboard"></i> Dashboard</a></li>
-	<li><a routerLink="/users"><i class="fa fa-user"></i> Users</a></li>
-</ol>
 </section>
 
 <section class="content-body" *ngIf="users.length==0 && !loading">
@@ -26,6 +22,10 @@
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-primary btn-block" (click)="addUser()">Add</button>
 					</div>
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>
@@ -51,8 +51,8 @@
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th>State</th>
-		<th>Username</th>
+		<th [gridField]="'enabled'">State</th>
+		<th [gridField]="'username'">Username</th>
 	</tr>
 </thead>
 <tbody>
@@ -75,6 +75,10 @@
 					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging">
 						<grid-paging [grid]="grid"></grid-paging>
 					</div>
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>

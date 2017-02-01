@@ -1,4 +1,4 @@
-import { Injectable }      from '@angular/core';
+import { Injectable } from '@angular/core';
 
 export class Option {
 	label: string;
@@ -12,12 +12,12 @@ export class Setting {
 	type: string;
 	class: string;
 	value?: any;
-	min?: number;
-	max?: number;
+	minimum?: number;
+	maximum?: number;
+	maxlength?: number;
 	options?: Option[];
 }
 
 @Injectable()
 export class SettingsService {
-
 }

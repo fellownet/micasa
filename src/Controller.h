@@ -31,9 +31,6 @@ extern "C" {
 
 namespace micasa {
 
-	using namespace nlohmann;
-	using namespace std::chrono;
-
 	class Controller final : public Worker, public std::enable_shared_from_this<Controller> {
 
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
@@ -46,7 +43,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	public:
-		typedef time_point<system_clock> t_scheduled;
+		typedef std::chrono::time_point<std::chrono::system_clock> t_scheduled;
 		
 		struct Task {
 			std::shared_ptr<Device> device;
@@ -113,13 +110,13 @@ namespace micasa {
 		std::thread m_udevMonitorThread;
 #endif // _WITH_LIBUDEV
 		
-		milliseconds _work( const unsigned long int& iteration_ );
-		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runTimers();
-		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
+		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		bool _includeFromScript( const std::string& name_, std::string& script_ );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
-		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
+		void _clearTaskQueue( const std::shared_ptr<Device> device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;
 		
 	}; // class Controller

@@ -14,9 +14,10 @@ extern "C" {
 	#include "mongoose.h"
 } // extern "C"
 
-namespace micasa {
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
+#define WEBSERVER_USER_WEBCLIENT_SETTING               "_webclient"
 
-	using namespace nlohmann;
+namespace micasa {
 
 	class User;
 
@@ -43,15 +44,17 @@ namespace micasa {
 		}; // enum class Method
 		ENUM_UTIL( Method );
 		
-		typedef std::function<void( std::shared_ptr<User> user_, const json& input_, const Method& method_, json& output_ )> t_callback;
+		typedef std::function<void( std::shared_ptr<User> user_, const nlohmann::json& input_, const Method& method_, nlohmann::json& output_ )> t_callback;
 		
-		struct ResourceCallback {
+		class ResourceCallback {
+		public:
+			ResourceCallback( const std::string& reference_, const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : reference( reference_ ), uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
+
 			const std::string reference;
 			const std::string uri;
-			const unsigned int sort;
-			const WebServer::Method methods;
+			const Method methods;
 			const t_callback callback;
-		}; // struct ResourceCallback
+		}; // class ResourceCallback
 		
 		class ResourceException: public std::runtime_error {
 		public:
@@ -60,15 +63,12 @@ namespace micasa {
 			const unsigned int code;
 			const std::string error;
 			const std::string message;
-		}; // struct ResourceException
+		}; // class ResourceException
 
 		WebServer();
 		~WebServer();
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
-		void addResourceCallback( const ResourceCallback& callback_ );
-		void removeResourceCallback( const std::string& reference_ );
-
 		void start();
 		void stop();
 		
@@ -82,7 +82,7 @@ namespace micasa {
 		std::string m_privateKey;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
-
+		
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();
 		void _installScriptResourceHandler();
