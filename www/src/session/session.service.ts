@@ -45,8 +45,6 @@ export class SessionService {
 	// the server multiple times.
 	private _states: any = {};
 
-	public targetUrl?: string; // the url that was requested before the guard kicked in
-
 	public session: Observable<Session> = this._session.asObservable();
 	public events: Observable<any> = this._events.asObservable();
 
@@ -104,7 +102,7 @@ export class SessionService {
 		return this._session.getValue();
 	};
 
-	public login( credentials_: Credentials ): Observable<string> {
+	public login( credentials_: Credentials ): Observable<boolean> {
 		var me = this;
 		return me.http<Session>( 'post', 'user/login', credentials_ )
 			.mergeMap( function( session_: Session ) {
@@ -121,7 +119,7 @@ export class SessionService {
 					.map( function( success_: boolean ) {
 						me._session.next( session_ );
 						delete( me._forcedAuthToken );
-						return me.targetUrl || '/hardware';
+						return true;
 					} )
 				;
 			} )

@@ -1,10 +1,9 @@
 <section class="content-header">
-<a *ngIf="screen.id >= 1" routerLink="/screen/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<a *ngIf="screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
 <h1>{{screen.name}}</h1>
 </section>
 
-<!--
-<section class="content-body" *ngIf="screen.widgets.length==0 && !loading">
+<section class="content-body" *ngIf="screen.widgets.length == 0 && !loading">
 
 	<div class="callout callout-info" *ngIf="!error">
 		<h4>No Widgets!</h4>
@@ -23,18 +22,22 @@
 
 	<div class="row">
 
-
 	<ng-container *ngFor="let widget of screen.widgets">
+
+	{{widget.device_id}}
+
+<!--
 		<ng-container [ngSwitch]="widget.device.type">
 			<counterwidget *ngSwitchCase="'counter'" [widgetConfig]="widget"></counterwidget>
 			<levelwidget *ngSwitchCase="'level'" [widgetConfig]="widget"></levelwidget>
 			<switchwidget *ngSwitchCase="'switch'" [widgetConfig]="widget"></switchwidget>
 			<textwidget *ngSwitchCase="'text'" [widgetConfig]="widget"></textwidget>
 		</ng-container>
+-->
+
 	</ng-container>
 
 
 	</div>
 
 </section>
--->

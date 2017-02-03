@@ -38,8 +38,12 @@ export class LoginComponent implements OnInit {
 
 		me._sessionService.login( me.credentials )
 			.subscribe(
-				function( targetUrl_: string ) {
-					me._router.navigate( [ targetUrl_ ] );
+				function( success_: boolean ) {
+					if ( success_ ) {
+						me._router.navigate( [ '/dashboard' ] );
+					} else {
+						me._router.navigate( [ '/login' ] );
+					}
 				},
 				function( error_: string ) {
 					setTimeout( function() {

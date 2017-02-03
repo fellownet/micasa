@@ -11,9 +11,11 @@ import { HardwareModule }  from './hardware/hardware.module';
 import { ScriptsModule }   from './scripts/scripts.module';
 import { TimersModule }    from './timers/timers.module';
 import { UsersModule }     from './users/users.module';
+import { ScreensModule }   from './screens/screens.module';
 import { SessionModule }   from './session/session.module';
 
 import { SessionService }  from './session/session.service';
+import { ScreensService }  from './screens/screens.service';
 
 import 'rxjs/add/observable/of';
 import 'rxjs/add/observable/throw';
@@ -39,6 +41,7 @@ import 'rxjs/add/operator/takeWhile';
 		ScriptsModule,
 		TimersModule,
 		UsersModule,
+		ScreensModule,
 		SessionModule
 	],
 	declarations: [
@@ -48,7 +51,8 @@ import 'rxjs/add/operator/takeWhile';
 		AppComponent
 	],
 	providers: [
-		SessionService
+		SessionService,
+		ScreensService
 	]
 } )
 

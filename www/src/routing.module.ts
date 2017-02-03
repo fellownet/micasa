@@ -7,7 +7,7 @@ import {
 import { SessionGuard } from './session/session.guard';
 
 const routes = [
-	{ path: '', redirectTo: 'hardware', pathMatch: 'full' }
+	{ path: '', redirectTo: 'dashboard', pathMatch: 'full' }
 ];
 
 @NgModule( {

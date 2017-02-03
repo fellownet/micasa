@@ -1,23 +1,27 @@
 import {
 	Component,
 	OnInit
-}                            from '@angular/core';
+}                   from '@angular/core';
 import {
 	Router,
 	ActivatedRoute
-}                            from '@angular/router';
-import { NgForm }            from '@angular/forms';
+}                   from '@angular/router';
+import { NgForm }   from '@angular/forms';
 
 import {
 	Device,
 	DevicesService
-}                            from './devices.service';
-import { Hardware }          from '../hardware/hardware.service';
-import { Script }            from '../scripts/scripts.service';
+}                   from './devices.service';
+import { Hardware } from '../hardware/hardware.service';
+import { Script }   from '../scripts/scripts.service';
 import {
 	Timer,
 	TimersService
-}                            from '../timers/timers.service';
+}                   from '../timers/timers.service';
+import {
+	Screen,
+	ScreensService
+}                   from '../screens/screens.service';
 
 @Component( {
 	templateUrl: 'tpl/device-edit.html'
@@ -29,6 +33,7 @@ export class DeviceEditComponent implements OnInit {
 	public error: String;
 	public device: Device;
 	public scripts: Script[];
+	public screens: Screen[];
 
 	public hardware?: Hardware;
 	public script?: Script;
@@ -38,7 +43,8 @@ export class DeviceEditComponent implements OnInit {
 	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
-		private _devicesService: DevicesService
+		private _devicesService: DevicesService,
+		private _screensService: ScreensService
 	) {
 	};
 
@@ -54,6 +60,7 @@ export class DeviceEditComponent implements OnInit {
 				}
 				me.device = data_.device;
 				me.scripts = data_.scripts;
+				me.screens = data_.screens;
 				for ( let setting of me.device.settings ) {
 					if ( setting.class == 'advanced' ) {
 						me.hasAdvancedSettings = true;
@@ -69,7 +76,6 @@ export class DeviceEditComponent implements OnInit {
 		this._devicesService.putDevice( me.device )
 			.subscribe(
 				function( device_: Device ) {
-					me.loading = false;
 					if ( me.hardware ) {
 						if ( me.hardware.parent ) {
 							me._router.navigate( [ '/hardware', me.hardware.parent.id, me.hardware.id, 'edit' ] );
@@ -134,4 +140,19 @@ export class DeviceEditComponent implements OnInit {
 			}
 		}
 	};
+
+	public addToScreen( screen_: Screen ) {
+		var me = this;
+		screen_.widgets.push( { device_id: me.device.id } );
+		me._screensService.putScreen( screen_ )
+			.subscribe( function( screens_: Screen[] ) {
+				if ( screen_.id == 1 ) {
+					me._router.navigate( [ '/dashboard' ] );
+				} else {
+					me._router.navigate( [ '/screens', screen_.id ] );
+				}
+			} )
+		;
+	};
+
 }

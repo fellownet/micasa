@@ -57,7 +57,7 @@
 		</li>
 
 		<li class="menu-header">
-			<a routerLink="/screen/add" class="pull-right">
+			<a routerLink="/screens/add" class="pull-right">
 				<i class="fa fa-plus-circle"></i>
 				<span>Add</span>
 			</a>
@@ -66,7 +66,7 @@
 
 		<ng-container *ngFor="let screen of screens | async">
 		<li *ngIf="screen.id > 1" routerLinkActive="active">
-			<a routerLink="/screen/{{screen.id}}">
+			<a routerLink="/screens/{{screen.id}}">
 				<i class="fa fa-th"></i>
 				<span>{{screen.name}}</span>
 			</a>

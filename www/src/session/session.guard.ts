@@ -20,7 +20,6 @@ export class SessionGuard implements CanActivate {
 
 	public canActivate( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<boolean> {
 		var me = this;
-		me._sessionService.targetUrl = state_.url;
 
 		// The observable needs to block until the session service is fully initialized. Therefore we filter
 		// out all null values from the observable until there's either a false or a full session object pushed
