@@ -27,21 +27,12 @@ export class UserResolver implements Resolve<User> {
 		if ( route_.params['user_id'] == 'add' ) {
 			return Observable.of( { id: NaN, name: 'New user', username: '', rights: ACL.Viewer, enabled: false } );
 		} else {
-			return new Observable( function( subscriber_: any ) {
-				me._usersService.getUser( +route_.params['user_id'] )
-					.subscribe(
-						function( user_: User ) {
-							subscriber_.next( user_ );
-							subscriber_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/users' ] );
-							subscriber_.next( null );
-							subscriber_.complete();
-						}
-					)
-				;
-			} );
+			return this._usersService.getUser( +route_.params['user_id'] )
+				.catch( function( error_: string ) {
+					me._router.navigate( [ '/login' ] );
+					return Observable.of( null );
+				} )
+			;
 		}
 	};
 }

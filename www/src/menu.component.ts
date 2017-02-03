@@ -1,15 +1,15 @@
+import { Component }  from '@angular/core';
+import { Observable } from 'rxjs/Observable';
+
+import { ACL }        from './users/users.service';
 import {
-	Component,
-	OnInit
-}                  from '@angular/core';
-import {
-	ACL,
-	UsersService
-}                  from './users/users.service';
+	Session,
+	SessionService
+}                     from './session/session.service';
 import {
 	Screen,
 	ScreensService
-}                  from './screens/screens.service';
+}                     from './screens/screens.service';
 
 declare var $: any;
 
@@ -18,39 +18,20 @@ declare var $: any;
 	templateUrl: 'tpl/menu.html',
 } )
 
-export class MenuComponent implements OnInit {
+export class MenuComponent {
 
-	public screens: Screen[] = [];
-
-	// Make the ACL's available in the template.
+	public session: Observable<Session>;
+	public screens: Observable<Screen[]>;
 	public ACL = ACL;
 
 	public constructor(
-		private _usersService: UsersService,
+		private _sessionService: SessionService,
 		private _screensService: ScreensService
 	) {
-	};
-
-	public ngOnInit() {
-		this.getScreens();
-	};
-
-	public getScreens() {
-		var me = this;
-		this._screensService.getScreens()
-			.subscribe(
-				function( screens_: Screen[] ) {
-					me.screens = screens_;
-				},
-				function( error_: String ) {
-					me.screens = []; // not even the dashboard :(
-				}
-			)
-		;
-	};
-
-	public hasAccess( acl_: ACL ): boolean {
-		return this._usersService.isLoggedIn( acl_ );
+		// Make the session- and screen observables from their respective services available
+		// in the template.
+		this.session = _sessionService.session;
+		this.screens = _screensService.screens;
 	};
 
 	public toggleMenu(): void {
@@ -58,5 +39,4 @@ export class MenuComponent implements OnInit {
 			$( 'body' ).removeClass( 'sidebar-open' );
 		}
 	};
-
 }

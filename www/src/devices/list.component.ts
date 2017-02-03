@@ -1,17 +1,18 @@
 import {
 	Component,
 	OnInit,
+	OnDestroy,
 	Input
-}                   from '@angular/core';
+}                         from '@angular/core';
 import {
 	Router,
 	ActivatedRoute
-}                   from '@angular/router';
+}                         from '@angular/router';
 
-import { Device }   from './devices.service';
-import { Hardware } from '../hardware/hardware.service';
-import { Script }   from '../scripts/scripts.service';
-
+import { Device }         from './devices.service';
+import { Hardware }       from '../hardware/hardware.service';
+import { Script }         from '../scripts/scripts.service';
+import { SessionService } from '../session/session.service';
 
 @Component( {
 	selector    : 'devices',
@@ -19,7 +20,9 @@ import { Script }   from '../scripts/scripts.service';
 	exportAs    : 'listComponent' // can be used to communicate with parent component
 } )
 
-export class DevicesListComponent implements OnInit {
+export class DevicesListComponent implements OnInit, OnDestroy {
+
+	private _active: boolean = true;
 
 	public loading: boolean = false;
 	public error: String;
@@ -31,7 +34,8 @@ export class DevicesListComponent implements OnInit {
 
 	public constructor(
 		private _router: Router,
-		private _route: ActivatedRoute
+		private _route: ActivatedRoute,
+		private _sessionService: SessionService
 	) {
 	};
 
@@ -42,6 +46,17 @@ export class DevicesListComponent implements OnInit {
 				me.devices = data_.devices;
 			} )
 		;
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.subscribe( function( event_: any ) {
+				console.log( 'got an event in device list component' );
+				console.log( event_ );
+			} )
+		;
+	};
+
+	public ngOnDestroy() {
+		this._active = false;
 	};
 
 	public selectDevice( device_: Device ) {

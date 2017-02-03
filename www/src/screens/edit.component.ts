@@ -1,6 +1,15 @@
-import { Component, OnInit }         from '@angular/core';
-import { Router, ActivatedRoute }    from '@angular/router';
-import { Screen, ScreensService }    from './screens.service';
+import {
+	Component,
+	OnInit
+}                  from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                  from '@angular/router';
+import {
+	Screen,
+	ScreensService
+}                  from './screens.service';
 
 @Component( {
 	templateUrl: 'tpl/screen-edit.html',
@@ -8,32 +17,35 @@ import { Screen, ScreensService }    from './screens.service';
 
 export class ScreenEditComponent implements OnInit {
 
-	loading: boolean = false;
-	error: String;
-	screen: Screen;
+	public loading: boolean = false;
+	public error: String;
+	public screen: Screen;
 
-	constructor(
+	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
 		private _screensService: ScreensService
 	) {
 	};
 
-	ngOnInit() {
+	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.screen = data_.screen;
 		} );
 	};
 
-	submitScreen() {
+	public submitScreen() {
 		var me = this;
 		me.loading = true;
 		this._screensService.putScreen( me.screen )
 			.subscribe(
-				function( screen_: Screen ) {
-					me.loading = false;
-					me._router.navigate( [ '/screen', screen_.index ] );
+				function( success_: boolean ) {
+					if ( success_ ) {
+						me._router.navigate( [ '/screen', me.screen.id ] );
+					} else {
+						me._router.navigate( [ '/login' ] );
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;
@@ -49,14 +61,10 @@ export class ScreenEditComponent implements OnInit {
 		me._screensService.deleteScreen( me.screen )
 			.subscribe(
 				function( success_: boolean ) {
-					me.loading = false;
 					if ( success_ ) {
-
-						// TODO previous screen
-
 						me._router.navigate( [ '/dashboard' ] );
 					} else {
-						this.error = 'Unable to delete screen.';
+						me.loading = false;
 					}
 				},
 				function( error_: string ) {

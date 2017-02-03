@@ -5,7 +5,7 @@ import { GridModule }         from '../grid/grid.module';
 
 import { UsersListComponent } from './list.component';
 import { UserEditComponent }  from './edit.component';
-import { LoginComponent }     from './login.component';
+import { UsersService }       from './users.service';
 import { UsersRoutingModule } from './routing.module';
 import { UserResolver }       from './user.resolver';
 import { UsersListResolver }  from './list.resolver';
@@ -19,12 +19,10 @@ import { UsersListResolver }  from './list.resolver';
 	],
 	declarations: [
 		UsersListComponent,
-		UserEditComponent,
-		LoginComponent
+		UserEditComponent
 	],
-	// UsersService is not added as a provider here. Instead it is a provider for the parent app module so
-	// all other child modules use the same instance of UserService.
 	providers: [
+		UsersService,
 		UserResolver,
 		UsersListResolver
 	]

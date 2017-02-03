@@ -20,8 +20,8 @@ import {
 }                            from '../timers/timers.service';
 import {
 	Screen,
-	Widget,
 	ScreensService
+
 }                            from '../screens/screens.service';
 
 @Component( {
@@ -51,7 +51,6 @@ export class DeviceEditComponent implements OnInit {
 
 	public ngOnInit() {
 		var me = this;
-		this.getScreens();
 		this._route.data
 			.subscribe( function( data_: any ) {
 				if ( 'hardware' in data_ ) {
@@ -62,6 +61,7 @@ export class DeviceEditComponent implements OnInit {
 				}
 				me.device = data_.device;
 				me.scripts = data_.scripts;
+				me.screens = data_.screens;
 				for ( let setting of me.device.settings ) {
 					if ( setting.class == 'advanced' ) {
 						me.hasAdvancedSettings = true;
@@ -129,20 +129,6 @@ export class DeviceEditComponent implements OnInit {
 		;
 	};
 
-	public getScreens() {
-		var me = this;
-		this._screensService.getScreens()
-			.subscribe(
-				function( screens_: Screen[] ) {
-					me.screens = screens_;
-				},
-				function( error_: String ) {
-					me.error = error_;
-				}
-			)
-		;
-	};
-
 	public updateSelectedScripts( id_: number, event_: any ) {
 		let target: any = event.target;
 		if ( target.checked ) {
@@ -157,22 +143,17 @@ export class DeviceEditComponent implements OnInit {
 		}
 	};
 
-	public addToScreen( index_: number ): void {
+	public addToScreen( screen_: Screen ): void {
 		var me = this;
 		me.loading = true;
-
-		let screen: Screen = me.screens[index_];
-		let widget: Widget = { device_id: this.device.id };
-		screen.widgets.push( widget );
-
-		me._screensService.putScreen( screen )
+		/*
+		me._screensService.addDeviceToScreen( screen_, me.device )
 			.subscribe(
-				function( screen_: Screen ) {
-					me.loading = false;
-					if ( index_ > 0 ) {
-						me._router.navigate( [ '/screen', index_ ] );
-					} else {
+				function( success_: boolean ) {
+					if ( screen_.id == 1 ) {
 						me._router.navigate( [ '/dashboard' ] );
+					} else {
+						me._router.navigate( [ '/screen', screen_.id ] );
 					}
 				},
 				function( error_: string ) {
@@ -181,5 +162,6 @@ export class DeviceEditComponent implements OnInit {
 				}
 			)
 		;
+		*/
 	};
 }

@@ -2,12 +2,17 @@ import {
 	Component,
 	OnInit,
 	OnDestroy
-}                       from '@angular/core';
+}                         from '@angular/core';
 import {
 	Router,
 	NavigationEnd
-}                       from '@angular/router';
-import { UsersService } from './users/users.service';
+}                         from '@angular/router';
+import { Observable }     from 'rxjs/Observable';
+
+import {
+	Session,
+	SessionService
+}                         from './session/session.service';
 
 declare var Highcharts: any;
 
@@ -20,10 +25,14 @@ export class AppComponent implements OnInit, OnDestroy {
 
 	private _alive: boolean = true;
 
+	public session: Observable<Session>;
+
 	public constructor(
 		private _router: Router,
-		private _usersService: UsersService
+		private _sessionService: SessionService
 	) {
+		// Make the session observable from the session service available to the template.
+		this.session = _sessionService.session;
 
 		// The defaults for all chart types are set here, the one place that is in common for all
 		// widgets with charts.
@@ -140,7 +149,4 @@ export class AppComponent implements OnInit, OnDestroy {
 		this._alive = false;
 	};
 
-	public isLoggedIn(): boolean {
-		return this._usersService.isLoggedIn();
-	};
 }

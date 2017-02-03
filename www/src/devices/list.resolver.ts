@@ -26,21 +26,12 @@ export class DevicesListResolver implements Resolve<Device[]> {
 		if ( route_.params['script_id'] == 'add' ) {
 			return Observable.of( [] );
 		} else {
-			return new Observable( function( subscriber_: any ) {
-				me._devicesService.getDevices( route_.params['hardware_id'], route_.params['script_id'] )
-					.subscribe(
-						function( devices_: Device[] ) {
-							subscriber_.next( devices_ );
-							subscriber_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/login' ] );
-							subscriber_.next( null );
-							subscriber_.complete();
-						}
-					)
-				;
-			} );
+			return this._devicesService.getDevices( route_.params['hardware_id'], route_.params['script_id'] )
+				.catch( function( error_: string ) {
+					me._router.navigate( [ '/login' ] );
+					return Observable.of( null );
+				} )
+			;
 		}
 	};
 }

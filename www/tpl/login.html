@@ -8,10 +8,6 @@
 			</div>
 
 			<form role="form" (ngSubmit)="doLogin()" #loginForm="ngForm" novalidate><!-- no validation by browser -->
-			<div class="form-group has-feedback">
-				<input type="text" class="form-control" placeholder="Location">
-				<span class="fa fa-globe form-control-feedback"></span>
-			</div>
 			<div class="form-group has-feedback" [class.has-error]="!username.valid && !username.pristine">
 				<input type="text" class="form-control" placeholder="Username" autocomplete="off" autocorrect="off" autocapitalize="none" required [(ngModel)]="credentials.username" name="username" #username="ngModel">
 				<span class="fa fa-user form-control-feedback"></span>

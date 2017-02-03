@@ -15,7 +15,7 @@ extern "C" {
 } // extern "C"
 
 #define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
-#define WEBSERVER_USER_WEBCLIENT_SETTING               "_webclient"
+#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX        "_web_"
 
 namespace micasa {
 

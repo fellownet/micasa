@@ -22,20 +22,11 @@ export class DeviceResolver implements Resolve<Device> {
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Device> {
 		var me = this;
-		return new Observable( function( subscriber_: any ) {
-			me._devicesService.getDevice( +route_.params['device_id'] )
-				.subscribe(
-					function( device_: Device ) {
-						subscriber_.next( device_ );
-						subscriber_.complete();
-					},
-					function( error_: string ) {
-						me._router.navigate( [ '/devices' ] );
-						subscriber_.next( null );
-						subscriber_.complete();
-					}
-				)
-			;
-		} );
+		return this._devicesService.getDevice( +route_.params['device_id'] )
+			.catch( function( error_: string ) {
+				me._router.navigate( [ '/login' ] );
+				return Observable.of( null );
+			} )
+		;
 	}
 }

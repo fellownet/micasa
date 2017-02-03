@@ -8,7 +8,6 @@ import { RoutingModule }   from './routing.module';
 
 import { HeaderComponent } from './header.component';
 import { MenuComponent }   from './menu.component';
-import { HelpComponent }   from './help.component';
 
 import { ScreensModule }   from './screens/screens.module';
 import { DevicesModule }   from './devices/devices.module';
@@ -16,12 +15,17 @@ import { HardwareModule }  from './hardware/hardware.module';
 import { ScriptsModule }   from './scripts/scripts.module';
 import { TimersModule }    from './timers/timers.module';
 import { UsersModule }     from './users/users.module';
+import { SessionModule }   from './session/session.module';
 
-import { UsersService }    from './users/users.service';
+import { SessionService }  from './session/session.service';
 import { ScreensService }  from './screens/screens.service';
 
 import 'rxjs/add/observable/of';
+import 'rxjs/add/observable/throw';
+import 'rxjs/add/operator/mergeMap';
 import 'rxjs/add/operator/map';
+import 'rxjs/add/operator/do';
+import 'rxjs/add/operator/delay';
 import 'rxjs/add/operator/catch';
 import 'rxjs/add/operator/filter';
 import 'rxjs/add/operator/takeWhile';
@@ -37,21 +41,19 @@ import 'rxjs/add/operator/takeWhile';
 		HardwareModule,
 		ScriptsModule,
 		TimersModule,
-		UsersModule
+		UsersModule,
+		SessionModule
 	],
 	declarations: [
 		AppComponent,
 		HeaderComponent,
-		MenuComponent,
-		HelpComponent
+		MenuComponent
 	],
 	bootstrap: [
 		AppComponent
 	],
-	// Creating the UsersService and ScreenService instances here makes sure that there's only one
-	// instance of each that all the child modules will inherit (this is the common ancestor).
 	providers: [
-		UsersService,
+		SessionService,
 		ScreensService
 	]
 } )

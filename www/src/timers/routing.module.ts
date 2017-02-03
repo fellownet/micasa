@@ -11,11 +11,11 @@ import { TimersListResolver }  from './list.resolver';
 import { TimerResolver }       from './timer.resolver';
 import { ScriptsListResolver } from '../scripts/list.resolver';
 
-import { UsersService }        from '../users/users.service';
+import { SessionGuard }        from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'timers',           component: TimersListComponent, canActivate: [UsersService], resolve: { timers: TimersListResolver } },
-	{ path: 'timers/:timer_id', component: TimerEditComponent,  canActivate: [UsersService], resolve: { timer: TimerResolver, scripts: ScriptsListResolver } },
+	{ path: 'timers',           component: TimersListComponent, canActivate: [SessionGuard], resolve: { timers: TimersListResolver } },
+	{ path: 'timers/:timer_id', component: TimerEditComponent,  canActivate: [SessionGuard], resolve: { timer: TimerResolver, scripts: ScriptsListResolver } },
 ];
 
 @NgModule( {

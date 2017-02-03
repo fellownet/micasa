@@ -1,12 +1,7 @@
-import { Injectable }   from '@angular/core';
-import {
-	Http,
-	Response,
-	Headers,
-	RequestOptions
-}                       from '@angular/http';
-import { Observable }   from 'rxjs/Observable';
-import { UsersService } from '../users/users.service';
+import { Injectable }     from '@angular/core';
+import { Observable }     from 'rxjs/Observable';
+
+import { SessionService } from '../session/session.service';
 
 export class Timer {
 	id: number;
@@ -21,85 +16,40 @@ export class Timer {
 @Injectable()
 export class TimersService {
 
-	private _timerUrlBase = 'api/timers';
-
 	public constructor(
-		private _http: Http,
-		private _usersService: UsersService
+		private _sessionService: SessionService
 	) {
 	};
 
 	public getTimers( deviceId_?: number ): Observable<Timer[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		let uri: string = this._timerUrlBase;
+		let resource: string = 'timers';
 		if ( deviceId_ ) {
-			uri += '?device_id=' + deviceId_;
+			resource += '?device_id=' + deviceId_;
 		}
-		return this._http.get( uri, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Timer[]>( 'get', resource );
 	};
 
 	public getTimer( id_: number, deviceId_?: number ): Observable<Timer> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		let uri: string = this._timerUrlBase + '/' + id_;
+		let resource: string = 'timers/' + id_;
 		if ( deviceId_ ) {
-			uri += '?device_id=' + deviceId_;
+			resource += '?device_id=' + deviceId_;
 		}
-		return this._http.get( uri, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Timer>( 'get', resource );
 	};
 
 	public putTimer( timer_: Timer ): Observable<Timer> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLogin().token
-		} );
-		let options = new RequestOptions( { headers: headers } );
 		if ( timer_.id ) {
-			return this._http.put( this._timerUrlBase + '/' + timer_.id, timer_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Timer>( 'put', 'timers' + '/' + timer_.id, timer_ );
 		} else {
-			return this._http.post( this._timerUrlBase, timer_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Timer>( 'post', 'timers', timer_ );
 		}
 	};
 
 	public deleteTimer( timer_: Timer ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._timerUrlBase + '/' + timer_.id, options )
-			.map( function( response_: Response ) {
-				return response_.json()['result'] == 'OK';
+		return this._sessionService.http<any>( 'delete', 'timers/' + timer_.id )
+			.map( function( result_: any ) {
+				return true; // failures do not end up here
 			} )
-			.catch( this._handleHttpError )
 		;
 	};
-
-	private _extractData( response_: Response ) {
-		let body = response_.json();
-		return body.data || null;
-	};
-
-	private _handleHttpError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
-		}
-		return Observable.throw( message );
-	};
-
 }

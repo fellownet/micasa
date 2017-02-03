@@ -23,20 +23,11 @@ export class UsersListResolver implements Resolve<User[]> {
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<User[]> {
 		var me = this;
-		return new Observable( function( subscriber_: any ) {
-			me._usersService.getUsers()
-				.subscribe(
-					function( users_: User[] ) {
-						subscriber_.next( users_ );
-						subscriber_.complete();
-					},
-					function( error_: string ) {
-						me._router.navigate( [ '/login' ] );
-						subscriber_.next( null );
-						subscriber_.complete();
-					}
-				)
-			;
-		} );
+		return this._usersService.getUsers()
+			.catch( function( error_: string ) {
+				me._router.navigate( [ '/login' ] );
+				return Observable.of( null );
+			} )
+		;
 	};
 }

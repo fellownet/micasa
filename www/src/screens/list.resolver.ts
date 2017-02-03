@@ -6,24 +6,30 @@ import {
 	ActivatedRouteSnapshot
 }                          from '@angular/router';
 import { Observable }      from 'rxjs/Observable';
-import { DevicesService }  from './devices.service';
+
+import {
+	Screen,
+	ScreensService
+}                          from './screens.service';
 
 @Injectable()
-export class DataResolver implements Resolve<any[]> {
+export class ScreensListResolver implements Resolve<Screen[]> {
 
 	public constructor(
 		private _router: Router,
-		private _devicesService: DevicesService
+		private _screensService: ScreensService
 	) {
 	};
 
-	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<any[]> {
+	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Screen[]> {
 		var me = this;
-		return this._devicesService.getData( route_.params['device_id'] )
+		console.log( 'resolving' );
+
+		return this._screensService.getScreens()
 			.catch( function( error_: string ) {
 				me._router.navigate( [ '/login' ] );
 				return Observable.of( null );
 			} )
 		;
-	}
+	};
 }

@@ -1,11 +1,11 @@
 <ul class="menu" (click)="toggleMenu()">
 	<li class="menu-header"><span>Main Navigation</span></li>
-	<li *ngIf="hasAccess(ACL.Viewer)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Viewer" routerLinkActive="active">
 		<a routerLink="/dashboard">
 			<i class="fa fa-dashboard"></i> <span>Dashboard</span>
 		</a>
 	</li>
-	<li *ngIf="hasAccess(ACL.Installer)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Installer" routerLinkActive="active">
 		<a routerLink="/hardware">
 			<i class="fa fa-microchip"></i>
 			<span>Hardware</span>
@@ -14,25 +14,25 @@
 			</span-->
 		</a>
 	</li>
-	<li *ngIf="hasAccess(ACL.Viewer)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Viewer" routerLinkActive="active">
 		<a routerLink="/devices">
 			<i class="fa fa-thermometer-half"></i>
 			<span>Devices</span>
 		</a>
 	</li>
-	<li *ngIf="hasAccess(ACL.Installer)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Installer" routerLinkActive="active">
 		<a routerLink="/timers">
 			<i class="fa fa-clock-o"></i>
 			<span>Timers</span>
 		</a>
 	</li>
-	<li *ngIf="hasAccess(ACL.Admin)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Admin" routerLinkActive="active">
 		<a routerLink="/users">
 			<i class="fa fa-user"></i>
 			<span>Users</span>
 		</a>
 	</li>
-	<li *ngIf="hasAccess(ACL.Installer)" routerLinkActive="active">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Installer" routerLinkActive="active">
 		<a routerLink="/scripts">
 			<i class="fa fa-code"></i>
 			<span>Scripts</span>
@@ -40,19 +40,20 @@
 	</li>
 
 	<li class="menu-header">
-		<a routerLink="/screen/add" class="pull-right">
+		<a routerLink="/screen/new/edit" class="pull-right">
 			<i class="fa fa-plus-circle"></i>
 			<span>Add</span>
 		</a>
 		<span>Screens</span>
 	</li>
 
-	<ng-container *ngFor="let screen of screens; let i = index;">
-	<li *ngIf="hasAccess(ACL.Viewer) && i>0" routerLinkActive="active">
-		<a routerLink="/screen/{{i}}">
+	<ng-container *ngFor="let screen of screens | async">
+	<li *ngIf="(session | async)?.user.rights >= ACL.Viewer && screen.id != 1" routerLinkActive="active">
+		<a routerLink="/screen/{{screen.id}}">
 			<i class="fa fa-th"></i>
 			<span>{{screen.name}}</span>
 		</a>
 	</li>
 	</ng-container>
+
 </ul>

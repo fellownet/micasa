@@ -1,5 +1,5 @@
-<header class="header" *ngIf="isLoggedIn()"></header>
-<aside class="sidebar" *ngIf="isLoggedIn()"></aside>
+<header class="header" *ngIf="session | async"></header>
+<aside class="sidebar" *ngIf="session | async"></aside>
 
 <section class="content">
 	<router-outlet></router-outlet>

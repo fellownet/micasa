@@ -1484,47 +1484,50 @@ namespace micasa {
 		
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/user/settings$",
-			WebServer::Method::GET | WebServer::Method::PUT,
+			"^api/user/state/([0-9a-z]+)$",
+			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
 					return;
 				}
 			
-				json settings = json::parse( user_->getSettings()->get( WEBSERVER_USER_WEBCLIENT_SETTING, "{}" ) );
-
 				switch( method_ ) {
 
 					case WebServer::Method::GET: {
-						output_["data"] = settings;
+						if (
+							input_["$1"].is_string()
+							&& user_->getSettings()->contains( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() )
+						) {
+							output_["data"] = json::parse( user_->getSettings()->get( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() ) );
+							output_["code"] = 200;
+						}
 						break;
 					}
 					
 					case WebServer::Method::PUT: {
-						auto find = input_.find( "settings" );
-						if ( find != input_.end() ) {
-							if ( (*find).is_object() ) {
-							
-								// For efficiency it is not required for the client to push *all* settings every time. Thus we need to
-								// merge to settings that *are* provided with the onces we already had.
-								for ( auto settingsIt = (*find).begin(); settingsIt != (*find).end(); settingsIt++ ) {
-									settings[settingsIt.key()] = settingsIt.value();
-								}
-								user_->getSettings()->put( WEBSERVER_USER_WEBCLIENT_SETTING, settings.dump() );
-								user_->getSettings()->commit();
-						
-							} else {
-								throw WebServer::ResourceException( 400, "User.Invalid.Settings", "The supplied settings are invalid." );
-							}
-						} else {
-							throw WebServer::ResourceException( 400, "User.Missing.Settings", "Missing settings." );
+						auto find = input_.find( "data" );
+						if (
+							find != input_.end()
+							&& input_["$1"].is_string()
+						) {
+							user_->getSettings()->put( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>(), (*find).dump() );
+							output_["code"] = 200;
+						}
+						break;
+					}
+
+					case WebServer::Method::DELETE: {
+						if (
+							input_["$1"].is_string()
+							&& user_->getSettings()->contains( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() )
+						) {
+							user_->getSettings()->remove( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() );
+							output_["code"] = 200;
 						}
 						break;
 					}
 					default: break;
 				}
-			
-				output_["code"] = 200;
 			} )
 		) );
 	};

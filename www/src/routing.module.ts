@@ -1,15 +1,13 @@
-import { NgModule }      from '@angular/core';
+import { NgModule }     from '@angular/core';
 import {
 	RouterModule,
 	Routes
-}                        from '@angular/router';
+}                       from '@angular/router';
 
-import { HelpComponent } from './help.component';
-import { UsersService }  from './users/users.service';
+import { SessionGuard } from './session/session.guard';
 
 const routes = [
-	{ path: '',     redirectTo: 'dashboard', pathMatch: 'full' },
-	{ path: 'help', component: HelpComponent, canActivate: [UsersService] },
+	{ path: '', redirectTo: 'dashboard', pathMatch: 'full' }
 ];
 
 @NgModule( {

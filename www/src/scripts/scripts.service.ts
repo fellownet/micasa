@@ -1,12 +1,7 @@
-import { Injectable }   from '@angular/core';
-import {
-	Http,
-	Response,
-	Headers,
-	RequestOptions
-}                       from '@angular/http';
-import { Observable }   from 'rxjs/Observable';
-import { UsersService } from '../users/users.service';
+import { Injectable }     from '@angular/core';
+import { Observable }     from 'rxjs/Observable';
+
+import { SessionService } from '../session/session.service';
 
 export class Script {
 	id: number;
@@ -19,77 +14,32 @@ export class Script {
 @Injectable()
 export class ScriptsService {
 
-	private _scriptUrlBase = 'api/scripts';
-
 	public constructor(
-		private _http: Http,
-		private _usersService: UsersService
+		private _sessionService: SessionService
 	) {
 	};
 
 	public getScripts(): Observable<Script[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._scriptUrlBase, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Script[]>( 'get', 'scripts' );
 	};
 
 	public getScript( id_: Number ): Observable<Script> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._scriptUrlBase + '/' + id_, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Script>( 'get', 'scripts' + '/' + id_ );
 	};
 
 	public putScript( script_: Script ): Observable<Script> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLogin().token
-		} );
-		let options = new RequestOptions( { headers: headers } );
 		if ( script_.id ) {
-			return this._http.put( this._scriptUrlBase + '/' + script_.id, script_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Script>( 'put', 'scripts' + '/' + script_.id, script_ );
 		} else {
-			return this._http.post( this._scriptUrlBase, script_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Script>( 'post', 'scripts', script_ );
 		}
 	};
 
 	public deleteScript( script_: Script ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._scriptUrlBase + '/' + script_.id, options )
-			.map( function( response_: Response ) {
-				return response_.json()['result'] == 'OK';
+		return this._sessionService.http<any>( 'delete', 'scripts/' + script_.id )
+			.map( function( result_: any ) {
+				return true; // failures do not end up here
 			} )
-			.catch( this._handleHttpError )
 		;
 	};
-
-	private _extractData( response_: Response ) {
-		let body = response_.json();
-		return body.data || null;
-	};
-
-	private _handleHttpError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
-		}
-		return Observable.throw( message );
-	};
-
 }

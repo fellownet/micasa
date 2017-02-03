@@ -22,20 +22,11 @@ export class HardwareResolver implements Resolve<Hardware> {
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Hardware> {
 		var me = this;
-		return new Observable( function( subscriber_: any ) {
-			me._hardwareService.getHardware( route_.params['hardware_id'] )
-				.subscribe(
-					function( hardware_: Hardware ) {
-						subscriber_.next( hardware_ );
-						subscriber_.complete();
-					},
-					function( error_: string ) {
-						me._router.navigate( [ '/hardware' ] );
-						subscriber_.next( null );
-						subscriber_.complete();
-					}
-				)
-			;
-		} );
+		return this._hardwareService.getHardware( route_.params['hardware_id'] )
+			.catch( function( error_: string ) {
+				me._router.navigate( [ '/login' ] );
+				return Observable.of( null );
+			} )
+		;
 	}
 }

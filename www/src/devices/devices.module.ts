@@ -4,6 +4,7 @@ import { FormsModule }            from '@angular/forms';
 
 import { GridModule }             from '../grid/grid.module';
 import { SettingsModule }         from '../settings/settings.module';
+import { UtilsModule }            from '../utils/utils.module';
 
 import { DevicesListComponent }   from './list.component';
 import { DeviceDetailsComponent } from './details.component';
@@ -13,7 +14,6 @@ import { DevicesRoutingModule }   from './routing.module';
 import { DeviceResolver }         from './device.resolver';
 import { DevicesListResolver }    from './list.resolver';
 import { DataResolver }           from './data.resolver';
-import { TimestampPipe }          from './timestamp.pipe';
 
 import { TimersModule }           from '../timers/timers.module';
 
@@ -24,13 +24,13 @@ import { TimersModule }           from '../timers/timers.module';
 		DevicesRoutingModule,
 		GridModule,
 		SettingsModule,
-		TimersModule
+		TimersModule,
+		UtilsModule
 	],
 	declarations: [
 		DevicesListComponent,
 		DeviceEditComponent,
-		DeviceDetailsComponent,
-		TimestampPipe
+		DeviceDetailsComponent
 	],
 	providers: [
 		DevicesService,

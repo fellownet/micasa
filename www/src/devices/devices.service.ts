@@ -1,13 +1,7 @@
-import { Injectable }      from '@angular/core';
-import {
-	Http,
-	Response,
-	Headers,
-	RequestOptions
-}                          from '@angular/http';
-import { Observable }      from 'rxjs/Observable';
-import { UsersService }    from '../users/users.service';
-import { Setting }         from '../settings/settings.service';
+import { Injectable }     from '@angular/core';
+import { Observable }     from 'rxjs/Observable';
+import { SessionService } from '../session/session.service';
+import { Setting }        from '../settings/settings.service';
 
 export class Device {
 	id: number;
@@ -31,102 +25,48 @@ export class Device {
 @Injectable()
 export class DevicesService {
 
-	private _deviceUrlBase = 'api/devices';
-
 	public constructor(
-		private _http: Http,
-		private _usersService: UsersService
+		private _sessionService: SessionService
 	) {
 	};
 
 	public getDevices( hardwareId_?: number, scriptId_?: number, deviceIds_?: number[] ): Observable<Device[]> {
-		let uri: string = this._deviceUrlBase;
+		let resource: string = 'devices';
 		if ( hardwareId_ ) {
-			uri += '?hardware_id=' + hardwareId_;
+			resource += '?hardware_id=' + hardwareId_;
 		} else if ( scriptId_ ) {
-			uri += '?enabled=1&script_id=' + scriptId_;
+			resource += '?enabled=1&script_id=' + scriptId_;
 		} else if ( deviceIds_ ) {
-			uri += '?enabled=1&device_ids=' + deviceIds_.join( ',' );
+			resource += '?enabled=1&device_ids=' + deviceIds_.join( ',' );
 		} else {
-			uri += '?enabled=1';
+			resource += '?enabled=1';
 		}
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( uri, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Device[]>( 'get', resource );
 	};
 
 	public getDevice( id_: number ): Observable<Device> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._deviceUrlBase + '/' + id_, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Device>( 'get', 'devices/' + id_ );
 	};
 
 	public putDevice( device_: Device ): Observable<Device> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLogin().token
-		} );
-		let options = new RequestOptions( { headers: headers } );
-		let data: Device = Object.assign( {}, device_ );
-		return this._http.put( this._deviceUrlBase + '/' + device_.id, data, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Device>( 'put', 'devices/' + device_.id, device_ );
 	};
 
 	public patchDevice( device_: Device, value_: any ): Observable<Device> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLogin().token
+		return this._sessionService.http<Device>( 'patch', 'devices/' + device_.id, {
+			value: value_
 		} );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.patch( this._deviceUrlBase + '/' + device_.id, { value: value_ }, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
 	};
 
 	public getData( id_: number ): Observable<any[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._deviceUrlBase + '/' + id_ + '/data', options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<any[]>( 'get', 'devices/' + id_ + '/data' );
 	};
 
 	public deleteDevice( device_: Device ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLogin().token } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._deviceUrlBase + '/' + device_.id, options )
-			.map( function( response_: Response ) {
-				return response_.json()['result'] == 'OK';
+		return this._sessionService.http<any>( 'delete', 'devices/' + device_.id )
+			.map( function( result_: any ) {
+				return true; // failures do not end up here
 			} )
-			.catch( this._handleHttpError )
 		;
 	};
-
-	private _extractData( response_: Response ) {
-		let body = response_.json();
-		return body.data || null;
-	};
-
-	private _handleHttpError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
-		}
-		return Observable.throw( message );
-	};
-
 }
