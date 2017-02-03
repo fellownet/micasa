@@ -18,11 +18,6 @@ import {
 	Timer,
 	TimersService
 }                            from '../timers/timers.service';
-import {
-	Screen,
-	ScreensService
-
-}                            from '../screens/screens.service';
 
 @Component( {
 	templateUrl: 'tpl/device-edit.html'
@@ -34,7 +29,6 @@ export class DeviceEditComponent implements OnInit {
 	public error: String;
 	public device: Device;
 	public scripts: Script[];
-	public screens: Screen[];
 
 	public hardware?: Hardware;
 	public script?: Script;
@@ -44,8 +38,7 @@ export class DeviceEditComponent implements OnInit {
 	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
-		private _devicesService: DevicesService,
-		private _screensService: ScreensService
+		private _devicesService: DevicesService
 	) {
 	};
 
@@ -61,7 +54,6 @@ export class DeviceEditComponent implements OnInit {
 				}
 				me.device = data_.device;
 				me.scripts = data_.scripts;
-				me.screens = data_.screens;
 				for ( let setting of me.device.settings ) {
 					if ( setting.class == 'advanced' ) {
 						me.hasAdvancedSettings = true;
@@ -141,27 +133,5 @@ export class DeviceEditComponent implements OnInit {
 				this.device.scripts.splice( pos, 1 );
 			}
 		}
-	};
-
-	public addToScreen( screen_: Screen ): void {
-		var me = this;
-		me.loading = true;
-		/*
-		me._screensService.addDeviceToScreen( screen_, me.device )
-			.subscribe(
-				function( success_: boolean ) {
-					if ( screen_.id == 1 ) {
-						me._router.navigate( [ '/dashboard' ] );
-					} else {
-						me._router.navigate( [ '/screen', screen_.id ] );
-					}
-				},
-				function( error_: string ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
-		;
-		*/
 	};
 }

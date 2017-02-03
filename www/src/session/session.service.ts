@@ -32,9 +32,14 @@ export class Session {
 @Injectable()
 export class SessionService {
 
-	private _session: BehaviorSubject<Session|null> = new BehaviorSubject( null );
+	// Components that are dependant on the state of the session need to subscribe to the public session
+	// observable which emits null if still initializing, false when there's no valid session, or a full
+	// session instance when there is one. This way, once a proper session is pushed into the observable
+	// stream the session is preloaded and completely initialized.
+
+	private _session: BehaviorSubject<Session|false|null> = new BehaviorSubject( null );
 	private _events: Subject<any> = new Subject();
-	private _storage: Storage;
+	private _forcedAuthToken: string;
 
 	// All requested states are stored locally to prevent requesting the same state from
 	// the server multiple times.
@@ -50,43 +55,79 @@ export class SessionService {
 	) {
 		var me = this;
 
-		let session: string;
+		let sessionJson: string;
 		if ( 'session' in localStorage ) {
-			session = localStorage['session'];
-			this._storage = localStorage;
+			sessionJson = localStorage['session'];
 		} else if ( 'session' in sessionStorage ) {
-			session = sessionStorage['session'];
-			this._storage = sessionStorage;
+			sessionJson = sessionStorage['session'];
 		}
-		if ( session ) {
+		if ( sessionJson ) {
 			try {
-				this._session.next( JSON.parse( session ) );
-			} catch( ex_ ) { }
+				let session: Session = JSON.parse( sessionJson );
+
+				me._forcedAuthToken = session.token;
+				me._preload().subscribe(
+					function( success_: boolean ) {
+						me._session.next( session );
+						delete( me._forcedAuthToken );
+					},
+					function( error_: string ) {
+						me._session.next( false );
+					}
+				);
+			} catch( e_ ) {
+				me._session.next( false );
+			}
+		} else {
+			me._session.next( false );
 		}
 
-		/*
-		console.log( 'SessionService created' );
-
-		var fTest = function() {
-			setTimeout( function() {
-				me._events.next( { test: 1 } );
-				fTest();
-			}, 1000 );
-		};
-		fTest();
-		*/
+		// Periodically check for session validity or expiration and refresh the token of it's older than
+		// a predefined age. We're not bothering with unsubscribing from this observable because it should
+		// exist during the entire lifespan of the app.
+		Observable.interval( 1000 * 60 )
+			.filter( () => !!me._session.getValue() )
+			.map( () => me._session.getValue() as Session )
+			.subscribe( function( session_: Session ) {
+				let now: number = ( new Date().getTime() / 1000 ) - session_.diff;
+				let age: number = now - session_.created;
+				if ( session_.valid - now < 60 ) {
+					me._session.next( false );
+				} else if ( age > 60 * 60 ) {
+					me.refresh().subscribe();
+				}
+			} )
+		;
 	};
 
-	public get(): Session|null {
+	public get(): Session|false|null {
 		return this._session.getValue();
 	};
 
 	public login( credentials_: Credentials ): Observable<string> {
 		var me = this;
 		return me.http<Session>( 'post', 'user/login', credentials_ )
-			.map( function( session_: Session ) {
-				me._processSession( session_, credentials_.remember );
-				return me.targetUrl || '/dashboard';
+			.mergeMap( function( session_: Session ) {
+
+				let now: number = new Date().getTime() / 1000;
+				session_.diff = now - session_.created;
+				session_.remember = credentials_.remember;
+
+				let storage: Storage = session_.remember ? localStorage : sessionStorage;
+				storage['session'] = JSON.stringify( session_ );
+
+				me._forcedAuthToken = session_.token;
+				return me._preload()
+					.map( function( success_: boolean ) {
+						me._session.next( session_ );
+						delete( me._forcedAuthToken );
+						return me.targetUrl || '/hardware';
+					} )
+				;
+			} )
+			.catch( function( error_: string ) {
+				me._session.next( false );
+				return Observable.throw( error_ );
 			} )
 		;
 	};
@@ -95,14 +136,26 @@ export class SessionService {
 		var me = this;
 		return me.http<Session>( 'get', 'user/refresh' )
 			.map( function( session_: Session ) {
-				me._processSession( session_, me.get().remember );
+
+				let now: number = new Date().getTime() / 1000;
+				session_.diff = now - session_.created;
+				session_.remember = ( me.get() as Session ).remember;
+
+				let storage: Storage = session_.remember ? localStorage : sessionStorage;
+				storage['session'] = JSON.stringify( session_ );
+
+				me._session.next( session_ );
 				return true;
+			} )
+			.catch( function( error_: string ) {
+				me._session.next( false );
+				return Observable.throw( error_ );
 			} )
 		;
 	};
 
 	public logout(): void {
-		this._session.next( null );
+		this._session.next( false );
 		this._states = {};
 		delete( localStorage['session'] );
 		delete( sessionStorage['session'] );
@@ -110,9 +163,13 @@ export class SessionService {
 
 	public http<T>( action_: string, resource_: string, params_?: any ): Observable<T> {
 		let headersRaw: any = { 'Content-Type': 'application/json' };
-		let session: Session|null = this.get();
-		if ( session ) {
-			headersRaw["Authorization"] = session.token;
+		if ( this._forcedAuthToken ) {
+			headersRaw["Authorization"] = this._forcedAuthToken;
+		} else {
+			let session: Session|false|null = this._session.getValue();
+			if ( session ) {
+				headersRaw["Authorization"] = session.token;
+			}
 		}
 		let headers = new Headers( headersRaw );
 		let options = new RequestOptions( { headers: headers } );
@@ -132,11 +189,11 @@ export class SessionService {
 		}
 	};
 
-	public store( key_: string, data_: any ): Observable<boolean> {
+	public store<T>( key_: string, data_: T ): Observable<T> {
 		this._states[key_] = data_;
 		return this.http<any>( 'put', 'user/state/' + key_, { data: data_ } )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return data_;
 			} )
 		;
 	};
@@ -145,37 +202,48 @@ export class SessionService {
 		delete( this._states[key_] );
 		return this.http<any>( 'delete', 'user/state/' + key_ )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return true;
 			} )
 		;
 	};
 
-	public retrieve<T>( key_: string ): Observable<T> {
+	public retrieve<T>( key_: string, default_?: T ): Observable<T> {
 		var me = this;
-		if ( key_ in me._states ) {
-			return Observable.of( me._states[key_] );
-		} else {
-			return me.http<T>( 'get', 'user/state/' + key_ )
-				.do( function( data_: T ) {
-					me._states[key_] = data_;
-				} )
-			;
-		}
+
+		// The decision to use our local state cache or fetch from the server should be made once there
+		// is a subscriber attached, which doesn't necessarily happens immediately.
+		// NOTE for instance when using an async pipe in templates that are conditionally rendered, for
+		// instance the menu uses this technique when rendering the screen items.
+
+		return Observable.of( null )
+			.mergeMap( function() {
+				if ( key_ in me._states ) {
+					return Observable.of( me._states[key_] );
+				} else {
+					return me.http<T>( 'get', 'user/state/' + key_ )
+						.do( function( data_: T ) {
+							me._states[key_] = data_;
+						} )
+						.catch( function( error_: string ) {
+							if ( default_ ) {
+								return me.store<T>( key_, default_ );
+							} else {
+								return Observable.throw( error_ );
+							}
+						} )
+					;
+				}
+			} )
+		;
 	};
 
-	private _processSession( session_: Session, remember_: boolean ): void {
-
-		// Store the difference in server- vs client timestamp value.
-		let now: number = new Date().getTime() / 1000;
-		session_.diff = now - session_.created;
-
-		// Copy over the remember flag from the credentials so whenever login data is
-		// used it is known if it's temporary or persistent.
-		session_.remember = remember_;
-
-		this._storage = session_.remember ? localStorage : sessionStorage;
-		this._storage['session'] = JSON.stringify( session_ );
-		this._session.next( session_ );
+	private _preload(): Observable<boolean> {
+		// NOTE the preload method receies a session object because it needs to make authenticated calls
+		// without the session being persistent yet.
+		return Observable.merge(
+			this.retrieve<any>( 'screens', [ { id: 1, name: 'Dashboard', widgets: [] } ] ),
+			this.retrieve<any>( 'uistate', { } )
+		).every( success_ => !!success_ );
 	};
 
 	private _extractData( response_: Response ) {

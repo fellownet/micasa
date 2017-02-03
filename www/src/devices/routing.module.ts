@@ -14,7 +14,6 @@ import { DeviceResolver }         from './device.resolver';
 import { DevicesListResolver }    from './list.resolver';
 import { DataResolver }           from './data.resolver';
 import { TimersListResolver }     from '../timers/list.resolver';
-import { ScreensListResolver }    from '../screens/list.resolver';
 import { TimerResolver }          from '../timers/timer.resolver';
 
 import { SessionGuard }           from '../session/session.guard';
@@ -22,7 +21,7 @@ import { SessionGuard }           from '../session/session.guard';
 const routes: Routes = [
 	{ path: 'devices',                             component: DevicesListComponent,   canActivate: [SessionGuard], resolve: { devices: DevicesListResolver } },
 	{ path: 'devices/:device_id',                  component: DeviceDetailsComponent, canActivate: [SessionGuard], resolve: { device: DeviceResolver, data: DataResolver } },
-	{ path: 'devices/:device_id/edit',             component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { device: DeviceResolver, scripts: ScriptsListResolver, timers: TimersListResolver, screens: ScreensListResolver } },
+	{ path: 'devices/:device_id/edit',             component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { device: DeviceResolver, scripts: ScriptsListResolver, timers: TimersListResolver } },
 	{ path: 'devices/:device_id/timers/:timer_id', component: TimerEditComponent,     canActivate: [SessionGuard], resolve: { device: DeviceResolver, timer: TimerResolver } }
 ];
 

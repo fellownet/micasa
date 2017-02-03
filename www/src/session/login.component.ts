@@ -42,8 +42,10 @@ export class LoginComponent implements OnInit {
 					me._router.navigate( [ targetUrl_ ] );
 				},
 				function( error_: string ) {
-					me.loading = false;
-					me.error = error_;
+					setTimeout( function() {
+						me.loading = false;
+						me.error = error_;
+					}, 500 );
 				}
 			)
 		;

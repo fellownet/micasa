@@ -1,19 +1,16 @@
 import {
 	Component,
-	OnInit,
-	OnDestroy
-}                         from '@angular/core';
-import {
-	Router,
-	NavigationEnd
-}                         from '@angular/router';
-import { Observable }     from 'rxjs/Observable';
+	OnInit
+}                     from '@angular/core';
+import { Observable } from 'rxjs/Observable';
 
 import {
 	Session,
 	SessionService
-}                         from './session/session.service';
+}                     from './session/session.service';
+import { ACL }        from './users/users.service';
 
+declare var $: any;
 declare var Highcharts: any;
 
 @Component( {
@@ -21,18 +18,21 @@ declare var Highcharts: any;
 	templateUrl: 'tpl/app.html'
 } )
 
-export class AppComponent implements OnInit, OnDestroy {
-
-	private _alive: boolean = true;
+export class AppComponent implements OnInit {
 
 	public session: Observable<Session>;
+	public ACL = ACL;
+	public screens: Observable<any[]>;
 
 	public constructor(
-		private _router: Router,
 		private _sessionService: SessionService
 	) {
-		// Make the session observable from the session service available to the template.
-		this.session = _sessionService.session;
+	};
+
+	public ngOnInit() {
+		var me = this;
+		me.session = me._sessionService.session;
+		me.screens = me._sessionService.retrieve<any[]>( 'screens' );
 
 		// The defaults for all chart types are set here, the one place that is in common for all
 		// widgets with charts.
@@ -133,20 +133,18 @@ export class AppComponent implements OnInit, OnDestroy {
 		} );
 	};
 
-	public ngOnInit() {
-		// When subscribing to an event emitter we need to unsubscribe manually as opposed to the
-		// router params observable that does the unsubscribing for us.
-		this._router.events
-			.filter( event => event instanceof NavigationEnd )
-			.takeWhile( () => this._alive )
-			.subscribe( event => {
-				document.body.scrollTop = 0;
-			} )
-		;
+	public toggleMenu(): void {
+		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
+			$( 'body' ).removeClass( 'sidebar-open' );
+		} else {
+			$( 'body' ).addClass( 'sidebar-open' );
+		}
 	};
 
-	public ngOnDestroy() {
-		this._alive = false;
+	public hideMenu(): void {
+		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
+			$( 'body' ).removeClass( 'sidebar-open' );
+		}
 	};
 
 }

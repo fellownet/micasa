@@ -1484,7 +1484,7 @@ namespace micasa {
 		
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/user/state/([0-9a-z]+)$",
+			"^api/user/state/([0-9a-z_]+)$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {

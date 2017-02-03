@@ -55,7 +55,6 @@ export class HardwareListComponent implements OnInit {
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
 				function( hardware_: Hardware ) {
-					me.loading = false;
 					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
 				function( error_: string ) {

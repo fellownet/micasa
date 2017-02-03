@@ -14,7 +14,6 @@ import { ScriptsListResolver }    from './list.resolver';
 import { DeviceResolver }         from '../devices/device.resolver';
 import { DevicesListResolver }    from '../devices/list.resolver';
 import { DataResolver }           from '../devices/data.resolver';
-import { ScreensListResolver }    from '../screens/list.resolver';
 
 import { SessionGuard }           from '../session/session.guard';
 
@@ -22,7 +21,7 @@ const routes: Routes = [
 	{ path: 'scripts',                                   component: ScriptsListComponent,   canActivate: [SessionGuard], resolve: { scripts: ScriptsListResolver } },
 	{ path: 'scripts/:script_id',                        component: ScriptEditComponent,    canActivate: [SessionGuard], resolve: { script: ScriptResolver, devices: DevicesListResolver } },
 	{ path: 'scripts/:script_id/device/:device_id',      component: DeviceDetailsComponent, canActivate: [SessionGuard], resolve: { script: ScriptResolver, device: DeviceResolver, data: DataResolver } },
-	{ path: 'scripts/:script_id/device/:device_id/edit', component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { script: ScriptResolver, device: DeviceResolver, scripts: ScriptsListResolver, screens: ScreensListResolver } }
+	{ path: 'scripts/:script_id/device/:device_id/edit', component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { script: ScriptResolver, device: DeviceResolver, scripts: ScriptsListResolver } }
 ];
 
 @NgModule( {
