@@ -58,8 +58,8 @@ export class DevicesService {
 		} );
 	};
 
-	public getData( id_: number ): Observable<any[]> {
-		return this._sessionService.http<any[]>( 'get', 'devices/' + id_ + '/data' );
+	public getData( id_: number, options_?: any ): Observable<any[]> {
+		return this._sessionService.http<any[]>( 'post', 'devices/' + id_ + '/data', options_ );
 	};
 
 	public deleteDevice( device_: Device ): Observable<boolean> {

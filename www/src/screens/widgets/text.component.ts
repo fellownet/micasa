@@ -1,6 +1,17 @@
-import { Component, Input } from '@angular/core';
-import { Widget }                   from '../screens.service';
-import { Device }           from '../../devices/devices.service';
+import {
+	Component,
+	Input,
+	OnInit
+}                  from '@angular/core';
+
+import {
+	Screen,
+	Widget
+}                  from '../screens.service';
+import {
+	Device,
+	DevicesService
+}                  from '../../devices/devices.service';
 
 @Component( {
 	selector: 'textwidget',
@@ -9,6 +20,16 @@ import { Device }           from '../../devices/devices.service';
 
 export class WidgetTextComponent {
 
-	@Input( 'widgetConfig' ) public widget: Widget;
+	@Input( 'screen' ) public screen: Screen;
+	@Input( 'widget' ) public widget: Widget;
+	@Input( 'device' ) public device: Device;
+
+	public delete() {
+		alert( 'delete' );
+	};
+
+	public edit() {
+		alert( 'edit' );
+	};
 
 }

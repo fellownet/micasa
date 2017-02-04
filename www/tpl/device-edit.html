@@ -2,12 +2,14 @@
 <a *ngIf="hardware && !hardware.parent" routerLink="/hardware/{{hardware.id}}/device/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
 <a *ngIf="hardware && hardware.parent" routerLink="/hardware/{{hardware.parent.id}}/{{hardware.id}}/device/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
 <a *ngIf="script" routerLink="/scripts/{{script.id}}/device/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
-<a *ngIf="!hardware && !script" routerLink="/devices/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
+<a *ngIf="screen" routerLink="/screens/{{screen.id}}/device/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
+<a *ngIf="!hardware && !script && !screen" routerLink="/devices/{{device.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
 
 <a *ngIf="hardware && !hardware.parent" routerLink="/hardware/{{hardware.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
 <a *ngIf="hardware && hardware.parent" routerLink="/hardware/{{hardware.parent.id}}/{{hardware.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
 <a *ngIf="script" routerLink="/scripts/{{script.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
-<a *ngIf="!hardware && !script" routerLink="/devices" (click)="loading=true;" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="screen" routerLink="/screens/{{screen.id}}" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<a *ngIf="!hardware && !script && !screen" routerLink="/devices" (click)="loading=true;" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
 
 <h1>{{device.name}}
 <small *ngIf="script">{{script.name}}</small>
@@ -68,4 +70,4 @@
 
 </section>
 
-<timers *ngIf="!script && !device.readonly" [device]="device"></timers>
+<timers *ngIf="!script && !screen && !device.readonly" [device]="device"></timers>

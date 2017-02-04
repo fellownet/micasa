@@ -68,7 +68,6 @@ namespace micasa {
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
 		virtual Type getType() const =0;
-		virtual nlohmann::json getData() const =0;
 		
 	protected:
 		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );

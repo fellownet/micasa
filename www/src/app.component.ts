@@ -92,7 +92,12 @@ export class AppComponent implements OnInit {
 					duration: animationDuration
 				},
 				zoomType: 'x',
-				alignTicks: false
+				alignTicks: false,
+				resetZoomButton: {
+					theme: {
+						display: 'none'
+					}
+				}
 			},
 			xAxis: {
 				type: 'datetime',

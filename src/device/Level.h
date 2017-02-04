@@ -51,7 +51,7 @@ namespace micasa {
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
-		nlohmann::json getData() const override;
+		nlohmann::json getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

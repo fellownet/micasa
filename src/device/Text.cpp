@@ -121,7 +121,7 @@ namespace micasa {
 		return result;
 	};
 	
-	json Text::getData() const {
+	json Text::getData( unsigned int range_, const std::string& interval_ ) const {
 		return g_database->getQuery<json>(
 			"SELECT `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
 			"FROM `device_text_history` "

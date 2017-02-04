@@ -6,8 +6,6 @@ import {
 import { ActivatedRoute } from '@angular/router';
 
 import { Device }         from './devices.service';
-import { Hardware }       from '../hardware/hardware.service';
-import { Script }         from '../scripts/scripts.service';
 
 declare var Highcharts: any;
 
@@ -22,8 +20,9 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 	public device: Device;
 	public data: any[];
 
-	public hardware?: Hardware;
-	public script?: Script;
+	public hardware?: any;
+	public script?: any;
+	public screen?: any;
 
 	public constructor(
 		private _route: ActivatedRoute
@@ -38,6 +37,9 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 			}
 			if ( 'script' in data_ ) {
 				me.script = data_.script;
+			}
+			if ( 'screen' in data_ ) {
+				me.screen = data_.screen;
 			}
 			me.device = data_.device;
 			me.data = data_.data;

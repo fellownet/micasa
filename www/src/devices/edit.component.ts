@@ -37,6 +37,7 @@ export class DeviceEditComponent implements OnInit {
 
 	public hardware?: Hardware;
 	public script?: Script;
+	public screen?: Screen;
 
 	public hasAdvancedSettings: boolean = false;
 
@@ -57,6 +58,9 @@ export class DeviceEditComponent implements OnInit {
 				}
 				if ( 'script' in data_ ) {
 					me.script = data_.script;
+				}
+				if ( 'screen' in data_ ) {
+					me.screen = data_.screen;
 				}
 				me.device = data_.device;
 				me.scripts = data_.scripts;
@@ -84,6 +88,8 @@ export class DeviceEditComponent implements OnInit {
 						}
 					} else if ( me.script ) {
 						me._router.navigate( [ '/scripts', me.script.id ] );
+					} else if ( me.screen ) {
+						me._router.navigate( [ '/screens', me.screen.id ] );
 					} else {
 						me._router.navigate( [ '/devices' ] );
 					}
@@ -112,6 +118,8 @@ export class DeviceEditComponent implements OnInit {
 							}
 						} else if ( me.script ) {
 							me._router.navigate( [ '/scripts', me.script.id ] );
+						} else if ( me.screen ) {
+							me._router.navigate( [ '/screens', me.screen.id ] );
 						} else {
 							me._router.navigate( [ '/devices' ] );
 						}

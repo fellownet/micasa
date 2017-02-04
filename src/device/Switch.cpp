@@ -168,7 +168,7 @@ namespace micasa {
 		return result;
 	};
 
-	json Switch::getData() const {
+	json Switch::getData( unsigned int range_, const std::string& interval_ ) const {
 		return g_database->getQuery<json>(
 			"SELECT `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
 			"FROM `device_switch_history` "

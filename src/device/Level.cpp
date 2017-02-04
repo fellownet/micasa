@@ -164,13 +164,19 @@ namespace micasa {
 		return result;
 	};
 
-	json Level::getData() const {
+	json Level::getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const {
+		std::vector<std::string> validIntervals = { "day", "week", "month", "year" };
+		if ( std::find( validIntervals.begin(), validIntervals.end(), interval_ ) == validIntervals.end() ) {
+			return json::array();
+		}
+
 		return g_database->getQuery<json>(
 			"SELECT * FROM ( "
 				"SELECT printf(\"%%.3f\", `average`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
 				"FROM `device_level_trends` "
 				"WHERE `device_id`=%d "
 				"AND `date` < datetime('now','-%d day') "
+				"AND `date` >= datetime('now','-%d %s') "
 				"ORDER BY `date` ASC "
 			")"
 			"UNION ALL "
@@ -179,10 +185,18 @@ namespace micasa {
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d "
 				"AND `date` >= datetime('now','-%d day') "
+				"AND `date` >= datetime('now','-%d %s') "
 				"GROUP BY `timestamp` "
 				"ORDER BY `date` ASC "
 			") ",
-			this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ), this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+			this->m_id,
+			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ),
+			range_,
+			interval_.c_str(),
+			this->m_id,
+			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ),
+			range_,
+			interval_.c_str()
 		);
 	};
 

@@ -1,11 +1,25 @@
-import { Component, Input, OnInit } from '@angular/core';
-import { Widget }                   from '../screens.service';
-import { Device, DevicesService }   from '../../devices/devices.service';
+import {
+	Component,
+	Input,
+	OnInit
+}                  from '@angular/core';
+import {
+	Router,
+}                  from '@angular/router';
+
+import {
+	Screen,
+	Widget
+}                  from '../screens.service';
+import {
+	Device,
+	DevicesService
+}                  from '../../devices/devices.service';
 
 declare var Highcharts: any;
 
 @Component( {
-	selector   : 'counterwidget',
+	selector: 'counterwidget',
 	templateUrl: 'tpl/widgets/counter.html'
 } )
 
@@ -13,25 +27,26 @@ export class WidgetCounterComponent implements OnInit {
 
 	private static _elementId = 0;
 
-	@Input( 'widgetConfig' ) public widget: Widget;
+	private _chart: any;
+
+	@Input( 'screen' ) public screen: Screen;
+	@Input( 'widget' ) public widget: Widget;
+	@Input( 'device' ) public device: Device;
 
 	public error: string;
 	public elementId: number;
 
-	constructor(
+	public constructor(
+		private _router: Router,
 		private _devicesService: DevicesService
 	) {
 		++WidgetCounterComponent._elementId;
 		this.elementId = WidgetCounterComponent._elementId;
 	};
 
-	ngOnInit() {
-		this.getData();
-	};
-
-	getData() {
+	public ngOnInit() {
 		var me = this;
-		me._devicesService.getData( this.widget.device.id )
+		me._devicesService.getData( this.device.id, { group: 'hour', range: 1, interval: 'day' } )
 			.subscribe(
 				function( data_: any[] ) {
 					var data: Array<Array<any>> = [];
@@ -39,26 +54,60 @@ export class WidgetCounterComponent implements OnInit {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
 					}
 
-					Highcharts.stockChart( 'counter_chart_target_' + me.elementId, {
+					me._chart = Highcharts.chart( 'counter_chart_target_' + me.elementId, {
 						chart: {
-							type: 'column'
+							type: 'column',
+							events: {
+								click: function() {
+									me._router.navigate( [ '/screens', me.screen.id, 'device', me.device.id ] );
+								}
+							}
+						},
+						xAxis: {
+							title: {
+								text: null
+							}
+						},
+						yAxis: {
+							title: {
+								text: null
+							}
 						},
 						series: [ {
-							name: me.widget.device.name,
+							name: me.device.name,
 							data: data,
-							yAxis: 0,
 							tooltip: {
-								valueSuffix: ' ' + me.widget.device.unit
+								valueSuffix: ' ' + me.device.unit
 							}
 						} ]
 					} );
-
 				},
 				function( error_: string ) {
 					me.error = error_;
 				}
 			)
 		;
+	};
 
-	}
+	public setClasses() {
+		return {
+			'col-xs-12': true,
+			'col-sm-12': true,
+			'col-md-6': true,
+			'col-lg-4': true
+		};
+	};
+
+	public reload() {
+		alert( 'reload' );
+	};
+
+	public delete() {
+		alert( 'delete' );
+	};
+
+	public edit() {
+		alert( 'edit' );
+	};
+
 }

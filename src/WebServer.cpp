@@ -812,7 +812,7 @@ namespace micasa {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^api/devices/([0-9]+)/data$",
-			WebServer::Method::GET,
+			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
 					return;
@@ -827,8 +827,30 @@ namespace micasa {
 						return;
 					}
 				}
-				
-				output_["data"] = device->getData();
+			
+				try {
+					switch( device->getType() ) {
+						case Device::Type::SWITCH:
+							output_["data"] = std::static_pointer_cast<Switch>( device )
+								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>() );
+							break;
+						case Device::Type::COUNTER:
+							output_["data"] = std::static_pointer_cast<Counter>( device )
+								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>(), input_["group"].get<std::string>() );
+							break;
+						case Device::Type::LEVEL:
+							output_["data"] = std::static_pointer_cast<Level>( device )
+								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>(), input_["group"].get<std::string>() );
+							break;
+						case Device::Type::TEXT:
+							output_["data"] = std::static_pointer_cast<Text>( device )
+								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>() );
+							break;
+					}
+				} catch( ... ) {
+					throw WebServer::ResourceException( 400, "Device.Invalid.Parameters", "The supplied parameters are invalid." );
+				}
+			
 				output_["code"] = 200;
 			} )
 		) );

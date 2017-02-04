@@ -288,20 +288,46 @@ a:focus, button:focus {
 	display: block;
 	padding: 10px;
 	position: relative;
+	line-height: 1.2em;
 }
 .box-header.with-border {
 	border-bottom: 1px solid #f4f4f4;
 }
 .box-header .box-title {
-	display: inline-block;
 	font-size: 18px;
 	margin: 0;
-	line-height: 1;
+	line-height: 1.2em;
+	overflow: hidden;
+	max-width: 85%;
+	max-width: calc(100% - 55px);
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .box-header button.pull-right,
 .box-header a.pull-right {
 	margin-left: 5px;
 }
+.box-header .box-tools {
+	position: absolute;
+	right: 8px;
+	top: 8px;
+}
+.box-header .box-tools .btn {
+	background: transparent;
+	color: #97a0b3;
+	border: 0;
+	font-size: 1.1em;
+	float: right;
+}
+.box-header .box-tools .btn:hover,
+.box-header .box-tools .btn:active {
+	box-shadow:none;
+	color: #000;
+}
+.box-header .box-tools .btn .fa {
+	margin: 0;
+}
+
 .box-body {
 	padding: 10px 10px 0 10px;
 }
@@ -325,7 +351,12 @@ a:focus, button:focus {
 }
 .box-body.chart-box {
 	padding: 0;
+	height: 400px;
 }
+.box-body.chart-box.widget {
+	height: 200px;
+}
+
 .box-footer {
 	border-top: 1px solid #f4f4f4;
 	padding: 10px;

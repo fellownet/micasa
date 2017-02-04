@@ -22,18 +22,14 @@
 
 	<div class="row">
 
-	<ng-container *ngFor="let widget of screen.widgets">
+	<ng-container *ngFor="let device of devices; let i = index">
 
-	{{widget.device_id}}
-
-<!--
-		<ng-container [ngSwitch]="widget.device.type">
-			<counterwidget *ngSwitchCase="'counter'" [widgetConfig]="widget"></counterwidget>
-			<levelwidget *ngSwitchCase="'level'" [widgetConfig]="widget"></levelwidget>
-			<switchwidget *ngSwitchCase="'switch'" [widgetConfig]="widget"></switchwidget>
-			<textwidget *ngSwitchCase="'text'" [widgetConfig]="widget"></textwidget>
+		<ng-container [ngSwitch]="device.type">
+			<counterwidget *ngSwitchCase="'counter'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></counterwidget>
+			<levelwidget *ngSwitchCase="'level'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></levelwidget>
+			<switchwidget *ngSwitchCase="'switch'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></switchwidget>
+			<textwidget *ngSwitchCase="'text'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></textwidget>
 		</ng-container>
--->
 
 	</ng-container>
 

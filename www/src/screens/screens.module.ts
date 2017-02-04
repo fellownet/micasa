@@ -9,10 +9,10 @@ import { ScreensRoutingModule }   from './routing.module';
 import { ScreenResolver }           from './screen.resolver';
 import { ScreensListResolver }      from './list.resolver';
 
-//import { WidgetCounterComponent } from './widgets/counter.component';
-//import { WidgetLevelComponent }   from './widgets/level.component';
-//import { WidgetSwitchComponent }  from './widgets/switch.component';
-//import { WidgetTextComponent }    from './widgets/text.component';
+import { WidgetCounterComponent } from './widgets/counter.component';
+import { WidgetLevelComponent }   from './widgets/level.component';
+import { WidgetSwitchComponent }  from './widgets/switch.component';
+import { WidgetTextComponent }    from './widgets/text.component';
 
 @NgModule( {
 	imports: [
@@ -23,10 +23,10 @@ import { ScreensListResolver }      from './list.resolver';
 	declarations: [
 		ScreenComponent,
 		ScreenEditComponent,
-//		WidgetCounterComponent,
-//		WidgetLevelComponent,
-//		WidgetSwitchComponent,
-//		WidgetTextComponent
+		WidgetCounterComponent,
+		WidgetLevelComponent,
+		WidgetSwitchComponent,
+		WidgetTextComponent
 	],
 	providers: [
 		ScreenResolver,
