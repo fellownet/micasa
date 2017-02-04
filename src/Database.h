@@ -1,18 +1,11 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
-#include <vector>
 #include <string>
-#include <vector>
-#include <sqlite3.h>
 #include <vector>
 #include <map>
 #include <mutex>
 
-#include "Logger.h"
+#include <sqlite3.h>
 
 #include "json.hpp"
 
@@ -21,12 +14,15 @@ namespace micasa {
 	class Database final {
 
 	public:
-		struct NoResultsException: public std::runtime_error {
+		class NoResultsException: public std::runtime_error {
+		public:
 			using runtime_error::runtime_error;
-		};
-		struct InvalidResultException: public std::runtime_error {
+		}; // class NoResultsException
+
+		class InvalidResultException: public std::runtime_error {
+		public:
 			using runtime_error::runtime_error;
-		};
+		}; // class InvalidResultException
 
 		Database( std::string filename_ );
 		~Database();

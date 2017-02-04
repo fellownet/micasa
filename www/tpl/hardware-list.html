@@ -1,5 +1,5 @@
 <section class="content-header" *ngIf="!parent || hardware.length>0">
-<h1>Hardware<small>the things that keep your domotica system running</small></h1>
+<h1>Hardware</h1>
 </section>
 
 <section class="content-body" *ngIf="hardware.length==0 && !loading && !parent">
@@ -20,13 +20,15 @@
 			<div class="box">
 				<div class="box-footer row actionrow">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
+						<button type="button" [disabled]="loading" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
 							<li><a (click)="addHardware('harmony_hub');">Logitech Harmony Hub</a></li>
 							<li><a (click)="addHardware('zwave');">Z-Wave</a></li>
 							<li><a (click)="addHardware('solaredge');">SolarEdge</a></li>
 							<li><a (click)="addHardware('weather_underground');">Weather Underground</a></li>
+							<li><a (click)="addHardware('rfxcom');">RFXCom</a></li>
+							<li><a (click)="addHardware('p1_meter');">P1 Smart Meter</a></li>
 						</ul>
 					</div>
 				</div>
@@ -73,26 +75,36 @@
 			[class.label-warning]="item.state=='initializing'"
 			>{{item.state}}</span></td>
 		<td>{{item.label}}</td>
-		<td>{{item.type}} {{item.hardware}}</td>
+		<td>{{item.type}}</td>
 	</tr>
 </tbody>
+<tfoot>
+	<tr>
+		<td colspan="5" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+	</tr>
+</tfoot>
 </table>
 
 				</div>
 				<div class="box-footer row actionrow" *ngIf="!parent">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
+						<button type="button" [disabled]="loading" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
 							<li><a (click)="addHardware('harmony_hub');">Logitech Harmony Hub</a></li>
 							<li><a (click)="addHardware('zwave');">Z-Wave</a></li>
 							<li><a (click)="addHardware('solaredge');">SolarEdge</a></li>
 							<li><a (click)="addHardware('weather_underground');">Weather Underground</a></li>
+							<li><a (click)="addHardware('rfxcom');">RFXCom</a></li>
+							<li><a (click)="addHardware('p1_meter');">P1 Smart Meter</a></li>
 						</ul>
 					</div>
 					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging">
 						<grid-paging [grid]="grid"></grid-paging>
 					</div>
+				</div>
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>

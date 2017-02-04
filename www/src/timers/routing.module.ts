@@ -1,15 +1,21 @@
-import { NgModule }              from '@angular/core';
-import { RouterModule, Routes }  from '@angular/router';
+import { NgModule }            from '@angular/core';
+import {
+	RouterModule,
+	Routes
+}                              from '@angular/router';
 
-import { TimersListComponent }   from './list.component';
-import { TimerDetailsComponent } from './details.component';
+import { TimersListComponent } from './list.component';
+import { TimerEditComponent }  from './edit.component';
 
-import { UsersService }          from '../users/users.service';
-import { TimersService }         from './timers.service';
+import { TimersListResolver }  from './list.resolver';
+import { TimerResolver }       from './timer.resolver';
+import { ScriptsListResolver } from '../scripts/list.resolver';
+
+import { SessionGuard }        from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'timers',            component: TimersListComponent,  canActivate: [UsersService] },
-	{ path: 'timers/:timer_id', component: TimerDetailsComponent, canActivate: [UsersService], resolve: { timer: TimersService } },
+	{ path: 'timers',           component: TimersListComponent, canActivate: [SessionGuard], resolve: { timers: TimersListResolver } },
+	{ path: 'timers/:timer_id', component: TimerEditComponent,  canActivate: [SessionGuard], resolve: { timer: TimerResolver, scripts: ScriptsListResolver } },
 ];
 
 @NgModule( {

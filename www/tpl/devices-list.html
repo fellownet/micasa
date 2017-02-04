@@ -1,5 +1,5 @@
 <section class="content-header" *ngIf="!hardware || devices.length>0">
-<h1>Devices<small>the information that excites</small></h1>
+<h1>Devices</h1>
 </section>
 
 <section class="content-body" *ngIf="devices.length==0 && !loading && !hardware">
@@ -33,37 +33,75 @@
 <table class="table table-hover" [gridData]="devices" [gridSort]="'name'" #grid="GridDirective">
 <thead>
 	<tr>
-		<!-- th [gridField]="'id'">Id</th -->
+		<th class="icon"></th>
 		<th [gridField]="'name'">Name</th>
-		<th>Value</th>
-		<th>Hardware</th>
+		<th class="icon"></th>
+		<th [gridField]="'value'">Value</th>
+		<th [gridField]="'hardware'">Hardware</th>
 		<th [gridField]="'label'">Label</th>
-		<th [gridField]="'type'">Type</th>
+		<th [gridField]="'last_update'">Last Update</th>
+		<!-- th [gridField]="'type'">Type</th -->
+		<!-- th [gridField]="'subtype'">SubType</th -->
 	</tr>
 </thead>
 <tbody>
 	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)"
-		[class.danger]="!device.enabled"
+		[class.disabled]="!device.enabled"
 	>
-		<!-- td>{{device.id}}</td -->
+		<td class="icon" [ngSwitch]="device.type">
+<ng-container *ngSwitchCase="'switch'" [ngSwitch]="device.subtype">
+	<i class="fa fa-adjust" *ngSwitchCase="'blinds'"></i>
+	<i class="fa fa-bullseye" *ngSwitchCase="'action'"></i>
+	<i class="fa fa-lightbulb-o" *ngSwitchCase="'light'"></i>
+	<i class="fa fa-eye" *ngSwitchCase="'motion_detector'"></i>
+	<i class="fa fa-toggle-on" *ngSwitchDefault></i>
+</ng-container>
+<ng-container *ngSwitchCase="'level'" [ngSwitch]="device.subtype">
+	<i class="fa fa-battery" *ngSwitchCase="'battery_level'"></i>
+	<i class="fa fa-umbrella" *ngSwitchCase="'humidity'"></i>
+	<i class="fa fa-sun-o" *ngSwitchCase="'luminance'"></i>
+	<i class="fa fa-thermometer-half" *ngSwitchCase="'temperature'"></i>
+	<i class="fa fa-bolt" *ngSwitchCase="'power'"></i>
+	<i class="fa fa-line-chart" *ngSwitchDefault></i>
+</ng-container>
+<ng-container *ngSwitchCase="'counter'" [ngSwitch]="device.subtype">
+	<i class="fa fa-bolt" *ngSwitchCase="'energy'"></i>
+	<i class="fa fa-bar-chart" *ngSwitchDefault></i>
+</ng-container>
+<ng-container *ngSwitchCase="'text'" [ngSwitch]="device.subtype">
+	<i class="fa fa-font" *ngSwitchDefault></i>
+</ng-container>
+		</td>
 		<td>{{device.name}}</td>
+		<td class="icon">
+			<i class="fa fa-code" *ngIf="device.total_scripts > 0"></i>
+			<i class="fa fa-clock-o" *ngIf="device.total_timers > 0"></i>
+		</td>
 		<td><span class="label"
 			[class.label-success]="device.value=='On'"
 			[class.label-danger]="device.value=='Off'"
-			[class.label-info]="device.value!='On' && device.value!='Off'"
-			>{{device.value}} {{device.unit}}</span></td>
-		<td>{{device.hardware.name}}</td>
+			[class.label-primary]="device.value=='Stop'"
+			[class.label-warning]="device.value=='Idle'"
+			[class.label-info]="device.value!='On' && device.value!='Off' && device.value!='Stop' && device.value!='Idle'"
+			>{{device.value}} {{device.unit}}</span>
+		</td>
+		<td>{{device.hardware}}</td>
 		<td>{{device.label}}</td>
-		<td><span class="label label-default">{{device.type}}</span></td>
+		<td>{{device.last_update | timestamp}}</td>
+		<!-- td><span class="label label-default">{{device.type}}</span></td -->
+		<!-- td><span class="label label-default">{{device.subtype}}</span></td -->
 	</tr>
 </tbody>
 <tfoot>
 	<tr>
-		<td colspan="6" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
+		<td colspan="7" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
 	</tr>
 </tfoot>
 </table>
 
+				</div>
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>

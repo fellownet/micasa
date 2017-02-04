@@ -1,128 +1,55 @@
-import { Injectable }      from '@angular/core';
-import {
-	Router,
-	Resolve,
-	RouterStateSnapshot,
-	ActivatedRouteSnapshot
-}                          from '@angular/router';
-import {
-	Http,
-	Response,
-	Headers,
-	RequestOptions
-}                          from '@angular/http';
-import { Observable }      from 'rxjs/Observable';
-import { UsersService }    from '../users/users.service';
+import { Injectable }     from '@angular/core';
+import { Observable }     from 'rxjs/Observable';
+
+import { SessionService } from '../session/session.service';
 
 export class Timer {
 	id: number;
 	name: string;
 	cron: string;
 	enabled: boolean;
-	scripts: number[];
+	scripts?: number[];
+	device_id?: number;
+	value?: string;
 }
 
 @Injectable()
 export class TimersService {
 
-	private _timerUrlBase = 'api/timers';
-
-	constructor(
-		private _router: Router,
-		private _http: Http,
-		private _usersService: UsersService
+	public constructor(
+		private _sessionService: SessionService
 	) {
 	};
 
-	// The resolve method gets executed by the router before a route is being navigated to. This
-	// method fetches the timer and injects it into the router state. If this fails the router
-	// is instructed to navigate away from the route before the observer is complete.
-	resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
-		var me = this;
-		if ( route_.params['timer_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, scripts: [] } );
-		} else {
-			return new Observable( function( observer_: any ) {
-				me.getTimer( +route_.params['timer_id'] )
-					.subscribe(
-						function( timer_: Timer ) {
-							observer_.next( timer_ );
-							observer_.complete();
-						},
-						function( error_: string ) {
-							me._router.navigate( [ '/timers' ] );
-							observer_.next( null );
-							observer_.complete();
-						}
-					)
-				;
-			} );
+	public getTimers( deviceId_?: number ): Observable<Timer[]> {
+		let resource: string = 'timers';
+		if ( deviceId_ ) {
+			resource += '?device_id=' + deviceId_;
 		}
-	}
-
-	getTimers(): Observable<Timer[]> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._timerUrlBase, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+		return this._sessionService.http<Timer[]>( 'get', resource );
 	};
 
-	getTimer( id_: Number ): Observable<Timer> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.get( this._timerUrlBase + '/' + id_, options )
-			.map( this._extractData )
-			.catch( this._handleHttpError )
-		;
+	public getTimer( id_: number, deviceId_?: number ): Observable<Timer> {
+		let resource: string = 'timers/' + id_;
+		if ( deviceId_ ) {
+			resource += '?device_id=' + deviceId_;
+		}
+		return this._sessionService.http<Timer>( 'get', resource );
 	};
 
-	putTimer( timer_: Timer ): Observable<Timer> {
-		let headers = new Headers( {
-			'Content-Type'  : 'application/json',
-			'Authorization' : this._usersService.getLoggedInToken()
-		} );
-		let options = new RequestOptions( { headers: headers } );
+	public putTimer( timer_: Timer ): Observable<Timer> {
 		if ( timer_.id ) {
-			return this._http.put( this._timerUrlBase + '/' + timer_.id, timer_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Timer>( 'put', 'timers' + '/' + timer_.id, timer_ );
 		} else {
-			return this._http.post( this._timerUrlBase, timer_, options )
-				.map( this._extractData )
-				.catch( this._handleHttpError )
-			;
+			return this._sessionService.http<Timer>( 'post', 'timers', timer_ );
 		}
 	};
 
-	deleteTimer( timer_: Timer ): Observable<boolean> {
-		let headers = new Headers( { 'Authorization': this._usersService.getLoggedInToken() } );
-		let options = new RequestOptions( { headers: headers } );
-		return this._http.delete( this._timerUrlBase + '/' + timer_.id, options )
-			.map( function( response_: Response ) {
-				return response_.json()['result'] == 'OK';
+	public deleteTimer( timer_: Timer ): Observable<boolean> {
+		return this._sessionService.http<any>( 'delete', 'timers/' + timer_.id )
+			.map( function( result_: any ) {
+				return true; // failures do not end up here
 			} )
-			.catch( this._handleHttpError )
 		;
 	};
-
-	private _extractData( response_: Response ) {
-		let body = response_.json();
-		return body.data || null;
-	};
-
-	private _handleHttpError( response_: Response | any ) {
-		let message: string;
-		if ( response_ instanceof Response ) {
-			const body = response_.json() || '';
-			const error = body.message || JSON.stringify( body );
-			message = `${response_.status} - ${response_.statusText || ''} ${error}`;
-		} else {
-			message = response_.message ? response_.message : response_.toString();
-		}
-		return Observable.throw( message );
-	};
-
 }

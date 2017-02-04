@@ -1,5 +1,8 @@
-import { Component, Input } from '@angular/core';
-import { GridDirective }    from "./grid.directive";
+import {
+	Component,
+	Input
+}                        from '@angular/core';
+import { GridDirective } from "./grid.directive";
 
 @Component( {
 	selector: 'grid-paging',
@@ -46,16 +49,15 @@ export class GridPagingComponent {
 
 	@Input( "grid" ) private _grid: GridDirective;
 
-	selectPage( page_: number ) {
+	public selectPage( page_: number ) {
 		this._grid.setPage( page_ );
 	};
 
-	getActivePage(): number {
+	public getActivePage(): number {
 		return this._grid.getPage();
 	};
 
-	getPageCount(): number {
+	public getPageCount(): number {
 		return Math.ceil( this._grid.data.length / this._grid.getPageSize() );
 	};
-
 }

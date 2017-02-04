@@ -1,27 +1,30 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <mutex>
 #include <chrono>
 #include <map>
 #include <vector>
 
+#include "Utils.h"
 #include "Worker.h"
-#include "Network.h"
 
 #include "json.hpp"
 
+extern "C" {
+	#include "mongoose.h"
+} // extern "C"
+
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
+#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX        "_web_"
+
 namespace micasa {
 
-	using namespace nlohmann;
+	class User;
 
 	class WebServer final : public Worker {
 
 	public:
-		enum Method {
+		enum class Method: unsigned short {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
 			GET     = 1,
@@ -38,33 +41,34 @@ namespace micasa {
 			DELETE  = 32,
 			// v Return available methods for resource or collection
 			OPTIONS = 64
-		}; // enum Method
+		}; // enum class Method
+		ENUM_UTIL( Method );
 		
-		typedef std::function<void( const json& input_, const Method& method_, json& output_ )> t_callback;
+		typedef std::function<void( std::shared_ptr<User> user_, const nlohmann::json& input_, const Method& method_, nlohmann::json& output_ )> t_callback;
 		
-		struct ResourceCallback {
+		class ResourceCallback {
+		public:
+			ResourceCallback( const std::string& reference_, const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : reference( reference_ ), uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
+
 			const std::string reference;
 			const std::string uri;
-			const unsigned int sort;
-			const unsigned int rights;
-			const unsigned int methods;
+			const Method methods;
 			const t_callback callback;
-		}; // struct ResourceCallback
+		}; // class ResourceCallback
 		
-		// TODO extend from std::runtime_error?
-		struct ResourceException {
+		class ResourceException: public std::runtime_error {
+		public:
+			ResourceException( unsigned int code_, std::string error_, std::string message_ ) : runtime_error( message_ ), code( code_ ), error( error_ ), message( message_ ) { };
+			
 			const unsigned int code;
 			const std::string error;
 			const std::string message;
-		}; // struct ResourceException
+		}; // class ResourceException
 
 		WebServer();
 		~WebServer();
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
-		void addResourceCallback( const ResourceCallback& callback_ );
-		void removeResourceCallback( const std::string& reference_ );
-
 		void start();
 		void stop();
 		
@@ -72,14 +76,18 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
 		
 	private:
-		std::map<std::string, std::vector<std::shared_ptr<ResourceCallback> > > m_resources;
+		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
 		mutable std::mutex m_resourcesMutex;
-		mutable std::mutex m_usersMutex;
 		std::string m_publicKey;
 		std::string m_privateKey;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
-		void _updateUserResourceHandlers();
+		
+		void _installHardwareResourceHandler();
+		void _installDeviceResourceHandler();
+		void _installScriptResourceHandler();
+		void _installTimerResourceHandler();
+		void _installUserResourceHandler();
 
 	}; // class WebServer
 

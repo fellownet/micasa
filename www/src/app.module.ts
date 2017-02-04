@@ -6,39 +6,57 @@ import { HttpModule }      from '@angular/http';
 import { AppComponent }    from './app.component';
 import { RoutingModule }   from './routing.module';
 
-import { HeaderComponent } from './header.component';
-import { MenuComponent }   from './menu.component';
-import { ScreenComponent } from './screen.component';
-import { HelpComponent }   from './help.component';
-
 import { DevicesModule }   from './devices/devices.module';
 import { HardwareModule }  from './hardware/hardware.module';
 import { ScriptsModule }   from './scripts/scripts.module';
 import { TimersModule }    from './timers/timers.module';
 import { UsersModule }     from './users/users.module';
+import { ScreensModule }   from './screens/screens.module';
+import { SessionModule }   from './session/session.module';
 
-import { UsersService }    from './users/users.service';
+import { SessionService }  from './session/session.service';
+import { ScreensService }  from './screens/screens.service';
 
-// Add the RxJS Observable operators.
-// The RxJS library is huge and therefore we only include the operators we need.
 import 'rxjs/add/observable/of';
 import 'rxjs/add/observable/throw';
+import 'rxjs/add/observable/merge';
+import 'rxjs/add/observable/forkJoin';
+import 'rxjs/add/observable/interval';
+import 'rxjs/add/operator/mergeMap';
+import 'rxjs/add/operator/map';
+import 'rxjs/add/operator/every';
 import 'rxjs/add/operator/do';
 import 'rxjs/add/operator/delay';
 import 'rxjs/add/operator/catch';
-import 'rxjs/add/operator/debounceTime';
-import 'rxjs/add/operator/distinctUntilChanged';
-import 'rxjs/add/operator/map';
-import 'rxjs/add/operator/switchMap';
-import 'rxjs/add/operator/toPromise';
+import 'rxjs/add/operator/filter';
+import 'rxjs/add/operator/takeWhile';
 
 @NgModule( {
-	imports      : [ BrowserModule, FormsModule, HttpModule, RoutingModule, DevicesModule, HardwareModule, ScriptsModule, TimersModule, UsersModule ],
-	declarations : [ AppComponent, HeaderComponent, MenuComponent, ScreenComponent, HelpComponent ],
-	bootstrap    : [ AppComponent ],
-	// Creating the UsersService instance here makes sure that there's only one instance that all the
-	// child modules will inherit.
-	providers    : [ UsersService ]
+	imports: [
+		BrowserModule,
+		FormsModule,
+		HttpModule,
+		RoutingModule,
+		DevicesModule,
+		HardwareModule,
+		ScriptsModule,
+		TimersModule,
+		UsersModule,
+		ScreensModule,
+		SessionModule
+	],
+	declarations: [
+		AppComponent
+	],
+	bootstrap: [
+		AppComponent
+	],
+	providers: [
+		SessionService,
+		ScreensService
+	]
 } )
 
-export class AppModule { }
+export class AppModule {
+
+}

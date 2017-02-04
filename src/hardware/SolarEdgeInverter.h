@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Hardware.h"
-#include "../Network.h"
 
 namespace micasa {
 	
@@ -15,7 +14,7 @@ namespace micasa {
 		void stop() override;
 		
 		std::string getLabel() const override;
-		bool updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
@@ -23,7 +22,7 @@ namespace micasa {
 	private:
 		bool m_first = true;
 		
-		void _processHttpReply( mg_connection* connection_, const http_message* message_ );
+		void _processHttpReply( const std::string& body_ );
 		
 	}; // class SolarEdgeInverter
 	

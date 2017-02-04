@@ -1,53 +1,20 @@
 #include <sstream>
 
-#include "json.hpp"
-
 #include "WeatherUnderground.h"
+
 #include "../device/Level.h"
 #include "../device/Text.h"
-#include "../device/Counter.h"
-#include "../device/Switch.h"
 #include "../Logger.h"
 #include "../Network.h"
-#include "../Utils.h"
-#include "../User.h"
+
+#include "json.hpp"
 
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<WebServer> g_webServer;
 	extern std::shared_ptr<Network> g_network;
 
 	using namespace nlohmann;
-
-	WeatherUnderground::WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		// The settings for WeatherUnderground need to be entered before the hardware is started. Therefore the
-		// resource handler needs to be installed upon construction time. The resource will be destroyed by
-		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
-			99,
-			User::Rights::INSTALLER,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "api_key", settings.at( "api_key" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "location", settings.at( "location" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "scale", settings.at( "scale" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
 
 	void WeatherUnderground::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
@@ -60,44 +27,48 @@ namespace micasa {
 	};
 
 	json WeatherUnderground::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["api_key"] = this->m_settings->get( "api_key", "" );
+		result["location"] = this->m_settings->get( "location", "" );
+		result["scale"] = this->m_settings->get( "scale", "celsius" );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
-			result["settings"] = {
-				{
-					{ "name", "api_key" },
-					{ "label", "API Key" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "api_key", "" ) }
-				},
-				{
-					{ "name", "location" },
-					{ "label", "Location" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "location", "" ) }
-				},
-				{
-					{ "name", "scale" },
-					{ "label", "Scale" },
-					{ "type", "list" },
-					{ "options", {
-						{
-							{ "value", "celcius" },
-							{ "label", "Celcius" }
-						},
-						{
-							{ "value", "fahrenheit" },
-							{ "label", "Fahrenheid" }
-						}
-					} },
-					{ "value", this->m_settings->get( "scale", "celcius" ) }
-				}
-			};
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
 	};
-	
+
+	json WeatherUnderground::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		result += {
+			{ "name", "api_key" },
+			{ "label", "API Key" },
+			{ "type", "string" },
+			{ "class", this->m_settings->contains( "api_key" ) ? "advanced" : "normal" }
+		};
+		result += {
+			{ "name", "location" },
+			{ "label", "Location" },
+			{ "type", "string" }
+		};
+		result += {
+			{ "name", "scale" },
+			{ "label", "Scale" },
+			{ "type", "list" },
+			{ "class", this->m_settings->contains( "scale" ) ? "advanced" : "normal" },
+			{ "options", {
+				{
+					{ "value", "celsius" },
+					{ "label", "Celsius" }
+				},
+				{
+					{ "value", "fahrenheit" },
+					{ "label", "Fahrenheid" }
+				}
+			} }
+		};
+		return result;
+	};
+
 	std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
 		
 		if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
@@ -111,7 +82,10 @@ namespace micasa {
 
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
-				this->_processHttpReply( connection_, (http_message*)data_ );
+				std::string body;
+				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+				this->_processHttpReply( body );
+				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 			}  else if (
 				event_ == MG_EV_CLOSE
 				&& this->getState() == Hardware::State::INIT
@@ -124,12 +98,9 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 
-	void WeatherUnderground::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
-		std::string body;
-		body.assign( message_->body.p, message_->body.len );
-		
+	void WeatherUnderground::_processHttpReply( const std::string& body_ ) {
 		try {
-			json data = json::parse( body );
+			json data = json::parse( body_ );
 
 			if ( data["response"].is_object() ) {
 				if ( data["response"]["error"].is_null() ) {
@@ -139,7 +110,7 @@ namespace micasa {
 					) {
 						data = data["current_observation"];
 						
-						unsigned int source = Device::UpdateSource::HARDWARE;
+						Device::UpdateSource source = Device::UpdateSource::HARDWARE;
 						if ( this->m_first ) {
 							source |= Device::UpdateSource::INIT;
 							this->m_first = false;
@@ -149,39 +120,44 @@ namespace micasa {
 							this->m_settings->get( "scale" ) == "fahrenheit"
 							&& ! data["temp_f"].is_null()
 						) {
-							auto device = this->_declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::FAHRENHEIT }
+							auto device = this->declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::FAHRENHEIT ) }
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
-						   this->m_settings->get( "scale" ) == "celcius"
+						   this->m_settings->get( "scale" ) == "celsius"
 						   && ! data["temp_c"].is_null()
 					   ) {
-							auto device = this->_declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::CELCIUS }
+							auto device = this->declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::CELSIUS ) }
 							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
-							auto device = this->_declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::PERCENT }
+							auto device = this->declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::HUMIDITY ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) }
 							} );
 							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
-							auto device = this->_declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
-								{ DEVICE_SETTING_UNITS, (unsigned int)Level::Unit::PASCAL }
+							auto device = this->declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::PRESSURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PASCAL ) }
 							} );
 							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
-							auto device = this->_declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE },
+							auto device = this->declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
 							} );
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}
@@ -203,8 +179,6 @@ namespace micasa {
 			this->setState( Hardware::State::FAILED );
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 		}
-		
-		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 	};
 	
 }; // namespace micasa

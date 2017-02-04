@@ -1,29 +1,34 @@
-import { NgModule }              from '@angular/core';
-import { CommonModule }          from '@angular/common';
-import { FormsModule }           from '@angular/forms';
-import { GridModule }            from '../grid/grid.module';
+import { NgModule }            from '@angular/core';
+import { CommonModule }        from '@angular/common';
+import { FormsModule }         from '@angular/forms';
+import { GridModule }          from '../grid/grid.module';
 
-import { TimersListComponent }   from './list.component';
-import { TimerDetailsComponent } from './details.component';
-import { TimersService }         from './timers.service';
-import { TimersRoutingModule }   from './routing.module';
-
-import { ScriptsModule }         from '../scripts/scripts.module';
+import { TimersListComponent } from './list.component';
+import { TimerEditComponent }  from './edit.component';
+import { TimersService }       from './timers.service';
+import { TimersListResolver }  from './list.resolver';
+import { TimerResolver }       from './timer.resolver';
+import { TimersRoutingModule } from './routing.module';
 
 @NgModule( {
 	imports: [
 		CommonModule,
 		FormsModule,
 		TimersRoutingModule,
-		ScriptsModule,
 		GridModule
 	],
 	declarations: [
 		TimersListComponent,
-		TimerDetailsComponent
+		TimerEditComponent
 	],
 	providers: [
-		TimersService
+		TimersService,
+		TimersListResolver,
+		TimerResolver
+	],
+	exports: [
+		// The timers components are also used in the device edit component
+		TimersListComponent
 	]
 } )
 

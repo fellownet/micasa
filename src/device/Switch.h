@@ -9,21 +9,32 @@ namespace micasa {
 	class Switch final : public Device {
 
 	public:
-		enum Option {
+		enum class SubType: unsigned short {
+			GENERIC = 1,
+			LIGHT,
+			DOOR_CONTACT,
+			BLINDS,
+			MOTION_DETECTOR,
+			ACTION
+		}; // enum class SubType
+		static const std::map<SubType, std::string> SubTypeText;
+		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
+
+		enum class Option: unsigned short {
 			ON = 1,
 			OFF = 2,
 			OPEN = 4,
-			CLOSED = 8,
-			STOPPED = 16,
-			STARTED = 32,
+			CLOSE = 8,
+			STOP = 16,
+			START = 32,
 			IDLE = 64,
-			ACTIVATED = 128
-		}; // enum Option
-
+			ACTIVATE = 128
+		}; // enum class Option
 		static const std::map<Switch::Option, std::string> OptionText;
-		static const Device::Type type = Device::Type::SWITCH;
-		
+		ENUM_UTIL_W_TEXT( Option, OptionText );
+
 		typedef std::string t_value;
+		static const Device::Type type;
 		
 		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
 
@@ -31,20 +42,22 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const unsigned int& source_, const Option& value_ );
-		bool updateValue( const unsigned int& source_, const t_value& value_ );
-		const unsigned int getValueOption() const throw() { return this->m_value; };
-		const unsigned int getPreviousValueOption() const throw() { return this->m_previousValue; };
+		bool updateValue( const Device::UpdateSource& source_, const Option& value_ );
+		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
+		const Option getValueOption() const throw() { return this->m_value; };
+		const Option getPreviousValueOption() const throw() { return this->m_previousValue; };
 		t_value getValue() const throw() { return OptionText.at( this->m_value ); };
 		t_value getPreviousValue() const throw() { return OptionText.at( this->m_previousValue ); };
-		json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getSettingsJson() const override;
+		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
-		Option m_value = OFF;
-		Option m_previousValue = OFF;
+		Option m_value = Option::OFF;
+		Option m_previousValue = Option::OFF;
 		
 	}; // class Switch
 

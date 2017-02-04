@@ -1,16 +1,20 @@
-import { NgModule }               from '@angular/core';
-import { RouterModule, Routes }   from '@angular/router';
+import { NgModule }            from '@angular/core';
+import {
+	RouterModule,
+	Routes
+}                              from '@angular/router';
 
-import { LoginComponent }         from './login.component';
-import { UsersListComponent }     from './list.component';
-import { UserDetailsComponent }   from './details.component';
+import { UsersListComponent }  from './list.component';
+import { UserEditComponent }   from './edit.component';
 
-import { UsersService }           from './users.service';
+import { UserResolver }        from './user.resolver';
+import { UsersListResolver }   from './list.resolver';
+
+import { SessionGuard }        from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'login',          component: LoginComponent },
-	{ path: 'users',          component: UsersListComponent,   canActivate: [UsersService] },
-	{ path: 'users/:user_id', component: UserDetailsComponent, canActivate: [UsersService], resolve: { user: UsersService } },
+	{ path: 'users',          component: UsersListComponent, canActivate: [SessionGuard], resolve: { users: UsersListResolver } },
+	{ path: 'users/:user_id', component: UserEditComponent,  canActivate: [SessionGuard], resolve: { user: UserResolver } },
 ];
 
 @NgModule( {

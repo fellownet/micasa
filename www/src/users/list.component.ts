@@ -1,6 +1,13 @@
-import { Component, OnInit }  from '@angular/core';
-import { Router }             from '@angular/router';
-import { User, UsersService } from './users.service';
+import {
+	Component,
+	OnInit
+}                  from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                  from '@angular/router';
+
+import { User }    from './users.service';
 
 @Component( {
 	templateUrl: 'tpl/users-list.html',
@@ -8,44 +15,30 @@ import { User, UsersService } from './users.service';
 
 export class UsersListComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	users: User[] = [];
+	public loading: boolean = false;
+	public error: String;
+	public users: User[];
 
-	constructor(
+	public constructor(
 		private _router: Router,
-		private _usersService: UsersService
+		private _route: ActivatedRoute
 	) {
 	};
 
-
-	ngOnInit() {
-		this.getUsers();
-	};
-
-	getUsers() {
+	public ngOnInit() {
 		var me = this;
-		me.loading = true;
-		this._usersService.getUsers()
-			.subscribe(
-				function( users_: User[]) {
-					me.loading = false;
-					me.users = users_;
-				},
-				function( error_: String ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
-		;
+		this._route.data.subscribe( function( data_: any ) {
+			me.users = data_.users;
+		} );
 	};
 
-	selectUser( user_: User ) {
+	public selectUser( user_: User ) {
+		this.loading = true;
 		this._router.navigate( [ '/users', user_.id ] );
 	};
 
-	addUser() {
+	public addUser() {
+		this.loading = true;
 		this._router.navigate( [ '/users', 'add' ] );
 	};
-
 }

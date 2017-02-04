@@ -1,67 +1,61 @@
-import { Component, OnInit }               from '@angular/core';
-import { Input, OnChanges, SimpleChanges } from '@angular/core';
-import { Router }                          from '@angular/router';
-import { Hardware, HardwareService }       from './hardware.service';
+import {
+	Component,
+	OnInit,
+	Input
+}                   from '@angular/core';
+import {
+	Router,
+	ActivatedRoute
+}                   from '@angular/router';
 
-declare var $: any;
+import {
+	Hardware,
+	HardwareService
+}                   from './hardware.service';
 
 @Component( {
 	selector: 'hardware',
 	templateUrl: 'tpl/hardware-list.html',
 } )
 
-export class HardwareListComponent implements OnInit, OnChanges {
+export class HardwareListComponent implements OnInit {
 
-	loading: Boolean = false;
-	error: String;
-	hardware: Hardware[] = [];
-	@Input() parent?: Hardware;
+	public loading: boolean = false;
+	public error: String;
+	public hardware: Hardware[];
 
-	constructor(
+	@Input() public parent?: Hardware;
+
+	public constructor(
 		private _router: Router,
+		private _route: ActivatedRoute,
 		private _hardwareService: HardwareService
 	) {
 	};
 
-	ngOnChanges( changes_: SimpleChanges ) {
-		this.getHardware();
+	public ngOnInit() {
+		var me = this;
+		this._route.data.subscribe( function( data_: any ) {
+			me.hardware = data_.list;
+		} );
 	};
 
-	ngOnInit() {
-		if ( ! this.loading ) {
-			this.getHardware();
+	public selectHardware( hardware_: Hardware ) {
+		this.loading = true;
+		if ( this.parent ) {
+			this._router.navigate( [ '/hardware', this.parent.id, hardware_.id, 'edit' ] );
+		} else {
+			this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 		}
 	};
 
-	getHardware() {
-		var me = this;
-		me.loading = true;
-		this._hardwareService.getHardwareList( me.parent )
-			.subscribe(
-				function( hardware_: Hardware[] ) {
-					me.loading = false;
-					me.hardware = hardware_;
-				},
-				function( error_: String ) {
-					me.loading = false;
-					me.error = error_;
-				}
-			)
-		;
-	};
-
-	selectHardware( hardware_: Hardware ) {
-		this._router.navigate( [ '/hardware', hardware_.id ] );
-	};
-
-	addHardware( type_: string ) {
+	public addHardware( type_: string ) {
 		var me = this;
 		me.loading = true;
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
 				function( hardware_: Hardware ) {
-					me.loading = false;
-					me._router.navigate( [ '/hardware/' + hardware_.id ] );
+					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
 				function( error_: string ) {
 					me.loading = false;

@@ -1,10 +1,10 @@
 <section class="content-header">
-<h1>Timers<small>tick tack</small></h1>
+<h1>Timers</h1>
 </section>
 
 <section class="content-body" *ngIf="timers.length==0 && !loading">
 
-	<div class="callout callout-info" *ngIf="!error">
+	<div class="callout callout-info" *ngIf="!error && !device">
 		<h4>No Timers!</h4>
 		<p>There are no timers configured in your system.</p>
 	</div>
@@ -22,6 +22,10 @@
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
 					</div>
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>
@@ -47,8 +51,9 @@
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
-		<th>State</th>
-		<th>Cron</th>
+		<th [gridField]="'enabled'">State</th>
+		<th [gridField]="'cron'">Cron</th>
+		<th *ngIf="device" [gridField]="'value'">Value</th>
 	</tr>
 </thead>
 <tbody>
@@ -60,6 +65,7 @@
 			<span class="label label-danger" *ngIf="!timer.enabled">disabled</span>
 		</td>
 		<td>{{timer.cron}}</td>
+		<td *ngIf="device">{{timer.value}}</td>
 	</tr>
 </tbody>
 </table>
@@ -72,6 +78,10 @@
 					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging">
 						<grid-paging [grid]="grid"></grid-paging>
 					</div>
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
 				</div>
 			</div>
 		</div>

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 namespace micasa {
 
 	const std::vector<std::string> c_queries = {
@@ -9,9 +12,10 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, " // functions as sqlite3 _rowid_ when named *exactly* INTEGER PRIMARY KEY
 		"`hardware_id` INTEGER DEFAULT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
-		"`type` INTEGER NOT NULL, "
+		"`type` VARCHAR(32) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 0 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_hardware_reference` ON `hardware`( `reference` )",
@@ -22,10 +26,11 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`hardware_id` INTEGER NOT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
-		"`type` INTEGER NOT NULL, "
+		"`type` VARCHAR(32) NOT NULL, "
 		"`label` VARCHAR(255) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `hardware_id` ) REFERENCES `hardware` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_devices_hardware_id_reference` ON `devices`( `hardware_id`, `reference` )",

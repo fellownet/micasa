@@ -2,11 +2,11 @@
 
 #include "json.hpp"
 
-#include "../Utils.h"
-#include "../device/Switch.h"
 #include "../Network.h"
+#include "../device/Switch.h"
 #include "../Settings.h"
 #include "../User.h"
+#include "../Logger.h"
 
 #define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
 #define HARMONY_HUB_PING_INTERVAL_SEC	30
@@ -15,35 +15,8 @@ namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Network> g_network;
-	extern std::shared_ptr<WebServer> g_webServer;
 
 	using namespace nlohmann;
-	
-	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		// The settings for the harmony hub need to be entered before the hardware is started. Therefore the
-		// resource handler needs to be installed upon construction time. The resource will be destroyed by
-		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
-			99,
-			User::Rights::INSTALLER,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "address", settings.at( "address" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "port", settings.at( "port" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
 	
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
@@ -52,43 +25,47 @@ namespace micasa {
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		if ( this->m_connectionState != CLOSED ) {
+		if ( this->m_connectionState != ConnectionState::CLOSED ) {
 			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-			this->m_connectionState = CLOSED;
+			this->m_connectionState = ConnectionState::CLOSED;
 		}
 		Hardware::stop();
 	};
 
 	json HarmonyHub::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["address"] = this->m_settings->get( "address", "" );
+		result["port"] = this->m_settings->get( "port", "" );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
-			result["settings"] = {
-				{
-					{ "name", "address" },
-					{ "label", "Address" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "address", "" ) }
-				},
-				{
-					{ "name", "port" },
-					{ "label", "Port" },
-					{ "type", "short" },
-					{ "min", "1" },
-					{ "max", "65536" },
-					{ "value", this->m_settings->get( "port", "" ) }
-				}
-			};
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
+	};
+
+	json HarmonyHub::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		result += {
+			{ "name", "address" },
+			{ "label", "Address" },
+			{ "type", "string" },
+			{ "class", this->m_settings->contains( "address" ) ? "advanced" : "normal" }
+		};
+		result += {
+			{ "name", "port" },
+			{ "label", "Port" },
+			{ "type", "short" },
+			{ "min", "1" },
+			{ "max", "65536" },
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+		};
+		return result;
 	};
 
 	std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
 		
 		// A connection to the Harmony Hub should remain open at all times, so if it isn't, a new
 		// connection will be made.
-		if ( this->m_connectionState == CLOSED ) {
+		if ( this->m_connectionState == ConnectionState::CLOSED ) {
 
 			if ( ! this->m_settings->contains( { "address", "port" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
@@ -96,7 +73,7 @@ namespace micasa {
 			}
 
 			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
-			this->m_connectionState = CONNECTING;
+			this->m_connectionState = ConnectionState::CONNECTING;
 			
 			// Instead of capturing 'this' we're capturing a shared_ptr to this. This way the instance will
 			// not be destroyed if the hardware gets removed because the callback still holds a shared pointer
@@ -151,7 +128,7 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 	
-	bool HarmonyHub::updateDevice( const unsigned int& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
 		if ( this->getState() != Hardware::State::READY ) {
@@ -199,7 +176,7 @@ namespace micasa {
 	void HarmonyHub::_disconnect( const std::string message_ ) {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		this->m_connectionState = CLOSED;
+		this->m_connectionState = ConnectionState::CLOSED;
 		this->setState( Hardware::State::FAILED );
 	};
 	
@@ -225,21 +202,21 @@ namespace micasa {
 			}
 
 			switch( this->m_connectionState ) {
-				case CLOSED: {
+				case ConnectionState::CLOSED: {
 					break;
 				}
 					
-				case CONNECTING: {
+				case ConnectionState::CONNECTING: {
 					// Upon connecting we're immediately requesting the currently active activity.
 					std::stringstream response;
 					response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
 					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
 					mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-					this->m_connectionState = WAIT_FOR_CURRENT_ACTIVITY;
+					this->m_connectionState = ConnectionState::WAIT_FOR_CURRENT_ACTIVITY;
 					break;
 				}
 
-				case WAIT_FOR_CURRENT_ACTIVITY: {
+				case ConnectionState::WAIT_FOR_CURRENT_ACTIVITY: {
 					if (
 						received.find( "vnd.logitech.harmony.engine?getCurrentActivity" ) != std::string::npos
 						&& stringIsolate( received, "<![CDATA[result=", "]]>", this->m_currentActivityId )
@@ -249,13 +226,13 @@ namespace micasa {
 						std::stringstream response;
 						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
 						mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-						this->m_connectionState = WAIT_FOR_ACTIVITIES;
+						this->m_connectionState = ConnectionState::WAIT_FOR_ACTIVITIES;
 						
 					}
 					break;
 				}
 					
-				case WAIT_FOR_ACTIVITIES: {
+				case ConnectionState::WAIT_FOR_ACTIVITIES: {
 					std::string raw;
 					if (
 						received.find( "vnd.logitech.harmony/vnd.logitech.harmony.engine?config" ) != std::string::npos
@@ -282,8 +259,9 @@ namespace micasa {
 									std::string activityId = activity["id"].get<std::string>();
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
-										auto device = this->_declareDevice<Switch>( activityId, label, {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API }
+										auto device = this->declareDevice<Switch>( activityId, label, {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
 										} );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );
@@ -296,7 +274,7 @@ namespace micasa {
 							
 							// After the activities have been recieved we're putting the connection in idle state. At this
 							// point changes in activities can be received and processed.
-							this->m_connectionState = IDLE;
+							this->m_connectionState = ConnectionState::IDLE;
 							this->setState( Hardware::State::READY );
 						} else {
 							this->_disconnect( "Malformed activities data." );
@@ -305,7 +283,7 @@ namespace micasa {
 					}
 				}
 					
-				case IDLE: {
+				case ConnectionState::IDLE: {
 					// Detect and analyze ping responses.
 					if (
 						received.find( "vnd.logitech.ping" ) != std::string::npos
@@ -353,8 +331,8 @@ namespace micasa {
 						&& stringIsolate( received, "activityId=", ":", activityId )
 					) {
 						// Release any pending updates and use the corresponding update source for our source.
-						unsigned int source = Device::UpdateSource::HARDWARE;
-						source |= this->_releasePendingUpdate( "hub" );
+						Device::UpdateSource source = Device::UpdateSource::HARDWARE;
+						this->_releasePendingUpdate( "hub", source );
 
 						// Turn off the current activity when a different activity was started than the one currently
 						// active, or on full power off (=-1).
@@ -387,7 +365,7 @@ namespace micasa {
 			
 			received.clear();
 			
-		} else if ( this->m_connectionState != CLOSED ) {
+		} else if ( this->m_connectionState != ConnectionState::CLOSED ) {
 			this->_disconnect( "Connection closed." );
 		}
 	};

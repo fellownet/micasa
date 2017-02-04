@@ -1,5 +1,9 @@
 #include <iostream>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 #include "Worker.h"
 
 namespace micasa {
@@ -18,12 +22,17 @@ namespace micasa {
 		this->m_worker = std::thread( [this] {
 			do {
 				std::unique_lock<std::mutex> workLock( this->m_workMutex );
-				std::chrono::milliseconds wait = this->_work( ++this->m_iteration );
+				std::chrono::milliseconds wait;
+				if ( this->m_hasWork ) {
+					this->m_hasWork = false;
+					wait = this->m_hasWorkAfter;
+				} else {
+					wait = this->_work( ++this->m_iteration );
+				}
 				workLock.unlock();
 				
 				std::unique_lock<std::mutex> conditionLock( this->m_conditionMutex );
 				this->m_continueCondition.wait_for( conditionLock, wait, [&]{ return this->m_shutdown || this->m_hasWork; } );
-				this->m_hasWork = false;
 				conditionLock.unlock(); // after the wait we own the lock
 			} while( ! this->m_shutdown );
 		} );
@@ -54,11 +63,16 @@ namespace micasa {
 	};
 	
 	void Worker::wakeUp() {
+		this->wakeUpAfter( std::chrono::milliseconds( 0 ) );
+		
+	};
+	
+	void Worker::wakeUpAfter( std::chrono::milliseconds wait_ ) {
 		std::unique_lock<std::mutex> conditionLock( this->m_conditionMutex );
 		this->m_hasWork = true;
+		this->m_hasWorkAfter = wait_;
 		conditionLock.unlock();
 		this->m_continueCondition.notify_all();
-		
 	};
 	
 }; // namespace micasa

@@ -9,10 +9,10 @@
 #include <dirent.h>
 
 #include "Controller.h"
+
+#include "Logger.h"
 #include "Database.h"
 #include "Settings.h"
-#include "Utils.h"
-#include "User.h"
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -128,7 +128,9 @@ v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
 
 namespace micasa {
 
-	extern std::shared_ptr<WebServer> g_webServer;
+	using namespace nlohmann;
+	using namespace std::chrono;
+
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Settings<> > g_settings;
@@ -140,7 +142,6 @@ namespace micasa {
 
 	Controller::Controller(): Worker() {
 #ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be created before global Controller instance." );
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
 		assert( g_logger && "Global Logger instance should be created before global Controller instance." );
 #endif // _DEBUG
@@ -166,7 +167,6 @@ namespace micasa {
 
 	Controller::~Controller() {
 #ifdef _DEBUG
-		assert( g_webServer && "Global WebServer instance should be destroyed after global Controller instance." );
 		assert( g_database && "Global Database instance should be destroyed after global Controller instance." );
 		assert( g_logger && "Global Logger instance should be destroyed after global Controller instance." );
 #ifdef _WITH_LIBUDEV
@@ -184,9 +184,6 @@ namespace micasa {
 	};
 
 	void Controller::start() {
-#ifdef _DEBUG
-		assert( g_webServer->isRunning() && "WebServer should be running before Controller is started." );
-#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
@@ -209,78 +206,16 @@ namespace micasa {
 				}
 			}
 
-			Hardware::Type type = static_cast<Hardware::Type>( atoi( (*hardwareIt)["type"].c_str() ) );
+			Hardware::Type type = Hardware::resolveType( (*hardwareIt)["type"] );
 			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
 
 			if ( (*hardwareIt)["enabled"] == "1" ) {
 				hardware->start();
 			}
-			this->_installHardwareResourceHandlers( hardware );
 
 			this->m_hardware.push_back( hardware );
 		}
 		hardwareLock.unlock();
-
-		// Install the script- and timer resource handlers.
-		this->_updateScriptResourceHandlers();
-		this->_updateTimerResourceHandlers();
-
-		// Add generic resource handlers for the hardware- and device resources. These handlers get called
-		// first, before any hardware- or device specific handlers are called.
-		g_webServer->addResourceCallback( {
-			"controller",
-			"api/hardware",
-			99,
-			User::Rights::INSTALLER,
-			WebServer::Method::GET,
-			WebServer::t_callback( []( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				output_["data"] = json::array();
-				output_["code"] = 200;
-			} )
-		} );
-
-		g_webServer->addResourceCallback( {
-			"controller",
-			"api/devices",
-			99,
-			User::Rights::VIEWER,
-			WebServer::Method::GET,
-			WebServer::t_callback( []( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				output_["data"] = json::array();
-				output_["code"] = 200;
-			} )
-		} );
-
-		// Then the callback for adding new hardware is installed.
-		g_webServer->addResourceCallback( {
-			"controller",
-			"api/hardware",
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::POST,
-			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				if ( input_.find( "type" ) != input_.end() ) {
-					int type = -1;
-					for ( auto typeIt = Hardware::TypeText.begin(); typeIt != Hardware::TypeText.end(); typeIt++ ) {
-						if ( input_["type"].get<std::string>() == typeIt->second ) {
-							type = typeIt->first;
-							break;
-						}
-					}
-					if ( type > -1 ) {
-						std::string reference = randomString( 16 );
-						auto hardware = this->declareHardware( static_cast<Hardware::Type>( type ), reference, { } );
-						output_["result"] = "OK";
-						output_["data"] = hardware->getJson( true );
-						output_["code"] = 201; // Created
-					} else {
-						throw WebServer::ResourceException( { 400, "Hardware.Invalid.Type", "The supplied type is invalid." } );
-					}
-				} else {
-					throw WebServer::ResourceException( { 400, "Hardware.Missing.Type", "Missing type." } );
-				}
-			} )
-		} );
 
 #ifdef _WITH_LIBUDEV
 		// libudev for detecting add- or remove usb device?
@@ -314,7 +249,7 @@ namespace micasa {
 				
 			} );
 		} else {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to  setup device monitoring." );
+			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
 		}
 #endif // _WITH_LIBUDEV
 
@@ -325,17 +260,12 @@ namespace micasa {
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		g_webServer->removeResourceCallback( "controller" );
-		g_webServer->removeResourceCallback( "controller-scripts" );
-		g_webServer->removeResourceCallback( "controller-timers" );
-
 		Worker::stop();
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 			for( auto hardwareIt = this->m_hardware.begin(); hardwareIt < this->m_hardware.end(); hardwareIt++ ) {
 				auto hardware = (*hardwareIt);
-				g_webServer->removeResourceCallback( "hardware-" + std::to_string( hardware->getId() ) );
 				if ( hardware->isRunning() ) {
 					hardware->stop();
 				}
@@ -350,6 +280,16 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
+				return *hardwareIt;
+			}
+		}
+		return nullptr;
+	};
+
+	std::shared_ptr<Hardware> Controller::getHardwareById( const unsigned int& id_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			if ( (*hardwareIt)->getId() == id_ ) {
 				return *hardwareIt;
 			}
 		}
@@ -372,15 +312,16 @@ namespace micasa {
 
 	};
 	
+	std::vector<std::shared_ptr<Hardware> > Controller::getAllHardware() const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		return std::vector<std::shared_ptr<Hardware> >( this->m_hardware );
+	};
+	
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ ) {
 		return this->declareHardware( type_, reference_, nullptr, settings_, start_ );
 	};
 
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ ) {
-#ifdef _DEBUG
-		assert( g_webServer->isRunning() && "WebServer should be running before declaring hardware." );
-#endif // _DEBUG
-
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
@@ -392,15 +333,18 @@ namespace micasa {
 		if ( parent_ ) {
 			id = g_database->putQuery(
 				"INSERT INTO `hardware` ( `hardware_id`, `reference`, `type`, `enabled` ) "
-				"VALUES ( %d, %Q, %d, %d )",
-				parent_->getId(), reference_.c_str(), static_cast<int>( type_ ),
+				"VALUES ( %d, %Q, %Q, %d )",
+				parent_->getId(),
+				reference_.c_str(),
+				Hardware::resolveType( type_ ).c_str(),
 				start_ ? 1 : 0
 			);
 		} else {
 			id = g_database->putQuery(
 				"INSERT INTO `hardware` ( `reference`, `type`, `enabled` ) "
-				"VALUES ( %Q, %d, %d )",
-				reference_.c_str(), static_cast<int>( type_ ),
+				"VALUES ( %Q, %Q, %d )",
+				reference_.c_str(),
+				Hardware::resolveType( type_ ).c_str(),
 				start_ ? 1 : 0
 			);
 		}
@@ -420,7 +364,6 @@ namespace micasa {
 		if ( start_ ) {
 			hardware->start();
 		}
-		this->_installHardwareResourceHandlers( hardware );
 
 		// Reacquire lock when adding to the map to make it thread safe.
 		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
@@ -437,7 +380,6 @@ namespace micasa {
 		// removed because that is done when the parent is removed by foreign key constraints.
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
 			if ( (*hardwareIt)->getParent() == hardware_ ) {
-				g_webServer->removeResourceCallback( "hardware-" + std::to_string( (*hardwareIt)->getId() ) );
 				if ( (*hardwareIt)->isRunning() ) {
 					(*hardwareIt)->stop();
 				}
@@ -448,7 +390,6 @@ namespace micasa {
 		}
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
 			if ( (*hardwareIt) == hardware_ ) {
-				g_webServer->removeResourceCallback( "hardware-" + std::to_string( hardware_->getId() ) );
 				if ( hardware_->isRunning() ) {
 					hardware_->stop();
 				}
@@ -511,26 +452,30 @@ namespace micasa {
 		return nullptr;
 	};
 
-	template<class D> void Controller::newEvent( const D& device_, const unsigned int& source_ ) {
-		// Events originating from scripts should not cause another script run.
-		// TODO make this configurable per device?
+	std::vector<std::shared_ptr<Device> > Controller::getAllDevices() const {
+		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		std::vector<std::shared_ptr<Device> > result;
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
+			auto devices = (*hardwareIt)->getAllDevices();
+			result.insert( result.end(), devices.begin(), devices.end() );
+		}
+		return result;
+	};
+
+	template<class D> void Controller::newEvent( const D& device_, const Device::UpdateSource& source_ ) {
 		if (
 			( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT
 			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
 		) {
-			auto interval = system_clock::now() - device_.getLastUpdate();
-
 			json event;
 			event["value"] = device_.getValue();
 			event["previous_value"] = device_.getPreviousValue();
-			event["interval"] = duration_cast<seconds>( interval ).count();
-			event["source"] = source_;
+			event["source"] = Device::resolveUpdateSource( source_ );
 			event["device"] = device_.getJson( false );
 
-			// The processing of the event is deliberatly done in a separate method because this method is templated
-			// and is essentially copied for each specialization.
-			// TODO Only fetch those scripts that are present in the script / device crosstable.
-			this->_runScripts( "event", event, g_database->getQuery(
+			// NOTE The processing of the event is deliberatly done in a separate method because this method is
+			// templated and is essentially copied for each specialization.
+			auto scripts = g_database->getQuery(
 				"SELECT s.`id`, s.`name`, s.`code` "
 				"FROM `scripts` s, `x_device_scripts` x "
 				"WHERE x.`script_id`=s.`id` "
@@ -538,13 +483,16 @@ namespace micasa {
 				"AND s.`enabled`=1 "
 				"ORDER BY `id` ASC",
 				device_.getId()
-			) );
+			);
+			if ( scripts.size() > 0 ) {
+				this->_runScripts( "event", event, scripts );
+			}
 		}
 	};
-	template void Controller::newEvent( const Switch& device_, const unsigned int& source_ );
-	template void Controller::newEvent( const Level& device_, const unsigned int& source_ );
-	template void Controller::newEvent( const Counter& device_, const unsigned int& source_ );
-	template void Controller::newEvent( const Text& device_, const unsigned int& source_ );
+	template void Controller::newEvent( const Switch& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Level& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Counter& device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( const Text& device_, const Device::UpdateSource& source_ );
 
 #ifdef _WITH_LIBUDEV
 	void Controller::addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ ) {
@@ -602,7 +550,7 @@ namespace micasa {
 
 			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
-
+		
 		// This method should run a least every minute for timer jobs to run. The 5ms is a safe margin to make sure
 		// the whole minute has passed.
 		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
@@ -621,10 +569,8 @@ namespace micasa {
 
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
 		// Event processing is done in a separate thread to prevent scripts from blocking hardare updates.
-		// TODO insert a task that checks if the script isn't running for more than xx seconds? This requires that
-		// we don't detach and keep track of the thread.
 		auto thread = std::thread( [this,key_,data_,scripts_]{
-			std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
+			std::lock_guard<std::mutex> lock( this->m_jsMutex );
 
 			v7_val_t root = v7_get_global( this->m_v7_js );
 
@@ -687,7 +633,6 @@ namespace micasa {
 
 			// Get the userdata from the v7 environment and store it in settings for later use. The same logic
 			// applies here as V7_EXEC_EXCEPTION regarding the buffer.
-			// TODO do we need to do this after *every* script run, or maybe do this periodically.
 			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
@@ -701,16 +646,11 @@ namespace micasa {
 	};
 
 	void Controller::_runTimers() {
-		std::lock_guard<std::mutex> lock( this->m_timersMutex );
-
 		auto timers = g_database->getQuery(
-			"SELECT DISTINCT c.`id`, c.`cron`, c.`name` "
-			"FROM `timers` c, `x_timer_scripts` x, `scripts` s "
-			"WHERE c.`id`=x.`timer_id` "
-			"AND s.`id`=x.`script_id` "
-			"AND c.`enabled`=1 "
-			"AND s.`enabled`=1 "
-			"ORDER BY c.`id` ASC"
+			"SELECT DISTINCT `id`, `cron`, `name` "
+			"FROM `timers` "
+			"WHERE `enabled`=1 "
+			"ORDER BY `id` ASC"
 		);
 		for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
 			try {
@@ -808,8 +748,10 @@ namespace micasa {
 				}
 
 				if ( run ) {
+					
+					// First run the scripts that are associated with this timer.
 					json data = (*timerIt);
-					this->_runScripts( "timer", data, g_database->getQuery(
+					auto scripts = g_database->getQuery(
 						"SELECT s.`id`, s.`name`, s.`code` "
 						"FROM `x_timer_scripts` x, `scripts` s "
 						"WHERE x.`script_id`=s.`id` "
@@ -817,7 +759,40 @@ namespace micasa {
 						"AND s.`enabled`=1 "
 						"ORDER BY s.`id` ASC",
 						(*timerIt)["id"].c_str()
-					) );
+					);
+					if ( scripts.size() > 0 ) {
+						this->_runScripts( "timer", data, scripts );
+					}
+					
+					// Then update the devices that are associated with this timer.
+					auto devices = g_database->getQuery(
+						"SELECT x.`device_id`, x.`value` "
+						"FROM `x_timer_devices` x, `devices` d "
+						"WHERE x.`device_id`=d.`id` "
+						"AND x.`timer_id`=%q "
+						"AND d.`enabled`=1 "
+						"ORDER BY d.`id` ASC",
+						(*timerIt)["id"].c_str()
+					);
+					if ( devices.size() > 0 ) {
+						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
+							switch( device->getType() ) {
+								case Device::Type::SWITCH:
+									std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::TIMER, Switch::resolveOption( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::COUNTER:
+									std::static_pointer_cast<Counter>( device )->updateValue( Device::UpdateSource::TIMER, std::stoi( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::LEVEL:
+									std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::TIMER, std::stod( (*devicesIt)["value"] ) );
+									break;
+								case Device::Type::TEXT:
+									std::static_pointer_cast<Text>( device )->updateValue( Device::UpdateSource::TIMER, (*devicesIt)["value"] );
+									break;
+							}
+						}
+					}
 				}
 
 			} catch( std::exception ex_ ) {
@@ -834,7 +809,7 @@ namespace micasa {
 		}
 	};
 
-	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ ) {
+	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
 		TaskOptions options = this->_parseTaskOptions( options_ );
 
 		if ( options.clear ) {
@@ -845,9 +820,9 @@ namespace micasa {
 		for ( int i = 0; i < abs( options.repeat ); i++ ) {
 			double delaySec = options.afterSec + ( i * options.forSec ) + ( i * options.repeatSec );
 
-			// TODO implement "recur" task option > if set do not set source to script so that the result of the
-			// task will also be executed by scripts. There needs to be some detection though to prevent a loop.
-			Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
+			// the event handler will execute scripts even when the update comes from a script.
+			Task task = { device_, options.recur ? Device::resolveUpdateSource( 0 ) : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
 			task.setValue<D>( value_ );
 			this->_scheduleTask( std::make_shared<Task>( task ) );
 
@@ -859,7 +834,7 @@ namespace micasa {
 				)
 			) {
 				delaySec += options.forSec;
-				Task task = { device_, options.recur ? (unsigned int)0 : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+				Task task = { device_, options.recur ? Device::resolveUpdateSource( 0 ) : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
 				task.setValue<D>( previousValue );
 				this->_scheduleTask( std::make_shared<Task>( task ) );
 			}
@@ -867,10 +842,10 @@ namespace micasa {
 
 		return true;
 	};
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level>& device_, const typename Level::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Counter>& device_, const typename Counter::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch>& device_, const typename Switch::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text>& device_, const typename Text::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
+	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
 
 	bool Controller::_includeFromScript( const std::string& name_, std::string& script_ ) {
 		// This is done without a lock because it is called from a script that is executed while holding the lock.
@@ -888,11 +863,10 @@ namespace micasa {
 		}
 	};
 
-	void Controller::_clearTaskQueue( const std::shared_ptr<Device>& device_ ) {
+	void Controller::_clearTaskQueue( const std::shared_ptr<Device> device_ ) {
 		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
 		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
-			// TODO check if comparing devices directly also works instead of their ids.
-			if ( (*taskQueueIt)->device->getId() == device_->getId() ) {
+			if ( (*taskQueueIt)->device == device_ ) {
 				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 			} else {
 				taskQueueIt++;
@@ -923,8 +897,7 @@ namespace micasa {
 		int lastTokenType = 0;
 		TaskOptions result = { 0, 0, 1, 0, false, false };
 
-		std::vector<std::string> optionParts;
-		stringSplit( options_, ' ', optionParts );
+		std::vector<std::string> optionParts = stringSplit( options_, ' ' );
 		for ( auto partsIt = optionParts.begin(); partsIt != optionParts.end(); ++partsIt ) {
 			std::string part = *partsIt;
 			std::transform( part.begin(), part.end(), part.begin(), ::toupper );
@@ -979,596 +952,6 @@ namespace micasa {
 		}
 
 		return result;
-	};
-
-	void Controller::_installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ ) {
-
-		// The first handler to install is the list handler that outputs all the hardware available. Note that
-		// the output json array is being populated by multiple resource handlers, each one adding another
-		// piece of hardware.
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( hardware_->getId() ),
-			"api/hardware",
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::GET,
-			WebServer::t_callback( [this,hardware_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				
-				// If a hardware_id property was provided, only children belonging to that hardware id are
-				// being added to the device list.
-				auto hardwareIdIt = input_.find( "hardware_id" );
-				if (
-					hardwareIdIt != input_.end()
-					&& (
-						! hardware_->getParent()
-						|| input_["hardware_id"].get<std::string>() != std::to_string( hardware_->getParent()->getId() )
-					)
-				) {
-					return;
-				} else if (
-					hardwareIdIt == input_.end()
-					&& hardware_->getParent()
-				) {
-					return;
-				}
-
-				// If the enabled flag was set only hardware that are enabled or disabled are returned.
-				auto enabledIt = input_.find( "enabled" );
-				if ( enabledIt != input_.end() ) {
-					bool enabled = true;
-					if ( input_["enabled"].is_boolean() ) {
-						enabled = input_["enabled"].get<bool>();
-					}
-					if ( input_["enabled"].is_number() ) {
-						enabled = input_["enabled"].get<unsigned int>() > 0;
-					}
-					if ( input_["enabled"].is_string() ) {
-						enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-					}
-					if ( enabled && ! hardware_->isRunning() ) {
-						return;
-					}
-					if ( ! enabled && hardware_->isRunning() ) {
-						return;
-					}
-				}
-
-				output_["data"] += hardware_->getJson( false );
-			} )
-		} );
-
-		// The second handler to install is the one that returns the details of a single piece of hardware and
-		// the ability to update or delete the hardware.
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( hardware_->getId() ),
-			"api/hardware/" + std::to_string( hardware_->getId() ),
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
-			WebServer::t_callback( [this,hardware_]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_["data"] = hardware_->getJson( true );
-						output_["code"] = 200;
-						break;
-					}
-					case WebServer::Method::PUT:
-					case WebServer::Method::PATCH: {
-						// A name property can be used to set the custom name for the hardware.
-						if (
-							input_.find( "name" ) != input_.end()
-							&& input_["name"].is_string()
-						) {
-							hardware_->getSettings()->put( "name", input_["name"].get<std::string>() );
-							hardware_->getSettings()->commit();
-						}
-
-						// The enabled property can be used to enable or disable the hardware. For now this is only
-						// possible on parent/main hardware, no children. Note that a restart is still possible if
-						// the hardware specific resource handler needs it.
-						bool enabled = hardware_->isRunning();
-						if ( hardware_->getParent() == nullptr ) {
-							if ( input_.find( "enabled") != input_.end() ) {
-								if ( input_["enabled"].is_boolean() ) {
-									enabled = input_["enabled"].get<bool>();
-								} else if ( input_["enabled"].is_number() ) {
-									enabled = input_["enabled"].get<unsigned int>() > 0;
-								} else if ( input_["enabled"].is_string() ) {
-									enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-								}
-								g_database->putQuery(
-									"UPDATE `hardware` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d "
-									"OR `hardware_id`=%d", // also children
-									enabled ? 1 : 0,
-									hardware_->getId(),
-									hardware_->getId()
-								);
-							}
-						}
-
-						// Start or stop hardware. All children of the hardware are also started or stopped. This
-						// is done in a separate thread to allow the client to return immediately.
-						std::thread( [this,enabled,hardware_]{
-							std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-							if (
-								! enabled
-								|| hardware_->needsRestart()
-							) {
-								if ( hardware_->isRunning() ) {
-									hardware_->stop();
-								}
-								for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-									if (
-										(*hardwareIt)->getParent() == hardware_
-										&& (*hardwareIt)->isRunning()
-									) {
-										(*hardwareIt)->stop();
-									}
-								}
-							}
-							if ( enabled ) {
-								if ( ! hardware_->isRunning() ) {
-									hardware_->start();
-								}
-								for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-									if (
-										(*hardwareIt)->getParent() == hardware_
-										&& ! (*hardwareIt)->isRunning()
-									) {
-										(*hardwareIt)->start();
-									}
-								}
-							}
-						} ).detach();
-
-						output_["data"] = hardware_->getJson( true );
-						output_["code"] = 200;
-						break;
-					}
-					case WebServer::Method::DELETE: {
-						this->removeHardware( hardware_ );
-						output_["code"] = 200;
-						break;
-					}
-					default: break;
-				}
-			} )
-		} );
-	};
-
-	void Controller::_updateScriptResourceHandlers() const {
-
-		// First all current callbacks for scripts are removed.
-		g_webServer->removeResourceCallback( "controller-scripts" );
-
-		// The first callback is the general script fetch callback that lists all available scripts and can
-		// be used to add (post) new scripts.
-		g_webServer->addResourceCallback( {
-			"controller-scripts",
-			"api/scripts",
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::GET | WebServer::Method::POST,
-			WebServer::t_callback( [this]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_["data"] = g_database->getQuery<json>(
-							"SELECT `id`, `name`, `code`, `enabled` "
-							"FROM `scripts` "
-							"ORDER BY `id` ASC"
-						);
-						output_["code"] = 200;
-						break;
-					}
-					case WebServer::Method::POST: {
-						if ( input_.find( "name") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Script.Missing.Name", "Missing name." } );
-						}
-						if ( ! input_["name"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Script.Invalid.Name", "The supplied name is invalid." } );
-						}
-						if ( input_.find( "code") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Script.Missing.Code", "Missing code." } );
-						}
-						if ( ! input_["code"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Script.Invalid.Code", "The supplied code is invalid." } );
-						}
-
-						bool enabled = true;
-						if ( input_.find( "enabled") != input_.end() ) {
-							if ( input_["enabled"].is_boolean() ) {
-								enabled = input_["enabled"].get<bool>();
-							} else if ( input_["enabled"].is_number() ) {
-								enabled = input_["enabled"].get<unsigned int>() > 0;
-							} else if ( input_["enabled"].is_string() ) {
-								enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-							} else {
-								throw WebServer::ResourceException( { 400, "Script.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-							}
-						}
-
-						auto scriptId = g_database->putQuery(
-							"INSERT INTO `scripts` (`name`, `code`, `enabled`) "
-							"VALUES (%Q, %Q, %d) ",
-							input_["name"].get<std::string>().c_str(),
-							input_["code"].get<std::string>().c_str(),
-							enabled ? 1 : 0
-						);
-						
-						output_["data"] = g_database->getQueryRow<json>(
-							"SELECT `id`, `name`, `code`, `enabled` "
-							"FROM `scripts` "
-							"WHERE `id`=%d "
-							"ORDER BY `id` ASC",
-							scriptId
-						);
-						output_["code"] = 201; // Created
-						this->_updateScriptResourceHandlers();
-						break;
-					}
-					default: break;
-				}
-			} )
-		} );
-
-		// Then a specific resource handler is installed for each script. This handler allows for retrieval as
-		// well as updating a script.
-		auto scriptIds = g_database->getQueryColumn<unsigned int>(
-			"SELECT `id` "
-			"FROM `scripts` "
-			"ORDER BY `id` ASC"
-		);
-		for ( auto scriptIdsIt = scriptIds.begin(); scriptIdsIt != scriptIds.end(); scriptIdsIt++ ) {
-			const unsigned int scriptId = (*scriptIdsIt);
-			g_webServer->addResourceCallback( {
-				"controller-scripts",
-				"api/scripts/" + std::to_string( scriptId ),
-				100,
-				User::Rights::INSTALLER,
-				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
-				WebServer::t_callback( [this,scriptId]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-					std::lock_guard<std::mutex> lock( this->m_scriptsMutex );
-					switch( method_ ) {
-						case WebServer::Method::GET: {
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `code`, `enabled` "
-								"FROM `scripts` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								scriptId
-							);
-							output_["code"] = 200;
-							break;
-						}
-						case WebServer::Method::PUT: {
-							if ( input_.find( "name") != input_.end() ) {
-								if ( input_["name"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `scripts` "
-										"SET `name`=%Q "
-										"WHERE `id`=%d",
-										input_["name"].get<std::string>().c_str(),
-										scriptId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "Script.Invalid.Name", "The supplied name is invalid." } );
-								}
-							}
-							
-							if ( input_.find( "code") != input_.end() ) {
-								if ( input_["code"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `scripts` "
-										"SET `code`=%Q "
-										"WHERE `id`=%d",
-										input_["code"].get<std::string>().c_str(),
-										scriptId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "Script.Invalid.Code", "The supplied code is invalid." } );
-								}
-							}
-
-							if ( input_.find( "enabled") != input_.end() ) {
-								bool enabled = true;
-								if ( input_["enabled"].is_boolean() ) {
-									enabled = input_["enabled"].get<bool>();
-								} else if ( input_["enabled"].is_number() ) {
-									enabled = input_["enabled"].get<unsigned int>() > 0;
-								} else if ( input_["enabled"].is_string() ) {
-									enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-								} else {
-									throw WebServer::ResourceException( { 400, "Script.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-								}
-								g_database->putQuery(
-									"UPDATE `scripts` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d ",
-									enabled ? 1 : 0,
-									scriptId
-								);
-							}
-
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `code`, `enabled` "
-								"FROM `scripts` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								scriptId
-							);
-							output_["code"] = 200;
-							this->_updateScriptResourceHandlers();
-							break;
-						}
-						case WebServer::Method::DELETE: {
-							g_database->putQuery(
-								"DELETE FROM `scripts` "
-								"WHERE `id`=%d",
-								scriptId
-							);
-							output_["code"] = 200;
-							this->_updateScriptResourceHandlers();
-							break;
-						}
-						default: break;
-					}
-				} )
-			} );
-		}
-	};
-
-	void Controller::_updateTimerResourceHandlers() const {
-
-		// First all current callbacks for timers are removed.
-		g_webServer->removeResourceCallback( "controller-timers" );
-
-		const auto setScripts = []( const json& scriptIds_, unsigned int timerId_ ) {
-			std::stringstream list;
-			unsigned int index = 0;
-			for ( auto scriptIdsIt = scriptIds_.begin(); scriptIdsIt != scriptIds_.end(); scriptIdsIt++ ) {
-				auto scriptId = (*scriptIdsIt);
-				if ( scriptId.is_number() ) {
-					list << ( index > 0 ? "," : "" ) << scriptId;
-					index++;
-					g_database->putQuery(
-						"INSERT OR IGNORE INTO `x_timer_scripts` "
-						"(`timer_id`, `script_id`) "
-						"VALUES (%d, %d)",
-						timerId_,
-						scriptId.get<unsigned int>()
-					);
-				}
-			}
-			g_database->putQuery(
-				"DELETE FROM `x_timer_scripts` "
-				"WHERE `timer_id`=%d "
-				"AND `script_id` NOT IN (%q)",
-				timerId_,
-				list.str().c_str()
-			);
-		};
-		
-		const auto addTimerData = []( const unsigned int& timerId_, json& timer_ ) {
-			timer_["scripts"] = g_database->getQueryColumn<unsigned int>(
-				"SELECT s.`id` "
-				"FROM `scripts` s, `x_timer_scripts` x "
-				"WHERE s.`id`=x.`script_id` "
-				"AND x.`timer_id`=%d "
-				"ORDER BY s.`id` ASC",
-				timerId_
-			);
-			timer_["devices"] = g_database->getQuery<json>(
-				"SELECT d.`id`, x.`value` "
-				"FROM `devices` d, `x_timer_devices` x "
-				"WHERE d.`id`=x.`device_id` "
-				"AND x.`timer_id`=%d "
-				"ORDER BY d.`id` ASC",
-				timerId_
-			);
-		};
-
-		// The first callback is the general timer fetch callback that lists all available timers and can
-		// be used to add (post) new timers.
-		g_webServer->addResourceCallback( {
-			"controller-timers",
-			"api/timers",
-			100,
-			User::Rights::INSTALLER,
-			WebServer::Method::GET | WebServer::Method::POST,
-			WebServer::t_callback( [this,&setScripts,&addTimerData]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-				std::lock_guard<std::mutex> lock( this->m_timersMutex );
-				switch( method_ ) {
-					case WebServer::Method::GET: {
-						output_["data"] = json::array();
-						auto timers = g_database->getQuery<json>(
-							"SELECT `id`, `name`, `cron`, `enabled` "
-							"FROM `timers` "
-							"ORDER BY `id` ASC"
-						);
-						for ( auto timersIt = timers.begin(); timersIt != timers.end(); timersIt++ ) {
-							json timer = (*timersIt);
-							addTimerData( timer["id"].get<unsigned int>(), timer );
-							output_["data"] += timer;
-						}
-						output_["code"] = 200;
-						break;
-					}
-					case WebServer::Method::POST: {
-						if ( input_.find( "name") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Timer.Missing.Name", "Missing name." } );
-						}
-						if ( ! input_["name"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Timer.Invalid.Name", "The supplied name is invalid." } );
-						}
-						if ( input_.find( "cron") == input_.end() ) {
-							throw WebServer::ResourceException( { 400, "Timer.Missing.Cron", "Missing cron." } );
-						}
-						if ( ! input_["cron"].is_string() ) {
-							throw WebServer::ResourceException( { 400, "Timer.Invalid.Cron", "The supplied cron is invalid." } );
-						}
-						
-						bool enabled = true;
-						if ( input_.find( "enabled") != input_.end() ) {
-							if ( input_["enabled"].is_boolean() ) {
-								enabled = input_["enabled"].get<bool>();
-							} else if ( input_["enabled"].is_number() ) {
-								enabled = input_["enabled"].get<unsigned int>() > 0;
-							} else if ( input_["enabled"].is_string() ) {
-								enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-							}
-						}
-
-						auto timerId = g_database->putQuery(
-							"INSERT INTO `timers` (`name`, `cron`, `enabled`) "
-							"VALUES (%Q, %Q, %d) ",
-							input_["name"].get<std::string>().c_str(),
-							input_["cron"].get<std::string>().c_str(),
-							enabled ? 1 : 0
-						);
-
-						if ( input_.find( "scripts") != input_.end() ) {
-							if ( input_["scripts"].is_array() ) {
-								setScripts( input_["scripts"], timerId );
-							} else {
-								throw WebServer::ResourceException( { 400, "Timer.Invalid.Scripts", "The supplied scripts parameter is invalid." } );
-							}
-						}
-
-						output_["data"] = g_database->getQueryRow<json>(
-							"SELECT `id`, `name`, `cron` "
-							"FROM `timers` "
-							"WHERE `id`=%d "
-							"ORDER BY `id` ASC",
-							timerId
-						);
-						addTimerData( timerId, output_["data"] );
-						output_["code"] = 201; // Created
-						this->_updateTimerResourceHandlers();
-						break;
-					}
-					default: break;
-				}
-			} )
-		} );
-
-		// Then a specific resource handler is installed for each timer. This handler allows for retrieval as
-		// well as updating a timer.
-		auto timerIds = g_database->getQueryColumn<unsigned int>(
-			"SELECT `id` "
-			"FROM `timers` "
-			"ORDER BY `id` ASC"
-		);
-		for ( auto timerIdsIt = timerIds.begin(); timerIdsIt != timerIds.end(); timerIdsIt++ ) {
-			const unsigned int timerId = (*timerIdsIt);
-			g_webServer->addResourceCallback( {
-				"controller-timers",
-				"api/timers/" + std::to_string( timerId ),
-				100,
-				User::Rights::INSTALLER,
-				WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
-				WebServer::t_callback( [this,timerId,&setScripts,&addTimerData]( const json& input_, const WebServer::Method& method_, json& output_ ) {
-					std::lock_guard<std::mutex> lock( this->m_timersMutex );
-					switch( method_ ) {
-						case WebServer::Method::GET: {
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `cron`, `enabled` "
-								"FROM `timers` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								timerId
-							);
-							addTimerData( timerId, output_["data"] );
-							output_["code"] = 200;
-							break;
-						}
-						case WebServer::Method::PUT: {
-							if ( input_.find( "name") != input_.end() ) {
-								if ( input_["name"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `timers` "
-										"SET `name`=%Q "
-										"WHERE `id`=%d",
-										input_["name"].get<std::string>().c_str(),
-										timerId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "Timer.Invalid.Name", "The supplied name is invalid." } );
-								}
-							}
-
-							if ( input_.find( "cron") != input_.end() ) {
-								if ( input_["cron"].is_string() ) {
-									g_database->putQuery(
-										"UPDATE `timers` "
-										"SET `cron`=%Q "
-										"WHERE `id`=%d",
-										input_["cron"].get<std::string>().c_str(),
-										timerId
-									);
-								} else {
-									throw WebServer::ResourceException( { 400, "Timer.Invalid.Cron", "The supplied cron is invalid." } );
-								}
-							}
-
-							if ( input_.find( "enabled") != input_.end() ) {
-								bool enabled = true;
-								if ( input_["enabled"].is_boolean() ) {
-									enabled = input_["enabled"].get<bool>();
-								} else if ( input_["enabled"].is_number() ) {
-									enabled = input_["enabled"].get<unsigned int>() > 0;
-								} else if ( input_["enabled"].is_string() ) {
-									enabled = ( input_["enabled"].get<std::string>() == "1" || input_["enabled"].get<std::string>() == "true" || input_["enabled"].get<std::string>() == "yes" );
-								} else {
-									throw WebServer::ResourceException( { 400, "Timer.Invalid.Enabled", "The supplied enabled parameter is invalid." } );
-								}
-								g_database->putQuery(
-									"UPDATE `timers` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d ",
-									enabled ? 1 : 0,
-									timerId
-								);
-							}
-
-							if ( input_.find( "scripts") != input_.end() ) {
-								if ( input_["scripts"].is_array() ) {
-									setScripts( input_["scripts"], timerId );
-								} else {
-									throw WebServer::ResourceException( { 400, "Timer.Invalid.Scripts", "The supplied scripts parameter is invalid." } );
-								}
-							}
-
-							output_["data"] = g_database->getQueryRow<json>(
-								"SELECT `id`, `name`, `cron`, `enabled` "
-								"FROM `timers` "
-								"WHERE `id`=%d "
-								"ORDER BY `id` ASC",
-								timerId
-							);
-							addTimerData( timerId, output_["data"] );
-							output_["code"] = 200;
-							break;
-						}
-						case WebServer::Method::DELETE: {
-							g_database->putQuery(
-								"DELETE FROM `timers` "
-								"WHERE `id`=%d",
-								timerId
-							);
-							output_["code"] = 200;
-							this->_updateTimerResourceHandlers();
-							break;
-						}
-						default: break;
-					}
-				} )
-			} );
-		}
 	};
 
 }; // namespace micasa

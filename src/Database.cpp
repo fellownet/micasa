@@ -1,7 +1,12 @@
 #include <memory>
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 #include "Database.h"
 #include "Structs.h"
+#include "Logger.h"
 
 namespace micasa {
 
@@ -207,6 +212,7 @@ namespace micasa {
 	// The above template is specialized for the types listed below.
 	template std::vector<int> Database::getQueryColumn( const std::string query_, ... ) const;
 	template std::vector<unsigned int> Database::getQueryColumn( const std::string query_, ... ) const;
+	template std::vector<unsigned long> Database::getQueryColumn( const std::string query_, ... ) const;
 	template std::vector<double> Database::getQueryColumn( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
@@ -294,6 +300,7 @@ namespace micasa {
 	// The above template is specialized for the types listed below.
 	template int Database::getQueryValue( const std::string query_, ... ) const;
 	template unsigned int Database::getQueryValue( const std::string query_, ... ) const;
+	template unsigned long Database::getQueryValue( const std::string query_, ... ) const;
 	template double Database::getQueryValue( const std::string query_, ... ) const;
 
 	// The string variant of the above template doesn't require string streams and has it's own
@@ -367,6 +374,10 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
 			return;
 		}
+
+#ifdef _DEBUG
+		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+#endif // _DEBUG
 		
 		std::lock_guard<std::mutex> lock( this->m_queryMutex );
 		
@@ -383,10 +394,6 @@ namespace micasa {
 			const char *error = sqlite3_errmsg( this->m_connection );
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 		}
-		
-#ifdef _DEBUG
-		//g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
-#endif // _DEBUG
 		
 		sqlite3_free( query );
 	};

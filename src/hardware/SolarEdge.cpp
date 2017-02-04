@@ -1,49 +1,21 @@
 #include <ctime>
 
 #include "SolarEdge.h"
-#include "../Database.h"
+
+#include "../Logger.h"
+#include "../Network.h"
 #include "../Controller.h"
-#include "../Utils.h"
-#include "../User.h"
 
 #include "json.hpp"
 
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<WebServer> g_webServer;
 	
 	using namespace nlohmann;
 
-	SolarEdge::SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) {
-		// The settings for SolarEdge need to be entered before the hardware is started. Therefore the
-		// resource handler needs to be installed upon construction time. The resource will be destroyed by
-		// the controller which uses the same identifier for specific hardware resources.
-		g_webServer->addResourceCallback( {
-			"hardware-" + std::to_string( this->m_id ),
-			"api/hardware/" + std::to_string( this->m_id ),
-			99,
-			User::Rights::INSTALLER,
-			WebServer::Method::PUT | WebServer::Method::PATCH,
-			WebServer::t_callback( [this]( const nlohmann::json& input_, const WebServer::Method& method_, nlohmann::json& output_ ) {
-				auto settings = extractSettingsFromJson( input_ );
-				try {
-					this->m_settings->put( "api_key", settings.at( "api_key" ) );
-				} catch( std::out_of_range exception_ ) { };
-				try {
-					this->m_settings->put( "site_id", settings.at( "site_id" ) );
-				} catch( std::out_of_range exception_ ) { };
-				if ( this->m_settings->isDirty() ) {
-					this->m_settings->commit();
-					this->m_needsRestart = true;
-				}
-			} )
-		} );
-	};
-	
 	void SolarEdge::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -55,26 +27,28 @@ namespace micasa {
 	};
 
 	json SolarEdge::getJson( bool full_ ) const {
+		json result = Hardware::getJson( full_ );
+		result["api_key"] = this->m_settings->get( "api_key", "" );
+		result["site_id"] = this->m_settings->get( "site_id", "" );
 		if ( full_ ) {
-			json result = Hardware::getJson( full_ );
-			result["settings"] = {
-				{
-					{ "name", "api_key" },
-					{ "label", "API Key" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "api_key", "" ) }
-				},
-				{
-					{ "name", "site_id" },
-					{ "label", "Site ID" },
-					{ "type", "string" },
-					{ "value", this->m_settings->get( "site_id", "" ) }
-				}
-			};
-			return result;
-		} else {
-			return Hardware::getJson( full_ );
+			result["settings"] = this->getSettingsJson();
 		}
+		return result;
+	};
+
+	json SolarEdge::getSettingsJson() const {
+		json result = Hardware::getSettingsJson();
+		result += {
+			{ "name", "api_key" },
+			{ "label", "API Key" },
+			{ "type", "string" }
+		};
+		result += {
+			{ "name", "site_id" },
+			{ "label", "Site ID" },
+			{ "type", "string" }
+		};
+		return result;
 	};
 	
 	std::chrono::milliseconds SolarEdge::_work( const unsigned long int& iteration_ ) {
@@ -90,7 +64,10 @@ namespace micasa {
 		
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
-				this->_processHttpReply( connection_, (http_message*)data_ );
+				std::string body;
+				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+				this->_processHttpReply( body );
+				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 			} else if (
 				event_ == MG_EV_CLOSE
 				&& this->getState() == Hardware::State::INIT
@@ -103,12 +80,9 @@ namespace micasa {
 		return std::chrono::milliseconds( 1000 * 60 * 60 );
 	};
 
-	void SolarEdge::_processHttpReply( mg_connection* connection_, const http_message* message_ ) {
-		std::string body;
-		body.assign( message_->body.p, message_->body.len );
-		
+	void SolarEdge::_processHttpReply( const std::string& body_ ) {
 		try {
-			json data = json::parse( body );
+			json data = json::parse( body_ );
 			if (
 				! data["reporters"].empty()
 				&& ! data["reporters"]["count"].empty()
@@ -140,8 +114,6 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 			this->setState( Hardware::State::FAILED );
 		}
-		
-		connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 	};
 	
 }; // namespace micasa

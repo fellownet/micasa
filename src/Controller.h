@@ -6,10 +6,9 @@
 #include <iostream>
 #include <list>
 
-#include "WebServer.h"
-#include "Worker.h"
 #include "Hardware.h"
 #include "Settings.h"
+#include "Worker.h"
 
 #include "device/Counter.h"
 #include "device/Level.h"
@@ -32,9 +31,6 @@ extern "C" {
 
 namespace micasa {
 
-	using namespace nlohmann;
-	using namespace std::chrono;
-
 	class Controller final : public Worker, public std::enable_shared_from_this<Controller> {
 
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
@@ -47,11 +43,11 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	public:
-		typedef time_point<system_clock> t_scheduled;
+		typedef std::chrono::time_point<std::chrono::system_clock> t_scheduled;
 		
 		struct Task {
 			std::shared_ptr<Device> device;
-			unsigned int source;
+			Device::UpdateSource source;
 			t_scheduled scheduled;
 			
 			Text::t_value textValue;
@@ -70,7 +66,7 @@ namespace micasa {
 			bool clear;
 			bool recur;
 		}; // struct TaskOptions
-		
+
 		Controller();
 		~Controller();
 
@@ -78,7 +74,9 @@ namespace micasa {
 		void stop();
 		
 		std::shared_ptr<Hardware> getHardware( const std::string& reference_ ) const;
+		std::shared_ptr<Hardware> getHardwareById( const unsigned int& id_ ) const;
 		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
+		std::vector<std::shared_ptr<Hardware> > getAllHardware() const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ = false );
 		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
@@ -87,8 +85,9 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
+		std::vector<std::shared_ptr<Device> > getAllDevices() const;
 
-		template<class D> void newEvent( const D& device_, const unsigned int& source_ );
+		template<class D> void newEvent( const D& device_, const Device::UpdateSource& source_ );
 
 #ifdef _WITH_LIBUDEV
 		void addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ );
@@ -100,10 +99,8 @@ namespace micasa {
 		mutable std::mutex m_hardwareMutex;
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;
-		mutable std::mutex m_scriptsMutex;
-		mutable std::mutex m_timersMutex;
-		
 		v7* m_v7_js;
+		mutable std::mutex m_jsMutex;
 		
 #ifdef _WITH_LIBUDEV
 		std::map<std::string, t_serialPortCallback> m_serialPortCallbacks;
@@ -113,19 +110,15 @@ namespace micasa {
 		std::thread m_udevMonitorThread;
 #endif // _WITH_LIBUDEV
 		
-		milliseconds _work( const unsigned long int& iteration_ );
-		void _runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
+		std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runTimers();
-		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D>& device_, const typename D::t_value& value_, const std::string& options_ = "" );
+		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		bool _includeFromScript( const std::string& name_, std::string& script_ );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
-		void _clearTaskQueue( const std::shared_ptr<Device>& device_ );
+		void _clearTaskQueue( const std::shared_ptr<Device> device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;
 		
-		void _installHardwareResourceHandlers( const std::shared_ptr<Hardware> hardware_ );
-		void _updateScriptResourceHandlers() const;
-		void _updateTimerResourceHandlers() const;
-
 	}; // class Controller
 
 }; // namespace micasa

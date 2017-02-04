@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef _DEBUG
-#include <cassert>
-#endif // _DEBUG
-
 #include <thread>
 #include <chrono>
 #include <mutex>
@@ -19,6 +15,7 @@ namespace micasa {
 		
 		bool isRunning() const;
 		void wakeUp();
+		void wakeUpAfter( std::chrono::milliseconds wait_ );
 
 		virtual void start();
 		virtual void stop();
@@ -36,6 +33,7 @@ namespace micasa {
 		mutable std::mutex m_workMutex;
 		unsigned long int m_iteration = 0;
 		volatile bool m_hasWork = false;
+		std::chrono::milliseconds m_hasWorkAfter = std::chrono::milliseconds( 0 );
 		
 	}; // class Worker
 
