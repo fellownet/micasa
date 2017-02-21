@@ -108,7 +108,6 @@ export class DeviceEditComponent implements OnInit {
 		me._devicesService.deleteDevice( me.device )
 			.subscribe(
 				function( success_: boolean ) {
-					me.loading = false;
 					if ( success_ ) {
 						if ( me.hardware ) {
 							if ( me.hardware.parent ) {
@@ -124,6 +123,7 @@ export class DeviceEditComponent implements OnInit {
 							me._router.navigate( [ '/devices' ] );
 						}
 					} else {
+						me.loading = false;
 						this.error = 'Unable to delete device.';
 					}
 				},

@@ -71,3 +71,4 @@
 </section>
 
 <timers *ngIf="!script && !screen && !device.readonly" [device]="device"></timers>
+<links *ngIf="!script && !screen" [device]="device"></links>

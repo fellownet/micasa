@@ -13,8 +13,6 @@
 #define RFXCOM_BUSY_WAIT_MSEC  30000 // how long to wait for result
 #define RFXCOM_BUSY_BLOCK_MSEC 3000  // how long to block hardware while waiting for result
 
-// TODO add manual light/switch learning/entering support. This will also enable Somfy blinds that
-// need to be manually learned.
 // TODO implement many more recognized types.
 
 namespace micasa {
@@ -87,9 +85,9 @@ namespace micasa {
 		// parent hardware instance is started to make sure previously created devices get picked up by the
 		// declareDevice method.
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
@@ -121,7 +119,9 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 99 }
 		};
 
 #ifdef _WITH_LIBUDEV
@@ -170,6 +170,8 @@ namespace micasa {
 				{ "label", "Type" },
 				{ "type", "list" },
 				{ "class", device_->getSettings()->contains( "rfx_type" ) ? "advanced" : "normal" },
+				{ "mandatory", true },
+				{ "sort", 99 },
 				{ "options", {
 					{
 						 { "value", "rfy" },
@@ -180,28 +182,32 @@ namespace micasa {
 								{ "label", "ID 1" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 }
+								{ "minimum", 255 },
+								{ "mandatory", true }
 							},
 							{
 								{ "name", "rfx_id2" },
 								{ "label", "ID 2" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 }
+								{ "minimum", 255 },
+								{ "mandatory", true }
 							},
 							{
 								{ "name", "rfx_id3" },
 								{ "label", "ID 3" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 }
+								{ "minimum", 255 },
+								{ "mandatory", true }
 							},
 							{
 								{ "name", "rfx_unitcode" },
 								{ "label", "Unit Code" },
 								{ "type", "byte" },
 								{ "minimum", 1 },
-								{ "minimum", 16 }
+								{ "minimum", 16 },
+								{ "mandatory", true }
 							}
 						 } }
 					},
@@ -235,10 +241,10 @@ namespace micasa {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 				this->declareDevice<Switch>( randomString( 16 ), "Switch", {
-					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) },
-					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true },
-					{ DEVICE_SETTING_ADDED_MANUALLY, true }
+					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+					{ DEVICE_SETTING_ADDED_MANUALLY,         true }
 				}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 				this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				return true;
@@ -419,10 +425,6 @@ namespace micasa {
 	};
 
 	bool RFXCom::_handleTempHumPacket( const tRBUF* packet_ ) {
-
-		// TODO handle battery level and signal strength > maybe these are properties of a device and can
-		// be beneficial to all devices?
-
 		std::string reference = std::to_string( ( packet_->TEMP_HUM.id1 * 256 ) + packet_->TEMP_HUM.id2 );
 
 		float temperature;
@@ -439,9 +441,11 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(T)", "Temperature", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::CELSIUS ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) },
+			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
+			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
 		} )->updateValue( Device::UpdateSource::HARDWARE, temperature );
 
@@ -451,9 +455,11 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(H)", "Humidity", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::HUMIDITY ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) },
+			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
+			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
 		} )->updateValue( Device::UpdateSource::HARDWARE, humidity );
 
@@ -478,8 +484,9 @@ namespace micasa {
 		) {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
 			this->declareDevice<Switch>( reference, "Switch", {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
 				{ "rfx_type", "lighting2" }
 			} )->updateValue( Device::UpdateSource::HARDWARE, value );
 		}

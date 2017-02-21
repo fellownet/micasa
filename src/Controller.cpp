@@ -47,18 +47,18 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 	if ( v7_is_number( arg1 ) ) {
 		double value = v7_get_double( js_, arg1 );
 		if ( device->getType() == micasa::Device::Type::COUNTER ) {
-			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Counter>( device ), value, options ) );
+			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Counter>( device ), value, options ) );
 		} else if ( device->getType() == micasa::Device::Type::LEVEL ) {
-			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Level>( device ), value, options ) );
+			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Level>( device ), value, options ) );
 		} else {
 			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
 	} else if ( v7_is_string( arg1 ) ) {
 		std::string value = v7_get_string( js_, &arg1, NULL );
 		if ( device->getType() == micasa::Device::Type::SWITCH ) {
-			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Switch>( device ), value, options ) );
+			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Switch>( device ), value, options ) );
 		} else if ( device->getType() == micasa::Device::Type::TEXT ) {
-			*res_ = v7_mk_boolean( js_, controller->_updateDeviceFromScript( std::static_pointer_cast<micasa::Text>( device ), value, options ) );
+			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Text>( device ), value, options ) );
 		} else {
 			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
@@ -89,17 +89,17 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 
 	v7_err js_error;
 	switch( device->getType() ) {
+		case micasa::Device::Type::COUNTER:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson( false ).dump().c_str(), res_ );
+			break;
+		case micasa::Device::Type::LEVEL:
+			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson( false ).dump().c_str(), res_ );
+			break;
 		case micasa::Device::Type::SWITCH:
 			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 		case micasa::Device::Type::TEXT:
 			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-		case micasa::Device::Type::LEVEL:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-		case micasa::Device::Type::COUNTER:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson( false ).dump().c_str(), res_ );
 			break;
 	}
 
@@ -117,13 +117,28 @@ v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
 	std::string script;
 	if (
 		v7_is_string( arg0 )
-		&& controller->_includeFromScript( v7_get_string( js_, &arg0, NULL ), script )
+		&& controller->_js_include( v7_get_string( js_, &arg0, NULL ), script )
 	) {
 		v7_val_t js_result;
 		return v7_exec( js_, script.c_str(), &js_result );
 	} else {
 		return v7_throwf( js_, "Error", "Invalid script name." );
 	}
+}
+
+v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ ) {
+	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	
+	v7_val_t arg0 = v7_arg( js_, 0 );
+	std::string log;
+	if ( v7_is_string( arg0 ) ) {
+		controller->_js_log( v7_get_string( js_, &arg0, NULL ) );
+	} else if ( v7_is_number( arg0 ) ) {
+		controller->_js_log( std::to_string( v7_get_double( js_, arg0 ) ) );
+	} else {
+		return v7_throwf( js_, "Error", "Invalid log value." );
+	}
+	return V7_OK;
 }
 
 namespace micasa {
@@ -163,6 +178,7 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "updateDevice", &micasa_v7_update_device );
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
+		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
 	};
 
 	Controller::~Controller() {
@@ -462,37 +478,52 @@ namespace micasa {
 		return result;
 	};
 
-	template<class D> void Controller::newEvent( const D& device_, const Device::UpdateSource& source_ ) {
-		if (
-			( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT
-			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
-		) {
-			json event;
-			event["value"] = device_.getValue();
-			event["previous_value"] = device_.getPreviousValue();
-			event["source"] = Device::resolveUpdateSource( source_ );
-			event["device"] = device_.getJson( false );
+	bool Controller::isScheduled( std::shared_ptr<const Device> device_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
+		for ( auto taskIt = this->m_taskQueue.begin(); taskIt != this->m_taskQueue.end(); taskIt++ ) {
+			if ( (*taskIt)->device == device_ ) {
+				return true;
+			}
+		}
+		return false;
+	};
 
-			// NOTE The processing of the event is deliberatly done in a separate method because this method is
-			// templated and is essentially copied for each specialization.
-			auto scripts = g_database->getQuery(
-				"SELECT s.`id`, s.`name`, s.`code` "
-				"FROM `scripts` s, `x_device_scripts` x "
-				"WHERE x.`script_id`=s.`id` "
-				"AND x.`device_id`=%d "
-				"AND s.`enabled`=1 "
-				"ORDER BY `id` ASC",
-				device_.getId()
-			);
-			if ( scripts.size() > 0 ) {
-				this->_runScripts( "event", event, scripts );
+	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
+		if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+
+			if ( ( source_ & Device::UpdateSource::LINK ) != Device::UpdateSource::LINK ) {
+				this->_runLinks( device_ );
+			}
+
+			if ( ( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT ) {
+				json event;
+				event["value"] = device_->getValue();
+				event["previous_value"] = device_->getPreviousValue();
+				event["source"] = Device::resolveUpdateSource( source_ );
+				event["device"] = device_->getJson( false );
+
+				// NOTE The processing of the event is deliberatly done in a separate method because this method is
+				// templated and is essentially copied for each specialization.
+				auto scripts = g_database->getQuery(
+					"SELECT s.`id`, s.`name`, s.`code` "
+					"FROM `scripts` s, `x_device_scripts` x "
+					"WHERE x.`script_id`=s.`id` "
+					"AND x.`device_id`=%d "
+					"AND s.`enabled`=1 "
+					"ORDER BY `id` ASC",
+					device_->getId()
+				);
+				if ( scripts.size() > 0 ) {
+					this->_runScripts( "event", event, scripts );
+				}
 			}
 		}
 	};
-	template void Controller::newEvent( const Switch& device_, const Device::UpdateSource& source_ );
-	template void Controller::newEvent( const Level& device_, const Device::UpdateSource& source_ );
-	template void Controller::newEvent( const Counter& device_, const Device::UpdateSource& source_ );
-	template void Controller::newEvent( const Text& device_, const Device::UpdateSource& source_ );
+
+	template void Controller::newEvent( std::shared_ptr<Switch> device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( std::shared_ptr<Level> device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( std::shared_ptr<Counter> device_, const Device::UpdateSource& source_ );
+	template void Controller::newEvent( std::shared_ptr<Text> device_, const Device::UpdateSource& source_ );
 
 #ifdef _WITH_LIBUDEV
 	void Controller::addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ ) {
@@ -524,15 +555,22 @@ namespace micasa {
 		}
 
 		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
-		// the fact that _scheduleTask keeps the list sorted on scheduled time.
-		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
-		auto taskQueueIt = this->m_taskQueue.begin();
-		while(
-			taskQueueIt != this->m_taskQueue.end()
-			&& (*taskQueueIt)->scheduled <= now + milliseconds( 5 )
-		) {
-			std::shared_ptr<Task> task = (*taskQueueIt);
-
+		// the fact that _scheduleTask keeps the list sorted on scheduled time. All tasks that are due are gathered in
+		// a separate vector so the task queue mutex can be released before updating devices.
+		std::vector<std::shared_ptr<Task> > tasks;
+		{
+			std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
+			auto taskQueueIt = this->m_taskQueue.begin();
+			while(
+				taskQueueIt != this->m_taskQueue.end()
+				&& (*taskQueueIt)->scheduled <= now + milliseconds( 5 )
+			) {
+				tasks.push_back( *taskQueueIt );
+				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
+			}
+		}
+		for ( auto tasksIt = tasks.begin(); tasksIt != tasks.end(); tasksIt++ ) {
+			std::shared_ptr<Task> task = (*tasksIt);
 			switch( task->device->getType() ) {
 				case Device::Type::COUNTER:
 					std::static_pointer_cast<Counter>( task->device )->updateValue( task->source, task->counterValue );
@@ -540,35 +578,105 @@ namespace micasa {
 				case Device::Type::LEVEL:
 					std::static_pointer_cast<Level>( task->device )->updateValue( task->source, task->levelValue );
 					break;
-				case Device::Type::SWITCH:
+				case Device::Type::SWITCH: {
 					std::static_pointer_cast<Switch>( task->device )->updateValue( task->source, task->switchValue );
 					break;
+				}
 				case Device::Type::TEXT:
 					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
 					break;
 			}
-
-			taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
 		}
-		
+
 		// This method should run a least every minute for timer jobs to run. The 5ms is a safe margin to make sure
 		// the whole minute has passed.
 		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
 
 		// If there's nothing in the queue anymore we can wait the default duration before investigating the queue
 		// again. This is because the _scheduleTask method will wake us up if there's work to do anyway.
-		if ( taskQueueIt != this->m_taskQueue.end() ) {
-			auto delay = duration_cast<milliseconds>( (*taskQueueIt)->scheduled - now );
-			if ( delay < wait ) {
-				wait = delay;
+		{
+			std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
+			auto taskQueueIt = this->m_taskQueue.begin();
+			if ( taskQueueIt != this->m_taskQueue.end() ) {
+				auto delay = duration_cast<milliseconds>( (*taskQueueIt)->scheduled - now );
+				if ( delay < wait ) {
+					wait = delay;
+				}
 			}
 		}
 
 		return wait;
 	};
 
+	template<class D> bool Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+		if ( options_.clear ) {
+			this->_clearTaskQueue( device_ );
+		}
+
+		typename D::t_value previousValue = device_->getValue();
+		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
+			double delaySec = options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec );
+
+			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
+			// the event handler will execute scripts even when the update comes from a script.
+			Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+			task.setValue<D>( value_ );
+			this->_scheduleTask( std::make_shared<Task>( task ) );
+
+			if (
+				options_.forSec > 0.05
+				&& (
+					options_.repeat > 0
+					|| i < abs( options_.repeat ) - 1
+				)
+			) {
+				delaySec += options_.forSec;
+				Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+				task.setValue<D>( previousValue );
+				this->_scheduleTask( std::make_shared<Task>( task ) );
+			}
+		}
+
+		return true;
+	};
+	template bool Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	template bool Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	template bool Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	
+	// The switch variant of the method is specialized separately because it uses the opposite value instead of the
+	// previous value for the "for"-option.
+	template<> bool Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+		if ( options_.clear ) {
+			this->_clearTaskQueue( device_ );
+		}
+
+		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
+			double delaySec = options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec );
+
+			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
+			// the event handler will execute scripts even when the update comes from a script.
+			Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+			task.setValue<Switch>( value_ );
+			this->_scheduleTask( std::make_shared<Task>( task ) );
+
+			if (
+				options_.forSec > 0.05
+				&& (
+					options_.repeat > 0
+					|| i < abs( options_.repeat ) - 1
+				)
+			) {
+				delaySec += options_.forSec;
+				Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
+				task.setValue<Switch>( Switch::getOppositeValue( value_ ) );
+				this->_scheduleTask( std::make_shared<Task>( task ) );
+			}
+		}
+
+		return true;
+	};
+
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
-		// Event processing is done in a separate thread to prevent scripts from blocking hardare updates.
 		auto thread = std::thread( [this,key_,data_,scripts_]{
 			std::lock_guard<std::mutex> lock( this->m_jsMutex );
 
@@ -720,11 +828,8 @@ namespace micasa {
 						}
 					}
 
-					// Then we need to check if the current value for the field is available in the
-					// array with valid items.
 					time_t rawtime;
 					time( &rawtime );
-
 					struct tm* timeinfo;
 					timeinfo = localtime( &rawtime );
 
@@ -777,18 +882,19 @@ namespace micasa {
 					if ( devices.size() > 0 ) {
 						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
+							TaskOptions options = { 0, 0, 1, 0, false, false };
 							switch( device->getType() ) {
-								case Device::Type::SWITCH:
-									std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::TIMER, Switch::resolveOption( (*devicesIt)["value"] ) );
-									break;
 								case Device::Type::COUNTER:
-									std::static_pointer_cast<Counter>( device )->updateValue( Device::UpdateSource::TIMER, std::stoi( (*devicesIt)["value"] ) );
+									this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
 									break;
 								case Device::Type::LEVEL:
-									std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::TIMER, std::stod( (*devicesIt)["value"] ) );
+									this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+									break;
+								case Device::Type::SWITCH:
+									this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
 									break;
 								case Device::Type::TEXT:
-									std::static_pointer_cast<Text>( device )->updateValue( Device::UpdateSource::TIMER, (*devicesIt)["value"] );
+									this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
 									break;
 							}
 						}
@@ -809,67 +915,40 @@ namespace micasa {
 		}
 	};
 
-	template<class D> bool Controller::_updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
-		TaskOptions options = this->_parseTaskOptions( options_ );
+	void Controller::_runLinks( std::shared_ptr<Device> device_ ) {
 
-		if ( options.clear ) {
-			this->_clearTaskQueue( device_ );
-		}
-
-		typename D::t_value previousValue = device_->getValue();
-		for ( int i = 0; i < abs( options.repeat ); i++ ) {
-			double delaySec = options.afterSec + ( i * options.forSec ) + ( i * options.repeatSec );
-
-			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
-			// the event handler will execute scripts even when the update comes from a script.
-			Task task = { device_, options.recur ? Device::resolveUpdateSource( 0 ) : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-			task.setValue<D>( value_ );
-			this->_scheduleTask( std::make_shared<Task>( task ) );
-
-			if (
-				options.forSec > 0.05
-				&& (
-					options.repeat > 0
-					|| i < abs( options.repeat ) - 1
-				)
-			) {
-				delaySec += options.forSec;
-				Task task = { device_, options.recur ? Device::resolveUpdateSource( 0 ) : Device::UpdateSource::SCRIPT, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-				task.setValue<D>( previousValue );
-				this->_scheduleTask( std::make_shared<Task>( task ) );
-			}
-		}
-
-		return true;
-	};
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
-	template bool Controller::_updateDeviceFromScript( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
-
-	bool Controller::_includeFromScript( const std::string& name_, std::string& script_ ) {
-		// This is done without a lock because it is called from a script that is executed while holding the lock.
-		try {
-			script_ = g_database->getQueryValue<std::string>(
-				"SELECT `code` "
-				"FROM `scripts` "
-				"WHERE `name`=%Q "
-				"AND `enabled`=1",
-				name_.c_str()
+		// Action links are only supported for switch-type devices. Other devices CAN be linked but cannot perform
+		// any target actions.
+		if ( device_->getType() == Device::Type::SWITCH ) {
+			auto device = std::static_pointer_cast<Switch>( device_ );
+			auto links = g_database->getQuery(
+				"SELECT `target_device_id`, `target_value`, `after`, `for`, `clear` "
+				"FROM `links` "
+				"WHERE `device_id`=%d "
+				"AND `target_device_id`!=%d "
+				"AND `target_device_id` IS NOT NULL "
+				"AND `value`=%Q "
+				"AND `target_value` IS NOT NULL "
+				"AND `enabled`=1 "
+				"ORDER BY `id`",
+				device->getId(),
+				device->getId(),
+				device->getValue().c_str()
 			);
-			return true;
-		} catch( const Database::NoResultsException& ex_ ) {
-			return false;
-		}
-	};
 
-	void Controller::_clearTaskQueue( const std::shared_ptr<Device> device_ ) {
-		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
-		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
-			if ( (*taskQueueIt)->device == device_ ) {
-				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
-			} else {
-				taskQueueIt++;
+			for ( auto linksIt = links.begin(); linksIt != links.end(); linksIt++ ) {
+				auto targetDevice = std::static_pointer_cast<Switch>( this->getDeviceById( std::stoi( (*linksIt)["target_device_id"] ) ) );
+				TaskOptions options = { 0, 0, 1, 0, false, false };
+				if ( (*linksIt)["after"].size() > 0 ) {
+					options.afterSec = std::stoi( (*linksIt)["after"] );
+				}
+				if ( (*linksIt)["for"].size() > 0 ) {
+					options.forSec = std::stoi( (*linksIt)["for"] );
+				}
+				if ( (*linksIt)["clear"].size() > 0 ) {
+					options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
+				}
+				this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
 			}
 		}
 	};
@@ -891,6 +970,17 @@ namespace micasa {
 
 		// Immediately wake up the worker to have it start processing scheduled items.
 		this->wakeUp();
+	};
+
+	void Controller::_clearTaskQueue( const std::shared_ptr<Device> device_ ) {
+		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
+		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
+			if ( (*taskQueueIt)->device == device_ ) {
+				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
+			} else {
+				taskQueueIt++;
+			}
+		}
 	};
 
 	Controller::TaskOptions Controller::_parseTaskOptions( const std::string& options_ ) const {
@@ -952,6 +1042,35 @@ namespace micasa {
 		}
 
 		return result;
+	};
+
+	template<class D> bool Controller::_js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
+		TaskOptions options = this->_parseTaskOptions( options_ );
+		return this->_processTask( device_, value_, Device::UpdateSource::SCRIPT, options );
+	};
+	template bool Controller::_js_updateDevice( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
+	template bool Controller::_js_updateDevice( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
+	template bool Controller::_js_updateDevice( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
+	template bool Controller::_js_updateDevice( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
+
+	bool Controller::_js_include( const std::string& name_, std::string& script_ ) {
+		// This is done without a lock because it is called from a script that is executed while holding the lock.
+		try {
+			script_ = g_database->getQueryValue<std::string>(
+				"SELECT `code` "
+				"FROM `scripts` "
+				"WHERE `name`=%Q "
+				"AND `enabled`=1",
+				name_.c_str()
+			);
+			return true;
+		} catch( const Database::NoResultsException& ex_ ) {
+			return false;
+		}
+	};
+
+	void Controller::_js_log( const std::string& log_ ) {
+		g_logger->log( Logger::LogLevel::SCRIPT, log_ );
 	};
 
 }; // namespace micasa

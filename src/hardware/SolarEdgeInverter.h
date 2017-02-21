@@ -7,6 +7,8 @@ namespace micasa {
 	class SolarEdgeInverter final : public Hardware {
 		
 	public:
+		static const constexpr char* label = "SolarEdge Inverter";
+
 		SolarEdgeInverter( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~SolarEdgeInverter() { };
 		

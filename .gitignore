@@ -6,6 +6,7 @@ Makefile
 cmake_install.cmake
 *.xcodeproj
 *.xcworkspace
+.vscode
 core
 micasa
 

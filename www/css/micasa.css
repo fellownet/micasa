@@ -351,7 +351,7 @@ a:focus, button:focus {
 }
 .box-body.chart-box {
 	padding: 0;
-	height: 400px;
+	height: 300px;
 }
 .box-body.chart-box.widget {
 	height: 200px;
@@ -494,6 +494,9 @@ a:focus, button:focus {
 }
 .form-control-feedback.fa {
 	line-height: 34px;
+}
+label span.mandatory {
+	color:#FF0000;
 }
 
 .btn {

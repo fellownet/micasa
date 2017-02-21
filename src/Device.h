@@ -18,6 +18,8 @@
 #define DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE   "_allow_subtype_change"
 #define DEVICE_SETTING_ADDED_MANUALLY         "_added_manually"
 #define DEVICE_SETTING_MINIMUM_USER_RIGHTS    "_minimum_user_rights"
+#define DEVICE_SETTING_BATTERY_LEVEL          "_battery_level"
+#define DEVICE_SETTING_SIGNAL_STRENGTH        "_signal_strength"
 
 namespace micasa {
 
@@ -41,9 +43,35 @@ namespace micasa {
 			TIMER = 4,
 			SCRIPT = 8,
 			API = 16,
+			LINK = 32,
+
+			USER = TIMER | SCRIPT | API | LINK,
+			CONTROLLER = INIT | HARDWARE,
+			ANY = USER | CONTROLLER,
+
+			INTERNAL = 64,
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 		
+		/*
+		typedef int t_counterValue;
+		typedef double t_levelValue;
+		typedef std::string t_switchValue;
+		typedef std::string t_textValue;
+
+		union Value {
+			Value() : text( "" ) { };
+			~Value() { };
+			Value( t_counterValue value_ ) : counter( value_ ) { };
+			Value( t_levelValue value_ ) : level( value_ ) { };
+			Value( t_textValue value_ ) : text( value_ ) { };
+
+			t_counterValue counter;
+			t_levelValue level;
+			t_textValue text;
+		}; // union Value
+		*/
+
 		static const constexpr char* settingsName = "device";
 		
 		virtual ~Device();
@@ -58,7 +86,7 @@ namespace micasa {
 		std::string getLabel() const throw() { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
-		template<class T> bool updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
+		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
 		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
@@ -67,6 +95,7 @@ namespace micasa {
 
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
+		virtual void putSettingsJson( nlohmann::json& settings_ );
 		virtual Type getType() const =0;
 		
 	protected:

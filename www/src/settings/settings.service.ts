@@ -10,6 +10,7 @@ export class Setting {
 	description?: string;
 	name: string;
 	type: string;
+	mandatory: boolean;
 	class: string;
 	value?: any;
 	minimum?: number;

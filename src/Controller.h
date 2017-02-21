@@ -27,6 +27,7 @@ extern "C" {
 	v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ );
 	v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ );
 	v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ );
+	v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ );
 } // extern "C"
 
 namespace micasa {
@@ -37,6 +38,7 @@ namespace micasa {
 		friend v7_err (::micasa_v7_update_device)( struct v7* js_, v7_val_t* res_ );
 		friend v7_err (::micasa_v7_get_device)( struct v7* js_, v7_val_t* res_ );
 		friend v7_err (::micasa_v7_include)( struct v7* js_, v7_val_t* res_ );
+		friend v7_err (::micasa_v7_log)( struct v7* js_, v7_val_t* res_ );
 
 #ifdef _WITH_LIBUDEV
 		typedef std::function<void( const std::string& serialPort_, const std::string& action_ )> t_serialPortCallback;
@@ -86,8 +88,9 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 		std::vector<std::shared_ptr<Device> > getAllDevices() const;
+		bool isScheduled( std::shared_ptr<const Device> device_ ) const;
 
-		template<class D> void newEvent( const D& device_, const Device::UpdateSource& source_ );
+		template<class D> void newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ );
 
 #ifdef _WITH_LIBUDEV
 		void addSerialPortCallback( const std::string& name_, const t_serialPortCallback& callback_ );
@@ -111,13 +114,17 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 		
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ );
+		template<class D> bool _processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runTimers();
-		template<class D> bool _updateDeviceFromScript( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
-		bool _includeFromScript( const std::string& name_, std::string& script_ );
+		void _runLinks( std::shared_ptr<Device> device_ );
 		void _scheduleTask( const std::shared_ptr<Task> task_ );
 		void _clearTaskQueue( const std::shared_ptr<Device> device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;
+
+		template<class D> bool _js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
+		bool _js_include( const std::string& name_, std::string& script_ );
+		void _js_log( const std::string& log_ );
 		
 	}; // class Controller
 

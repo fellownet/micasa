@@ -49,50 +49,18 @@ export class AppComponent implements OnInit {
 			},
 			title: false,
 			credits: false,
-			rangeSelector: {
-				buttons: [ {
-					type: 'day',
-					count: 1,
-					text: '1d'
-				}, {
-					type: 'week',
-					count: 1,
-					text: '1w'
-				}, {
-					type: 'month',
-					count: 1,
-					text: '1m'
-				}, {
-					type: 'month',
-					count: 3,
-					text: '3m'
-				}, {
-					type: 'month',
-					count: 6,
-					text: '6m'
-				}, {
-					type: 'year',
-					count: 1,
-					text: '1y'
-				} ],
-				selected: 0,
-				inputEnabled: false
-			},
-			navigator: {
-				height: 75
-			},
-			scrollbar: {
-				enabled: false
-			},
 			legend: {
-				enabled: false
+				enabled: false,
+				itemStyle: {
+					fontWeight: 'normal'
+				}
 			},
 			chart: {
 				animation: {
 					duration: animationDuration
 				},
 				zoomType: 'x',
-				alignTicks: false,
+				alignTicks: true,
 				resetZoomButton: {
 					theme: {
 						display: 'none'
@@ -101,11 +69,9 @@ export class AppComponent implements OnInit {
 			},
 			xAxis: {
 				type: 'datetime',
-				ordinal: false
-			},
-			yAxis: {
-				startOnTick: false,
-				endOnTick: false
+				title: {
+					text: null
+				}
 			},
 			plotOptions: {
 				column: {
@@ -113,8 +79,8 @@ export class AppComponent implements OnInit {
 					animation: {
 						duration: animationDuration
 					},
-					pointPadding: 0.1, // space between bars when multiple series are used
-					groupPadding: 0 // space beween group of series bars
+					pointPadding: 0.05,
+					groupPadding: 0.1
 				},
 				spline: {
 					color: '#3c8dbc',

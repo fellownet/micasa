@@ -69,7 +69,8 @@ namespace micasa {
 		json setting = {
 			{ "name", "port" },
 			{ "label", "Port" },
-			{ "type", "string" }
+			{ "type", "string" },
+			{ "sort", 98 }
 		};
 
 #ifdef _WITH_LIBUDEV
@@ -99,7 +100,8 @@ namespace micasa {
 					{ "value", 115200 },
 					{ "label", "115200" }
 				}
-			} }
+			} },
+			{ "sort", 99 }
 		};
 
 		return result;

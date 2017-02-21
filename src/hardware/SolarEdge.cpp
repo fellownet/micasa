@@ -41,12 +41,16 @@ namespace micasa {
 		result += {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
-			{ "type", "string" }
+			{ "type", "string" },
+			{ "mandatory", true },
+			{ "sort", 98 }
 		};
 		result += {
 			{ "name", "site_id" },
 			{ "label", "Site ID" },
-			{ "type", "string" }
+			{ "type", "string" },
+			{ "mandatory", true },
+			{ "sort", 99 }
 		};
 		return result;
 	};

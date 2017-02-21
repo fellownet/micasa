@@ -13,14 +13,83 @@ namespace micasa {
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, std::string& result_ );
 	bool stringStartsWith( const std::string& haystack_, const std::string& search_ );
 	std::vector<std::string> stringSplit( const std::string& input_, const char delim_ );
+	std::string stringJoin( const std::vector<std::string>& input_, const std::string& glue_ );
 	std::string randomString( size_t length_ );
-	std::string extractStringFromJson( const nlohmann::json& json_ );
+	bool validateSettings( const nlohmann::json& input_, nlohmann::json& output_, const nlohmann::json& settings_, std::vector<std::string>* invalid_, std::vector<std::string>* missing_, std::vector<std::string>* errors_ );
 	const std::map<std::string, std::string> getSerialPorts();
 
-	bool generateKeys( std::string& public_, std::string& private_ );
-	std::string generateHash( const std::string& input_, const std::string& privateKey_ );
-	std::string encrypt( const std::string& input_, const std::string& privateKey_ );
-	std::string decrypt( const std::string& input_, const std::string& publicKey_ );
+	template<typename T> T jsonGet( const nlohmann::basic_json<>::value_type& input_ ) {
+		T value;
+		if ( input_.is_string() ) {
+			std::istringstream( input_.get<std::string>() ) >> std::fixed >> std::setprecision( 3 ) >> value;
+		} else if ( input_.is_number_float() ) {
+			std::istringstream( std::to_string( input_.get<double>() ) ) >> std::fixed >> std::setprecision( 3 ) >> value;
+		} else if ( input_.is_number() ) {
+			std::istringstream( std::to_string( input_.get<long>() ) ) >> value;
+		} else if ( input_.is_boolean() ) {
+			std::istringstream( input_.get<bool>() ? "1" : "0" ) >> value;
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+		return value;
+	};
+	template<typename T> T jsonGet( const nlohmann::json& input_, const std::string& key_ ) {
+		auto find = input_.find( key_ );
+		if ( find != input_.end() ) {
+			return jsonGet<T>( find.value() );
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+
+	template<> inline std::string jsonGet<std::string>( const nlohmann::basic_json<>::value_type& input_ ) {
+		if ( input_.is_string() ) {
+			return input_.get<std::string>();
+		} else if ( input_.is_number_float() ) {
+			return std::to_string( input_.get<double>() );
+		} else if ( input_.is_number() ) {
+			return std::to_string( input_.get<long>() );
+		} else if ( input_.is_boolean() ) {
+			return input_.get<bool>() ? "true" : "false";
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+	template<> inline std::string jsonGet<std::string>( const nlohmann::json& input_, const std::string& key_ ) {
+		auto find = input_.find( key_ );
+		if ( find != input_.end() ) {
+			return jsonGet<std::string>( find.value() );
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+
+	template<> inline bool jsonGet<bool>( const nlohmann::basic_json<>::value_type& input_ ) {
+		if ( input_.is_string() ) {
+			return ( input_.get<std::string>() == "1" || input_.get<std::string>() == "true" || input_.get<std::string>() == "yes" );
+		} else if ( input_.is_number_float() ) {
+			return input_.get<double>() > 0;
+		} else if ( input_.is_number() ) {
+			return input_.get<long>() > 0;
+		} else if ( input_.is_boolean() ) {
+			return input_.get<bool>();
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+	template<> inline bool jsonGet<bool>( const nlohmann::json& input_, const std::string& key_ ) {
+		auto find = input_.find( key_ );
+		if ( find != input_.end() ) {
+			return jsonGet<bool>( find.value() );
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+
+//	bool generateKeys( std::string& public_, std::string& private_ );
+//	std::string generateHash( const std::string& input_, const std::string& privateKey_ );
+//	std::string encrypt64( const std::string& input_, const std::string& privateKey_ );
+//	std::string decrypt64( const std::string& input_, const std::string& publicKey_ );
 
 #define ENUM_UTIL_BASE(E) \
 typedef std::underlying_type<E>::type E ## _t; \

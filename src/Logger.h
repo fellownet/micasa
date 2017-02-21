@@ -7,7 +7,7 @@
 
 #include "Utils.h"
 
-#define MAX_LOG_LINE_LENGTH 2048
+#define MAX_LOG_LINE_LENGTH 65536
 
 namespace micasa {
 
@@ -17,9 +17,10 @@ namespace micasa {
 		enum class LogLevel: int {
 			ERROR = -99,
 			WARNING = -98,
+			SCRIPT = -1,
 			NORMAL = 0,
 			VERBOSE,
-			DEBUG,
+			DEBUG = 99,
 		}; // enum class LogLevel
 		ENUM_UTIL( LogLevel );
 
@@ -27,6 +28,7 @@ namespace micasa {
 		~Logger() { };
 
 		void logr( const LogLevel logLevel_, std::string message_, ... ) const;
+		void log( const LogLevel logLevel_, std::string message_ ) const;
 		
 		// Unfortunately template based methods need to be implemented in the header file for it to accept *all*
 		// types of classes.

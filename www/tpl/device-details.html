@@ -25,16 +25,63 @@
 		<p>{{error}}</p>
 	</div>
 
-	<ng-container [ngSwitch]="device.type">
 
-	<ng-container *ngSwitchCase="'counter'">
+
+
+
+
+
+
+	<ng-container *ngIf="device.type == 'counter' || device.type == 'level'">
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
-					<h3 class="box-title">{{device.name}}</h3>
+					<h3 class="box-title">Day</h3>
 				</div>
-				<div class="box-body chart-box" id="counter_chart_target"></div>
+				<div class="box-body chart-box" id="day_chart_target"></div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-header with-border">
+					<h3 class="box-title">Week</h3>
+				</div>
+				<div class="box-body chart-box" id="week_chart_target"></div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-header with-border">
+					<h3 class="box-title">Month</h3>
+				</div>
+				<div class="box-body chart-box" id="month_chart_target"></div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-header with-border">
+					<h3 class="box-title">Year</h3>
+				</div>
+				<div class="box-body chart-box" id="year_chart_target"></div>
 
 				<div class="box-overlay" *ngIf="loading">
 					<i class="fa fa-spinner fa-pulse"></i>
@@ -44,24 +91,10 @@
 	</div>
 	</ng-container>
 
-	<ng-container *ngSwitchCase="'level'">
-	<div class="row">
-		<div class="col-xs-12">
-			<div class="box">
-				<div class="box-header with-border">
-					<h3 class="box-title">{{device.name}}</h3>
-				</div>
-				<div class="box-body chart-box" id="level_chart_target"></div>
 
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
-			</div>
-		</div>
-	</div>
-	</ng-container>
 
-	<ng-container *ngSwitchCase="'text'">
+
+	<ng-container *ngIf="device.type == 'text'">
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -98,7 +131,7 @@
 	</div>
 	</ng-container>
 
-	<ng-container *ngSwitchCase="'switch'">
+	<ng-container *ngIf="device.type == 'switch'">
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -140,8 +173,6 @@
 			</div>
 		</div>
 	</div>
-	</ng-container>
-
 	</ng-container>
 
 </section>
