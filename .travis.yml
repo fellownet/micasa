@@ -14,7 +14,7 @@ matrix:
 
     install:
     - if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
-    - curl -sL https://deb.nodesource.com/setup_5.x | sudo -E bash -
+    - curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
     - sudo apt-get install -y nodejs
 
     addons:
