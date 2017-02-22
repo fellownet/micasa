@@ -7,15 +7,14 @@ matrix:
 
     env:
     - TARGET_ARCHITECTURE=x86_64
-    - TRAVIS_NODE_VERSION="7"
+    - TRAVIS_NODE_VERSION="6"
 
     compiler:
     - gcc
 
     install:
     - if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
-    - curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
-    - sudo apt-get install -y nodejs
+    - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
     addons:
         apt:
@@ -33,7 +32,7 @@ matrix:
             - git
 
     script:
-    - cmake -DDEBUG=OFF . && make && cd www && npm install && npm build
+    - cmake -DDEBUG=OFF . && make && cd www && npm install
 
   # OSX
   - os: osx
@@ -41,7 +40,7 @@ matrix:
 
     env:
     - TARGET_ARCHITECTURE=x86_64
-    - TRAVIS_NODE_VERSION="7"
+    - TRAVIS_NODE_VERSION="6"
 
     compiler:
     - gcc
@@ -51,11 +50,11 @@ matrix:
       - brew install libusb-compat
       - brew install openssl
       - brew link openssl --force
-      - brew install node
       - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
+      - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
     script:
-    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make && cd www && npm install && npm build
+    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make && cd www && npm install
 
 before_deploy:
   - tar czf micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz micasa lib/open-zwave/config www/index.html www/css www/app
