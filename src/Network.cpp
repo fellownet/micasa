@@ -33,6 +33,8 @@ namespace micasa {
 	
 	extern std::shared_ptr<Logger> g_logger;
 	
+	using namespace nlohmann;
+
 	Network::Network() {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be created before global Network instance." );
@@ -114,7 +116,24 @@ namespace micasa {
 		} );
 		return connection;
 	};
-	
+
+	mg_connection* Network::connect( const std::string uri_, const Network::t_callback callback_, const json& body_ ) {
+		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Connecting to %s.", uri_.c_str() );
+		mg_connection* connection;
+		this->_synchronize( [&]() {
+			if ( uri_.substr( 0, 4 ) == "http" ) {
+				connection = mg_connect_http( &this->m_manager, micasa_mg_handler, uri_.c_str(), "Content-Type: application/json\r\n", body_.dump().c_str() );
+			} else {
+				throw std::runtime_error( "invalid protocol" );
+			}
+			if ( NULL != connection ) {
+				connection->user_data = this->_newHandler( callback_, false );
+			}
+		} );
+		return connection;
+	};
+
+
 	Network::t_handler* Network::_newHandler( const Network::t_callback callback_, const bool binding_ ) {
 		return new Network::t_handler( [this, callback_, binding_]( mg_connection* connection_, int event_, void* data_ ) {
 			// If the network is shutting down, all connections are force closed. To give all open connections the

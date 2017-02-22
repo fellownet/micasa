@@ -40,6 +40,7 @@ set( SRC
 	src/hardware/WeatherUnderground.cpp
 	src/hardware/HarmonyHub.cpp
 	src/hardware/Dummy.cpp
+	src/hardware/Telegram.cpp
 
 	# devices
 	src/device/Switch.cpp

@@ -17,7 +17,8 @@ namespace micasa {
 
 	const std::map<Text::SubType, std::string> Text::SubTypeText = {
 		{ Text::SubType::GENERIC, "generic" },
-		{ Text::SubType::WIND_DIRECTION, "wind_direction" }
+		{ Text::SubType::WIND_DIRECTION, "wind_direction" },
+		{ Text::SubType::NOTIFICATION, "notification" }
 	};
 
 	void Text::start() {
