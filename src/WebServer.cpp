@@ -1047,7 +1047,7 @@ namespace micasa {
 					json compatibleDevices = json::array();
 					for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 						auto updateSources = (*devicesIt)->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES );
-						bool readOnly = ( Device::resolveUpdateSource( updateSources & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) == 0 );
+						bool readOnly = ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) == 0 );
 						if (
 							(
 								(*devicesIt)->getType() == device->getType()

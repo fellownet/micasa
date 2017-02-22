@@ -154,8 +154,8 @@ namespace micasa {
 			this->getId()
 		);
 
-		auto updateSources = this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES );
-		result["readonly"] = ( Device::resolveUpdateSource( updateSources & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) == 0 );
+		auto updateSources = this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::ANY );
+		result["readonly"] = ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) == 0 );
 
 		return result;
 	};

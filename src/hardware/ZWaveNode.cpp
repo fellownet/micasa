@@ -537,27 +537,6 @@ namespace micasa {
 						}
 					} ).detach();
 
-
-/*
-						! wasPendingUpdate
-						// vv update is different than current value
-						&& device->getValueOption() != targetValue
-						// vv update comes from hardware, not from a client source
-						&& Device::resolveUpdateSource( source_ & ( ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API | Device::UpdateSource::LINK ) ) ) == 0
-						&& device->getSettings()->get<bool>( "prevent_race_conditions", false )
-						&& this->_releasePendingUpdate( reference + "_race", source_ )
-*/
-
-//					std::thread( [=]{
-//						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-//							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-//							if ( this->_queuePendingUpdate( device->getReference(), source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-//								Manager::Get()->SetValue( valueId_, ( Switch::resolveOption( data ) == Switch::Option::ON ) ? true : false );
-//								g_logger->log( Logger::LogLevel::WARNING, this, "Preventing race condition." );
-//							}
-//						}
-//					} ).detach();
-
 				} else {
 					
 					// If the prevent race conditions setting is active a special race condition pending update is set
