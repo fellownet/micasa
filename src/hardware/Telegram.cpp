@@ -111,6 +111,8 @@ namespace micasa {
 	bool Telegram::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		if ( this->getState() == Hardware::State::READY ) {
 			if ( device_->getType() == Device::Type::SWITCH ) {
+
+				// This part takes care of temprarely enabling the accept new chats mode.
 				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 				if (
 					device->getReference() == "accept"
@@ -132,38 +134,56 @@ namespace micasa {
 				}
 
 			} else if ( device_->getType() == Device::Type::TEXT ) {
-				std::shared_ptr<Text> device = std::static_pointer_cast<Text>( device_ );
 
-				std::stringstream url;
-				url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
-
-				json params = {
-					{ "chat_id", std::stoi( device->getReference() ) },
-					{ "text", device->getValue() },
-					{ "parse_mode", "Markdown" }
-				};
-				g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-					if ( event_ == MG_EV_HTTP_REPLY ) {
-
-						// See if a valid response was received from the Telegram API.
-						std::string body;
-						body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-						try {
-							json data = json::parse( body );
-							bool success = data["ok"].get<bool>();
-							if ( ! success ) {
-								throw std::runtime_error( "Telegram API reported a failure" );
-							}
-						} catch( std::invalid_argument ex_ ) {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
-						} catch( std::runtime_error ex_ ) {
-							g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
+				// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
+				// to all chat devices.
+				std::vector<std::shared_ptr<Device> > devices;
+				if ( device_->getReference() == "broadcast" ) {
+					auto allDevices = this->getAllDevices();
+					for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
+						if (
+							(*deviceIt)->getType() == Device::Type::TEXT
+							&& (*deviceIt)->getReference() != "broadcast"
+						) {
+							devices.push_back( *deviceIt );							
 						}
-
-						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 					}
-				} ), params );
+				} else {
+					devices.push_back( device_ );
+				}
+				for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
+					std::shared_ptr<Text> device = std::static_pointer_cast<Text>( *deviceIt );
+					
+					std::stringstream url;
+					url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
 
+					json params = {
+						{ "chat_id", std::stoi( device->getReference() ) },
+						{ "text", std::static_pointer_cast<Text>( device_ )->getValue() },
+						{ "parse_mode", "Markdown" }
+					};
+					g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+						if ( event_ == MG_EV_HTTP_REPLY ) {
+
+							// See if a valid response was received from the Telegram API.
+							std::string body;
+							body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+							try {
+								json data = json::parse( body );
+								bool success = data["ok"].get<bool>();
+								if ( ! success ) {
+									throw std::runtime_error( "Telegram API reported a failure" );
+								}
+							} catch( std::invalid_argument ex_ ) {
+								g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
+							} catch( std::runtime_error ex_ ) {
+								g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
+							}
+
+							connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+						}
+					} ), params );
+				}
 				return true;
 			}
 		}
