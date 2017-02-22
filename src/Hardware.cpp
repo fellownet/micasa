@@ -28,6 +28,7 @@
 #include "hardware/SolarEdge.h"
 #include "hardware/SolarEdgeInverter.h"
 #include "hardware/Dummy.h"
+#include "hardware/Telegram.h"
 
 namespace micasa {
 
@@ -49,7 +50,8 @@ namespace micasa {
 		{ Hardware::Type::SOLAREDGE, "solaredge" },
 		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
 		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" },
-		{ Hardware::Type::DUMMY, "dummy" }
+		{ Hardware::Type::DUMMY, "dummy" },
+		{ Hardware::Type::TELEGRAM, "telegram" }
 	};
 
 	const std::map<Hardware::State, std::string> Hardware::StateText = {
@@ -112,6 +114,9 @@ namespace micasa {
 				break;
 			case Type::DUMMY:
 				return std::make_shared<Dummy>( id_, type_, reference_, parent_ );
+				break;
+			case Type::TELEGRAM:
+				return std::make_shared<Telegram>( id_, type_, reference_, parent_ );
 				break;
 		}
 		return nullptr;

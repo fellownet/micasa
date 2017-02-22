@@ -34,6 +34,7 @@
 #include "hardware/WeatherUnderground.h"
 #include "hardware/RFXCom.h"
 #include "hardware/P1Meter.h"
+#include "hardware/Telegram.h"
 
 #include "json.hpp"
 
@@ -159,7 +160,7 @@ namespace micasa {
 			fclose( f );
 		}
 
-		g_network->bind( "8081", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		g_network->bind( "8082", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REQUEST ) {
 				this->_processHttpRequest( connection_, (http_message*)data_ );
 			}
@@ -578,6 +579,10 @@ namespace micasa {
 								{
 									{ "value", "p1meter" },
 									{ "label", P1Meter::label }
+								},
+								{
+									{ "value", "telegram" },
+									{ "label", Telegram::label }
 								}
 							} },
 							{ "sort", 2 }

@@ -43,6 +43,7 @@ namespace micasa {
 		mg_connection* bind( const std::string port_, const t_callback callback_ );
 		mg_connection* bind( const std::string port_, const std::string cert_, const std::string key_, const t_callback callback_ );
 		mg_connection* connect( const std::string uri_, const t_callback callback_ );
+		mg_connection* connect( const std::string uri_, const Network::t_callback callback_, const nlohmann::json& body_ );
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ );

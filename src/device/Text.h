@@ -9,7 +9,8 @@ namespace micasa {
 	public:
 		enum class SubType: unsigned short {
 			GENERIC = 1,
-			WIND_DIRECTION
+			WIND_DIRECTION,
+			NOTIFICATION
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
 		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
