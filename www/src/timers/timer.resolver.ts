@@ -30,7 +30,7 @@ export class TimerResolver implements Resolve<Timer> {
 				return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, scripts: [] } );
 			}
 		} else {
-			return this._timersService.getTimer( +route_.params['timer_id'], route_.params['device_id'] )
+			return me._timersService.getTimer( +route_.params['timer_id'], route_.params['device_id'] )
 				.catch( function( error_: string ) {
 					me._router.navigate( [ '/login' ] );
 					return Observable.of( null );

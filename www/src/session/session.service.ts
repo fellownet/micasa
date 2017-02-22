@@ -53,11 +53,9 @@ export class SessionService {
 	) {
 		var me = this;
 
-		let sessionJson: string;
-		if ( 'session' in localStorage ) {
-			sessionJson = localStorage['session'];
-		} else if ( 'session' in sessionStorage ) {
-			sessionJson = sessionStorage['session'];
+		let sessionJson: string = localStorage.getItem( 'session' );
+		if ( ! sessionJson ) {
+			sessionJson = sessionStorage.getItem( 'session' );
 		}
 		if ( sessionJson ) {
 			try {
@@ -112,7 +110,7 @@ export class SessionService {
 				session_.remember = credentials_.remember;
 
 				let storage: Storage = session_.remember ? localStorage : sessionStorage;
-				storage['session'] = JSON.stringify( session_ );
+				storage.setItem( 'session', JSON.stringify( session_ ) );
 
 				me._forcedAuthToken = session_.token;
 				return me._preload()
@@ -140,7 +138,7 @@ export class SessionService {
 				session_.remember = ( me.get() as Session ).remember;
 
 				let storage: Storage = session_.remember ? localStorage : sessionStorage;
-				storage['session'] = JSON.stringify( session_ );
+				storage.setItem( 'session', JSON.stringify( session_ ) );
 
 				me._session.next( session_ );
 				return true;
@@ -155,8 +153,8 @@ export class SessionService {
 	public logout(): void {
 		this._session.next( false );
 		this._states = {};
-		delete( localStorage['session'] );
-		delete( sessionStorage['session'] );
+		localStorage.clear();
+		sessionStorage.clear();
 	};
 
 	public http<T>( action_: string, resource_: string, params_?: any ): Observable<T> {

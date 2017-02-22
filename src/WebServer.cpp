@@ -27,7 +27,18 @@
 #include "Settings.h"
 #include "User.h"
 
+#include "hardware/Dummy.h"
+#include "hardware/HarmonyHub.h"
+#include "hardware/ZWave.h"
+#include "hardware/SolarEdge.h"
+#include "hardware/WeatherUnderground.h"
+#include "hardware/RFXCom.h"
+#include "hardware/P1Meter.h"
+
 #include "json.hpp"
+
+#define KEY_FILE "./var/key.pem"
+#define CERT_FILE "./var/cert.pem"
 
 namespace micasa {
 
@@ -68,40 +79,98 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
-		g_network->bind( "8081", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		// Micasa only runs over HTTPS which requires a keys and certificate file. These are read and/or stored in the
+		// userdata folder. Webtokens / authentication is also encrypted using the same keys.
+		// http://stackoverflow.com/questions/256405/programmatically-create-x509-certificate-using-openssl
+
+		if (
+			access( KEY_FILE, F_OK ) != 0 
+			|| access( CERT_FILE, F_OK ) != 0
+		) {
+			g_logger->log( Logger::LogLevel::NORMAL, this, "Generating SSL key and certificate." );
+
+			this->m_key = EVP_PKEY_new();
+			RSA* rsa = RSA_generate_key(
+				2048,   // number of bits for the key
+				RSA_F4, // exponent
+				NULL,   // callback - can be NULL if we aren't displaying progress
+				NULL    // callback argument - not needed in this case
+			);
+			if ( ! rsa ) {
+				throw std::runtime_error( "unable to generate 2048-bit RSA key" );
+			}
+			EVP_PKEY_assign_RSA( this->m_key, rsa ); // now rsa will be free'd alongside m_key
+
+			this->m_certificate = X509_new();
+			ASN1_INTEGER_set( X509_get_serialNumber( this->m_certificate ), 1 ); // some webservers reject serial number 0
+			X509_gmtime_adj( X509_get_notBefore( this->m_certificate ), 0 ); // not usable before 'now'
+			X509_gmtime_adj( X509_get_notAfter( this->m_certificate ), (long)( 60 * 60 * 24 * 365 ) ); // not usable after xx days
+			X509_set_pubkey( this->m_certificate, this->m_key );
+
+			X509_NAME* name = X509_get_subject_name( this->m_certificate );
+			X509_NAME_add_entry_by_txt( name, "C", MBSTRING_ASC, (unsigned char*)"NL", -1, -1, 0 );
+			X509_NAME_add_entry_by_txt( name, "CN", MBSTRING_ASC, (unsigned char*)"Micasa", -1, -1, 0 );
+			X509_NAME_add_entry_by_txt( name, "O", MBSTRING_ASC, (unsigned char*)"Fellownet", -1, -1, 0 );
+			X509_set_issuer_name( this->m_certificate, name );
+
+			// Self-sign the certificate with the private key (NOTE: when using real certificates, a CA should sign the
+			// certificate). So the certificate contains the public key and is signed with the private key. This makes
+			// sense for self-signed certificates.
+			X509_sign( this->m_certificate, this->m_key, EVP_sha1() );
+
+			// The private key and the certificate are written to disk in PEM format.
+			FILE* f = fopen( KEY_FILE, "wb");
+			PEM_write_PrivateKey(
+				f,            // write the key to the file we've opened
+				this->m_key,  // our key from earlier
+				NULL,         // default cipher for encrypting the key on disk (EVP_des_ede3_cbc())
+				NULL,         // passphrase required for decrypting the key on disk ("replace_me")
+				0,            // length of the passphrase string (10)
+				NULL,         // callback for requesting a password
+				NULL          // data to pass to the callback
+			);
+			fclose( f );
+
+			f = fopen( CERT_FILE, "wb" );
+			PEM_write_X509(
+				f,                  // write the certificate to the file we've opened
+				this->m_certificate // our certificate
+			);
+			fclose( f );
+
+		} else {
+
+			g_logger->log( Logger::LogLevel::NORMAL, this, "Reading SSL key and certificate." );
+
+			// The certificate contains the public key we need to encrypt data. The private key is read from the key
+			// file and is also assigned to the EVP object.
+			FILE* f = fopen( CERT_FILE, "r" );
+			this->m_certificate = PEM_read_X509( f, NULL, NULL, NULL );
+			if ( ! this->m_certificate ) {
+				throw std::runtime_error( "unable to read certificate file" );
+			}
+			fclose( f );
+
+			f = fopen( KEY_FILE, "r" );
+			this->m_key = PEM_read_PrivateKey( f, NULL, NULL, NULL );
+			if ( ! this->m_key ) {
+				throw std::runtime_error( "unable to read key file" );
+			}
+			fclose( f );
+		}
+
+		g_network->bind( "8081", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REQUEST ) {
 				this->_processHttpRequest( connection_, (http_message*)data_ );
 			}
 		} ) );
-
-		// RESTful is supposed to be stateless :) so the acls of the user are encrypted and send to the client.
-		// We need a public/private key pair for that.
-		if (
-			g_settings->get( "public_key", "" ).empty()
-			|| g_settings->get( "private_key", "" ).empty()
-		) {
-			std::string publicKey;
-			std::string privateKey;
-			if ( generateKeys( publicKey, privateKey ) ) {
-				this->m_publicKey = publicKey;
-				this->m_privateKey = privateKey;
-
-				g_settings->put( "public_key", publicKey );
-				g_settings->put( "private_key", privateKey );
-				g_settings->commit();
-
-				g_logger->log( Logger::LogLevel::NORMAL, this, "New ssl keys generated." );
-			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Error while generating ssl keys." );
-			}
-		}
 
 		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
 			g_database->putQuery(
 				"INSERT INTO `users` (`name`, `username`, `password`, `rights`) "
 				"VALUES ( 'Administrator', 'admin', '%s', %d )",
-				generateHash( "admin", this->m_privateKey ).c_str(),
+				this->_hash( "admin" ).c_str(),
 				User::resolveRights( User::Rights::ADMIN )
 			);
 			g_logger->log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
@@ -123,6 +192,9 @@ namespace micasa {
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
+		EVP_PKEY_free( this->m_key );
+		X509_free( this->m_certificate );
+
 		{
 			std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 			this->m_resources.clear();
@@ -131,7 +203,96 @@ namespace micasa {
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
+
+	std::string WebServer::_encrypt64( const std::string& data_ ) const {
+#ifdef _DEBUG
+		// The maximum length of the data to be encrypted depends on the key length of the RSA key. If more data needs
+		// to be encrypted, AES-like solutions should be implemented.
+		assert( data_.size() < 245 && "Maximum length of string to encrypt using RSA is ~245 bytes." );
+#endif // _DEBUG
+
+		EVP_PKEY* key = X509_get_pubkey( this->m_certificate );
+		if ( ! key ) {
+			throw std::runtime_error( "unable to extract public key from certificate" );
+		}
+		int size = EVP_PKEY_size( key );
+		char encrypted[size];
+		if ( ! RSA_public_encrypt( data_.size(), (unsigned char*)data_.c_str(), (unsigned char*)encrypted, EVP_PKEY_get1_RSA( key ), RSA_PKCS1_PADDING ) ) {
+			throw std::runtime_error( "unable to encrypt string" );
+		}
+		EVP_PKEY_free( key );
+
+		// Then the data is base64 encoded.
+		BIO *buff, *b64f;
+		b64f = BIO_new( BIO_f_base64() );
+		buff = BIO_new( BIO_s_mem() );
+		buff = BIO_push( b64f, buff );
+
+		BIO_set_flags(buff, BIO_FLAGS_BASE64_NO_NL);
+		if ( ! BIO_set_close( buff, BIO_CLOSE ) ) {
+			throw std::runtime_error( "bio set close failure" );
+		}
+		BIO_write(buff, encrypted, size );
+		if ( ! BIO_flush( buff ) ) {
+			throw std::runtime_error( "bio flush failure" );
+		}
+
+		BUF_MEM *ptr;
+		BIO_get_mem_ptr( buff, &ptr );
+		std::string result;
+		result.assign( ptr->data, ptr->length );
+
+		BIO_free_all( buff );
+
+		return result;
+	};
 	
+	std::string WebServer::_decrypt64( const std::string& data_ ) const {
+
+		// First the data is base64 decoded.
+		char decoded[data_.size()];
+		BIO *buff, *b64f;
+		b64f = BIO_new( BIO_f_base64() );
+		buff = BIO_new_mem_buf( (void *)data_.c_str(), data_.size() );
+		buff = BIO_push( b64f, buff );
+		
+		BIO_set_flags( buff, BIO_FLAGS_BASE64_NO_NL );
+		if ( ! BIO_set_close( buff, BIO_CLOSE ) ) {
+			throw std::runtime_error( "bio set close failure" );
+		}
+		int size1 = BIO_read( buff, decoded, data_.size() );
+		BIO_free_all( buff );
+
+		// Then the data is decrypted.
+		int size2 = EVP_PKEY_size( this->m_key );
+		char decrypted[size2];
+		size2 = RSA_private_decrypt( size1, (unsigned char*)decoded, (unsigned char*)decrypted, EVP_PKEY_get1_RSA( this->m_key ), RSA_PKCS1_PADDING );
+		if ( ! size2 ) {
+			throw std::runtime_error( "rsa decrypt failure" );
+		}
+		std::string result( decrypted, size2 );
+		return result;
+	};
+
+	std::string WebServer::_hash( const std::string& data_ ) const {
+		SHA256_CTX context;
+		if ( ! SHA256_Init( &context ) ) {
+			throw std::runtime_error( "sha256 init failure" );
+		}
+		unsigned char hash[SHA256_DIGEST_LENGTH];
+		if (
+			! SHA256_Update( &context, data_.c_str(), data_.size() )
+			|| ! SHA256_Final( hash, &context )
+		) {
+			throw std::runtime_error( "sha256 failure" );
+		}
+		std::stringstream ss;
+		for ( int i = 0; i < SHA256_DIGEST_LENGTH; i++ ) {
+			ss << std::hex << std::setw( 2 ) << std::setfill( '0' ) << (int)hash[i];
+		}
+		return ss.str();
+	};
+
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 
 		// Determine wether or not the request is an API request or a request for static files. Static files
@@ -244,7 +405,7 @@ namespace micasa {
 			std::shared_ptr<User> user = nullptr;
 			if ( headers.find( "Authorization" ) != headers.end() ) {
 				try {
-					json token = json::parse( decrypt( headers["Authorization"], this->m_publicKey ) );
+					json token = json::parse( this->_decrypt64( headers["Authorization"] ) );
 					unsigned int userId = token["user_id"].get<unsigned int>();
 					auto userData = g_database->getQueryRow(
 						"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
@@ -268,7 +429,7 @@ namespace micasa {
 						"AND `password`='%s' "
 						"AND `enabled`=1",
 						input["username"].get<std::string>().c_str(),
-						generateHash( input["password"].get<std::string>(), this->m_privateKey ).c_str()
+						this->_hash( input["password"].get<std::string>() ).c_str()
 					);
 					user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
 				} catch( ... ) { }
@@ -325,6 +486,12 @@ namespace micasa {
 				output["code"] = exception_.code;
 				output["error"] = exception_.error;
 				output["message"] = exception_.message;
+			} catch( std::exception& exception_ ) {
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+				g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
 			} catch( ... ) {
 				output["result"] = "ERROR";
 				output["code"] = 500;
@@ -360,19 +527,86 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/hardware(/([0-9]+))?$",
+			"^api/hardware(/([0-9]+|settings))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
 					return;
 				}
 
+				auto fGetSettings = []( std::shared_ptr<Hardware> hardware_ = nullptr ) {
+					if ( hardware_ == nullptr ) {
+						json settings = json::array();
+						settings += {
+							{ "name", "name" },
+							{ "label", "Name" },
+							{ "type", "string" },
+							{ "maxlength", 64 },
+							{ "minlength", 3 },
+							{ "mandatory", true },
+							{ "sort", 1 }
+						};
+						settings += {
+							{ "name", "type" },
+							{ "label", "Type" },
+							{ "type", "list" },
+							{ "options", {
+								{
+									{ "value", "dummy" },
+									{ "label", Dummy::label }
+								},
+								{
+									{ "value", "harmony_hub" },
+									{ "label", HarmonyHub::label }
+								},
+								{
+									{ "value", "zwave" },
+									{ "label", ZWave::label }
+								},
+								{
+									{ "value", "solaredge" },
+									{ "label", SolarEdge::label }
+								},
+								{
+									{ "value", "weather_underground" },
+									{ "label", WeatherUnderground::label }
+								},
+								{
+									{ "value", "rfxcom" },
+									{ "label", RFXCom::label }
+								},
+								{
+									{ "value", "p1meter" },
+									{ "label", P1Meter::label }
+								}
+							} },
+							{ "sort", 2 }
+						};
+						return settings;
+					} else {
+						return hardware_->getSettingsJson();
+					}
+				};
+
 				std::shared_ptr<Hardware> hardware = nullptr;
 				int hardwareId = -1;
 				auto find = input_.find( "$2" ); // inner uri regexp match
 				if ( find != input_.end() ) {
-					hardwareId = std::stoi( (*find).get<std::string>() );
-					if ( nullptr == ( hardware = g_controller->getHardwareById( hardwareId ) ) ) {
+					try {
+						if (
+							"settings" == (*find).get<std::string>()
+							&& method_ == WebServer::Method::GET
+						) {
+							output_["data"] = fGetSettings( nullptr );
+							output_["code"] = 200;
+							return;
+						} else {
+							hardwareId = std::stoi( (*find).get<std::string>() );
+							if ( nullptr == ( hardware = g_controller->getHardwareById( hardwareId ) ) ) {
+								return;
+							}
+						}
+					} catch( ... ) {
 						return;
 					}
 				}
@@ -385,21 +619,14 @@ namespace micasa {
 						} else {
 							output_["data"] = json::array();
 
-							// If a hardware_id property was provided, only children belonging to that hardware are
-							// being added to the list.
 							std::shared_ptr<Hardware> parent = nullptr;
-							auto find = input_.find( "hardware_id" );
-							if ( find != input_.end() ) {
-								if ( (*find).is_number() ) {
-									parent = g_controller->getHardwareById( (*find).get<unsigned int>() );
-								} else if ( (*find).is_string() ) {
-									parent = g_controller->getHardwareById( std::stoi( (*find).get<std::string>() ) );
-								}
+							try {
+								parent = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
 								if ( parent == nullptr ) {
 									throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
 								}
-							}
-							
+							} catch( std::runtime_error exception_ ) { /* ignore */ }
+
 							auto hardwareList = g_controller->getAllHardware();
 							for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
 								if ( (*hardwareIt)->getParent() == parent ) {
@@ -425,48 +652,39 @@ namespace micasa {
 							method_ == WebServer::Method::POST
 							&& hardwareId != -1
 						) {
-							break; // POST is only allowed for creating new hardware
+							break;
 						} else if (
 							method_ == WebServer::Method::PUT
 							&& hardwareId == -1
 						) {
-							break; // PUT is only allowed for updating existing hardware
+							break;
+						}
+
+						std::vector<std::string> invalid;
+						std::vector<std::string> missing;
+						json hardwareData = json::object();
+						validateSettings( input_, hardwareData, fGetSettings( hardware ), &invalid, &missing, NULL );
+						if ( invalid.size() > 0 ) {
+							throw WebServer::ResourceException( 400, "Hardware.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+						} else if ( missing.size() > 0 ) {
+							throw WebServer::ResourceException( 400, "Hardware.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
 						}
 
 						if ( hardwareId == -1 ) {
-							auto find = input_.find( "type" );
-							if ( find != input_.end() ) {
-								if ( (*find).is_string() ) {
-									try {
-										Hardware::Type type = Hardware::resolveType( (*find).get<std::string>() );
-										std::string reference = randomString( 16 );
-										hardware = g_controller->declareHardware( type, reference, { } );
-										hardwareId = hardware->getId();
-										output_["code"] = 201; // Created
-									} catch( std::invalid_argument ) {
-										throw WebServer::ResourceException( 400, "Hardware.Invalid.Type", "The supplied type is invalid." );
-									}
-								} else {
-									throw WebServer::ResourceException( 400, "Hardware.Invalid.Type", "The supplied type is invalid." );
-								}
-							} else {
-								throw WebServer::ResourceException( 400, "Hardware.Missing.Type", "Missing type." );
-							}
-						}
+							Hardware::Type type = Hardware::resolveType( hardwareData["type"].get<std::string>() );
+							std::string reference = randomString( 16 );
+							hardware = g_controller->declareHardware( type, reference, { } );
+							hardwareId = hardware->getId();
+							output_["code"] = 201; // Created
+						} else {
 
-						// The enabled property can be used to enable or disable the hardware. For now this is only
-						// possible on parent/main hardware, no children.
-						bool enabled = hardware->isRunning();
-						if ( hardware->getParent() == nullptr ) {
-							find = input_.find( "enabled");
-							if ( find != input_.end() ) {
-								if ( (*find).is_boolean() ) {
-									enabled = (*find).get<bool>();
-								} else if ( (*find).is_number() ) {
-									enabled = (*find).get<unsigned int>() > 0;
-								} else if ( (*find).is_string() ) {
-									enabled = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
-								}
+							// The enabled property can be used to enable or disable the hardware. For now this is only
+							// possible on parent/main hardware, no children.
+							bool enabled = hardware->isRunning();
+							if ( hardware->getParent() == nullptr ) {
+								enabled = jsonGet<bool>( hardwareData, "enabled" );
+								hardwareData.erase( "enabled" );
+
 								g_database->putQuery(
 									"UPDATE `hardware` "
 									"SET `enabled`=%d "
@@ -477,56 +695,50 @@ namespace micasa {
 									hardware->getId()
 								);
 							}
-						}
 
-						// Then all provided settings are verified and stored in the hardware object of the device.
-						std::string error;
-						if ( ! hardware->getSettings()->verifiedPut( hardware->getSettingsJson(), input_, error ) ) {
-							throw WebServer::ResourceException( 400, "Hardware.Invalid.Settings", error );
-						}
-						bool restart = false;
-						if ( hardware->getSettings()->isDirty() ) {
-							hardware->getSettings()->commit();
-							restart = true;
-						}
+							hardware->putSettingsJson( hardwareData );
+							hardware->getSettings()->put( hardwareData );
+							bool restart = false;
+							if ( hardware->getSettings()->isDirty() ) {
+								hardware->getSettings()->commit();
+								restart = true;
+							}
 
-						// Start or stop hardware. All children of the hardware are also started or stopped. This
-						// is done in a separate thread to allow the client to return immediately.
-						std::thread( [hardware,enabled,restart]{
-							auto hardwareList = g_controller->getAllHardware();
-							if (
-								! enabled
-								|| restart
-							) {
-								if ( hardware->isRunning() ) {
-									hardware->stop();
-								}
-								for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
-									if (
-										(*hardwareIt)->getParent() == hardware
-										&& (*hardwareIt)->isRunning()
-									) {
-										(*hardwareIt)->stop();
+							std::thread( [hardware,enabled,restart]{
+								auto hardwareList = g_controller->getAllHardware();
+								if (
+									! enabled
+									|| restart
+								) {
+									if ( hardware->isRunning() ) {
+										hardware->stop();
+									}
+									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
+										if (
+											(*hardwareIt)->getParent() == hardware
+											&& (*hardwareIt)->isRunning()
+										) {
+											(*hardwareIt)->stop();
+										}
 									}
 								}
-							}
-							if ( enabled ) {
-								if ( ! hardware->isRunning() ) {
-									hardware->start();
-								}
-								for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
-									if (
-										(*hardwareIt)->getParent() == hardware
-										&& ! (*hardwareIt)->isRunning()
-									) {
-										(*hardwareIt)->start();
+								if ( enabled ) {
+									if ( ! hardware->isRunning() ) {
+										hardware->start();
+									}
+									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
+										if (
+											(*hardwareIt)->getParent() == hardware
+											&& ! (*hardwareIt)->isRunning()
+										) {
+											(*hardwareIt)->start();
+										}
 									}
 								}
-							}
-						} ).detach();
-						
-						output_["data"] = hardware->getJson( true );
-						output_["code"] = 200;
+							} ).detach();
+
+							output_["code"] = 200;
+						}
 						break;
 					}
 
@@ -535,7 +747,6 @@ namespace micasa {
 			} )
 		) );
 	};
-
 
 	void WebServer::_installDeviceResourceHandler() {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
@@ -572,85 +783,57 @@ namespace micasa {
 									"ORDER BY s.`id` ASC",
 									device->getId()
 								);
+								output_["data"]["links"] = g_database->getQueryColumn<unsigned int>(
+									"SELECT DISTINCT CASE WHEN l.`device_id`=%d THEN l.`target_device_id` ELSE l.`device_id` END "
+									"FROM `links` l "
+									"WHERE l.`device_id`=%d "
+									"OR l.`target_device_id`=%d ",
+									device->getId(),
+									device->getId(),
+									device->getId()
+								);
 							}
 						} else {
 							output_["data"] = json::array();
 
-							// If a hardware_id property was provided, only children belonging to that hardware are
-							// being added to the list.
+							// The list of devices can be filtered using various filters. Non-installers have a
+							// mandatory filter on enabled.
 							std::shared_ptr<Hardware> hardware = nullptr;
-							auto find = input_.find( "hardware_id" );
-							if (
-								find != input_.end()
-								&& user_->getRights() >= User::Rights::INSTALLER
-							) {
-								if ( (*find).is_number() ) {
-									hardware = g_controller->getHardwareById( (*find).get<unsigned int>() );
-								} else if ( (*find).is_string() ) {
-									hardware = g_controller->getHardwareById( std::stoi( (*find).get<std::string>() ) );
-								}
-								if ( hardware == nullptr ) {
-									throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
-								}
-							}
-
 							bool deviceIdsFilter = false;
 							std::vector<std::string> deviceIds;
-							
-							// If a script_id was provided it needs to be translated to a list of device ids we can filter on.
-							find = input_.find( "script_id" );
-							if (
-								find != input_.end()
-								&& user_->getRights() >= User::Rights::INSTALLER
-							) {
-								deviceIdsFilter = true;
-								unsigned int scriptId = 0;
-								if ( (*find).is_number() ) {
-									scriptId = (*find).get<unsigned int>();
-								} else if ( (*find).is_string() ) {
-									scriptId = std::stoi( (*find).get<std::string>() );
-								}
-								if ( scriptId > 0 ) {
+							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER );
+							bool enabled = true;
+
+							if ( user_->getRights() >= User::Rights::INSTALLER ) {
+								try {
+									hardware = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
+									if ( hardware == nullptr ) {
+										throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
+									}
+								} catch( std::runtime_error exception_ ) { /* ignore */ }
+
+								try {
 									deviceIds = g_database->getQueryColumn<std::string>(
 										"SELECT DISTINCT `device_id` "
 										"FROM `x_device_scripts` "
 										"WHERE `script_id`=%d "
 										"ORDER BY `device_id` ASC",
-										scriptId
+										jsonGet<unsigned int>( input_, "script_id" )
 									);
-								}
+									deviceIdsFilter = true;
+								} catch( std::runtime_error exception_ ) { /* ignore */ }
+
+								try {
+									enabled = jsonGet<bool>( input_, "enabled" );
+									enabledFilter = true;
+								} catch( std::runtime_error exception_ ) { /* ignore */ }
 							}
-							
-							// A client can also request a specific list of devices by supplying a device_ids property.
-							find = input_.find( "device_ids" );
-							if ( find != input_.end() ) {
+
+							try {
+								auto additionalDeviceIds = stringSplit( jsonGet<std::string>( input_, "device_ids" ), ',' );
+								deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
 								deviceIdsFilter = true;
-								if ( (*find).is_string() ) {
-									auto additionalDeviceIds = stringSplit( (*find).get<std::string>(), ',' );
-									deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
-								} else {
-									throw WebServer::ResourceException( 400, "Device.Invalid.DeviceIds", "The supplied device_ids parameter is invalid." );
-								}
-							}
-							
-							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER ); // filter on enabled for non installers
-							bool enabled = true;
-							find = input_.find( "enabled" );
-							if (
-								find != input_.end()
-								&& user_->getRights() >= User::Rights::INSTALLER
-							) {
-								enabledFilter = true;
-								if ( (*find).is_boolean() ) {
-									enabled = (*find).get<bool>();
-								} else if ( (*find).is_number() ) {
-									enabled = (*find).get<unsigned int>() > 0;
-								} else if ( (*find).is_string() ) {
-									enabled = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
-								} else {
-									throw WebServer::ResourceException( 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." );
-								}
-							}
+							} catch( std::runtime_error exception_ ) { /* ignore */ }
 							
 							auto devices = g_controller->getAllDevices();
 							for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
@@ -696,40 +879,53 @@ namespace micasa {
 							&& deviceId != -1
 						) {
 
-							// Process the enabled flag first. It needs to be removed from the input afterwards because it
-							// is also present in the configuration but doesn't need to go into the settings table.
-							find = input_.find( "enabled");
-							if ( find != input_.end() ) {
-								bool enabled = true;
-								if ( (*find).is_boolean() ) {
-									enabled = (*find).get<bool>();
-								} else if ( (*find).is_number() ) {
-									enabled = (*find).get<unsigned int>() > 0;
-								} else if ( (*find).is_string() ) {
-									enabled = ( (*find).get<std::string>() == "1" || (*find).get<std::string>() == "true" || (*find).get<std::string>() == "yes" );
-								} else {
-									throw WebServer::ResourceException( 400, "Device.Invalid.Enabled", "The supplied enabled parameter is invalid." );
+							std::vector<std::string> invalid;
+							std::vector<std::string> missing;
+							json deviceData = json::object();
+							validateSettings( input_, deviceData, device->getSettingsJson(), &invalid, &missing, NULL );
+							if ( invalid.size() > 0 ) {
+								throw WebServer::ResourceException( 400, "Device.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+							} else if ( missing.size() > 0 ) {
+								throw WebServer::ResourceException( 400, "Device.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
+							}
+
+							bool enabled = jsonGet<bool>( deviceData, "enabled" );
+							deviceData.erase( "enabled" );
+
+							g_database->putQuery(
+								"UPDATE `devices` "
+								"SET `enabled`=%d "
+								"WHERE `id`=%d",
+								enabled ? 1 : 0,
+								device->getId()
+							);
+
+							device->putSettingsJson( deviceData );
+							device->getSettings()->put( deviceData );
+							bool restart = false;
+							if ( device->getSettings()->isDirty() ) {
+								device->getSettings()->commit();
+								restart = true;
+							}
+
+							std::thread( [device,enabled,restart]{
+								if (
+									! enabled
+									|| restart
+								) {
+									if ( device->isRunning() ) {
+										device->stop();
+									}
 								}
 								if ( enabled ) {
 									if ( ! device->isRunning() ) {
 										device->start();
 									}
-								} else {
-									if ( device->isRunning() ) {
-										device->stop();
-									}
 								}
-								g_database->putQuery(
-									"UPDATE `devices` "
-									"SET `enabled`=%d "
-									"WHERE `id`=%d",
-									enabled ? 1 : 0,
-									device->getId()
-								);
-							}
+							} ).detach();
 
 							// A scripts array can be passed along to set the scripts to run when the device is updated.
-							find = input_.find( "scripts");
+							auto find = input_.find( "scripts");
 							if ( find != input_.end() ) {
 								if ( (*find).is_array() ) {
 									std::vector<unsigned int> scripts = std::vector<unsigned int>( (*find).begin(), (*find).end() );
@@ -739,15 +935,6 @@ namespace micasa {
 								}
 							}
 
-							// Then all provided settings are verified and stored in the settings object of the device.
-							std::string error;
-							if ( ! device->getSettings()->verifiedPut( device->getSettingsJson(), input_, error ) ) {
-								throw WebServer::ResourceException( 400, "Device.Invalid.Settings", error );
-							}
-
-							device->getSettings()->commit();
-							
-							output_["data"] = device->getJson( true );
 							output_["code"] = 200;
 						}
 						break;
@@ -759,45 +946,23 @@ namespace micasa {
 							&& ( device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & Device::UpdateSource::API ) == Device::UpdateSource::API
 							&& user_->getRights() >= device->getSettings()->get<User::Rights>( DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::Rights::USER )
 						) {
-							auto find = input_.find( "value" );
-							if ( find != input_.end() ) {
+							try {
 								switch( device->getType() ) {
 									case Device::Type::COUNTER:
-										if ( (*find).is_string() ) {
-											device->updateValue<Counter>( Device::UpdateSource::API, std::stoi( (*find).get<std::string>() ) );
-										} else if ( (*find).is_number() ) {
-											device->updateValue<Counter>( Device::UpdateSource::API, (*find).get<int>() );
-										} else {
-											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
-										}
+										device->updateValue<Counter>( Device::UpdateSource::API, jsonGet<int>( input_, "value" ) );
 										break;
 									case Device::Type::LEVEL:
-										if ( (*find).is_string() ) {
-											device->updateValue<Level>( Device::UpdateSource::API, std::stof( (*find).get<std::string>() ) );
-										} else if ( (*find).is_number() ) {
-											device->updateValue<Level>( Device::UpdateSource::API, (*find).get<double>() );
-										} else {
-											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
-										}
+										device->updateValue<Level>( Device::UpdateSource::API, jsonGet<double>( input_, "value" ) );
 										break;
 									case Device::Type::SWITCH:
-										if ( (*find).is_string() ) {
-											device->updateValue<Switch>( Device::UpdateSource::API, (*find).get<std::string>() );
-										} else {
-											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
-										}
-										break;
 									case Device::Type::TEXT:
-										if ( (*find).is_string() ) {
-											device->updateValue<Text>( Device::UpdateSource::API, (*find).get<std::string>() );
-										} else {
-											throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
-										}
+										device->updateValue<Switch>( Device::UpdateSource::API, jsonGet<std::string>( input_, "value" ) );
 										break;
 								}
+							} catch( std::runtime_error exception_ ) {
+								throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 							}
 
-							output_["data"] = device->getJson( true );
 							output_["code"] = 200;
 						}
 						break;
@@ -832,19 +997,19 @@ namespace micasa {
 					switch( device->getType() ) {
 						case Device::Type::SWITCH:
 							output_["data"] = std::static_pointer_cast<Switch>( device )
-								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>() );
+								->getData( jsonGet<unsigned int>( input_, "range" ), jsonGet<std::string>( input_, "interval" ) );
 							break;
 						case Device::Type::COUNTER:
 							output_["data"] = std::static_pointer_cast<Counter>( device )
-								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>(), input_["group"].get<std::string>() );
+								->getData( jsonGet<unsigned int>( input_, "range" ), jsonGet<std::string>( input_, "interval" ), jsonGet<std::string>( input_, "group" ) );
 							break;
 						case Device::Type::LEVEL:
 							output_["data"] = std::static_pointer_cast<Level>( device )
-								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>(), input_["group"].get<std::string>() );
+								->getData( jsonGet<unsigned int>( input_, "range" ), jsonGet<std::string>( input_, "interval" ), jsonGet<std::string>( input_, "group" ) );
 							break;
 						case Device::Type::TEXT:
 							output_["data"] = std::static_pointer_cast<Text>( device )
-								->getData( input_["range"].get<unsigned int>(), input_["interval"].get<std::string>() );
+								->getData( jsonGet<unsigned int>( input_, "range" ), jsonGet<std::string>( input_, "interval" ) );
 							break;
 					}
 				} catch( ... ) {
@@ -852,6 +1017,278 @@ namespace micasa {
 				}
 			
 				output_["code"] = 200;
+			} )
+		) );
+		
+		this->m_resources.push_back( std::make_shared<ResourceCallback>(
+			"webserver",
+			"^api/devices/([0-9]+)/links(/([0-9]+|settings))?$",
+			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::POST | WebServer::Method::DELETE,
+			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
+					return;
+				}
+
+				// A device id is mandatory for the url to be matched, so it can be retrieved unconditionally.
+				unsigned int deviceId = jsonGet<unsigned int>( input_, "$1" );
+				std::shared_ptr<Device> device = g_controller->getDeviceById( deviceId );
+				if ( device == nullptr ) {
+					return;
+				}
+
+				// This helper method returns a list of settings that can be used to edit a new or existing link.
+				auto fGetSettings = [device]( bool new_ ) -> json {
+					auto devices  = g_controller->getAllDevices();
+					json compatibleDevices = json::array();
+					for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+						auto updateSources = (*devicesIt)->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES );
+						bool readOnly = ( Device::resolveUpdateSource( updateSources & ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) ) == 0 );
+						if (
+							(
+								(*devicesIt)->getType() == device->getType()
+								|| ( (*devicesIt)->getType() == Device::Type::LEVEL && device->getType() == Device::Type::COUNTER )
+								|| ( (*devicesIt)->getType() == Device::Type::COUNTER && device->getType() == Device::Type::LEVEL )
+							)
+							&& (*devicesIt)->isRunning()
+							&& (
+								device->getType() != Device::Type::SWITCH
+								|| ! readOnly
+							)
+						) {
+							compatibleDevices += {
+								{ "value", (*devicesIt)->getId() },
+								{ "label", (*devicesIt)->getName() }
+							};
+						}
+					}
+					json switchOptions = json::array();
+					for ( auto switchOptionIt = Switch::OptionText.begin(); switchOptionIt != Switch::OptionText.end(); switchOptionIt++ ) {
+						switchOptions += {
+							{ "value", (*switchOptionIt).second },
+							{ "label", (*switchOptionIt).second }
+						};
+					}
+
+					json settings = json::array();
+					settings += {
+						{ "name", "name" },
+						{ "default", "New Link" },
+						{ "label", "Name" },
+						{ "type", "string" },
+						{ "maxlength", 64 },
+						{ "minlength", 3 },
+						{ "mandatory", true },
+						{ "sort", 1 }
+					};
+					settings += {
+						{ "name", "enabled" },
+						{ "label", "Enabled" },
+						{ "type", "boolean" },
+						{ "default", true },
+						{ "sort", 2 }
+					};
+					settings += {
+						{ "name", "device" },
+						{ "label", "Source Device" },
+						{ "type", "display" },
+						{ "value", device->getName() },
+						{ "sort", 10 }
+					};
+					settings += {
+						{ "name", "target_device_id" },
+						{ "label", "Target Device" },
+						{ "type", "list" },
+						{ "mandatory", true },
+						{ "options", compatibleDevices },
+						{ "sort", 11 }
+					};
+
+					if ( device->getType() == Device::Type::SWITCH ) {
+						settings += {
+							{ "name", "value" },
+							{ "label", "Value" },
+							{ "description", "The value that triggers this link." },
+							{ "default", "On" },
+							{ "type", "list" },
+							{ "options", switchOptions },
+							{ "sort", 12 }
+						};
+						settings += {
+							{ "name", "target_value" },
+							{ "label", "Target Value" },
+							{ "description", "The value to set the target device to when the link is triggered." },
+							{ "default", "On" },
+							{ "type", "list" },
+							{ "options", switchOptions },
+							{ "sort", 13 }
+						};
+						settings += {
+							{ "name", "after" },
+							{ "label", "Delay" },
+							{ "description", "Sets the delay in seconds after which the value will be set." },
+							{ "type", "double" },
+							{ "minimum", 0 },
+							{ "maximum", 86400 },
+							{ "class", "advanced" },
+							{ "sort", 20 }
+						};
+						settings += {
+							{ "name", "for" },
+							{ "label", "Duration" },
+							{ "description", "Sets the duration in seconds after which the value will be set back to it's previous value." },
+							{ "type", "double" },
+							{ "minimum", 0 },
+							{ "maximum", 86400 },
+							{ "class", "advanced" },
+							{ "sort", 21 }
+						};
+						settings += {
+							{ "name", "clear" },
+							{ "label", "Clear Queue" },
+							{ "description", "Clears the event queue of events for this device, making sure that the value to set is the only value present in the queue." },
+							{ "default", false },
+							{ "type", "boolean" },
+							{ "class", "advanced" },
+							{ "sort", 22 }
+						};
+					}
+
+					return settings;
+				};
+
+				// A link identifier is optional, but if it exist it is guarantieed to be of type string.
+				json link = json::object();
+				int linkId = -1;
+				auto find = input_.find( "$3" ); // inner uri regexp match
+				if ( find != input_.end() ) {
+					try {
+						if (
+							"settings" == (*find).get<std::string>()
+							&& method_ == WebServer::Method::GET
+						) {
+							output_["data"] = fGetSettings( true );
+							output_["code"] = 200;
+							return;
+						} else {
+							linkId = std::stoi( (*find).get<std::string>() );
+							link = g_database->getQueryRow<json>(
+								"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
+								"FROM `links` "
+								"WHERE `id`=%d "
+								"AND `device_id`=%d",
+								linkId,
+								deviceId
+							);
+						}
+					} catch( ... ) {
+						return;
+					}
+				}
+
+				switch( method_ ) {
+
+					case WebServer::Method::GET: {
+						if ( linkId != -1 ) {
+							// The detailed fetch of a link contains actual device data.
+							output_["data"] = link;
+							output_["data"]["device"] = g_controller->getDeviceById( link["device_id"].get<unsigned int>() )->getJson();
+							output_["data"]["target_device"] = g_controller->getDeviceById( link["target_device_id"].get<unsigned int>() )->getJson();
+							output_["data"]["settings"] = fGetSettings( false );
+						} else {
+							// The overview list of links contain only names for the devices.
+							output_["data"] = g_database->getQuery<json>(
+								"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
+								"FROM `links` "
+								"WHERE `device_id`=%d "
+								"OR `target_device_id`=%d "
+								"ORDER BY `created`",
+								deviceId,
+								deviceId
+							);
+							for ( auto dataIt = output_["data"].begin(); dataIt != output_["data"].end(); dataIt++ ) {
+								(*dataIt)["device"] = g_controller->getDeviceById( (*dataIt)["device_id"].get<unsigned int>() )->getName();
+								(*dataIt)["target_device"] = g_controller->getDeviceById( (*dataIt)["target_device_id"].get<unsigned int>() )->getName();
+							}
+						}
+						output_["code"] = 200;
+						break;
+					}
+
+					case WebServer::Method::DELETE: {
+						if ( linkId != -1 ) {
+							g_database->putQuery(
+								"DELETE FROM `links` "
+								"WHERE `id`=%d",
+								linkId
+							);
+							output_["code"] = 200;
+						}
+						break;
+					}
+					
+					case WebServer::Method::PUT:
+					case WebServer::Method::POST: {
+						if (
+							method_ == WebServer::Method::POST
+							&& linkId != -1
+						) {
+							break;
+						} else if (
+							method_ == WebServer::Method::PUT
+							&& linkId == -1
+						) {
+							break;
+						}
+
+						std::vector<std::string> invalid;
+						std::vector<std::string> missing;
+						json linkData = json::object();
+						validateSettings( input_, linkData, fGetSettings( linkId == -1 ), &invalid, &missing, NULL );
+						if ( invalid.size() > 0 ) {
+							throw WebServer::ResourceException( 400, "Link.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+						} else if ( missing.size() > 0 ) {
+							throw WebServer::ResourceException( 400, "Link.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
+						}
+
+						if ( linkId == -1 ) {
+							linkId = g_database->putQuery(
+								"INSERT INTO `links` (`name`, `device_id`, `target_device_id`, `enabled`, `value`, `target_value`, `after`, `for`, `clear`) "
+								"VALUES (%Q, %d, %d, %d, %Q, %Q, %Q, %Q, %d) ",
+								linkData["name"].get<std::string>().c_str(),
+								deviceId,
+								linkData["target_device_id"].get<unsigned int>(),
+								linkData["enabled"].get<bool>() ? 1 : 0,
+								linkData["value"].is_null() ? NULL : linkData["value"].get<std::string>().c_str(),
+								linkData["target_value"].is_null() ? NULL : linkData["target_value"].get<std::string>().c_str(),
+								linkData["after"].is_null() ? NULL : std::to_string( linkData["after"].get<double>() ).c_str(),
+								linkData["for"].is_null() ? NULL : std::to_string( linkData["for"].get<double>() ).c_str(),
+								linkData["clear"].is_null() ? 0 : ( linkData["clear"].get<bool>() ? 1 : 0 )
+							);
+							link["id"] = linkId;
+							output_["code"] = 201; // Created
+						} else {
+							g_database->putQuery(
+								"UPDATE `links` "
+								"SET `name`=%Q, `device_id`=%d, `target_device_id`=%d, `enabled`=%d, `value`=%Q, `target_value`=%Q, `after`=%Q, `for`=%Q, `clear`=%d "
+								"WHERE `id`=%d",
+								linkData["name"].get<std::string>().c_str(),
+								deviceId,
+								linkData["target_device_id"].get<unsigned int>(),
+								linkData["enabled"].get<bool>() ? 1 : 0,
+								linkData["value"].is_null() ? NULL : linkData["value"].get<std::string>().c_str(),
+								linkData["target_value"].is_null() ? NULL : linkData["target_value"].get<std::string>().c_str(),
+								linkData["after"].is_null() ? NULL : std::to_string( linkData["after"].get<double>() ).c_str(),
+								linkData["for"].is_null() ? NULL : std::to_string( linkData["for"].get<double>() ).c_str(),
+								linkData["clear"].is_null() ? 0 : ( linkData["clear"].get<bool>() ? 1 : 0 ),
+								linkId
+							);
+							output_["code"] = 200;
+						}
+						break;
+					}
+
+					default: break;
+				}
 			} )
 		) );
 	};
@@ -1327,7 +1764,7 @@ namespace micasa {
 					{ "user", user },
 					{ "valid", valid },
 					{ "created", created },
-					{ "token", encrypt( token.dump(), this->m_privateKey ) }
+					{ "token", this->_encrypt64( token.dump() ) }
 				};
 			} )
 		) );
@@ -1433,7 +1870,7 @@ namespace micasa {
 								&& (*find).get<std::string>().size() > 2
 								&& (*find).get<std::string>().size() <= 32
 							) {
-								user["password"] = generateHash( (*find).get<std::string>(), this->m_privateKey );
+								user["password"] = this->_hash( (*find).get<std::string>() );
 							} else {
 								throw WebServer::ResourceException( 400, "User.Invalid.Password", "The supplied password is invalid." );
 							}

@@ -24,13 +24,15 @@ namespace micasa {
 		}; // enum class ConnectionState
 		ENUM_UTIL( ConnectionState );
 		
+		static const constexpr char* label = "Harmony Hub";
+
 		HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~HarmonyHub() { };
 		
 		void start() override;
 		void stop() override;
 		
-		std::string getLabel() const throw() override { return "Harmony Hub"; };
+		std::string getLabel() const throw() override { return HarmonyHub::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;

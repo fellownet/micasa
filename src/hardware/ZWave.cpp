@@ -70,6 +70,7 @@ namespace micasa {
 			Options::Get()->AddOptionInt( "DriverMaxAttempts", 3 );
 			Options::Get()->AddOptionBool( "IntervalBetweenPolls", true );
 			Options::Get()->AddOptionBool( "ValidateValueChanges", true );
+			Options::Get()->AddOptionBool( "SuppressValueRefresh", true );
 			Options::Get()->AddOptionBool( "Associate", true );
 			Options::Get()->AddOptionBool( "SaveConfiguration", true );
 			Options::Get()->AddOptionBool( "AppendLogFile", false );
@@ -148,17 +149,17 @@ namespace micasa {
 		// parent hardware instance is started to make sure previously created devices get picked up by the
 		// declareDevice method.
 		this->declareDevice<Switch>( "heal", "Network Heal", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "include", "Inclusion Mode", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "exclude", "Exclusion Mode", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
@@ -188,7 +189,7 @@ namespace micasa {
 	};
 
 	std::string ZWave::getLabel() const {
-		return this->m_settings->get( "label", "Z-Wave" );
+		return this->m_settings->get( "label", std::string( ZWave::label ) );
 	};
 
 	json ZWave::getJson( bool full_ ) const {
@@ -206,7 +207,9 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 99 }
 		};
 
 #ifdef _WITH_LIBUDEV

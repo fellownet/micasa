@@ -19,6 +19,8 @@ namespace micasa {
 		friend void ::micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
 
 	public:
+		static const constexpr char* label = "Z-Wave";
+
 		ZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~ZWave() { };
 

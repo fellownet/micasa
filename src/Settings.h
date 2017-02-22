@@ -14,6 +14,8 @@ namespace micasa {
 	class SettingValue: public std::string {
 		
 	public:
+		SettingValue( const unsigned long& value_ );
+		SettingValue( const long& value_ );
 		SettingValue( const unsigned int& value_ );
 		SettingValue( const int& value_ );
 		SettingValue( const double& value_ );
@@ -103,13 +105,10 @@ namespace micasa {
 		};
 		
 		void put( const std::string& key_, const SettingValue& value_ );
+		void put( const nlohmann::json& data_ );
 		
 		std::map<std::string, std::string> getAll() const;
 		std::map<std::string, std::string> getAll( const std::string& prefix_ ) const;
-
-		// The method below is a specialized method for validating input coming from the web client against a set of
-		// setting defines that are also presented to the client.
-		bool verifiedPut( const nlohmann::json& configuration_, const nlohmann::json& input_, std::string& error_ );
 
 	}; // class Settings
 

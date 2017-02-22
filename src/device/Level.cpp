@@ -13,6 +13,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 
 	using namespace nlohmann;
+	using namespace std::chrono;
 
 	const Device::Type Level::type = Device::Type::LEVEL;
 
@@ -61,32 +62,47 @@ namespace micasa {
 		Device::stop();
 	};
 
-	bool Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
-			return false;
-		}
-		
-		// Do not process duplicate values.
-		if ( this->m_value == value_ ) {
-			if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
-				this->touch();
-			}
-			return true;
+			return;
 		}
 
+		if (
+			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
+			&& this->m_value == value_
+		) {
+			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+			return;
+		}
+
+		if (
+			(
+				this->m_settings->contains( "minimum" )
+				&& value_ < this->m_settings->get<double>( "minimum" )
+			)
+			|| (
+				this->m_settings->contains( "maximum" )
+				&& value_ > this->m_settings->get<double>( "maximum" )
+			)
+		) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid value." );
+			return;
+		}
+	
 		// Make a local backup of the original value (the hardware might want to revert it).
 		t_value previous = this->m_value;
-		this->m_value = value_;
-		
-		// If the update originates from the hardware, do not send it to the hardware again!
+		this->m_value = value_ + this->m_settings->get<double>( "gain", 0. );
+			
+		// If the update originates from the hardware, do not send it to the hardware again.
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
 			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
 		}
+
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_level_history` (`device_id`, `value`) "
@@ -96,7 +112,7 @@ namespace micasa {
 			);
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			if ( this->isRunning() ) {
-				g_controller->newEvent<Level>( *this, source_ );
+				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( this->shared_from_this() ), source_ );
 			}
 			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
 		} else {
@@ -108,7 +124,6 @@ namespace micasa {
 		) {
 			this->touch();
 		}
-		return success;
 	};
 
 	json Level::getJson( bool full_ ) const {
@@ -121,6 +136,17 @@ namespace micasa {
 		result["type"] = "level";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+
+		if ( this->m_settings->contains( "minimum" ) ) {
+			result["minimum"] = this->m_settings->get<double>( "minimum" );
+		}
+		if ( this->m_settings->contains( "maximum" ) ) {
+			result["maximum"] = this->m_settings->get<double>( "maximum" );
+		}
+		if ( this->m_settings->contains( "gain" ) ) {
+			result["gain"] = this->m_settings->get<double>( "gain" );
+		}
+
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
@@ -135,7 +161,8 @@ namespace micasa {
 				{ "label", "SubType" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" }
+				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
+				{ "sort", 10 }
 			};
 			for ( auto subTypeIt = Level::SubTypeText.begin(); subTypeIt != Level::SubTypeText.end(); subTypeIt++ ) {
 				setting["options"] += {
@@ -151,7 +178,8 @@ namespace micasa {
 				{ "label", "Unit" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "unit" ) ? "advanced" : "normal" }
+				{ "class", this->m_settings->contains( "unit" ) ? "advanced" : "normal" },
+				{ "sort", 11 }
 			};
 			for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
 				setting["options"] += {
@@ -161,6 +189,32 @@ namespace micasa {
 			}
 			result += setting;
 		}
+
+		result += {
+			{ "name", "minimum" },
+			{ "label", "Minimum" },
+			{ "type", "double" },
+			{ "class", "advanced" },
+			{ "sort", 996 }
+		};
+
+		result += {
+			{ "name", "maximum" },
+			{ "label", "Maximum" },
+			{ "type", "double" },
+			{ "class", "advanced" },
+			{ "sort", 997 }
+		};
+
+		result += {
+			{ "name", "gain" },
+			{ "label", "Gain" },
+			{ "description", "A positive or negative value that is added to- or subtracted from every value received for this device." },
+			{ "type", "double" },
+			{ "class", "advanced" },
+			{ "sort", 999 }
+		};
+
 		return result;
 	};
 
@@ -169,68 +223,97 @@ namespace micasa {
 		if ( std::find( validIntervals.begin(), validIntervals.end(), interval_ ) == validIntervals.end() ) {
 			return json::array();
 		}
+		std::string interval = interval_;
+		if ( interval == "week" ) {
+			interval = "day";
+			range_ *= 7;
+		}
 
-		return g_database->getQuery<json>(
-			"SELECT * FROM ( "
-				"SELECT printf(\"%%.3f\", `average`) AS `value`, CAST(strftime('%%s',`date`) AS INTEGER) AS `timestamp` "
-				"FROM `device_level_trends` "
-				"WHERE `device_id`=%d "
-				"AND `date` < datetime('now','-%d day') "
-				"AND `date` >= datetime('now','-%d %s') "
-				"ORDER BY `date` ASC "
-			")"
-			"UNION ALL "
-			"SELECT * FROM ( "
-				"SELECT printf(\"%%.3f\", avg(`value`)) AS `value`, strftime('%%s',`date`) - ( strftime('%%s',`date`) %% ( 5 * 60 ) ) AS `timestamp` "
+		std::vector<std::string> validGroups = { "none", "hour", "day", "month", "year" };
+		if ( std::find( validGroups.begin(), validGroups.end(), group_ ) == validGroups.end() ) {
+			return json::array();
+		}
+
+		if ( group_ == "none" ) {
+			return g_database->getQuery<json>(
+				"SELECT printf(\"%%.3f\", `value`) AS `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp`, `date` "
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d "
-				"AND `date` >= datetime('now','-%d day') "
 				"AND `date` >= datetime('now','-%d %s') "
-				"GROUP BY `timestamp` "
-				"ORDER BY `date` ASC "
-			") ",
-			this->m_id,
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ),
-			range_,
-			interval_.c_str(),
-			this->m_id,
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 ),
-			range_,
-			interval_.c_str()
-		);
+				"ORDER BY `date` ASC ",
+				this->m_id,
+				range_,
+				interval.c_str()
+			);
+		} else {
+			std::string dateFormat = "%Y-%m-%d %H:30:00";
+			std::string groupFormat = "%Y-%m-%d-%H";
+			if ( group_ == "day" ) {
+				dateFormat = "%Y-%m-%d 12:00:00";
+				groupFormat = "%Y-%m-%d";
+			} else if ( group_ == "month" ) {
+				dateFormat = "%Y-%m-15 12:00:00";
+				groupFormat = "%Y-%m";
+			} else if ( group_ == "year" ) {
+				dateFormat = "%Y-06-15 12:00:00";
+				groupFormat = "%Y";
+			}
+			return g_database->getQuery<json>(
+				"SELECT printf(\"%%.3f\", avg(`average`)) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
+				"FROM `device_level_trends` "
+				"WHERE `device_id`=%d "
+				"AND `date` >= datetime('now','-%d %s') "
+				"GROUP BY strftime(%Q, `date`) "
+				"ORDER BY `date` ASC ",
+				dateFormat.c_str(),
+				dateFormat.c_str(),
+				this->m_id,
+				range_,
+				interval.c_str(),
+				groupFormat.c_str()
+			);
+		}
 	};
 
 	std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
-			std::string hourFormat = "%Y-%m-%d %H:00:00";
+
+			std::string hourFormat = "%Y-%m-%d %H:30:00";
 			std::string groupFormat = "%Y-%m-%d-%H";
-			// TODO store value every 5 minutes regardless of updates?
-			// TODO do not generate trends for anything older than an hour?? and what if micasa was offline for a while?
-			// TODO maybe grab the latest hour from trends and start from there?
+
 			auto trends = g_database->getQuery(
 				"SELECT MAX(`value`) AS `max`, MIN(`value`) AS `min`, printf(\"%%.3f\", AVG(`value`)) AS `average`, strftime(%Q, MAX(`date`)) AS `date` "
 				"FROM `device_level_history` "
-				"WHERE `device_id`=%d AND `Date` > datetime('now','-1 hour') "
-				"GROUP BY strftime(%Q, `date`)"
-				, hourFormat.c_str(), this->m_id, groupFormat.c_str()
+				"WHERE `device_id`=%d AND `Date` > datetime('now','-4 hour') "
+				"GROUP BY strftime(%Q, `date`)",
+				hourFormat.c_str(),
+				this->m_id,
+				groupFormat.c_str()
 			);
 			for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
-				// TODO round these values to, say, 3 decimals?
 				g_database->putQuery(
 					"REPLACE INTO `device_level_trends` (`device_id`, `min`, `max`, `average`, `date`) "
-					"VALUES (%d, %q, %q, %q, %Q)"
-					, this->m_id, (*trendsIt)["min"].c_str(), (*trendsIt)["max"].c_str(), (*trendsIt)["average"].c_str(), (*trendsIt)["date"].c_str()
+					"VALUES (%d, %q, %q, %q, %Q)",
+					this->m_id,
+					(*trendsIt)["min"].c_str(),
+					(*trendsIt)["max"].c_str(),
+					(*trendsIt)["average"].c_str(),
+					(*trendsIt)["date"].c_str()
 				);
 			}
+
 			// Purge history after a configured period (defaults to 7 days for level devices because these have a
 			// separate trends table).
 			g_database->putQuery(
 				"DELETE FROM `device_level_history` "
-				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
-				, this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')",
+				this->m_id,
+				this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
 			return std::chrono::milliseconds( 1000 * 60 * 5 );
+
 		} else {
+
 			// To prevent all devices from crunching data at the same time an offset is used.
 			static volatile unsigned int offset = 0;
 			offset += ( 1000 * 10 ); // 10 seconds interval

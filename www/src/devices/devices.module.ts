@@ -13,7 +13,10 @@ import { DevicesService }         from './devices.service';
 import { DevicesRoutingModule }   from './routing.module';
 import { DeviceResolver }         from './device.resolver';
 import { DevicesListResolver }    from './list.resolver';
-import { DataResolver }           from './data.resolver';
+import { LinksListResolver }      from './links/list.resolver';
+import { LinkResolver }           from './links/link.resolver';
+import { LinksListComponent }     from './links/list.component';
+import { LinkEditComponent }      from './links/edit.component';
 
 import { TimersModule }           from '../timers/timers.module';
 
@@ -30,13 +33,16 @@ import { TimersModule }           from '../timers/timers.module';
 	declarations: [
 		DevicesListComponent,
 		DeviceEditComponent,
-		DeviceDetailsComponent
+		DeviceDetailsComponent,
+		LinksListComponent,
+		LinkEditComponent
 	],
 	providers: [
 		DevicesService,
 		DeviceResolver,
 		DevicesListResolver,
-		DataResolver
+		LinksListResolver,
+		LinkResolver
 	],
 	exports: [
 		// The devices components are also used in the hardware edit component

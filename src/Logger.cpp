@@ -32,6 +32,9 @@ namespace micasa {
 				case LogLevel::DEBUG:
 					std::cout << "\033[0;37m" << timebuf << buffer << "\033[0m\n";
 					break;
+				case LogLevel::SCRIPT:
+					std::cout << "\033[0;33m" << timebuf << buffer << "\033[0m\n";
+					break;
 				default:
 					std::cout << timebuf << buffer << "\n";
 					break;
@@ -44,6 +47,11 @@ namespace micasa {
 		va_start( arguments, message_ );
 		this->_doLog( logLevel_, message_.c_str(), true, arguments );
 		va_end( arguments );
+	};
+
+	void Logger::log( const LogLevel logLevel_, std::string message_ ) const {
+		va_list empty;
+		this->_doLog( logLevel_, message_.c_str(), false, empty );
 	};
 
 } // namespace micasa

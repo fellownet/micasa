@@ -48,7 +48,9 @@ namespace micasa {
 			{ "name", "address" },
 			{ "label", "Address" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "address" ) ? "advanced" : "normal" }
+			{ "class", this->m_settings->contains( "address" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 98 }
 		};
 		result += {
 			{ "name", "port" },
@@ -56,7 +58,9 @@ namespace micasa {
 			{ "type", "short" },
 			{ "min", "1" },
 			{ "max", "65536" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" }
+			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 99 }
 		};
 		return result;
 	};
@@ -164,13 +168,15 @@ namespace micasa {
 				response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
 				response << startActivityId << ":timestamp=0</oa></iq>";
 				mg_send( this->m_connection, response.str().c_str(), response.str().size() );
+				return true;
 			} else {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Harmony Hub busy." );
 				return false;
 			}
+		} else {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid activity." );
+			return false;
 		}
-
-		return true;
 	};
 	
 	void HarmonyHub::_disconnect( const std::string message_ ) {
@@ -260,8 +266,8 @@ namespace micasa {
 									std::string label = activity["label"].get<std::string>();
 									if ( activityId != "-1" ) {
 										auto device = this->declareDevice<Switch>( activityId, label, {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::GENERIC ) }
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) }
 										} );
 										if ( activityId == this->m_currentActivityId ) {
 											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );
@@ -355,8 +361,8 @@ namespace micasa {
 							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( activityId ) );
 							if ( device != nullptr ) {
 								device->updateValue( source, Switch::Option::ON );
+								this->m_currentActivityId = activityId;
 							}
-							this->m_currentActivityId = activityId;
 						}
 					}
 					break;

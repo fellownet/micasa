@@ -26,8 +26,8 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`hardware_id` INTEGER NOT NULL, "
 		"`reference` VARCHAR(64) NOT NULL, "
-		"`type` VARCHAR(32) NOT NULL, "
 		"`label` VARCHAR(255) NOT NULL, "
+		"`type` VARCHAR(32) NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"`updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
@@ -103,7 +103,7 @@ namespace micasa {
 		"`id` INTEGER PRIMARY KEY, "
 		"`name` VARCHAR(255) NOT NULL, "
 		"`username` VARCHAR(255) NOT NULL, "
-		"`password` VARCHAR(255) NOT NULL, "
+		"`password` TEXT NOT NULL, "
 		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
 		"`rights` INTEGER DEFAULT 0 NOT NULL, "
 		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
@@ -188,6 +188,25 @@ namespace micasa {
 		
 		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_timer_devices_timer_id_device_id` ON `x_timer_devices`( `timer_id`, `device_id` )",
 
+		// Links
+		"CREATE TABLE IF NOT EXISTS `links` ( "
+		"`id` INTEGER PRIMARY KEY, "
+		"`name` VARCHAR(255) NOT NULL, "
+		"`device_id` INTEGER NOT NULL, "
+		"`target_device_id` INTEGER NOT NULL, "
+		"`value` VARCHAR(64) NULL, "
+		"`target_value` VARCHAR(64) NULL, "
+		"`after` FLOAT NULL, "
+		"`for` FLOAT NULL, "
+		"`clear` INTEGER DEFAULT 1 NOT NULL, "
+		"`enabled` INTEGER DEFAULT 1 NOT NULL, "
+		"`created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT, "
+		"FOREIGN KEY ( `target_device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
+
+		"CREATE INDEX IF NOT EXISTS `ix_links_enabled` ON `links`( `enabled` )",
+
+		"CREATE INDEX IF NOT EXISTS `ix_links_device_id` ON `links`( `device_id` )",
 	};
 	
 }; // namespace micasa

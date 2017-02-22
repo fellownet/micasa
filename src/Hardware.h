@@ -45,13 +45,14 @@ namespace micasa {
 
 		struct PendingUpdate {
 		public:
-			PendingUpdate( Device::UpdateSource source_ ) : source( source_ ) { };
+			PendingUpdate( Device::UpdateSource source_, std::string data_ ) : source( source_ ), data( data_ ) { };
 
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
 			std::mutex conditionMutex;
 			bool done = false;
 			Device::UpdateSource source;
+			std::string data;
 		}; // struct PendingUpdate
 
 		static const constexpr char* settingsName = "hardware";
@@ -86,8 +87,10 @@ namespace micasa {
 
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
+		virtual void putSettingsJson( nlohmann::json& settings_ ) { };
 		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
 		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
+		virtual void putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) { };
 
 		virtual std::string getLabel() const =0;
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
@@ -101,11 +104,17 @@ namespace micasa {
 		const std::shared_ptr<Hardware> m_parent;
 		std::shared_ptr<Settings<Hardware> > m_settings;
 
-		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an
-		// update so that subsequent updates are blocked until the update has been confirmed by the hardware.
-		// It also makes sure that the source of the update is remembered during this time.
-		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_ = 3000, const unsigned int& waitForResult_ = 30000 );
+		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an update
+		// so that subsequent updates are blocked until the update has been confirmed by the hardware. It also makes
+		/// sure that the source of the update is remembered during this time. The caller can provide a pointer to
+		// arbitrary data in which case this method takes care of freeing this data. This is done because there's no
+		// way for the caller to access the pending updates anymore after they expire.
+		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
+		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
+		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
+		bool _releasePendingUpdate( const std::string& reference_ );
+		bool _hasPendingUpdate( const std::string& reference_ );
 
 	private:
 		std::vector<std::shared_ptr<Device> > m_devices;

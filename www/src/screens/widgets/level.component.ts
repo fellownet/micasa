@@ -1,7 +1,8 @@
 import {
 	Component,
 	Input,
-	OnInit
+	OnInit,
+	AfterViewInit
 }                  from '@angular/core';
 
 import {
@@ -23,7 +24,7 @@ declare var Highcharts: any;
 	templateUrl: 'tpl/widgets/level.html'
 } )
 
-export class WidgetLevelComponent implements OnInit {
+export class WidgetLevelComponent implements OnInit, AfterViewInit {
 
 	private static _elementId = 0;
 
@@ -35,6 +36,7 @@ export class WidgetLevelComponent implements OnInit {
 
 	public error: string;
 	public elementId: number;
+	public editMode: boolean = false;
 
 	constructor(
 		private _router: Router,
@@ -45,8 +47,11 @@ export class WidgetLevelComponent implements OnInit {
 	};
 
 	ngOnInit() {
+	};
+
+	public ngAfterViewInit() {
 		var me = this;
-		me._devicesService.getData( this.device.id, { group: '5min', range: 1, interval: 'day' } )
+		me._devicesService.getData( this.device.id, { group: 'none', range: 1, interval: 'day' } )
 			.subscribe(
 				function( data_: any[] ) {
 					var data: Array<Array<any>> = [];
@@ -107,7 +112,7 @@ export class WidgetLevelComponent implements OnInit {
 	};
 
 	public edit() {
-		alert( 'edit' );
+		this.editMode = true;
 	};
 
 }

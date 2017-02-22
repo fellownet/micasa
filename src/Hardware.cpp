@@ -210,14 +210,18 @@ namespace micasa {
 			{ "label", "Name" },
 			{ "type", "string" },
 			{ "maxlength", 64 },
-			{ "minlength", 3 }
+			{ "minlength", 3 },
+			{ "mandatory", true },
+			{ "sort", 1 }
 		};
 		result += setting;
 
 		setting = {
 			{ "name", "enabled" },
 			{ "label", "Enabled" },
-			{ "type", "boolean" }
+			{ "type", "boolean" },
+			{ "default", false },
+			{ "sort", 2 }
 		};
 		result += setting;
 
@@ -384,13 +388,14 @@ namespace micasa {
 	template std::shared_ptr<Switch> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 
-	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+		
 		// See if there's already a pending update present, in which case we need to use it to start locking.
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search == this->m_pendingUpdates.end() ) {
-			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_ );
+			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_, data_ );
 		}
 		std::shared_ptr<PendingUpdate> pendingUpdate = this->m_pendingUpdates[reference_];
 		pendingUpdatesLock.unlock();
@@ -419,8 +424,12 @@ namespace micasa {
 		}
 	};
 
-	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ ) {
-		// TODO periodically remove unused pending updates?
+	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+		std::string dummy;
+		return this->_queuePendingUpdate( reference_, source_, dummy, blockNewUpdate_, waitForResult_ );
+	};
+
+	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ ) {
 		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search != this->m_pendingUpdates.end() ) {
@@ -430,9 +439,26 @@ namespace micasa {
 			notifyLock.unlock();
 			pendingUpdate->condition.notify_all();
 			source_ |= pendingUpdate->source;
+			data_ = pendingUpdate->data;
 			return true;
 		}
 		return false;
+	};
+
+	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ ) {
+		std::string dummy;
+		return this->_releasePendingUpdate( reference_, source_, dummy );
+	};
+
+	bool Hardware::_releasePendingUpdate( const std::string& reference_ ) {
+		Device::UpdateSource dummy;
+		return this->_releasePendingUpdate( reference_, dummy );
+	};
+
+	bool Hardware::_hasPendingUpdate( const std::string& reference_ ) {
+		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		auto search = this->m_pendingUpdates.find( reference_ );
+		return search != this->m_pendingUpdates.end();
 	};
 
 } // namespace micasa

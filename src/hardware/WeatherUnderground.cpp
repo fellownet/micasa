@@ -43,18 +43,24 @@ namespace micasa {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "api_key" ) ? "advanced" : "normal" }
+			{ "class", this->m_settings->contains( "api_key" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 97 }
 		};
 		result += {
 			{ "name", "location" },
 			{ "label", "Location" },
-			{ "type", "string" }
+			{ "type", "string" },
+			{ "mandatory", true },
+			{ "sort", 98 }
 		};
 		result += {
 			{ "name", "scale" },
 			{ "label", "Scale" },
 			{ "type", "list" },
 			{ "class", this->m_settings->contains( "scale" ) ? "advanced" : "normal" },
+			{ "mandatory", true },
+			{ "sort", 99 },
 			{ "options", {
 				{
 					{ "value", "celsius" },
@@ -121,9 +127,9 @@ namespace micasa {
 							&& ! data["temp_f"].is_null()
 						) {
 							auto device = this->declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::FAHRENHEIT ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::FAHRENHEIT ) }
 							} );
 							device->updateValue( source, data["temp_f"].get<double>() );
 						} else if (
@@ -131,33 +137,33 @@ namespace micasa {
 						   && ! data["temp_c"].is_null()
 					   ) {
 							auto device = this->declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::CELSIUS ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) }
 							} );
 							device->updateValue( source, data["temp_c"].get<double>() );
 						}
 						
 						if ( ! data["relative_humidity"].is_null() ) {
 							auto device = this->declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::HUMIDITY ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) }
 							} );
 							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
 						}
 						if ( ! data["pressure_mb"].is_null() ) {
 							auto device = this->declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::PRESSURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PASCAL ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::PRESSURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PASCAL ) }
 							} );
 							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
 						}
 						if ( ! data["wind_dir"].is_null() ) {
 							auto device = this->declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE, Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
 							} );
 							device->updateValue( source, data["wind_dir"].get<std::string>() );
 						}

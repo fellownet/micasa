@@ -79,7 +79,6 @@ namespace micasa {
 		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Binding to port %s.", port_.c_str() );
 		mg_bind_opts options;
 		memset( &options, 0, sizeof( options ) );
-#ifdef _WITH_SSL
 		if (
 			cert_.size() > 0
 			&& key_.size() > 0
@@ -87,7 +86,6 @@ namespace micasa {
 			options.ssl_cert = cert_.c_str();
 			options.ssl_key = key_.c_str();
 		}
-#endif // _WITH_SSL
 		
 		mg_connection* connection;
 		this->_synchronize( [&]() {

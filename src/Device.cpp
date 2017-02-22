@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include "Hardware.h"
 #include "Database.h"
+#include "Controller.h"
 
 #include "device/Counter.h"
 #include "device/Level.h"
@@ -11,6 +12,7 @@
 
 namespace micasa {
 
+	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
 
@@ -25,6 +27,7 @@ namespace micasa {
 
 	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
 #ifdef _DEBUG
+		assert( g_controller && "Global Controller instance should be created before Device instances." );
 		assert( g_database && "Global Database instance should be created before Device instances." );
 		assert( g_logger && "Global Logger instance should be created before Device instances." );
 #endif // _DEBUG
@@ -33,6 +36,7 @@ namespace micasa {
 	
 	Device::~Device() {
 #ifdef _DEBUG
+		assert( g_database && "Global Controller instance should be destroyed after Device instances." );
 		assert( g_database && "Global Database instance should be destroyed after Device instances." );
 		assert( g_logger && "Global Logger instance should be destroyed after Device instances." );
 #endif // _DEBUG
@@ -58,17 +62,17 @@ namespace micasa {
 		}
 	};
 
-	template<class T> bool Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
+	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
 		auto target = dynamic_cast<T*>( this );
 #ifdef _DEBUG
 		assert( target && "Invalid device template specifier." );
 #endif // _DEBUG
-		return target->updateValue( source_, value_ );
+		target->updateValue( source_, value_ );
 	};
-	template bool Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
-	template bool Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
-	template bool Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
-	template bool Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
+	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
+	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
+	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
+	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
 	
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
@@ -109,14 +113,26 @@ namespace micasa {
 		//result["hardware"] = this->m_hardware->getJson( false );
 		result["hardware"] = this->m_hardware->getName();
 		result["hardware_id"] = this->m_hardware->getId();
+		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
+		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
+
+		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
+			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
+		}
+		if ( this->getSettings()->contains( DEVICE_SETTING_SIGNAL_STRENGTH ) ) {
+			result["signal_strength"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_SIGNAL_STRENGTH );
+		}
 
 		// TODO the webserver should not call getJson but query the database directly.
-		result["last_update"] = g_database->getQueryValue<unsigned long>(
-			"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) "
+		json timeProperties = g_database->getQueryRow<json>(
+			"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) AS `last_update`, CAST(strftime('%%s','now') AS INTEGER) - CAST(strftime('%%s',`updated`) AS INTEGER) AS `age` "
 			"FROM `devices` "
 			"WHERE `id`=%d ",
 			this->getId()
 		);
+		result["last_update"] = timeProperties["last_update"].get<unsigned long>();
+		result["age"] = timeProperties["age"].get<unsigned long>();
+			
 		result["total_timers"] = g_database->getQueryValue<unsigned int>(
 			"SELECT COUNT(`timer_id`) "
 			"FROM `x_timer_devices` "
@@ -127,6 +143,14 @@ namespace micasa {
 			"SELECT COUNT(`script_id`) "
 			"FROM `x_device_scripts` "
 			"WHERE `device_id`=%d ",
+			this->getId()
+		);
+		result["total_links"] = g_database->getQueryValue<unsigned int>(
+			"SELECT COUNT(`id`) "
+			"FROM `links` "
+			"WHERE `device_id`=%d "
+			"OR `target_device_id`=%d",
+			this->getId(),
 			this->getId()
 		);
 
@@ -144,18 +168,37 @@ namespace micasa {
 			{ "label", "Name" },
 			{ "type", "string" },
 			{ "maxlength", 64 },
-			{ "minlength", 3 }
+			{ "minlength", 3 },
+			{ "mandatory", true },
+			{ "sort", 1 }
 		};
 		result += setting;
 
 		setting = {
 			{ "name", "enabled" },
 			{ "label", "Enabled" },
-			{ "type", "boolean" }
+			{ "type", "boolean" },
+			{ "default", true },
+			{ "sort", 2 }
+		};
+		result += setting;
+
+		setting = {
+			{ "name", "ignore_duplicates" },
+			{ "label", "Ignore Duplicates" },
+			{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
+			{ "type", "boolean" },
+			{ "class", "advanced" },
+			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
+			{ "sort", 3 }
 		};
 		result += setting;
 
 		return result;
+	};
+
+	void Device::putSettingsJson( json& settings_ ) {
+		this->m_hardware->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
 	void Device::touch() {

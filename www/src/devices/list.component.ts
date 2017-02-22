@@ -15,9 +15,9 @@ import { Script }         from '../scripts/scripts.service';
 import { SessionService } from '../session/session.service';
 
 @Component( {
-	selector    : 'devices',
-	templateUrl : 'tpl/devices-list.html',
-	exportAs    : 'listComponent' // can be used to communicate with parent component
+	selector: 'devices',
+	templateUrl: 'tpl/devices-list.html',
+	exportAs: 'listComponent' // can be used to communicate with parent component
 } )
 
 export class DevicesListComponent implements OnInit, OnDestroy {

@@ -3,6 +3,13 @@ import { Observable }     from 'rxjs/Observable';
 import { SessionService } from '../session/session.service';
 import { Setting }        from '../settings/settings.service';
 
+export class DataBundle {
+	day?: any[];
+	week?: any[];
+	month?: any[];
+	year?: any[];
+}
+
 export class Device {
 	id: number;
 	label: string;
@@ -16,10 +23,32 @@ export class Device {
 	unit: string;
 	last_update: number;
 	scripts?: number[];
+	links?: number[];
 	settings?: Setting[];
 	readonly: boolean;
 	total_scripts: number;
 	total_timers: number;
+	total_links: number;
+	scheduled: boolean;
+	battery_level?: number;
+	signal_strength?: number;
+	dataBundle?: DataBundle;
+}
+
+export class Link {
+	id: number;
+	name: string;
+	device_id: number;
+	device: Device|string;
+	target_device_id: number;
+	target_device: Device|string;
+	value?: string;
+	target_value?: string;
+	after?: number;
+	for?: number;
+	clear?: boolean;
+	enabled: boolean;
+	settings?: Setting[];
 }
 
 @Injectable()
@@ -64,6 +93,39 @@ export class DevicesService {
 
 	public deleteDevice( device_: Device ): Observable<boolean> {
 		return this._sessionService.http<any>( 'delete', 'devices/' + device_.id )
+			.map( function( result_: any ) {
+				return true; // failures do not end up here
+			} )
+		;
+	};
+
+	public getLinks( deviceId_: number ): Observable<Link[]> {
+		let resource: string = 'devices/' + deviceId_ + '/links';
+		return this._sessionService.http<Link[]>( 'get', resource );
+	};
+
+	public getLink( deviceId_: number, linkId_: number ): Observable<Link> {
+		let resource: string = 'devices/' + deviceId_ + '/links/' + linkId_;
+		return this._sessionService.http<Link>( 'get', resource );
+	};
+
+	public getLinkSettings( deviceId_: number ): Observable<Setting[]> {
+		let resource: string = 'devices/' + deviceId_ + '/links/settings';
+		return this._sessionService.http<Setting[]>( 'get', resource );
+	};
+
+	public putLink( device_: Device, link_: Link ): Observable<Link> {
+		let resource: string = 'devices/' + device_.id + '/links';
+		if ( link_.id ) {
+			return this._sessionService.http<Link>( 'put', resource + '/' + link_.id, link_ );
+		} else {
+			return this._sessionService.http<Link>( 'post', resource, link_ );
+		}
+	};
+
+	public deleteLink( device_: Device, link_: Link ): Observable<boolean> {
+		let resource: string = 'devices/' + device_.id + '/links';
+		return this._sessionService.http<any>( 'delete', resource + '/' + link_.id )
 			.map( function( result_: any ) {
 				return true; // failures do not end up here
 			} )

@@ -38,6 +38,7 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Unit, UnitText );
 
 		typedef double t_value;
+		// typedef t_levelValue t_value;
 		static const Device::Type type;
 		
 		Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
@@ -46,7 +47,7 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
+		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		nlohmann::json getJson( bool full_ = false ) const override;

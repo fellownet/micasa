@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>Timers</h1>
+<h1>Timers<small *ngIf="device">{{device.name}}</small></h1>
 </section>
 
 <section class="content-body" *ngIf="timers.length==0 && !loading">

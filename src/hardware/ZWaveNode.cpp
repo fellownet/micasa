@@ -57,9 +57,9 @@ namespace micasa {
 		// parent hardware instance is started to make sure previously created devices get picked up by the
 		// declareDevice method.
 		this->declareDevice<Switch>( "heal", "Node Heal", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
@@ -69,7 +69,7 @@ namespace micasa {
 	};
 
 	std::string ZWaveNode::getLabel() const {
-		return this->m_settings->get( "label", "Z-Wave Node" );
+		return this->m_settings->get( "label", std::string( ZWaveNode::label ) );
 	};
 
 	json ZWaveNode::getJson( bool full_ ) const {
@@ -79,6 +79,11 @@ namespace micasa {
 		}
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
+		}
+		if ( Manager::Get()->IsNodeZWavePlus( this->m_homeId, this->m_nodeId ) ) {
+			result["zwave_plus"] = "Yes, " + Manager::Get()->GetNodePlusTypeString( this->m_homeId, this->m_nodeId );
+		} else {
+			result["zwave_plus"] = "No";
 		}
 		return result;
 	}
@@ -90,10 +95,123 @@ namespace micasa {
 			setting.erase( "value" );
 			result += setting;
 		}
+		result += {
+			{ "name", "zwave_plus" },
+			{ "label", "ZWave+ Supported Node" },
+			{ "type", "display" },
+			{ "readonly", true },
+			{ "class", "advanced" },
+			{ "sort", 999 }
+		};
 		return result;
 	};
 
+	void ZWaveNode::putSettingsJson( nlohmann::json& settings_ ) {
+
+		// The name of the z-wave device can be updated and openzwave will store this value in the configuration file.
+		// NOTE the name is mandatory and should've been verified before this method is called.
+		Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, settings_["name"] );
+
+		// Settings that are present in our configuration map are pushed to the z-wave hardware. NOTE sleeping devices
+		// need to be woken up before the settings are received.
+		std::lock_guard<std::mutex> lock( this->m_configurationMutex );		
+		for ( auto settingIt = settings_.begin(); settingIt != settings_.end(); settingIt++ ) {
+			auto find = this->m_configuration.find( settingIt.key() );
+			if ( find != this->m_configuration.end() ) {
+				auto& config = *find;
+
+				if ( jsonGet<bool>( config["readonly"] ) ) {
+					continue;
+				}
+					
+				ValueID valueId( this->m_homeId, std::stoull( settingIt.key() ) );
+				ValueID::ValueType type = valueId.GetType();					
+				if ( type == ValueID::ValueType_Decimal ) {
+					float value = jsonGet<float>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_Bool ) {
+					bool value = jsonGet<bool>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_Byte ) {
+					uint8 value = jsonGet<uint8>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_Short ) {
+					int16 value = jsonGet<int16>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_Int ) {
+					int32 value = jsonGet<int32>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_List ) {
+					std::string value = jsonGet<std::string>( settingIt.value() );
+					if ( Manager::Get()->SetValueListSelection( valueId, value ) ) {
+						config["value"] = value;
+					}
+				} else if ( type == ValueID::ValueType_String ) {
+					std::string value = jsonGet<std::string>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, value ) ) {
+						config["value"] = value;
+					}
+				}
+
+				settings_.erase( settingIt );
+			}
+		}
+	};
+
+	json ZWaveNode::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
+		json result = json::object();
+
+		try {
+			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+			switch( valueId.GetCommandClassId() ) {
+				case COMMAND_CLASS_SWITCH_BINARY: {
+					result["prevent_race_conditions"] = device_->getSettings()->get<bool>( "prevent_race_conditions", false );
+				}
+			}
+		} catch( std::invalid_argument ) { /* reference isn't a valueid, like the heal device */ }
+		
+		return result;
+	};
+
+	json ZWaveNode::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
+		json result = json::array();
+
+		ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+		switch( valueId.GetCommandClassId() ) {
+			case COMMAND_CLASS_SWITCH_BINARY: {
+				result += {
+					{ "name", "prevent_race_conditions" },
+					{ "label", "Prevent Race Conditions" },
+					{ "description", "Try to prevent race conditions, which are situations where a scripted and manual switch action occur shortly after each other, where the second action inadvertently undoes the first." },
+					{ "type", "boolean" },
+					{ "class", "advanced" },
+					{ "sort", 99 }
+				};
+			}
+		}
+
+		return result;
+	};
+
+	void ZWaveNode::putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) {
+		// The provided settings should've been verified by the webserver and each device should have a mandatory name
+		// property, so we can blindly set it here.
+		ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+		return Manager::Get()->SetValueLabel( valueId, settings_["name"] );
+	};
+
 	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		
 		if ( device_->getType() == Device::Type::SWITCH ) {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
@@ -144,13 +262,18 @@ namespace micasa {
 						valueId.GetType() == ValueID::ValueType_Bool
 						&& device_->getType() == Device::Type::SWITCH
 					) {
+						std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+						bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
+
+						// For switch devices we need to actual value that is switched to confirm we receive the proper
+						// value back from the node. NOTE the queuePendingUpdate takes care of freeing this memory in
+						// every situation *except* when it fails to queue the update.
+						std::string data = device->getValue();
+
 						// TODO differentiate between blinds, switches etc (like open close on of etc).
-						if ( this->_queuePendingUpdate( device_->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-							bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
+						if ( this->_queuePendingUpdate( device_->getReference(), source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
 							return Manager::Get()->SetValue( valueId, value );
 						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Node busy." );
 							return false;
 						}
 					}
@@ -164,7 +287,7 @@ namespace micasa {
 							std::shared_ptr<Level> device = std::static_pointer_cast<Level>( device_ );
 							return Manager::Get()->SetValue( valueId, uint8( device->getValue() ) );
 						} else {
-							g_logger->log( Logger::LogLevel::ERROR, this, "Node busy." );
+							g_logger->log( Logger::LogLevel::WARNING, this, "Node busy." );
 							return false;
 						}
 					}
@@ -219,15 +342,14 @@ namespace micasa {
 				break;
 			}
 
-			case Notification::Type_ValueAdded: {
-				ValueID valueId = notification_->GetValueID();
-				this->_processValue( valueId, Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE );
-				break;
-			}
-
+			case Notification::Type_ValueAdded:
 			case Notification::Type_ValueChanged: {
 				ValueID valueId = notification_->GetValueID();
-				this->_processValue( valueId, Device::UpdateSource::HARDWARE );
+				Device::UpdateSource source = Device::UpdateSource::HARDWARE;
+				if ( this->getParent()->getState() != Hardware::State::READY ) {
+					source |= Device::UpdateSource::INIT;
+				}
+				this->_processValue( valueId, source );
 				break;
 			}
 
@@ -284,11 +406,9 @@ namespace micasa {
 
 	void ZWaveNode::_processValue( const ValueID& valueId_, Device::UpdateSource source_ ) {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
+		unsigned int index = valueId_.GetIndex();
 		std::string reference = std::to_string( valueId_.GetId() );
-		std::string unit = Manager::Get()->GetValueUnits( valueId_ );
 		
-		//ValueID::ValueGenre genre = valueId_.GetGenre();
-
 		// Some values are not going to be processed ever and can be filtered out beforehand.
 		if (
 			"Exporting" == label
@@ -334,7 +454,6 @@ namespace micasa {
 			case COMMAND_CLASS_SWITCH_BINARY:
 			case COMMAND_CLASS_SENSOR_BINARY: {
 				// Detect subtype.
-				// TODO improve detection
 				auto subtype = Switch::SubType::GENERIC;
 				auto hardwareLabel = this->getLabel();
 				std::transform( hardwareLabel.begin(), hardwareLabel.end(), hardwareLabel.begin(), ::tolower );
@@ -348,65 +467,111 @@ namespace micasa {
 					subtype = Switch::SubType::DOOR_CONTACT;
 				}
 			
-				// TODO if a switch comes too soon after a manual switch (not from hardware) ignore- or revert it.
-				// TODO this prevents having to code javascript to ignore switches from happing right after a PIR
-				// instruction.
-				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE;
+				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::CONTROLLER;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
-					allowedUpdateSources |= Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
+					allowedUpdateSources |= Device::UpdateSource::USER;
 				}
 
-				// If there's an update mutex available we need to make sure that it is properly notified of the
-				// execution of the update.
-				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
+				std::string data; // data stored alognside pending update
+				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_, data );
 
 				bool boolValue = false;
-				unsigned char byteValue = 0;
-				if (
-					valueId_.GetType() == ValueID::ValueType_Bool
-					&& false != Manager::Get()->GetValueAsBool( valueId_, &boolValue )
-				) {
-					// TODO differentiate between blinds, switches etc (like open close on of etc).
-					auto device = this->declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
-						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
-					} );
-					
-					// NOTE During testing it appears as if some nodes report the wrong dynamic value after an update.
-					// This is known to happen with some Fibaro FGS223 firmwares where the original value is reported
-					// while the new value does get set.
-					Switch::Option deviceValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
-					if (
-						wasPendingUpdate
-						&& device->getValueOption() == deviceValue
-						&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
-					) {
-						g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
-						Manager::Get()->RequestNodeDynamic( this->m_homeId, this->m_nodeId );
-					} else {
-						device->updateValue( source_, boolValue ? Switch::Option::ON : Switch::Option::OFF );
+				if ( valueId_.GetType() == ValueID::ValueType_Bool ) {
+					if ( false == Manager::Get()->GetValueAsBool( valueId_, &boolValue ) ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to extract bool value." );
+						return;
 					}
-					
-					if ( "Unknown" != label ) {
-						device->setLabel( label );
+				} else if ( valueId_.GetType() == ValueID::ValueType_Byte ) {
+					unsigned char byteValue = 0;
+					if ( false == Manager::Get()->GetValueAsByte( valueId_, &byteValue ) ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to extract byte value." );
+						return;
 					}
+					boolValue = !!byteValue;
 				}
+
+				Switch::Option targetValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
+
+				// TODO differentiate between blinds, switches etc (like open close on of etc).
+				auto device = this->declareDevice<Switch>( reference, label, {
+					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( subtype ) },
+					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+				} );
+				if ( "Unknown" != label ) {
+					device->setLabel( label );
+				}
+				
+				// NOTE During testing it appears as if some nodes report the wrong dynamic value after an update. This
+				// is known to happen with some Fibaro FGS223 firmwares where the original value is reported while the
+				// new value does get set. NOTE adding INTERNAL to the update source prevents this check from running
+				// more than once.
 				if (
-					valueId_.GetType() == ValueID::ValueType_Byte
-					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
+					wasPendingUpdate
+					&& data.size() > 0
+					&& targetValue != Switch::resolveOption( data )
+					&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
+					&& ( source_ & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
+					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					// TODO differentiate between blinds, switches etc (like open close on of etc).
-					auto device = this->declareDevice<Switch>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( subtype ) },
-						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
-					} );
-					device->updateValue( source_, byteValue ? Switch::Option::ON : Switch::Option::OFF );
+					g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
+					Manager::Get()->RefreshValue( valueId_ );
+
+				// If the prevent_race_conditions setting is active and the race condition pending update is present,
+				// the update need to be reverted. NOTE the data stored in the pending race-condition update is readded
+				// to the queue, which should make the bug-check above also work when fixing race conditions.
+				} else if (
+					! wasPendingUpdate
+					&& this->_releasePendingUpdate( reference + "_race", source_, data )
+					&& targetValue != Switch::resolveOption( data )
+				) {
+					// NOTE the data variable is guaranteed to be set when the releasePendingUpdate call returns true.
+					// The data variable contains the value we should revert to.
+					std::thread( [=]{
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+							if ( this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+								Manager::Get()->SetValue( valueId_, ( Switch::resolveOption( data ) == Switch::Option::ON ) ? true : false );
+								g_logger->log( Logger::LogLevel::WARNING, this, "Preventing race condition." );
+							}
+						}
+					} ).detach();
+
+
+/*
+						! wasPendingUpdate
+						// vv update is different than current value
+						&& device->getValueOption() != targetValue
+						// vv update comes from hardware, not from a client source
+						&& Device::resolveUpdateSource( source_ & ( ( Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API | Device::UpdateSource::LINK ) ) ) == 0
+						&& device->getSettings()->get<bool>( "prevent_race_conditions", false )
+						&& this->_releasePendingUpdate( reference + "_race", source_ )
+*/
+
+//					std::thread( [=]{
+//						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+//							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+//							if ( this->_queuePendingUpdate( device->getReference(), source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+//								Manager::Get()->SetValue( valueId_, ( Switch::resolveOption( data ) == Switch::Option::ON ) ? true : false );
+//								g_logger->log( Logger::LogLevel::WARNING, this, "Preventing race condition." );
+//							}
+//						}
+//					} ).detach();
+
+				} else {
 					
-					if ( "Unknown" != label ) {
-						device->setLabel( label );
+					// If the prevent race conditions setting is active a special race condition pending update is set
+					// which is used to detect and prevent race conditions. The value to revert to when a race condition
+					// is detected is stored as data variable alongside the pending update.
+					if (
+						device->getSettings()->get<bool>( "prevent_race_conditions", false )
+						&& Device::resolveUpdateSource( source_ & Device::UpdateSource::USER ) > 0
+					) {
+						data = Switch::resolveOption( boolValue ? Switch::Option::ON : Switch::Option::OFF );
+						this->_queuePendingUpdate( reference + "_race", source_, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
 					}
+
+					device->updateValue( source_, targetValue );
 				}
 				break;
 			}
@@ -417,16 +582,13 @@ namespace micasa {
 				// step size and dimming duration. These should be handled through the configuration.
 				if ( "Level" == label ) {
 					// Detect subtype.
-					// TODO improve detection
 					auto subtype = Level::SubType::GENERIC;
 					auto hardwareLabel = this->getLabel();
 					std::transform( hardwareLabel.begin(), hardwareLabel.end(), hardwareLabel.begin(), ::tolower );
 					if ( hardwareLabel.find( "dimmer" ) != string::npos ) {
 						subtype = Level::SubType::DIMMER;
 					}
-				
-					Device::UpdateSource allowedUpdateSources = Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE | Device::UpdateSource::TIMER | Device::UpdateSource::SCRIPT | Device::UpdateSource::API;
-
+			
 					// If there's an update mutex available we need to make sure that it is properly notified of the
 					// execution of the update.
 					this->_releasePendingUpdate( reference, source_ );
@@ -437,29 +599,27 @@ namespace micasa {
 						&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 					) {
 						auto device = this->declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
-							{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
-							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, true }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
 						} );
-						device->updateValue( source_, byteValue );
-						
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}
+						device->updateValue( source_, byteValue );
 					}
 				}
 			}
 
 			case COMMAND_CLASS_METER:
 			case COMMAND_CLASS_SENSOR_MULTILEVEL: {
-				float floatValue = 0;
+				float floatValue = 0.;
 				if (
 					valueId_.GetType() == ValueID::ValueType_Decimal
 					&& false != Manager::Get()->GetValueAsFloat( valueId_, &floatValue )
 				) {
-					// TODO check units to see if any multiplication needs to take place (from watt kwh)?
-
+					double multiplier = 1.;
 					if (
 						"Energy" == label
 						|| "Gas" == label
@@ -470,6 +630,9 @@ namespace micasa {
 						if ( "Energy" == label ) {
 							subtype = Counter::SubType::ENERGY;
 							unit = Counter::Unit::KILOWATTHOUR;
+							if ( Manager::Get()->GetValueUnits( valueId_ ) == "kWh" ) {
+								multiplier = 1000.;
+							}
 						} else if ( "Gas" == label ) {
 							subtype = Counter::SubType::GAS;
 							unit = Counter::Unit::M3;
@@ -478,11 +641,14 @@ namespace micasa {
 							unit = Counter::Unit::M3;
 						}
 						auto device = this->declareDevice<Counter>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( subtype ) },
-							{ DEVICE_SETTING_DEFAULT_UNIT, Counter::resolveUnit( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Counter::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Counter::resolveUnit( unit ) }
 						} );
-						device->updateValue( source_, floatValue );
+						if ( "Unknown" != label ) {
+							device->setLabel( label );
+						}
+						device->updateValue( source_, floatValue * multiplier );
 					} else {
 						auto subtype = Level::SubType::GENERIC;
 						auto unit = Level::Unit::GENERIC;
@@ -497,17 +663,28 @@ namespace micasa {
 							unit = Level::Unit::AMPERES;
 						} else if ( "Temperature" == label ) {
 							subtype = Level::SubType::TEMPERATURE;
-							unit = Level::Unit::CELSIUS;
+							if ( Manager::Get()->GetValueUnits( valueId_ ) == "F" ) {
+								unit = Level::Unit::FAHRENHEIT;
+							} else {
+								unit = Level::Unit::CELSIUS;
+							}
 						} else if ( "Luminance" == label ) {
 							subtype = Level::SubType::LUMINANCE;
 							unit = Level::Unit::LUX;
+							// Convert from % to lux.
+							if ( Manager::Get()->GetValueUnits( valueId_ ) != "lux" ) {
+								multiplier = 1000. / 100.;
+							}
 						}
 						auto device = this->declareDevice<Level>( reference, label, {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( subtype ) },
-							{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( unit ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( subtype ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( unit ) }
 						} );
-						device->updateValue( source_, floatValue );
+						if ( "Unknown" != label ) {
+							device->setLabel( label );
+						}
+						device->updateValue( source_, floatValue * multiplier );
 					}
 				}
 				break;
@@ -519,12 +696,22 @@ namespace micasa {
 					valueId_.GetType() == ValueID::ValueType_Byte
 					&& false != Manager::Get()->GetValueAsByte( valueId_, &byteValue )
 				) {
-					auto device = this->declareDevice<Level>( reference, label, {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::BATTERY_LEVEL ) },
-						{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::PERCENT ) }
-					} );
-					device->updateValue( source_, (unsigned int)byteValue );
+					// The battery command class provides battery status of the hardware and thus also for *all* devices
+					// of this hardware.
+					auto devices = this->getAllDevices();
+					for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
+						if ( (*deviceIt)->getReference() != "heal" ) {
+							(*deviceIt)->getSettings()->put( DEVICE_SETTING_BATTERY_LEVEL, (unsigned int)byteValue );
+						}
+					}
+
+					// A 'normal' device is also created which provides detailed insight on how the battery level
+					// decreases over time.
+					this->declareDevice<Level>( reference, label, {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::BATTERY_LEVEL ) },
+						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) }
+					} )->updateValue( source_, (unsigned int)byteValue );
 				}
 				break;
 			}
@@ -545,7 +732,6 @@ namespace micasa {
 				// json and when processing settings from the callback.
 
 				// Some configuration parameters refer to other paramters by index.
-				unsigned int index = valueId_.GetIndex();
 				if ( index > 0 ) {
 					label = std::to_string( index ) + ". " + label;
 				}
@@ -554,7 +740,9 @@ namespace micasa {
 					{ "name", reference },
 					{ "label", label },
 					{ "description", Manager::Get()->GetValueHelp( valueId_ ) },
-					{ "class", "advanced" }
+					{ "class", "advanced" },
+					{ "mandatory", true },
+					{ "sort", 99 + index }
 				};
 
 				ValueID::ValueType type = valueId_.GetType();
@@ -655,6 +843,7 @@ namespace micasa {
 			}
 
 			default: {
+				g_logger->logr( Logger::LogLevel::WARNING, this, "Unknown Command Class 0x%02X (%s)", commandClass, label.c_str() );
 				break;
 			}
 		}
@@ -671,15 +860,11 @@ namespace micasa {
 		}
 
 		std::string nodeName = Manager::Get()->GetNodeName( this->m_homeId, this->m_nodeId );
-		if ( ! nodeName.empty() ) {
-			if ( this->m_settings->get( "name", "" ).empty() ) {
-				// If no name has been entered yet for this hardware, use the one from openzwave.
-				this->m_settings->put( "name", nodeName );
-			} else if ( nodeName != this->m_settings->get( "name" ) ) {
-				// Make sure the configured hardware name is the same as the node name used by
-				// openzwave and stored in the config xml file.
-				Manager::Get()->SetNodeName( this->m_homeId, this->m_nodeId, this->m_settings->get( "name" ) );
-			}
+		if (
+			! nodeName.empty()
+			&& ! this->m_settings->contains( "name" )
+		) {
+			this->m_settings->put( "name", nodeName );
 		}
 		
 		this->m_settings->commit();

@@ -1,0 +1,81 @@
+<section class="content-header">
+<h1>Links<small>{{device.name}}</small></h1>
+</section>
+
+<section class="content-body">
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-body table-responsive no-padding" *ngIf="links.length>0">
+
+<table class="table table-hover" [gridData]="links" [gridSort]="'name'" #grid="GridDirective">
+<thead>
+	<tr>
+		<!-- th [gridField]="'id'">Id</th -->
+		<th [gridField]="'name'">Name</th>
+		<th [gridField]="'enabled'">State</th>
+		<th [gridField]="'device'">Source Device</th>
+		<th *ngIf="device.type=='switch'" [gridField]="'value'">Value</th>
+		<th class="icon"></th>
+		<th [gridField]="'target_device'">Target Device</th>
+		<th *ngIf="device.type=='switch'" [gridField]="'target_value'">Value</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let link of grid.page" (click)="selectLink(link)">
+		<td>{{link.name}}</td>
+		<td>
+			<span class="label label-success" *ngIf="link.enabled">enabled</span>
+			<span class="label label-danger" *ngIf="!link.enabled">disabled</span>
+		</td>
+		<td>{{link.device}}</td>
+		<td *ngIf="device.type=='switch'"><span class="label"
+			[class.label-success]="link.value=='On'"
+			[class.label-danger]="link.value=='Off'"
+			[class.label-primary]="link.value=='Stop'"
+			[class.label-warning]="link.value=='Idle'"
+			[class.label-info]="link.value!='On' && link.value!='Off' && link.value!='Stop' && link.value!='Idle'"
+			>{{link.value}}</span>
+		</td>
+		<td class="icon">
+			<i class="fa fa-long-arrow-right" *ngIf="device.type=='switch'"></i>
+			<i class="fa fa-link" *ngIf="device.type!='switch'"></i>
+		</td>
+		<td>{{link.target_device}}</td>
+		<td *ngIf="device.type=='switch'"><span class="label"
+			[class.label-success]="link.target_value=='On'"
+			[class.label-danger]="link.target_value=='Off'"
+			[class.label-primary]="link.target_value=='Stop'"
+			[class.label-warning]="link.target_value=='Idle'"
+			[class.label-info]="link.target_value!='On' && link.target_value!='Off' && link.target_value!='Stop' && link.target_value!='Idle'"
+			>{{link.target_value}}</span>
+		</td>
+	</tr>
+</tbody>
+</table>
+
+				</div>
+				<div class="box-footer row actionrow">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<button type="submit" class="btn btn-primary btn-block" (click)="addLink()">Add</button>
+					</div>
+					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging" *ngIf="links.length>0">
+						
+					</div>
+				</div>
+
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>

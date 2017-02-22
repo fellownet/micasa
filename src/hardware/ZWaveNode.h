@@ -8,7 +8,8 @@
 #include "Notification.h"
 
 #define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC  30000 // how long to wait for result
-#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC 3000  // how long to block node while waiting for result
+#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC 5000  // how long to block node while waiting for result
+#define OPEN_ZWAVE_NODE_RACE_WAIT_MSEC  3000
 
 namespace micasa {
 
@@ -17,6 +18,8 @@ namespace micasa {
 		friend class ZWave;
 
 	public:
+		static const constexpr char* label = "Z-Wave Node";
+
 		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~ZWaveNode() { };
 
@@ -27,6 +30,10 @@ namespace micasa {
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
+		void putSettingsJson( nlohmann::json& settings_ ) override;
+		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
+		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
+		void putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) override;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

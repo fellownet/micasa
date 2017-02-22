@@ -29,7 +29,7 @@ namespace micasa {
 	};
 
 	std::string SolarEdgeInverter::getLabel() const {
-		return this->m_settings->get( "label", "SolarEdge Inverter" );
+		return this->m_settings->get( "label", std::string( SolarEdgeInverter::label ) );
 	};
 
 	std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
@@ -88,33 +88,33 @@ namespace micasa {
 				
 				if ( ! telemetry["totalActivePower"].empty() ) {
 					auto device = this->declareDevice<Level>( this->getReference() + "(P)", "Power", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::POWER ) },
-						{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::WATT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::POWER ) },
+						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::WATT ) }
 					} );
 					device->updateValue( source, telemetry["totalActivePower"].get<double>() );
 				}
 				if ( ! telemetry["totalEnergy"].empty() ) {
 					auto device = this->declareDevice<Counter>( this->getReference() + "(E)", "Energy", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Counter::resolveSubType( Counter::SubType::ENERGY ) },
-						{ DEVICE_SETTING_DEFAULT_UNIT, Counter::resolveUnit( Counter::Unit::KILOWATTHOUR ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Counter::resolveSubType( Counter::SubType::ENERGY ) },
+						{ DEVICE_SETTING_DEFAULT_UNIT,           Counter::resolveUnit( Counter::Unit::KILOWATTHOUR ) }
 					} );
 					device->updateValue( source, telemetry["totalEnergy"].get<int>() );
 				}
 				if ( ! telemetry["dcVoltage"].empty() ) {
 					auto device = this->declareDevice<Level>( this->getReference() + "(DC)", "DC voltage", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::ELECTRICITY ) },
-						{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::VOLT ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::ELECTRICITY ) },
+						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::VOLT ) }
 					} );
 					device->updateValue( source, telemetry["dcVoltage"].get<double>() );
 				}
 				if ( ! telemetry["temperature"].empty() ) {
 					auto device = this->declareDevice<Level>( this->getReference() + "(T)", "Temperature", {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE, Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-						{ DEVICE_SETTING_DEFAULT_UNIT, Level::resolveUnit( Level::Unit::CELSIUS ) }
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
+						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) }
 					} );
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}

@@ -34,6 +34,7 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Option, OptionText );
 
 		typedef std::string t_value;
+		// typedef t_switchValue t_value;
 		static const Device::Type type;
 		
 		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
@@ -42,12 +43,14 @@ namespace micasa {
 		
 		void start() override;
 		void stop() override;
-		bool updateValue( const Device::UpdateSource& source_, const Option& value_ );
-		bool updateValue( const Device::UpdateSource& source_, const t_value& value_ );
-		const Option getValueOption() const throw() { return this->m_value; };
-		const Option getPreviousValueOption() const throw() { return this->m_previousValue; };
+		void updateValue( const Device::UpdateSource& source_, const Option& value_ );
+		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
+		Option getValueOption() const throw() { return this->m_value; };
+		Option getPreviousValueOption() const throw() { return this->m_previousValue; };
+		static Option getOppositeValueOption( const Option& value_ ) throw();
 		t_value getValue() const throw() { return OptionText.at( this->m_value ); };
 		t_value getPreviousValue() const throw() { return OptionText.at( this->m_previousValue ); };
+		static t_value getOppositeValue( const t_value& value_ ) throw();
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;

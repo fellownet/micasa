@@ -26,7 +26,7 @@ export class DevicesListResolver implements Resolve<Device[]> {
 		if ( route_.params['script_id'] == 'add' ) {
 			return Observable.of( [] );
 		} else {
-			return this._devicesService.getDevices( route_.params['hardware_id'], route_.params['script_id'] )
+			return me._devicesService.getDevices( route_.params['hardware_id'], route_.params['script_id'] )
 				.catch( function( error_: string ) {
 					me._router.navigate( [ '/login' ] );
 					return Observable.of( null );
