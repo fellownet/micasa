@@ -43,23 +43,19 @@ namespace micasa {
 		{ Level::Unit::LUX, "lx" },
 	};
 	
-	void Level::start() {
+	Level::Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) {
 		try {
-			this->m_value = g_database->getQueryValue<double>(
+			this->m_value = g_database->getQueryValue<Level::t_value>(
 				"SELECT `value` "
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d "
 				"ORDER BY `date` DESC "
-				"LIMIT 1"
-				, this->m_id
+				"LIMIT 1",
+				this->m_id
 			);
-		} catch( const Database::NoResultsException& ex_ ) { }
-
-		Device::start();
-	};
-	
-	void Level::stop() {
-		Device::stop();
+		} catch( const Database::NoResultsException& ex_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
+		}
 	};
 
 	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
@@ -73,6 +69,7 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
+			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
 		) {
 			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
@@ -106,7 +103,7 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_level_history` (`device_id`, `value`) "
-				"VALUES (%d, %.3f)",
+				"VALUES (%d, %.6lf)",
 				this->m_id,
 				value_
 			);
@@ -114,7 +111,7 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( this->shared_from_this() ), source_ );
 			}
-			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3f.", value_ );
+			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", value_ );
 		} else {
 			this->m_value = previous;
 		}
@@ -282,7 +279,7 @@ namespace micasa {
 			std::string groupFormat = "%Y-%m-%d-%H";
 
 			auto trends = g_database->getQuery(
-				"SELECT MAX(`value`) AS `max`, MIN(`value`) AS `min`, printf(\"%%.3f\", AVG(`value`)) AS `average`, strftime(%Q, MAX(`date`)) AS `date` "
+				"SELECT MAX(`value`) AS `max`, MIN(`value`) AS `min`, AVG(`value`) AS `average`, strftime(%Q, MAX(`date`)) AS `date` "
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d AND `Date` > datetime('now','-4 hour') "
 				"GROUP BY strftime(%Q, `date`)",
@@ -293,11 +290,11 @@ namespace micasa {
 			for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
 				g_database->putQuery(
 					"REPLACE INTO `device_level_trends` (`device_id`, `min`, `max`, `average`, `date`) "
-					"VALUES (%d, %q, %q, %q, %Q)",
+					"VALUES (%d, %.6lf, %.6lf, %.6lf, %Q)",
 					this->m_id,
-					(*trendsIt)["min"].c_str(),
-					(*trendsIt)["max"].c_str(),
-					(*trendsIt)["average"].c_str(),
+					std::stod( (*trendsIt)["min"] ),
+					std::stod( (*trendsIt)["max"] ),
+					std::stod( (*trendsIt)["average"] ),
 					(*trendsIt)["date"].c_str()
 				);
 			}

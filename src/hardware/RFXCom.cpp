@@ -10,9 +10,6 @@
 #include "../device/Level.h"
 #include "../device/Switch.h"
 
-#define RFXCOM_BUSY_WAIT_MSEC  30000 // how long to wait for result
-#define RFXCOM_BUSY_BLOCK_MSEC 3000  // how long to block hardware while waiting for result
-
 // TODO implement many more recognized types.
 
 namespace micasa {
@@ -182,7 +179,7 @@ namespace micasa {
 								{ "label", "ID 1" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 },
+								{ "maximum", 255 },
 								{ "mandatory", true }
 							},
 							{
@@ -190,7 +187,7 @@ namespace micasa {
 								{ "label", "ID 2" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 },
+								{ "maximum", 255 },
 								{ "mandatory", true }
 							},
 							{
@@ -198,7 +195,7 @@ namespace micasa {
 								{ "label", "ID 3" },
 								{ "type", "byte" },
 								{ "minimum", 0 },
-								{ "minimum", 255 },
+								{ "maximum", 255 },
 								{ "mandatory", true }
 							},
 							{
@@ -206,7 +203,7 @@ namespace micasa {
 								{ "label", "Unit Code" },
 								{ "type", "byte" },
 								{ "minimum", 1 },
-								{ "minimum", 16 },
+								{ "maximum", 16 },
 								{ "mandatory", true }
 							}
 						 } }

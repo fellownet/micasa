@@ -8,9 +8,6 @@
 #include "../User.h"
 #include "../Logger.h"
 
-#define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
-#define HARMONY_HUB_PING_INTERVAL_SEC	30
-
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;

@@ -49,7 +49,7 @@ namespace micasa {
 		
 		"CREATE TABLE IF NOT EXISTS `device_counter_history` ( "
 		"`device_id` INTEGER NOT NULL, "
-		"`value` BIGINT NOT NULL, "
+		"`value` FLOAT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 

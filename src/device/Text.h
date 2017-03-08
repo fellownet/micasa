@@ -19,12 +19,10 @@ namespace micasa {
 		// typedef t_textValue t_value;
 		static const Device::Type type;
 		
-		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
+		Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
 
 		Device::Type getType() const throw() override { return Text::type; };
 		
-		void start() override;
-		void stop() override;
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };

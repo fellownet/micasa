@@ -10,6 +10,9 @@ extern "C" {
 #define HARMONY_HUB_BUSY_WAIT_MSEC  60000 // how long to wait for result
 #define HARMONY_HUB_BUSY_BLOCK_MSEC 3000  // how long to block activies while waiting for result
 
+#define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
+#define HARMONY_HUB_PING_INTERVAL_SEC	30
+
 namespace micasa {
 
 	class HarmonyHub final : public Hardware {

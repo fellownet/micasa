@@ -29,23 +29,19 @@ namespace micasa {
 		{ Counter::Unit::M3, "M3" }
 	};
 
-	void Counter::start() {
+	Counter::Counter( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) {
 		try {
-			this->m_value = g_database->getQueryValue<int>(
-			   "SELECT `value` "
-			   "FROM `device_counter_history` "
-			   "WHERE `device_id`=%d "
-			   "ORDER BY `date` DESC "
-			   "LIMIT 1"
-			   , this->m_id
+			this->m_value = g_database->getQueryValue<Counter::t_value>(
+				"SELECT `value` "
+				"FROM `device_counter_history` "
+				"WHERE `device_id`=%d "
+				"ORDER BY `date` DESC "
+				"LIMIT 1",
+				this->m_id
 			);
-		} catch( const Database::NoResultsException& ex_ ) { }
-
-		Device::start();
-	};
-
-	void Counter::stop() {
-		Device::stop();
+		} catch( const Database::NoResultsException& ex_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
+		}
 	};
 	
 	void Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
@@ -59,6 +55,7 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
+			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
 		) {
 			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
@@ -77,7 +74,7 @@ namespace micasa {
 		if ( success && apply ) {
 			g_database->putQuery(
 				"INSERT INTO `device_counter_history` (`device_id`, `value`) "
-				"VALUES (%d, %d)",
+				"VALUES (%d, %.6lf)",
 				this->m_id,
 				value_
 			);
@@ -85,7 +82,7 @@ namespace micasa {
 			if ( this->isRunning() ) {
 				g_controller->newEvent<Counter>( std::static_pointer_cast<Counter>( this->shared_from_this() ), source_ );
 			}
-			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %d.", value_ );
+			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", value_ );
 		} else {
 			this->m_value = previous;
 		}
@@ -99,7 +96,11 @@ namespace micasa {
 	
 	json Counter::getJson( bool full_ ) const {
 		json result = Device::getJson( full_ );
-		result["value"] = this->getValue();
+
+		std::stringstream ss;
+		ss << std::fixed << std::setprecision( 3 ) << this->getValue();
+		result["value"] = ss.str();
+
 		result["type"] = "counter";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
@@ -223,7 +224,7 @@ namespace micasa {
 				groupFormat.c_str()
 			);
 			for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
-				auto value = g_database->getQueryValue<int>(
+				auto value = g_database->getQueryValue<double>(
 					"SELECT `value` "
 					"FROM `device_counter_history` "
 					"WHERE `device_id`=%d AND `date`=%Q",
@@ -232,10 +233,10 @@ namespace micasa {
 				);
 				g_database->putQuery(
 					"REPLACE INTO `device_counter_trends` (`device_id`, `last`, `diff`, `date`) "
-					"VALUES (%d, %d, %q, %Q)",
+					"VALUES (%d, %.6lf, %.6lf, %Q)",
 					this->m_id,
 					value,
-					(*trendsIt)["diff"].c_str(),
+					std::stod( (*trendsIt)["diff"] ),
 					(*trendsIt)["date2"].c_str()
 				);
 			}

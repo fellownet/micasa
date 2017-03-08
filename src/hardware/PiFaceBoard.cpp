@@ -1,5 +1,377 @@
+#include "PiFace.h"
 #include "PiFaceBoard.h"
+#include "PiFace/MCP23x17.h"
+
+#include "../Logger.h"
+#include "../Utils.h"
+
+#include "../device/Switch.h"
 
 namespace micasa {
+
+	extern std::shared_ptr<Logger> g_logger;
+	
+	using namespace std::chrono;
+	using namespace nlohmann;
+	
+	void PiFaceBoard::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+
+		// The parent has an open file descriptor to the SPI device which we need easy access to.
+		this->m_parent = std::static_pointer_cast<PiFace>( this->getParent() );
+		this->m_devId = std::stoi( this->m_reference );
+
+		// Initialize the PiFace board.
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_IOCON, IOCON_INIT | IOCON_HAEN );
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_IOCONB, IOCON_INIT | IOCON_HAEN );
+
+		// Setup Port A as output.
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_IODIRA, 0x00 ); // Set all pins on Port A as output
+
+		// Lets init the other registers so we always have a clear startup situation.
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPINTENA, 0x00 ); // The PiFace does not support the interrupt capabilities, so set it to 0, and useless for output
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_DEFVALA, 0x00 ); // Default compare value register, useless for output
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_INTCONA, 0x00 ); // Interrupt based on current and prev pin state, not Default value
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_OLATA, 0xFF ); // Set the output latches to 1, otherwise the relays are activated
+
+		// Setup Port B as input.
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_IODIRB, 0xFF ); // Set all pins on Port B as input
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPPUB, 0xFF ); // Enable pullup resistors, so the buttons work immediately
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_IPOLB, 0xFF ); // Invert input pin state, so we will see an active state as as 1
+
+		// Lets init the other registers so we always have a clear startup situation.
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPINTENB, 0x00 ); // The PiFace does not support the interrupt capabilities, so set it to 0
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_DEFVALB, 0x00 ); // Default compare value register, we do not use it (yet), but lets set it to 0 (assuming not active state)
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_INTCONB, 0x00 ); // Interrupt based on current and prev pin state, not Default value
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_OLATB, 0x00 ); // Set the output latches to 0, note: not used
+
+		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, 0x00 ); // Set all pins on Port A as output, and deactivate
+
+		Hardware::start();
+
+		for ( unsigned short i = 0; i < 8; i++ ) {
+			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_OUTPUT ), "Output " + std::to_string( i ), {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_INPUT ), "Input " + std::to_string( i ), {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+		}
+
+		this->setState( Hardware::State::READY );
+	};
+	
+	void PiFaceBoard::stop() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Hardware::stop();
+	};
+
+	std::string PiFaceBoard::getLabel() const {
+		std::stringstream label;
+		label << PiFaceBoard::label << " " << this->m_reference;
+		return label.str();
+	};
+
+	bool PiFaceBoard::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		auto device = std::static_pointer_cast<Switch>( device_ );
+		auto port = this->_parseReference( device_->getReference() );
+#ifdef _DEBUG
+		assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
+		assert( port.second == PIFACEBOARD_PORT_OUTPUT && "Device should be an output port." );
+#endif // _DEBUG
+			
+		if ( this->_queuePendingUpdate( device->getReference(), source_, PIFACEBOARD_BUSY_BLOCK_MSEC, PIFACEBOARD_BUSY_WAIT_MSEC ) ) {
+			unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_OLATA );
+			int mask = 0x01;
+			mask <<= port.first;
+			if ( device->getValueOption() == Switch::Option::OFF ) {
+				portState &= ~mask;
+			} else {
+				portState |= mask;
+			}
+			this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, portState );
+			apply_ = false;
+			return true;
+
+		} else {
+			g_logger->log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
+			return false;
+		}
+	};
+
+	json PiFaceBoard::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
+		json result = json::object();
+
+		if ( device_->getType() == Device::Type::SWITCH ) {
+			auto port = this->_parseReference( device_->getReference() );
+			if ( port.second == PIFACEBOARD_PORT_INPUT ) {
+				result["port_type"] = device_->getSettings()->get( "port_type", "pulse" );
+				if ( device_->getSettings()->get( "port_type", "pulse" ) == "counter" ) {
+					result["divider"] = device_->getSettings()->get<unsigned int>( "divider", 1000 );
+					if ( device_->getSettings()->contains( "interval" ) ) {
+						result["interval"] = device_->getSettings()->get<unsigned int>( "interval" );
+					}
+					if ( device_->getSettings()->contains( "percentage" ) ) {
+						result["percentage"] = device_->getSettings()->get<unsigned int>( "percentage" );
+					}
+				}
+			}
+		}
+
+		return result;
+	};
+
+	json PiFaceBoard::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
+		json result = json::array();
+
+		if ( device_->getType() == Device::Type::SWITCH ) {
+			auto port = this->_parseReference( device_->getReference() );
+			if ( port.second == PIFACEBOARD_PORT_INPUT ) {
+				json setting = {
+					{ "name", "port_type" },
+					{ "label", "Type" },
+					{ "type", "list" },
+					{ "mandatory", true },
+					{ "sort", 99 },
+					{ "options", {
+						{
+							{ "value", "pulse" },
+							{ "label", "Pulse" },
+							{ "settings", {
+								{
+									{ "name", "count_pulses" },
+									{ "label", "Count Pulses" },
+									{ "type", "boolean" },
+									{ "settings", {
+										{
+											{ "name", "divider" },
+											{ "label", "Divider" },
+											{ "type", "int" },
+											{ "minimum", 1 },
+											{ "maximum", 10000 },
+											{ "default", 1000 },
+											{ "mandatory", true }
+										}
+/*
+										{
+											{ "name", "interval" },
+											{ "label", "Update Interval" },
+											{ "description", "Maximum time interval in seconds between consecutive updates. Available settings: 1 - 86400." },
+											{ "type", "int" },
+											{ "minimum", 1 },
+											{ "maximum", 86400 }
+										},
+										{
+											{ "name", "percentage" },
+											{ "label", "Update Percentage" },
+											{ "description", "This parameter can be used to force trigger an update when the difference in pulse intervals is above a certain percentage. The value is a percentage of the previous interval. Available settings: 0 - 1000." },
+											{ "type", "int" },
+											{ "minimum", 1 },
+											{ "maximum", 1000 }
+										}
+*/
+									} }
+								}
+							} }
+						},
+						{
+							{ "value", "toggle" },
+							{ "label", "Toggle" }
+						}
+/*						
+						{
+							{ "value", "counter" },
+							{ "label", "Counter" },
+							{ "settings", {
+								{
+									{ "name", "divider" },
+									{ "label", "Divider" },
+									{ "type", "int" },
+									{ "minimum", 1 },
+									{ "maximum", 10000 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "interval" },
+									{ "label", "Update Interval" },
+									{ "description", "Maximum time interval in seconds between consecutive updates. Available settings: 1 - 86400." },
+									{ "type", "int" },
+									{ "minimum", 1 },
+									{ "maximum", 86400 }
+								},
+								{
+									{ "name", "percentage" },
+									{ "label", "Update Percentage" },
+									{ "description", "This parameter can be used to force trigger an update when the difference in pulse intervals is above a certain percentage. The value is a percentage of the previous interval. Available settings: 0 - 1000." },
+									{ "type", "int" },
+									{ "minimum", 1 },
+									{ "maximum", 1000 }
+								}
+							} }
+						}
+*/
+					} }
+				};
+				result += setting;
+			}
+		}
+
+		return result;
+	};
+
+	std::chrono::milliseconds PiFaceBoard::_work( const unsigned long int& iteration_ ) {
+
+		// Only read pin states when the hardware is ready and the devices have been created.
+		if ( this->getState() != Hardware::State::READY ) {
+			return std::chrono::milliseconds( 1000 );
+		}
+
+		// Read and process output pin states.
+		// TODO for better efficiency keep track of current pin state in a fast boolean array instead of fetching the
+		// devices and check their values.
+		unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA );
+		int mask = 0x01;
+		for ( unsigned short i = 0; i < 8; i++ ) {
+
+			std::string reference = this->_createReference( i, PIFACEBOARD_PORT_OUTPUT );
+			auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
+			bool state = ( ( portState & mask ) == mask );
+			Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
+			auto source = Device::UpdateSource::HARDWARE;
+			this->_releasePendingUpdate( reference, source );
+			if ( device->getValueOption() != value ) {
+				device->updateValue( Device::UpdateSource::HARDWARE, value );
+			}
+
+			mask<<=1;
+		}
+
+		// Read and process inputs pin states.
+		// TODO for better efficiency keep track of current pin state in a fast boolean array instead of fetching the
+		// devices and check their values.
+		portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOB );
+		mask = 0x01;
+		for ( unsigned short i = 0; i < 8; i++ ) {
+
+			std::string reference = this->_createReference( i, PIFACEBOARD_PORT_INPUT );
+			auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
+			bool state = ( ( portState & mask ) == mask );
+			Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
+			std::string portType = device->getSettings()->get( "port_type", "pulse" );
+			if ( portType == "pulse" ) {
+				if ( device->getValueOption() != value ) {
+					device->updateValue( Device::UpdateSource::HARDWARE, value );
+				}
+
+				// If the option to count pulses was enabled, additional devices are created. These are a counter-
+				// (ie.: kWh) and a level (ie.: kWatt) device.
+				if ( device->getSettings()->get<bool>( "count_pulses", false ) ) {
+
+					auto counter = this->declareDevice<Counter>( reference + "_counter", "Counter " + std::to_string( i ), {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+					} );
+					auto level = this->declareDevice<Level>( reference + "_level", "Level " + std::to_string( i ), {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+					} );
+
+					int divider = device->getSettings()->get<int>( "divider", 1000 );
+					bool bUpdateLevelDevice = false;
+
+					if ( this->m_counters.find( i ) == this->m_counters.end() ) {
+						this->m_counters[i] = { (long)( counter->getValue() * divider ), 0, 0, system_clock::now(), system_clock::now() };
+					}
+
+					if (
+						value == Switch::Option::ON
+						&& this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE )
+					) {
+						this->m_counters[i].session++;
+						this->m_counters[i].lastInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
+						this->m_counters[i].lastPulse = system_clock::now();
+
+						// Calculate new counter device value.
+						//Counter::t_value value = (double)( this->m_counters[i].initial + this->m_counters[i].session ) / (double)divider;
+						Counter::t_value value = (double)( ( 1. / divider ) * ( this->m_counters[i].initial + this->m_counters[i].session ) );
+						counter->updateValue( Device::UpdateSource::HARDWARE, value );
+						bUpdateLevelDevice = true;
+					}
+					if (
+						this->m_counters[i].session >= 2
+						&& (
+							bUpdateLevelDevice
+							|| iteration_ % ( 1000 / PIFACEBOARD_WORK_WAIT_MSEC ) == 0
+						)
+					) {
+						// The current interval will surpass the last interval eventually, if the pulses are slowing
+						// down. The active interval holds the longest of these two and causes the instant level value
+						// to drop gradually.
+						unsigned long currentInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
+						unsigned long activeInterval = currentInterval;
+						if ( this->m_counters[i].lastInterval > activeInterval ) {
+							activeInterval = this->m_counters[i].lastInterval;
+						}
+						Level::t_value value = (double)( ( ( 1. / divider ) * 3600. ) / ( activeInterval / 1000. ) );
+						Level::t_value previousValue = level->getValue();
+						double perc = 100;
+						if ( previousValue > 0 ) {
+							perc = fabs( 100. - (double)( ( 100. / previousValue ) * value ) );
+							g_logger->logr( Logger::LogLevel::ERROR, this, "PERCENTAGE %.3f", perc );
+						}
+						if (
+							bUpdateLevelDevice
+							// vv every minute
+							// TODO make this configurable
+							|| duration_cast<seconds>( system_clock::now() - this->m_counters[i].lastUpdate ).count() >= 15
+							// vv if value is different from previous value by more than 15%
+							// TODO make this configurable
+							|| (
+								previousValue > 0
+								&& perc >= 15
+							)
+						) {
+							g_logger->log( Logger::LogLevel::ERROR, this, "UPDATE" );
+							level->updateValue( Device::UpdateSource::HARDWARE, value );
+							this->m_counters[i].lastUpdate = system_clock::now();
+						}
+					}
+				}
+			} else if ( portType == "toggle" ) {
+				if (
+					value == Switch::Option::ON
+					&& this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_TOGGLE_WAIT_MSEC )
+				) {
+					auto old = device->getValueOption();
+					if ( old == Switch::Option::ON ) {
+						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+					} else {
+						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
+					}
+				}
+			}
+
+			mask<<=1;
+		}
+
+		return std::chrono::milliseconds( PIFACEBOARD_WORK_WAIT_MSEC );
+	};
+
+	std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {
+		std::stringstream reference;
+		reference << this->m_reference << "_" << position_ << "_" << io_;
+		return reference.str();
+	};
+
+	std::pair<unsigned short, unsigned short> PiFaceBoard::_parseReference( const std::string& reference_ ) const {
+		auto parts = stringSplit( reference_, '_' );
+		return { std::stoi( parts[1] ), std::stoi( parts[2] ) };
+	};
 
 }; // namespace micasa

@@ -35,6 +35,7 @@
 #include "hardware/RFXCom.h"
 #include "hardware/P1Meter.h"
 #include "hardware/Telegram.h"
+#include "hardware/PiFace.h"
 
 #include "json.hpp"
 
@@ -560,10 +561,18 @@ namespace micasa {
 									{ "value", "harmony_hub" },
 									{ "label", HarmonyHub::label }
 								},
+#ifdef _WITH_OPENZWAVE
 								{
 									{ "value", "zwave" },
 									{ "label", ZWave::label }
 								},
+#endif // _WITH_OPENZWAVE
+#ifdef _WITH_LINUX_SPI
+								{
+									{ "value", "piface" },
+									{ "label", PiFace::label }
+								},
+#endif // _WITH_LINUX_SPI
 								{
 									{ "value", "solaredge" },
 									{ "label", SolarEdge::label }
@@ -742,6 +751,7 @@ namespace micasa {
 								}
 							} ).detach();
 
+							output_["data"] = hardware->getJson( true );
 							output_["code"] = 200;
 						}
 						break;
