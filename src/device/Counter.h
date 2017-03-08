@@ -24,7 +24,7 @@ namespace micasa {
 		static const std::map<Unit, std::string> UnitText;
 		ENUM_UTIL_W_TEXT( Unit, UnitText );
 		
-		typedef int t_value;
+		typedef double t_value;
 		// typedef t_counterValue t_value;
 		static const Device::Type type;
 
@@ -34,7 +34,6 @@ namespace micasa {
 		
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );
-
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		nlohmann::json getJson( bool full_ = false ) const override;

@@ -1,3 +1,7 @@
+// https://github.com/piface/libmcp23s17/blob/master/src/mcp23s17.c
+// http://wiringpi.com/
+// http://wiringpi.com/reference/priority-interrupts-and-threads/
+
 #include <fcntl.h>
 #include <linux/ioctl.h>
 #include <linux/types.h>

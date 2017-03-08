@@ -255,17 +255,23 @@ namespace micasa {
 		double offset = this->m_settings->get<double>( "offset", 0 );
 
 		if ( group_ == "none" ) {
+			std::string dateFormat = "%Y-%m-%d %H:%M:30";
+			std::string groupFormat = "%Y-%m-%d-%H-%M";
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( `value` / %.6f ) + %.6f ) AS `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp`, `date` "
+				"SELECT printf(\"%%.3f\", ( avg(`value`) + %.6f ) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d "
 				"AND `date` >= datetime('now','-%d %s') "
+				"GROUP BY strftime( %Q, `date` ) "
 				"ORDER BY `date` ASC ",
-				divider,
 				offset,
+				divider,
+				dateFormat.c_str(),
+				dateFormat.c_str(),
 				this->m_id,
 				range_,
-				interval.c_str()
+				interval.c_str(),
+				groupFormat.c_str()
 			);
 		} else {
 			std::string dateFormat = "%Y-%m-%d %H:30:00";
@@ -281,11 +287,11 @@ namespace micasa {
 				groupFormat = "%Y";
 			}
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( avg(`average`) + %.6f ) /  %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
+				"SELECT printf(\"%%.3f\", ( avg(`average`) + %.6f ) /  %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
 				"FROM `device_level_trends` "
 				"WHERE `device_id`=%d "
 				"AND `date` >= datetime('now','-%d %s') "
-				"GROUP BY strftime(%Q, `date`) "
+				"GROUP BY strftime( %Q, `date` ) "
 				"ORDER BY `date` ASC ",
 				offset,
 				divider,
