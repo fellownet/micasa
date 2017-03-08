@@ -50,6 +50,7 @@ namespace micasa {
 		bool m_inputs[8];
 		bool m_outputs[8];
 		std::chrono::time_point<std::chrono::system_clock> m_lastPulse[8];
+		std::vector<unsigned long> m_intervals[8];
 
 		std::string _createReference( unsigned short position_, unsigned short io_ ) const;
 		std::pair<unsigned short, unsigned short> _parseReference( const std::string& reference_ ) const;

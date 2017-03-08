@@ -223,12 +223,36 @@ namespace micasa {
 								} )->incrementValue( Device::UpdateSource::HARDWARE );
 								if ( iteration_ >= 2 ) {
 									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-									this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+									unsigned long duration = 0;
+									this->m_intervals[i].push_back( interval );
+									std::vector<unsigned long>::reverse_iterator intervalsIt;
+									for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
+										if ( duration < 60000 ) {
+											duration += *intervalsIt;
+										} else {
+											break;
+										}
+									}
+									this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
+
+									// TODO remove this code.
+									unsigned long testduration = 0;
+									for ( auto testIt = this->m_intervals[i].begin(); testIt != this->m_intervals[i].end(); testIt++ ) {
+										testduration += *testIt;
+									}
+									std::cout << duration << " vs. " << testduration << " size=" << this->m_intervals[i].size() << "\n";
+									
+
+
+
+
+
+									this->declareDevice<Level>( reference + "_level", "Pulse Interval " + std::to_string( i ), {
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
 										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
 										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-									} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
+									} )->updateValue( Device::UpdateSource::HARDWARE, duration / this->m_intervals[i].size() );
 								}
 								this->m_lastPulse[i] = system_clock::now();
 							} else {
