@@ -1,15 +1,18 @@
 import { NgModule }      from '@angular/core';
 
 import { TimestampPipe } from './timestamp.pipe';
+import { TruncatePipe }  from './truncate.pipe';
 
 @NgModule( {
 	imports: [
 	],
 	declarations: [
-		TimestampPipe
+		TimestampPipe,
+		TruncatePipe
 	],
 	exports: [
-		TimestampPipe
+		TimestampPipe,
+		TruncatePipe
 	]
 } )
 

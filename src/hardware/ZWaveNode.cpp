@@ -137,8 +137,8 @@ namespace micasa {
 						config["value"] = value;
 					}
 				} else if ( type == ValueID::ValueType_Byte ) {
-					uint8 value = jsonGet<uint8>( settingIt.value() );
-					if ( Manager::Get()->SetValue( valueId, value ) ) {
+					unsigned int value = jsonGet<unsigned int>( settingIt.value() );
+					if ( Manager::Get()->SetValue( valueId, (uint8)value ) ) {
 						config["value"] = value;
 					}
 				} else if ( type == ValueID::ValueType_Short ) {
@@ -206,8 +206,9 @@ namespace micasa {
 	void ZWaveNode::putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) {
 		// The provided settings should've been verified by the webserver and each device should have a mandatory name
 		// property, so we can blindly set it here.
-		ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-		return Manager::Get()->SetValueLabel( valueId, settings_["name"] );
+		// NOTE we're dependant on the original label for detecting the subtype and unit.
+		//ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+		//return Manager::Get()->SetValueLabel( valueId, settings_["name"] );
 	};
 
 	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
@@ -409,7 +410,8 @@ namespace micasa {
 		unsigned int index = valueId_.GetIndex();
 		std::string reference = std::to_string( valueId_.GetId() );
 		
-		// Some values are not going to be processed ever and can be filtered out beforehand.
+		// Some values are not going to be processed ever and can be filtered out beforehand. NOTE these labels cannot
+		// be changed by the end-user so they're safe to be checked against.
 		if (
 			"Exporting" == label
 			|| "Interval" == label
@@ -467,7 +469,7 @@ namespace micasa {
 					subtype = Switch::SubType::DOOR_CONTACT;
 				}
 			
-				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::CONTROLLER;
+				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::CONTROLLER | Device::UpdateSource::INTERNAL;
 				if ( commandClass == COMMAND_CLASS_SWITCH_BINARY ) {
 					allowedUpdateSources |= Device::UpdateSource::USER;
 				}
@@ -487,7 +489,7 @@ namespace micasa {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to extract byte value." );
 						return;
 					}
-					boolValue = !!byteValue;
+					boolValue = !!( (unsigned int)byteValue );
 				}
 
 				Switch::Option targetValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
@@ -512,7 +514,7 @@ namespace micasa {
 					&& targetValue != Switch::resolveOption( data )
 					&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
 					&& ( source_ & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
-					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
 					g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
 					Manager::Get()->RefreshValue( valueId_ );
@@ -586,7 +588,7 @@ namespace micasa {
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}
-						device->updateValue( source_, byteValue );
+						device->updateValue( source_, (unsigned int)byteValue );
 					}
 				}
 			}
@@ -609,7 +611,7 @@ namespace micasa {
 						if ( "Energy" == label ) {
 							subtype = Counter::SubType::ENERGY;
 							unit = Counter::Unit::KILOWATTHOUR;
-							if ( Manager::Get()->GetValueUnits( valueId_ ) == "kWh" ) {
+							if ( Manager::Get()->GetValueUnits( valueId_ ) == "Wh" ) {
 								multiplier = 1000.;
 							}
 						} else if ( "Gas" == label ) {
@@ -752,7 +754,7 @@ namespace micasa {
 					}
 					unsigned char byteValue = 0;
 					Manager::Get()->GetValueAsByte( valueId_, &byteValue );
-					setting["value"] = byteValue;
+					setting["value"] = (unsigned int)byteValue;
 				} else if ( type == ValueID::ValueType_Short ) {
 					setting["type"] = "short";
 					setting["minimum"] = Manager::Get()->GetValueMin( valueId_ );

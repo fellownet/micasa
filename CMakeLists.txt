@@ -41,6 +41,7 @@ set( SRC
 	src/hardware/HarmonyHub.cpp
 	src/hardware/Dummy.cpp
 	src/hardware/Telegram.cpp
+	src/hardware/Sunriset.cpp
 
 	# devices
 	src/device/Switch.cpp

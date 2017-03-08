@@ -35,6 +35,7 @@
 #include "hardware/RFXCom.h"
 #include "hardware/P1Meter.h"
 #include "hardware/Telegram.h"
+#include "hardware/Sunriset.h"
 
 #include "json.hpp"
 
@@ -160,11 +161,23 @@ namespace micasa {
 			fclose( f );
 		}
 
-		g_network->bind( "8082", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-			if ( event_ == MG_EV_HTTP_REQUEST ) {
-				this->_processHttpRequest( connection_, (http_message*)data_ );
-			}
-		} ) );
+		if ( NULL == g_network->bind( "80", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REQUEST ) {
+					this->_processHttpRequest( connection_, (http_message*)data_ );
+				}
+			} ) )
+		) {
+			throw std::runtime_error( "unable to bind to port 80" );
+		}
+
+		if ( NULL == g_network->bind( "443", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REQUEST ) {
+					this->_processHttpRequest( connection_, (http_message*)data_ );
+				}
+			} ) )
+		) {
+			throw std::runtime_error( "unable to bind to port 443" );
+		}
 
 		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
@@ -583,7 +596,11 @@ namespace micasa {
 								{
 									{ "value", "telegram" },
 									{ "label", Telegram::label }
-								}
+								},
+								{
+									{ "value", "sunriset" },
+									{ "label", Sunriset::label }
+								},
 							} },
 							{ "sort", 2 }
 						};
@@ -667,10 +684,12 @@ namespace micasa {
 
 						std::vector<std::string> invalid;
 						std::vector<std::string> missing;
+						std::vector<std::string> errors;
 						json hardwareData = json::object();
-						validateSettings( input_, hardwareData, fGetSettings( hardware ), &invalid, &missing, NULL );
+						validateSettings( input_, hardwareData, fGetSettings( hardware ), &invalid, &missing, &errors );
 						if ( invalid.size() > 0 ) {
-							throw WebServer::ResourceException( 400, "Hardware.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+							//throw WebServer::ResourceException( 400, "Hardware.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+							throw WebServer::ResourceException( 400, "Hardware.Invalid.Fields", stringJoin( errors, ", " ) );
 						} else if ( missing.size() > 0 ) {
 							throw WebServer::ResourceException( 400, "Hardware.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
 						}
@@ -886,10 +905,12 @@ namespace micasa {
 
 							std::vector<std::string> invalid;
 							std::vector<std::string> missing;
+							std::vector<std::string> errors;
 							json deviceData = json::object();
-							validateSettings( input_, deviceData, device->getSettingsJson(), &invalid, &missing, NULL );
+							validateSettings( input_, deviceData, device->getSettingsJson(), &invalid, &missing, &errors );
 							if ( invalid.size() > 0 ) {
-								throw WebServer::ResourceException( 400, "Device.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+								//throw WebServer::ResourceException( 400, "Device.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+								throw WebServer::ResourceException( 400, "Device.Invalid.Fields", stringJoin( errors, ", " ) );
 							} else if ( missing.size() > 0 ) {
 								throw WebServer::ResourceException( 400, "Device.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
 							}
@@ -1247,10 +1268,12 @@ namespace micasa {
 
 						std::vector<std::string> invalid;
 						std::vector<std::string> missing;
+						std::vector<std::string> errors;
 						json linkData = json::object();
-						validateSettings( input_, linkData, fGetSettings( linkId == -1 ), &invalid, &missing, NULL );
+						validateSettings( input_, linkData, fGetSettings( linkId == -1 ), &invalid, &missing, &errors );
 						if ( invalid.size() > 0 ) {
-							throw WebServer::ResourceException( 400, "Link.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+							//throw WebServer::ResourceException( 400, "Link.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
+							throw WebServer::ResourceException( 400, "Link.Invalid.Fields", stringJoin( errors, ", " ) );
 						} else if ( missing.size() > 0 ) {
 							throw WebServer::ResourceException( 400, "Link.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
 						}

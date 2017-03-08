@@ -35,6 +35,8 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
+		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );
+
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
 		nlohmann::json getJson( bool full_ = false ) const override;

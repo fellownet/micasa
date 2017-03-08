@@ -49,7 +49,7 @@ namespace micasa {
 			CONTROLLER = INIT | HARDWARE,
 			ANY = USER | CONTROLLER,
 
-			INTERNAL = 64,
+			INTERNAL = 64 // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 		

@@ -32,12 +32,12 @@ namespace micasa {
 	void Counter::start() {
 		try {
 			this->m_value = g_database->getQueryValue<int>(
-			   "SELECT `value` "
-			   "FROM `device_counter_history` "
-			   "WHERE `device_id`=%d "
-			   "ORDER BY `date` DESC "
-			   "LIMIT 1"
-			   , this->m_id
+				"SELECT `value` "
+				"FROM `device_counter_history` "
+				"WHERE `device_id`=%d "
+				"ORDER BY `date` DESC "
+				"LIMIT 1"
+				, this->m_id
 			);
 		} catch( const Database::NoResultsException& ex_ ) { }
 
@@ -52,7 +52,9 @@ namespace micasa {
 
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
+			auto configured = Device::resolveUpdateSource( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) );
+			auto requested = Device::resolveUpdateSource( source_ );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid update source (%d vs %d).", configured, requested );
 			return;
 		}
 		
@@ -95,15 +97,24 @@ namespace micasa {
 		) {
 			this->touch();
 		}
-	}
+	};
+
+	void Counter::incrementValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+		this->updateValue( source_, this->m_value + value_ );
+	};
 	
 	json Counter::getJson( bool full_ ) const {
+		double divider = this->m_settings->get<double>( "divider", 1 );
+
 		json result = Device::getJson( full_ );
-		result["value"] = this->getValue();
+		result["value"] = round( ( this->m_value / divider ) * 1000.0f ) / 1000.0f;
 		result["type"] = "counter";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
-		
+		if ( this->m_settings->contains( "divider" ) ) {
+			result["divider"] = this->m_settings->get<double>( "divider" );
+		}
+	
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
@@ -147,6 +158,16 @@ namespace micasa {
 			}
 			result += setting;
 		}
+
+		result += {
+			{ "name", "divider" },
+			{ "label", "Divider" },
+			{ "description", "A divider to convert the value to the designated unit." },
+			{ "type", "double" },
+			{ "class", "advanced" },
+			{ "sort", 998 }
+		};
+
 		return result;
 	};
 
@@ -161,50 +182,59 @@ namespace micasa {
 			range_ *= 7;
 		}
 
-		std::vector<std::string> validGroups = { "none", "hour", "day", "month", "year" };
+		std::vector<std::string> validGroups = { /*"none",*/ "hour", "day", "month", "year" };
 		if ( std::find( validGroups.begin(), validGroups.end(), group_ ) == validGroups.end() ) {
 			return json::array();
 		}
 
+		double divider = this->m_settings->get<double>( "divider", 1 );
+
+		/*
 		if ( group_ == "none" ) {
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", `value`) AS `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp`, `date` "
+				"SELECT printf(\"%%.3f\", ( `value` + %.6f ) / %.6f ) AS `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp`, `date` "
 				"FROM `device_counter_history` "
 				"WHERE `device_id`=%d "
 				"AND `date` >= datetime('now','-%d %s') "
 				"ORDER BY `date` ASC ",
+				offset,
+				divider,
 				this->m_id,
 				range_,
 				interval.c_str()
 			);
 		} else {
-			std::string dateFormat = "%Y-%m-%d %H:30:00";
-			std::string groupFormat = "%Y-%m-%d-%H";
-			if ( group_ == "day" ) {
-				dateFormat = "%Y-%m-%d 12:00:00";
-				groupFormat = "%Y-%m-%d";
-			} else if ( group_ == "month" ) {
-				dateFormat = "%Y-%m-15 12:00:00";
-				groupFormat = "%Y-%m";
-			} else if ( group_ == "year" ) {
-				dateFormat = "%Y-06-15 12:00:00";
-				groupFormat = "%Y";
-			}
-			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", sum(`diff`)) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
-				"FROM `device_counter_trends` "
-				"WHERE `device_id`=%d "
-				"AND `date` >= datetime('now','-%d %s') "
-				"GROUP BY strftime(%Q, `date`) "
-				"ORDER BY `date` ASC ",
-				dateFormat.c_str(),
-				dateFormat.c_str(),
-				this->m_id,
-				range_,
-				interval.c_str(),
-				groupFormat.c_str()
-			);
+		*/
+
+		std::string dateFormat = "%Y-%m-%d %H:30:00";
+		std::string groupFormat = "%Y-%m-%d-%H";
+		if ( group_ == "day" ) {
+			dateFormat = "%Y-%m-%d 12:00:00";
+			groupFormat = "%Y-%m-%d";
+		} else if ( group_ == "month" ) {
+			dateFormat = "%Y-%m-15 12:00:00";
+			groupFormat = "%Y-%m";
+		} else if ( group_ == "year" ) {
+			dateFormat = "%Y-06-15 12:00:00";
+			groupFormat = "%Y";
 		}
+		return g_database->getQuery<json>(
+			"SELECT printf(\"%%.3f\", sum(`diff`) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
+			"FROM `device_counter_trends` "
+			"WHERE `device_id`=%d "
+			"AND `date` >= datetime('now','-%d %s') "
+			"GROUP BY strftime(%Q, `date`) "
+			"ORDER BY `date` ASC ",
+			divider,
+			dateFormat.c_str(),
+			dateFormat.c_str(),
+			this->m_id,
+			range_,
+			interval.c_str(),
+			groupFormat.c_str()
+		);
+
+		//}
 	};
 
 	std::chrono::milliseconds Counter::_work( const unsigned long int& iteration_ ) {
@@ -257,6 +287,6 @@ namespace micasa {
 			offset += ( 1000 * 15 ); // 15 seconds interval
 			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
-	}
+	};
 
 }; // namespace micasa

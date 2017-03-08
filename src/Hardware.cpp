@@ -29,6 +29,7 @@
 #include "hardware/SolarEdgeInverter.h"
 #include "hardware/Dummy.h"
 #include "hardware/Telegram.h"
+#include "hardware/Sunriset.h"
 
 namespace micasa {
 
@@ -51,7 +52,8 @@ namespace micasa {
 		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
 		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" },
 		{ Hardware::Type::DUMMY, "dummy" },
-		{ Hardware::Type::TELEGRAM, "telegram" }
+		{ Hardware::Type::TELEGRAM, "telegram" },
+		{ Hardware::Type::SUNRISET, "sunriset" }
 	};
 
 	const std::map<Hardware::State, std::string> Hardware::StateText = {
@@ -118,6 +120,9 @@ namespace micasa {
 			case Type::TELEGRAM:
 				return std::make_shared<Telegram>( id_, type_, reference_, parent_ );
 				break;
+			case Type::SUNRISET:
+				return std::make_shared<Sunriset>( id_, type_, reference_, parent_ );
+				break;
 		}
 		return nullptr;
 	}
@@ -130,8 +135,8 @@ namespace micasa {
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
-			"WHERE `hardware_id`=%d"
-			, this->m_id
+			"WHERE `hardware_id`=%d",
+			this->m_id
 		);
 		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
 			Device::Type type = Device::resolveType( (*devicesIt)["type"] );
@@ -154,6 +159,7 @@ namespace micasa {
 
 	void Hardware::stop() {
 		{
+			g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping all devices." );
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
 				auto device = (*devicesIt);

@@ -36,75 +36,125 @@ namespace micasa {
 		Hardware::stop();
 	};
 
+	std::string Telegram::getLabel() const throw() {
+		if ( this->m_username.size() ) {
+			std::stringstream label;
+			label << Telegram::label << " (" << this->m_username << ")";
+			return label.str();
+		} else {
+			return Telegram::label;
+		}
+	};
+
 	std::chrono::milliseconds Telegram::_work( const unsigned long int& iteration_ ) {
-		if ( ! this->m_settings->contains( { "username", "token" } ) ) {
+		if ( ! this->m_settings->contains( { "token" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			this->setState( Hardware::State::FAILED );
 			return std::chrono::milliseconds( 60 * 1000 );
 		}
 
 		std::stringstream url;
-		url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/getUpdates";
+		url << "https://api.telegram.org/bot" << this->m_settings->get( "token" );
 
-		json params = {
-			{ "timeout", 60 }
-		};
-		if ( this->m_lastUpdateId > -1 ) {
-			params["offset"] = this->m_lastUpdateId + 1;
-		}
+		if (
+			iteration_ == 1
+			|| this->getState() != Hardware::State::READY
+		) {
+			url << "/getMe";
 
-		this->setState( Hardware::State::READY );
-		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-			if ( event_ == MG_EV_HTTP_REPLY ) {
+			g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REPLY ) {
+					std::string body;
+					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+					try {
+						json data = json::parse( body );
+						bool success = data["ok"].get<bool>();
+						if ( ! success ) {
+							throw std::runtime_error( "Telegram API reported a failure" );
+						}
 
-				// See if a valid response was received from the Telegram API. It should be json encoded data with an
-				// "ok" property set to a boolean true.
-				std::string body;
-				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-				try {
-					json data = json::parse( body );
-					bool success = data["ok"].get<bool>();
-					if ( ! success ) {
-						throw std::runtime_error( "Telegram API reported a failure" );
+						this->m_username = data["result"]["username"].get<std::string>();
+						this->setState( Hardware::State::READY );
+
+					} catch( std::invalid_argument ex_ ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
+						this->setState( Hardware::State::FAILED );
+					} catch( std::runtime_error ex_ ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
+						this->setState( Hardware::State::FAILED );
 					}
 
-					auto find = data.find( "result" );
-					if (
-						find != data.end()
-						&& (*find).is_array()
-					) {
-						for ( auto updateIt = (*find).begin(); updateIt != (*find).end(); updateIt++ ) {
-							int lastUpdateId = jsonGet<int>( *updateIt, "update_id" );
-							if ( lastUpdateId > this->m_lastUpdateId ) {
-								this->m_lastUpdateId = lastUpdateId;
-							}
+					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 
-							if ( (*updateIt).find( "message" ) != (*updateIt).end() ) {
-								this->_processIncomingMessage( (*updateIt)["message"] );
+				}  else if ( event_ == MG_EV_CLOSE ) {
+
+					// If a successfull response was received, a new connection needs to be made immediately (long poll),
+					// if not, try the Telegram API again after the default of 5 minutes.
+					if ( this->getState() == Hardware::State::READY ) {
+						this->wakeUp();
+					}
+				}
+			} ) );
+
+		} else {
+			url << "/getUpdates";
+
+			json params = {
+				{ "timeout", 60 }
+			};
+			if ( this->m_lastUpdateId > -1 ) {
+				params["offset"] = this->m_lastUpdateId + 1;
+			}
+
+			g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REPLY ) {
+					std::string body;
+					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+					try {
+						json data = json::parse( body );
+						bool success = data["ok"].get<bool>();
+						if ( ! success ) {
+							throw std::runtime_error( "Telegram API reported a failure" );
+						}
+
+						auto find = data.find( "result" );
+						if (
+							find != data.end()
+							&& (*find).is_array()
+						) {
+							for ( auto updateIt = (*find).begin(); updateIt != (*find).end(); updateIt++ ) {
+								int lastUpdateId = jsonGet<int>( *updateIt, "update_id" );
+								if ( lastUpdateId > this->m_lastUpdateId ) {
+									this->m_lastUpdateId = lastUpdateId;
+								}
+
+								if ( (*updateIt).find( "message" ) != (*updateIt).end() ) {
+									this->_processIncomingMessage( (*updateIt)["message"] );
+								}
 							}
 						}
+
+					} catch( std::invalid_argument ex_ ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
+						this->setState( Hardware::State::FAILED );
+					} catch( std::runtime_error ex_ ) {
+						g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
+						this->setState( Hardware::State::FAILED );
 					}
 
-				} catch( std::invalid_argument ex_ ) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
-					this->setState( Hardware::State::FAILED );
-				} catch( std::runtime_error ex_ ) {
-					g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
-					this->setState( Hardware::State::FAILED );
+					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+
+				}  else if ( event_ == MG_EV_CLOSE ) {
+
+					// If a successfull response was received, a new connection needs to be made immediately (long poll),
+					// if not, try the Telegram API again after the default of 5 minutes.
+					if ( this->getState() == Hardware::State::READY ) {
+						this->wakeUp();
+					}
 				}
+			} ), params );
+		}
 
-				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-
-			}  else if ( event_ == MG_EV_CLOSE ) {
-
-				// If a successfull response was received, a new connection needs to be made immediately (long poll),
-				// if not, try the Telegram API again after the default of 5 minutes.
-				if ( this->getState() == Hardware::State::READY ) {
-					this->wakeUp();
-				}
-			}
-		} ), params );
-		
 		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 
@@ -137,35 +187,38 @@ namespace micasa {
 
 				// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
 				// to all chat devices.
-				std::vector<std::shared_ptr<Device> > devices;
-				if ( device_->getReference() == "broadcast" ) {
+				auto sourceDevice = std::static_pointer_cast<Text>( device_ );
+				std::vector<std::shared_ptr<Text> > targetDevices;
+				if ( sourceDevice->getReference() == "broadcast" ) {
 					auto allDevices = this->getAllDevices();
 					for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
 						if (
 							(*deviceIt)->getType() == Device::Type::TEXT
 							&& (*deviceIt)->getReference() != "broadcast"
+							&& (*deviceIt)->isRunning()
 						) {
-							devices.push_back( *deviceIt );							
+							targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
 						}
 					}
 				} else {
-					devices.push_back( device_ );
+					targetDevices.push_back( sourceDevice );
 				}
-				for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
-					std::shared_ptr<Text> device = std::static_pointer_cast<Text>( *deviceIt );
+				for ( auto deviceIt = targetDevices.begin(); deviceIt != targetDevices.end(); deviceIt++ ) {
+					auto targetDevice = *deviceIt;
+					if ( targetDevice->getValue() != sourceDevice->getValue() ) {
+						targetDevice->updateValue( Device::UpdateSource::HARDWARE, sourceDevice->getValue() );
+					}
 					
 					std::stringstream url;
 					url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
 
 					json params = {
-						{ "chat_id", std::stoi( device->getReference() ) },
-						{ "text", std::static_pointer_cast<Text>( device_ )->getValue() },
+						{ "chat_id", std::stoi( targetDevice->getReference() ) },
+						{ "text", sourceDevice->getValue() },
 						{ "parse_mode", "Markdown" }
 					};
 					g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 						if ( event_ == MG_EV_HTTP_REPLY ) {
-
-							// See if a valid response was received from the Telegram API.
 							std::string body;
 							body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
 							try {
@@ -186,13 +239,15 @@ namespace micasa {
 				}
 				return true;
 			}
+		} else {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
 		}
+		
 		return false;
 	};
 
 	json Telegram::getJson( bool full_ ) const {
 		json result = Hardware::getJson( full_ );
-		result["username"] = this->m_settings->get( "username", "" );
 		result["token"] = this->m_settings->get( "token", "" );
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
@@ -203,20 +258,12 @@ namespace micasa {
 	json Telegram::getSettingsJson() const {
 		json result = Hardware::getSettingsJson();
 		result += {
-			{ "name", "username" },
-			{ "label", "Username" },
-			{ "type", "string" },
-			{ "class", this->m_settings->contains( "username" ) ? "advanced" : "normal" },
-			{ "mandatory", true },
-			{ "sort", 97 }
-		};
-		result += {
 			{ "name", "token" },
 			{ "label", "Token" },
 			{ "type", "string" },
 			{ "class", this->m_settings->contains( "token" ) ? "advanced" : "normal" },
 			{ "mandatory", true },
-			{ "sort", 98 }
+			{ "sort", 99 }
 		};
 		return result;
 	};
