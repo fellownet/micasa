@@ -203,7 +203,7 @@ namespace micasa {
 		return result;
 	};
 
-	void ZWaveNode::putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) {
+	void ZWaveNode::putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) {
 		// The provided settings should've been verified by the webserver and each device should have a mandatory name
 		// property, so we can blindly set it here.
 		// NOTE we're dependant on the original label for detecting the subtype and unit.

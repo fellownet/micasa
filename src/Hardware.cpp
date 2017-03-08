@@ -44,9 +44,11 @@ namespace micasa {
 		{ Hardware::Type::ZWAVE, "zwave" },
 		{ Hardware::Type::ZWAVE_NODE, "zwave_node" },
 #endif // _WITH_OPENZWAVE
-		{ Hardware::Type::P1_METER, "p1_meter" },
+#ifdef _WITH_LINUX_SPI
 		{ Hardware::Type::PIFACE, "piface" },
 		{ Hardware::Type::PIFACE_BOARD, "piface_board" },
+#endif // _WITH_LINUX_SPI
+		{ Hardware::Type::P1_METER, "p1_meter" },
 		{ Hardware::Type::RFXCOM, "rfxcom" },
 		{ Hardware::Type::SOLAREDGE, "solaredge" },
 		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
@@ -438,6 +440,11 @@ namespace micasa {
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		std::string dummy;
 		return this->_queuePendingUpdate( reference_, source_, dummy, blockNewUpdate_, waitForResult_ );
+	};
+
+	bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
+		Device::UpdateSource dummy;
+		return this->_queuePendingUpdate( reference_, dummy, blockNewUpdate_, waitForResult_ );
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ ) {

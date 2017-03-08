@@ -32,8 +32,6 @@ set( SRC
 
 	# hardware
 	src/hardware/RFXCom.cpp
-	src/hardware/PiFace.cpp
-	src/hardware/PiFaceBoard.cpp
 	src/hardware/P1Meter.cpp
 	src/hardware/SolarEdge.cpp
 	src/hardware/SolarEdgeInverter.cpp
@@ -64,6 +62,36 @@ if( DEBUG )
 	set( CMAKE_BUILD_TYPE Debug )
 	add_definitions( -D_DEBUG )
 endif()
+
+#
+# Raspberry Pi options.
+#
+option( INCLUDE_LINUX_I2C "Include I2C support" YES )
+if( INCLUDE_LINUX_I2C )
+	CHECK_INCLUDE_FILES( "sys/types.h;linux/i2c-dev.h;linux/i2c.h" HAVE_LINUX_I2C_H )
+	if( HAVE_LINUX_I2C_H )
+		message( STATUS "Building with I2C support" )
+		add_definitions( -D_WITH_LINUX_I2C )
+	else()
+		message( WARNING "I2C support disabled: headers not found!" )
+	endif( HAVE_LINUX_I2C_H )
+endif( INCLUDE_LINUX_I2C )
+
+option( INCLUDE_SPI "Include SPI support" YES )
+if( INCLUDE_SPI )
+	CHECK_INCLUDE_FILES( "sys/types.h;linux/spi/spidev.h" HAVE_LINUX_SPI_H )
+	IF( HAVE_LINUX_SPI_H )
+		message( STATUS "Building with SPI support" )
+		add_definitions( -D_WITH_LINUX_SPI )
+
+		set( SRC ${SRC}
+			src/hardware/PiFace.cpp
+			src/hardware/PiFaceBoard.cpp
+		)
+	else()
+		message(WARNING "SPI support disabled: headers not found!")
+	endif( HAVE_LINUX_SPI_H )
+endif( INCLUDE_SPI )
 
 #
 # Add and compile open-zwave project.

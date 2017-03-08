@@ -35,24 +35,20 @@ namespace micasa {
 		{ Switch::Option::ACTIVATE, "Activate" },
 	};
 	
-	void Switch::start() {
+	Switch::Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) {
 		try {
 			std::string value = g_database->getQueryValue<std::string>(
 				"SELECT `value` "
 				"FROM `device_switch_history` "
 				"WHERE `device_id`=%d "
 				"ORDER BY `date` DESC "
-				"LIMIT 1"
-				, this->m_id
+				"LIMIT 1",
+				this->m_id
 			);
 			this->m_value = Switch::resolveOption( value );
-		} catch( const Database::NoResultsException& ex_ ) { }
-
-		Device::start();
-	};
-
-	void Switch::stop() {
-		Device::stop();
+		} catch( const Database::NoResultsException& ex_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
+		}
 	};
 
 	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
@@ -68,6 +64,7 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
+			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
 			&& value_ != Option::ACTIVATE // needs to be executed every time
 		) {
 			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );

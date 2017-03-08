@@ -144,8 +144,8 @@ v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ ) {
 
 namespace micasa {
 
-	using namespace nlohmann;
 	using namespace std::chrono;
+	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Logger> g_logger;
@@ -209,7 +209,7 @@ namespace micasa {
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
 			"SELECT `id`, `hardware_id`, `reference`, `type`, `enabled` "
 			"FROM `hardware` "
-			"ORDER BY `id` ASC" // child hardware should come *after* parents
+			"ORDER BY `id` ASC"
 		);
 		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
 			unsigned int parentId = atoi( (*hardwareIt)["hardware_id"].c_str() );
@@ -226,8 +226,17 @@ namespace micasa {
 			Hardware::Type type = Hardware::resolveType( (*hardwareIt)["type"] );
 			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
 
-			if ( (*hardwareIt)["enabled"] == "1" ) {
-				hardware->start();
+			// Only parent hardware is started automatically. The hardware itself should take care of
+			// starting their children (for instance, right after declareHardware). Starting the hardware
+			// is done in a separate thread to work around the hardwareMutex being locked and hardware
+			// might want to declare hardware in their startup code.
+			if (
+				(*hardwareIt)["enabled"] == "1"
+				&& parent == nullptr
+			) {
+				std::thread( [hardware]() {
+					hardware->start();
+				} ).detach();
 			}
 
 			this->m_hardware.push_back( hardware );
@@ -354,6 +363,9 @@ namespace micasa {
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
 			if ( (*hardwareIt)->getReference() == reference_ ) {
+				if ( start_ ) {
+					(*hardwareIt)->start();
+				}
 				return *hardwareIt;
 			}
 		}

@@ -20,9 +20,11 @@ namespace micasa {
 			ZWAVE,
 			ZWAVE_NODE,
 #endif // _WITH_OPENZWAVE
-			P1_METER,
+#ifdef _WITH_LINUX_SPI
 			PIFACE,
 			PIFACE_BOARD,
+#endif // _WITH_LINUX_SPI
+			P1_METER,
 			RFXCOM,
 			SOLAREDGE,
 			SOLAREDGE_INVERTER,
@@ -92,7 +94,7 @@ namespace micasa {
 		virtual void putSettingsJson( nlohmann::json& settings_ ) { };
 		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
 		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
-		virtual void putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) { };
+		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) { };
 
 		virtual std::string getLabel() const =0;
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
@@ -113,6 +115,7 @@ namespace micasa {
 		// way for the caller to access the pending updates anymore after they expire.
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
+		bool _queuePendingUpdate( const std::string& reference_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
 		bool _releasePendingUpdate( const std::string& reference_ );
