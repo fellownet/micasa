@@ -1,3 +1,5 @@
+#pragma once
+
 #define COMMAND_CLASS_NO_OPERATION                      0x00
 #define COMMAND_CLASS_BASIC                             0x20
 #define COMMAND_CLASS_CONTROLLER_REPLICATION            0x21

@@ -33,7 +33,7 @@ namespace micasa {
 		void putSettingsJson( nlohmann::json& settings_ ) override;
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
-		void putDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& settings_ ) override;
+		void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) override;
 
 	protected:
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;

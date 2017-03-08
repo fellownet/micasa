@@ -37,12 +37,10 @@ namespace micasa {
 		// typedef t_switchValue t_value;
 		static const Device::Type type;
 		
-		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) { };
+		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
 
 		Device::Type getType() const throw() override { return Switch::type; };
 		
-		void start() override;
-		void stop() override;
 		void updateValue( const Device::UpdateSource& source_, const Option& value_ );
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		Option getValueOption() const throw() { return this->m_value; };

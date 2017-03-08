@@ -7,7 +7,11 @@ typedef unsigned char BYTE;
 
 #include "RFXtrx.h"
 
+#define RFXCOM_BUSY_WAIT_MSEC  30000 // how long to wait for result
+#define RFXCOM_BUSY_BLOCK_MSEC 3000  // how long to block hardware while waiting for result
+
 #define RFXCOM_MAX_PACKET_SIZE 40
+
 #define RFXCOM_DEVICE_SETTING_CUSTOM "_rfxcom_custom"
 
 namespace micasa {

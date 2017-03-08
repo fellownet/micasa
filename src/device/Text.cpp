@@ -21,25 +21,21 @@ namespace micasa {
 		{ Text::SubType::NOTIFICATION, "notification" }
 	};
 
-	void Text::start() {
+	Text::Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) {
 		try {
 			this->m_value = g_database->getQueryValue<std::string>(
 				"SELECT `value` "
 				"FROM `device_text_history` "
 				"WHERE `device_id`=%d "
 				"ORDER BY `date` DESC "
-				"LIMIT 1"
-				, this->m_id
+				"LIMIT 1",
+				this->m_id
 			);
-		} catch( const Database::NoResultsException& ex_ ) { }
-
-		Device::start();
+		} catch( const Database::NoResultsException& ex_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
+		}
 	};
 
-	void Text::stop() {
-		Device::stop();
-	};
-	
 	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		
 		// The update source should be defined in settings by the declaring hardware.
@@ -51,6 +47,7 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
+			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
 		) {
 			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
