@@ -41,6 +41,7 @@ namespace micasa {
 		{ Level::Unit::FAHRENHEIT, "°F" },
 		{ Level::Unit::PASCAL, "Pa" },
 		{ Level::Unit::LUX, "lx" },
+		{ Level::Unit::SECONDS, " sec" },
 	};
 	
 	Level::Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : Device( hardware_, id_, reference_, label_ ) {

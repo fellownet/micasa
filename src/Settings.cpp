@@ -35,7 +35,7 @@ namespace micasa {
 
 	SettingValue::SettingValue( const double& value_ ) {
 		std::stringstream ss;
-		ss << std::fixed << std::setprecision( 5 ) << value_;
+		ss << std::fixed << std::setprecision( 6 ) << value_;
 		this->assign( ss.str() );
 	};
 	

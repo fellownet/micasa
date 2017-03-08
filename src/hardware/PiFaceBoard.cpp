@@ -227,119 +227,26 @@ namespace micasa {
 									this->m_intervals[i].push_back( interval );
 									std::vector<unsigned long>::reverse_iterator intervalsIt;
 									for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
-										if ( duration < 60000 ) {
+										if ( duration < interval * 10 ) {
 											duration += *intervalsIt;
 										} else {
 											break;
 										}
 									}
 									this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
-
-									// TODO remove this code.
-									unsigned long testduration = 0;
-									for ( auto testIt = this->m_intervals[i].begin(); testIt != this->m_intervals[i].end(); testIt++ ) {
-										testduration += *testIt;
+									if ( this->m_intervals[i].size() >= 5 ) {
+										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / ( duration / (float)this->m_intervals[i].size() ) );
 									}
-									std::cout << duration << " vs. " << testduration << " size=" << this->m_intervals[i].size() << "\n";
-									
-
-
-
-
-
-									this->declareDevice<Level>( reference + "_level", "Pulse Interval " + std::to_string( i ), {
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-									} )->updateValue( Device::UpdateSource::HARDWARE, duration / this->m_intervals[i].size() );
 								}
 								this->m_lastPulse[i] = system_clock::now();
 							} else {
 								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
 							}
-							
-
-
-
-
-
-
-
-
-
-							
-
-							/*
-							auto level = this->declareDevice<Level>( reference + "_level", "Level " + std::to_string( i ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-								{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-							} );
-							*/
-
-
-		/*
-							if ( this->m_counters.find( i ) == this->m_counters.end() ) {
-								this->m_counters[i] = { 0, system_clock::now(), system_clock::now() };
-							}
-
-							bool bUpdateLevelDevice = false;
-							if (
-								value == Switch::Option::ON
-								&& this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE )
-							) {
-								
-								this->m_counters[i].session++;
-								this->m_counters[i].lastInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
-								this->m_counters[i].lastPulse = system_clock::now();
-
-								// Calculate new counter device value.
-								//Counter::t_value value = (double)( this->m_counters[i].initial + this->m_counters[i].session ) / (double)divider;
-								Counter::t_value value = (double)( ( 1. / divider ) * ( this->m_counters[i].initial + this->m_counters[i].session ) );
-								counter->updateValue( Device::UpdateSource::HARDWARE, value );
-								bUpdateLevelDevice = true;
-							}
-							if (
-								this->m_counters[i].session >= 2
-								&& (
-									bUpdateLevelDevice
-									|| iteration_ % ( 1000 / PIFACEBOARD_WORK_WAIT_MSEC ) == 0
-								)
-							) {
-								// The current interval will surpass the last interval eventually, if the pulses are slowing
-								// down. The active interval holds the longest of these two and causes the instant level value
-								// to drop gradually.
-								unsigned long currentInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
-								unsigned long activeInterval = currentInterval;
-								if ( this->m_counters[i].lastInterval > activeInterval ) {
-									activeInterval = this->m_counters[i].lastInterval;
-								}
-								Level::t_value value = (double)( ( ( 1. / divider ) * 3600. ) / ( activeInterval / 1000. ) );
-								Level::t_value previousValue = level->getValue();
-								double perc = 100;
-								if ( previousValue > 0 ) {
-									perc = fabs( 100. - (double)( ( 100. / previousValue ) * value ) );
-									g_logger->logr( Logger::LogLevel::ERROR, this, "PERCENTAGE %.3f", perc );
-								}
-								if (
-									bUpdateLevelDevice
-									// vv every minute
-									// TODO make this configurable
-									|| duration_cast<seconds>( system_clock::now() - this->m_counters[i].lastUpdate ).count() >= 15
-									// vv if value is different from previous value by more than 15%
-									// TODO make this configurable
-									|| (
-										previousValue > 0
-										&& perc >= 15
-									)
-								) {
-									g_logger->log( Logger::LogLevel::ERROR, this, "UPDATE" );
-									level->updateValue( Device::UpdateSource::HARDWARE, value );
-									this->m_counters[i].lastUpdate = system_clock::now();
-								}
-							}
-		*/
 						}
 					} else if ( portType == "toggle" ) {
 						if ( value == Switch::Option::ON ) {
