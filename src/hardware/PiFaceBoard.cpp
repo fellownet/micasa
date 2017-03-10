@@ -60,7 +60,12 @@ namespace micasa {
 				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
 			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+
+			this->m_inputs[i] = false;
+			this->m_outputs[i] = false;
+			this->m_lastPulse[i] = system_clock::now();
 		}
+		this->m_portState[0] = this->m_portState[1] = 0;
 
 		this->setState( Hardware::State::READY );
 	};
@@ -110,14 +115,8 @@ namespace micasa {
 			auto port = this->_parseReference( device_->getReference() );
 			if ( port.second == PIFACEBOARD_PORT_INPUT ) {
 				result["port_type"] = device_->getSettings()->get( "port_type", "pulse" );
-				if ( device_->getSettings()->get( "port_type", "pulse" ) == "counter" ) {
-					result["divider"] = device_->getSettings()->get<unsigned int>( "divider", 1000 );
-					if ( device_->getSettings()->contains( "interval" ) ) {
-						result["interval"] = device_->getSettings()->get<unsigned int>( "interval" );
-					}
-					if ( device_->getSettings()->contains( "percentage" ) ) {
-						result["percentage"] = device_->getSettings()->get<unsigned int>( "percentage" );
-					}
+				if ( device_->getSettings()->get( "port_type", "pulse" ) == "pulse" ) {
+					result["count_pulses"] = device_->getSettings()->get<bool>( "count_pulses", false );
 				}
 			}
 		}
@@ -145,36 +144,7 @@ namespace micasa {
 								{
 									{ "name", "count_pulses" },
 									{ "label", "Count Pulses" },
-									{ "type", "boolean" },
-									{ "settings", {
-										{
-											{ "name", "divider" },
-											{ "label", "Divider" },
-											{ "type", "int" },
-											{ "minimum", 1 },
-											{ "maximum", 10000 },
-											{ "default", 1000 },
-											{ "mandatory", true }
-										}
-/*
-										{
-											{ "name", "interval" },
-											{ "label", "Update Interval" },
-											{ "description", "Maximum time interval in seconds between consecutive updates. Available settings: 1 - 86400." },
-											{ "type", "int" },
-											{ "minimum", 1 },
-											{ "maximum", 86400 }
-										},
-										{
-											{ "name", "percentage" },
-											{ "label", "Update Percentage" },
-											{ "description", "This parameter can be used to force trigger an update when the difference in pulse intervals is above a certain percentage. The value is a percentage of the previous interval. Available settings: 0 - 1000." },
-											{ "type", "int" },
-											{ "minimum", 1 },
-											{ "maximum", 1000 }
-										}
-*/
-									} }
+									{ "type", "boolean" }
 								}
 							} }
 						},
@@ -182,38 +152,6 @@ namespace micasa {
 							{ "value", "toggle" },
 							{ "label", "Toggle" }
 						}
-/*						
-						{
-							{ "value", "counter" },
-							{ "label", "Counter" },
-							{ "settings", {
-								{
-									{ "name", "divider" },
-									{ "label", "Divider" },
-									{ "type", "int" },
-									{ "minimum", 1 },
-									{ "maximum", 10000 },
-									{ "mandatory", true }
-								},
-								{
-									{ "name", "interval" },
-									{ "label", "Update Interval" },
-									{ "description", "Maximum time interval in seconds between consecutive updates. Available settings: 1 - 86400." },
-									{ "type", "int" },
-									{ "minimum", 1 },
-									{ "maximum", 86400 }
-								},
-								{
-									{ "name", "percentage" },
-									{ "label", "Update Percentage" },
-									{ "description", "This parameter can be used to force trigger an update when the difference in pulse intervals is above a certain percentage. The value is a percentage of the previous interval. Available settings: 0 - 1000." },
-									{ "type", "int" },
-									{ "minimum", 1 },
-									{ "maximum", 1000 }
-								}
-							} }
-						}
-*/
 					} }
 				};
 				result += setting;
@@ -231,133 +169,102 @@ namespace micasa {
 		}
 
 		// Read and process output pin states.
-		// TODO for better efficiency keep track of current pin state in a fast boolean array instead of fetching the
-		// devices and check their values.
 		unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA );
-		int mask = 0x01;
-		for ( unsigned short i = 0; i < 8; i++ ) {
+		if ( this->m_portState[0] != portState ) {
+			this->m_portState[0] = portState;
 
-			std::string reference = this->_createReference( i, PIFACEBOARD_PORT_OUTPUT );
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
-			bool state = ( ( portState & mask ) == mask );
-			Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
-			auto source = Device::UpdateSource::HARDWARE;
-			this->_releasePendingUpdate( reference, source );
-			if ( device->getValueOption() != value ) {
-				device->updateValue( Device::UpdateSource::HARDWARE, value );
+			int mask = 0x01;
+			for ( unsigned short i = 0; i < 8; i++ ) {
+				bool state = ( ( portState & mask ) == mask );
+				if ( this->m_outputs[i] != state ) {
+					this->m_outputs[i] = state;
+					
+					std::string reference = this->_createReference( i, PIFACEBOARD_PORT_OUTPUT );
+					auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
+					Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
+					auto source = Device::UpdateSource::HARDWARE;
+					this->_releasePendingUpdate( reference, source );
+					device->updateValue( Device::UpdateSource::HARDWARE, value );
+				}
+				mask<<=1;
 			}
-
-			mask<<=1;
 		}
 
 		// Read and process inputs pin states.
-		// TODO for better efficiency keep track of current pin state in a fast boolean array instead of fetching the
-		// devices and check their values.
 		portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOB );
-		mask = 0x01;
-		for ( unsigned short i = 0; i < 8; i++ ) {
+		if ( this->m_portState[1] != portState ) {
+			this->m_portState[1] = portState;
 
-			std::string reference = this->_createReference( i, PIFACEBOARD_PORT_INPUT );
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
-			bool state = ( ( portState & mask ) == mask );
-			Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
-			std::string portType = device->getSettings()->get( "port_type", "pulse" );
-			if ( portType == "pulse" ) {
-				if ( device->getValueOption() != value ) {
-					device->updateValue( Device::UpdateSource::HARDWARE, value );
-				}
+			int mask = 0x01;
+			for ( unsigned short i = 0; i < 8; i++ ) {
+				bool state = ( ( portState & mask ) == mask );
+				if ( this->m_inputs[i] != state ) {
+					this->m_inputs[i] = state;
 
-				// If the option to count pulses was enabled, additional devices are created. These are a counter-
-				// (ie.: kWh) and a level (ie.: kWatt) device.
-				if ( device->getSettings()->get<bool>( "count_pulses", false ) ) {
-
-					auto counter = this->declareDevice<Counter>( reference + "_counter", "Counter " + std::to_string( i ), {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-					} );
-					auto level = this->declareDevice<Level>( reference + "_level", "Level " + std::to_string( i ), {
-						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-					} );
-
-					int divider = device->getSettings()->get<int>( "divider", 1000 );
-					bool bUpdateLevelDevice = false;
-
-					if ( this->m_counters.find( i ) == this->m_counters.end() ) {
-						this->m_counters[i] = { (long)( counter->getValue() * divider ), 0, 0, system_clock::now(), system_clock::now() };
-					}
-
-					if (
-						value == Switch::Option::ON
-						&& this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE )
-					) {
-						this->m_counters[i].session++;
-						this->m_counters[i].lastInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
-						this->m_counters[i].lastPulse = system_clock::now();
-
-						// Calculate new counter device value.
-						//Counter::t_value value = (double)( this->m_counters[i].initial + this->m_counters[i].session ) / (double)divider;
-						Counter::t_value value = (double)( ( 1. / divider ) * ( this->m_counters[i].initial + this->m_counters[i].session ) );
-						counter->updateValue( Device::UpdateSource::HARDWARE, value );
-						bUpdateLevelDevice = true;
-					}
-					if (
-						this->m_counters[i].session >= 2
-						&& (
-							bUpdateLevelDevice
-							|| iteration_ % ( 1000 / PIFACEBOARD_WORK_WAIT_MSEC ) == 0
-						)
-					) {
-						// The current interval will surpass the last interval eventually, if the pulses are slowing
-						// down. The active interval holds the longest of these two and causes the instant level value
-						// to drop gradually.
-						unsigned long currentInterval = duration_cast<milliseconds>( system_clock::now() - this->m_counters[i].lastPulse ).count();
-						unsigned long activeInterval = currentInterval;
-						if ( this->m_counters[i].lastInterval > activeInterval ) {
-							activeInterval = this->m_counters[i].lastInterval;
+					std::string reference = this->_createReference( i, PIFACEBOARD_PORT_INPUT );
+					auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
+					Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
+					std::string portType = device->getSettings()->get( "port_type", "pulse" );
+					if ( portType == "pulse" ) {
+						if ( device->getValueOption() != value ) {
+							device->updateValue( Device::UpdateSource::HARDWARE, value );
 						}
-						Level::t_value value = (double)( ( ( 1. / divider ) * 3600. ) / ( activeInterval / 1000. ) );
-						Level::t_value previousValue = level->getValue();
-						double perc = 100;
-						if ( previousValue > 0 ) {
-							perc = fabs( 100. - (double)( ( 100. / previousValue ) * value ) );
-							g_logger->logr( Logger::LogLevel::ERROR, this, "PERCENTAGE %.3f", perc );
-						}
+
 						if (
-							bUpdateLevelDevice
-							// vv every minute
-							// TODO make this configurable
-							|| duration_cast<seconds>( system_clock::now() - this->m_counters[i].lastUpdate ).count() >= 15
-							// vv if value is different from previous value by more than 15%
-							// TODO make this configurable
-							|| (
-								previousValue > 0
-								&& perc >= 15
-							)
+							device->getSettings()->get<bool>( "count_pulses", false )
+							&& value == Switch::Option::ON
 						) {
-							g_logger->log( Logger::LogLevel::ERROR, this, "UPDATE" );
-							level->updateValue( Device::UpdateSource::HARDWARE, value );
-							this->m_counters[i].lastUpdate = system_clock::now();
+							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
+								this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
+									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+									{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+									{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+								} )->incrementValue( Device::UpdateSource::HARDWARE );
+								if ( iteration_ >= 2 ) {
+									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
+									unsigned long duration = 0;
+									this->m_intervals[i].push_back( interval );
+									std::vector<unsigned long>::reverse_iterator intervalsIt;
+									for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
+										if ( duration < interval * 10 ) {
+											duration += *intervalsIt;
+										} else {
+											break;
+										}
+									}
+									this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
+									if ( this->m_intervals[i].size() >= 5 ) {
+										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / ( duration / (float)this->m_intervals[i].size() ) );
+									}
+								}
+								this->m_lastPulse[i] = system_clock::now();
+							} else {
+								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
+							}
+						}
+					} else if ( portType == "toggle" ) {
+						if ( value == Switch::Option::ON ) {
+							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_TOGGLE_WAIT_MSEC ) ) {
+								auto old = device->getValueOption();
+								if ( old == Switch::Option::ON ) {
+									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+								} else {
+									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
+								}
+							} else {
+								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring toggle." );
+							}
 						}
 					}
 				}
-			} else if ( portType == "toggle" ) {
-				if (
-					value == Switch::Option::ON
-					&& this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_TOGGLE_WAIT_MSEC )
-				) {
-					auto old = device->getValueOption();
-					if ( old == Switch::Option::ON ) {
-						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
-					} else {
-						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
-					}
-				}
+				mask<<=1;
 			}
-
-			mask<<=1;
 		}
 
 		return std::chrono::milliseconds( PIFACEBOARD_WORK_WAIT_MSEC );

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <future>
 
 #include <sys/types.h>
 #include <dirent.h>
@@ -292,7 +293,19 @@ namespace micasa {
 			for( auto hardwareIt = this->m_hardware.begin(); hardwareIt < this->m_hardware.end(); hardwareIt++ ) {
 				auto hardware = (*hardwareIt);
 				if ( hardware->isRunning() ) {
-					hardware->stop();
+
+					// Stop the hardware in a separate thread which is monitored. This way we can detect problems in the
+					// hardware implementation more easily.
+					std::future<void> controlledStop( std::async( std::launch::async, [hardware] {
+						hardware->stop();
+					} ) );
+					std::future_status status = controlledStop.wait_for( seconds( 15 ) );
+					if ( status == std::future_status::timeout ) {
+						g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", hardware->getName().c_str() );
+					}
+#ifdef _DEBUG
+					assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
 				}
 			}
 			this->m_hardware.clear();

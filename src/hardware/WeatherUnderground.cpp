@@ -1,11 +1,15 @@
+// https://www.wunderground.com/weather/api/d/docs?d=index
+
 #include <sstream>
 
 #include "WeatherUnderground.h"
 
 #include "../device/Level.h"
 #include "../device/Text.h"
+#include "../device/Switch.h"
 #include "../Logger.h"
 #include "../Network.h"
+#include "../Utils.h"
 
 #include "json.hpp"
 
@@ -24,6 +28,16 @@ namespace micasa {
 	void WeatherUnderground::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Hardware::stop();
+	};
+
+	std::string WeatherUnderground::getLabel() const throw() {
+		if ( this->m_details.size() ) {
+			std::stringstream label;
+			label << WeatherUnderground::label << " (" << this->m_details << ")";
+			return label.str();
+		} else {
+			return WeatherUnderground::label;
+		}
 	};
 
 	json WeatherUnderground::getJson( bool full_ ) const {
@@ -84,7 +98,7 @@ namespace micasa {
 		}
 
 		std::stringstream url;
-		url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/q/" << this->m_settings->get( "location" ) << ".json";
+		url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
 
 		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -114,59 +128,64 @@ namespace micasa {
 						! data["current_observation"].is_null()
 						&& data["current_observation"].is_object()
 					) {
-						data = data["current_observation"];
-						
-						Device::UpdateSource source = Device::UpdateSource::HARDWARE;
-						if ( this->m_first ) {
-							source |= Device::UpdateSource::INIT;
-							this->m_first = false;
-						}
-						
-						if (
-							this->m_settings->get( "scale" ) == "fahrenheit"
-							&& ! data["temp_f"].is_null()
-						) {
-							auto device = this->declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
+						auto observation = data["current_observation"];
+
+						if ( this->m_settings->get( "scale" ) == "fahrenheit" ) {
+							this->declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
 								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
 								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::FAHRENHEIT ) }
-							} );
-							device->updateValue( source, data["temp_f"].get<double>() );
-						} else if (
-						   this->m_settings->get( "scale" ) == "celsius"
-						   && ! data["temp_c"].is_null()
-					   ) {
-							auto device = this->declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
+							} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "temp_f" ) );
+						} else if ( this->m_settings->get( "scale" ) == "celsius" ) {
+							this->declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
 								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
 								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
 								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) }
-							} );
-							device->updateValue( source, data["temp_c"].get<double>() );
+							} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "temp_c" ) );
 						}
-						
-						if ( ! data["relative_humidity"].is_null() ) {
-							auto device = this->declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) }
-							} );
-							device->updateValue( source, std::stod( data["relative_humidity"].get<std::string>() ) );
+						this->declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "relative_humidity" ) );
+						this->declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::PRESSURE ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PASCAL ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "pressure_mb" ) );
+						this->declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<std::string>( observation, "wind_dir" ) );
+					}
+
+					if (
+						! data["moon_phase"].is_null()
+						&& data["moon_phase"].is_object()
+					) {
+						auto moonphase = data["moon_phase"];
+
+						double now = jsonGet<unsigned int>( moonphase["current_time"], "hour" ) + ( jsonGet<unsigned int>( moonphase["current_time"], "minute" ) / 100.0f );
+						double sunrise = jsonGet<unsigned int>( moonphase["sunrise"], "hour" ) + ( jsonGet<unsigned int>( moonphase["sunrise"], "minute" ) / 100.0f );
+						double sunset = jsonGet<unsigned int>( moonphase["sunset"], "hour" ) + ( jsonGet<unsigned int>( moonphase["sunset"], "minute" ) / 100.0f );
+
+						char buffer[50];
+						int length = sprintf( buffer, "sunrise %5.2fh sunset %5.2fh", sunrise, sunset );
+						this->m_details = this->m_settings->get( "location" ) + ", " + std::string( buffer, length );
+
+						Switch::Option value;
+						if (
+							sunrise < now
+							&& sunset > now
+						) {
+							value = Switch::Option::ON;
+						} else {
+							value = Switch::Option::OFF;
 						}
-						if ( ! data["pressure_mb"].is_null() ) {
-							auto device = this->declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::PRESSURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PASCAL ) }
-							} );
-							device->updateValue( source, std::stod( data["pressure_mb"].get<std::string>() ) );
-						}
-						if ( ! data["wind_dir"].is_null() ) {
-							auto device = this->declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
-							} );
-							device->updateValue( source, data["wind_dir"].get<std::string>() );
-						}
+
+						this->declareDevice<Switch>( "6", "Daytime in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, value );
 					}
 
 					this->setState( Hardware::State::READY );

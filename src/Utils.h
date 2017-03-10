@@ -155,4 +155,6 @@ friend std::istream& operator>>( std::istream& is_, E& enum_ ) { \
 	return is_; \
 };
 
+
+
 }; // namespace micasa

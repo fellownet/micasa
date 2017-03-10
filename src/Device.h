@@ -46,10 +46,11 @@ namespace micasa {
 			LINK = 32,
 
 			USER = TIMER | SCRIPT | API | LINK,
+			EVENT = TIMER | SCRIPT | LINK,
 			CONTROLLER = INIT | HARDWARE,
 			ANY = USER | CONTROLLER,
 
-			INTERNAL = 64,
+			INTERNAL = 64 // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 		

@@ -310,7 +310,7 @@ namespace micasa {
 		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 
 #ifdef _DEBUG
-			g_logger->log( Logger::LogLevel::VERBOSE, this, notification_->GetAsString() );
+			g_logger->log( Logger::LogLevel::DEBUG, this, notification_->GetAsString() );
 #endif // _DEBUG
 
 			unsigned int homeId = notification_->GetHomeId();

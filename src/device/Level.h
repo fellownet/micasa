@@ -32,7 +32,8 @@ namespace micasa {
 			CELSIUS,
 			FAHRENHEIT,
 			PASCAL,
-			LUX
+			LUX,
+			SECONDS
 		}; // enum class Unit
 		static const std::map<Unit, std::string> UnitText;
 		ENUM_UTIL_W_TEXT( Unit, UnitText );

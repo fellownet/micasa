@@ -40,7 +40,9 @@ namespace micasa {
 		
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid update source." );
+			auto configured = Device::resolveUpdateSource( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) );
+			auto requested = Device::resolveUpdateSource( source_ );
+			g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid update source (%d vs %d).", configured, requested );
 			return;
 		}
 

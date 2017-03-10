@@ -15,7 +15,7 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		
-		std::string getLabel() const throw() override { return Telegram::label; };
+		std::string getLabel() const throw() override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
@@ -24,6 +24,7 @@ namespace micasa {
 		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 		
 	private:
+		std::string m_username;
 		int m_lastUpdateId = -1;
 		volatile bool m_acceptMode = false;
 

@@ -92,7 +92,7 @@
 			[class.label-primary]="device.value=='Stop'"
 			[class.label-warning]="device.value=='Idle'"
 			[class.label-info]="device.value!='On' && device.value!='Off' && device.value!='Stop' && device.value!='Idle'"
-			>{{device.value}} {{device.unit}}</span>
+			>{{device.value | truncate:15:'&hellip;'}} {{device.unit}}</span>
 		</td>
 		<td>{{device.hardware}}</td>
 		<td>{{device.label}}</td>

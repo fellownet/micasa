@@ -133,7 +133,7 @@ namespace micasa {
 
 					} else if ( type == "byte" ) {
 
-						unsigned char value = jsonGet<unsigned char>( *find );
+						unsigned int value = jsonGet<unsigned int>( *find );
 						if (
 							( find = setting.find( "minimum" ) ) != setting.end()
 							&& value < (*find).get<unsigned int>()

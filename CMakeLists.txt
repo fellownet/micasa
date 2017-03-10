@@ -4,6 +4,7 @@ cmake_minimum_required( VERSION 2.8.7 )
 
 include( ExternalProject )
 include( FindPackageHandleStandardArgs )
+include( CheckIncludeFiles )
 
 #
 # Set sources directory.
