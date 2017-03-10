@@ -50,6 +50,7 @@ namespace micasa {
 		public:
 			PendingUpdate( Device::UpdateSource source_, std::string data_ ) : source( source_ ), data( data_ ) { };
 
+			std::thread thread;
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
 			std::mutex conditionMutex;

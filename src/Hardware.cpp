@@ -19,9 +19,11 @@
 	#include "hardware/ZWave.h"
 	#include "hardware/ZWaveNode.h"
 #endif // _WITH_OPENZWAVE
+#ifdef _WITH_LINUX_SPI
+	#include "hardware/PiFace.h"
+	#include "hardware/PiFaceBoard.h"
+#endif // _WITH_LINUX_SPI
 #include "hardware/WeatherUnderground.h"
-#include "hardware/PiFace.h"
-#include "hardware/PiFaceBoard.h"
 #include "hardware/HarmonyHub.h"
 #include "hardware/P1Meter.h"
 #include "hardware/RFXCom.h"
@@ -93,14 +95,16 @@ namespace micasa {
 				return std::make_shared<ZWaveNode>( id_, type_, reference_, parent_ );
 				break;
 #endif // _WITH_OPENZWAVE
-			case Type::P1_METER:
-				return std::make_shared<P1Meter>( id_, type_, reference_, parent_ );
-				break;
+#ifdef _WITH_LINUX_SPI
 			case Type::PIFACE:
 				return std::make_shared<PiFace>( id_, type_, reference_, parent_ );
 				break;
 			case Type::PIFACE_BOARD:
 				return std::make_shared<PiFaceBoard>( id_, type_, reference_, parent_ );
+				break;
+#endif // _WITH_LINUX_SPI
+			case Type::P1_METER:
+				return std::make_shared<P1Meter>( id_, type_, reference_, parent_ );
 				break;
 			case Type::RFXCOM:
 				return std::make_shared<RFXCom>( id_, type_, reference_, parent_ );
@@ -156,8 +160,8 @@ namespace micasa {
 
 	void Hardware::stop() {
 		{
-			g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping all devices." );
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Stopping all devices (%d).", this->m_devices.size() );
 			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
 				auto device = (*devicesIt);
 				if ( device->isRunning() ) {
@@ -165,6 +169,21 @@ namespace micasa {
 				}
 			}
 			this->m_devices.clear();
+		}
+
+		{
+			std::lock_guard<std::mutex> lock( this->m_pendingUpdatesMutex );
+			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Releasing all pending updates (%d).", this->m_pendingUpdates.size() );
+			for ( auto pendingUpdateIt = this->m_pendingUpdates.begin(); pendingUpdateIt != this->m_pendingUpdates.end(); pendingUpdateIt++ ) {
+				auto pendingUpdate = pendingUpdateIt->second;
+				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
+				pendingUpdate->done = true;
+				notifyLock.unlock();
+				pendingUpdate->condition.notify_all();
+				if ( pendingUpdate->thread.joinable() ) {
+					pendingUpdate->thread.join();
+				}
+			}
 		}
 
 		if ( this->m_settings->isDirty() ) {
@@ -397,10 +416,7 @@ namespace micasa {
 	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
-		
-		// See if there's already a pending update present, in which case we need to use it to start locking.
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
-		
 		auto search = this->m_pendingUpdates.find( reference_ );
 		if ( search == this->m_pendingUpdates.end() ) {
 			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_, data_ );
@@ -409,28 +425,20 @@ namespace micasa {
 		pendingUpdatesLock.unlock();
 
 		if ( pendingUpdate->updateMutex.try_lock_for( std::chrono::milliseconds( blockNewUpdate_ ) ) ) {
-
-			// TODO this is not 100% fail proof when terminating (hardware is not destroyed before database is).
-			// Somehow the pendingUpdate queue should be cleared when the hardware is stopped. But this poses problems
-			// as there might be threads that wait for the lock.
-			std::shared_ptr<Hardware> me = this->shared_from_this();
-			std::thread( [me,pendingUpdate,reference_,waitForResult_] {
-
+			pendingUpdate->thread = std::thread( [this,pendingUpdate,reference_,waitForResult_] {
 				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
 				pendingUpdate->condition.wait_for( notifyLock, std::chrono::milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
-				
-				// Spurious wakeups are someting we have to live with; there's no way to determine if the amount
-				// of time was passed or if a spurious wakeup occured.
 
-				std::unique_lock<std::mutex> pendingUpdatesLock( me->m_pendingUpdatesMutex );
-				auto search = me->m_pendingUpdates.find( reference_ );
-				if ( search != me->m_pendingUpdates.end() ) {
-					me->m_pendingUpdates.erase( search );
+				std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+				auto search = this->m_pendingUpdates.find( reference_ );
+				if ( search != this->m_pendingUpdates.end() ) {
+					this->m_pendingUpdates.erase( search );
 				}
 				pendingUpdatesLock.unlock();
 
 				pendingUpdate->updateMutex.unlock();
-			} ).detach();
+			} );
+			pendingUpdate->thread.detach();
 			return true;
 		} else {
 			return false;
@@ -500,6 +508,9 @@ namespace micasa {
 				pendingUpdate->done = true;
 				notifyLock.unlock();
 				pendingUpdate->condition.notify_all();
+				if ( pendingUpdate->thread.joinable() ) {
+					pendingUpdate->thread.join();
+				}
 			}
 			source_ |= pendingUpdate->source;
 			data_ = pendingUpdate->data;

@@ -29,13 +29,17 @@
 
 #include "hardware/Dummy.h"
 #include "hardware/HarmonyHub.h"
-#include "hardware/ZWave.h"
+#ifdef _WITH_OPENZWAVE
+	#include "hardware/ZWave.h"
+#endif // _WITH_OPENZWAVE
+#ifdef _WITH_LINUX_SPI
+	#include "hardware/PiFace.h"
+#endif // _WITH_LINUX_SPI
 #include "hardware/SolarEdge.h"
 #include "hardware/WeatherUnderground.h"
 #include "hardware/RFXCom.h"
 #include "hardware/P1Meter.h"
 #include "hardware/Telegram.h"
-#include "hardware/PiFace.h"
 
 #include "json.hpp"
 
