@@ -186,19 +186,21 @@ namespace micasa {
 	json ZWaveNode::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
 		json result = json::array();
 
-		ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-		switch( valueId.GetCommandClassId() ) {
-			case COMMAND_CLASS_SWITCH_BINARY: {
-				result += {
-					{ "name", "prevent_race_conditions" },
-					{ "label", "Prevent Race Conditions" },
-					{ "description", "Try to prevent race conditions, which are situations where a scripted and manual switch action occur shortly after each other, where the second action inadvertently undoes the first." },
-					{ "type", "boolean" },
-					{ "class", "advanced" },
-					{ "sort", 99 }
-				};
+		try {
+			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+			switch( valueId.GetCommandClassId() ) {
+				case COMMAND_CLASS_SWITCH_BINARY: {
+					result += {
+						{ "name", "prevent_race_conditions" },
+						{ "label", "Prevent Race Conditions" },
+						{ "description", "Try to prevent race conditions, which are situations where a scripted and manual switch action occur shortly after each other, where the second action inadvertently undoes the first." },
+						{ "type", "boolean" },
+						{ "class", "advanced" },
+						{ "sort", 99 }
+					};
+				}
 			}
-		}
+		} catch( std::invalid_argument ) { /* reference isn't a valueid, like the heal device */ }
 
 		return result;
 	};
@@ -354,6 +356,14 @@ namespace micasa {
 				break;
 			}
 
+			case Notification::Type_SceneEvent: {
+				// Scene (activation) events are handled ourselves because they do not represent a valid value id.
+				this->declareDevice<Switch>( "scene_" + std::to_string( notification_->GetSceneId() ), "Scene", {
+					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+				} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
+				break;
+			}
+
 			case Notification::Type_Notification: {
 				switch( notification_->GetNotification() ) {
 					case Notification::Code_Alive: {
@@ -425,6 +435,23 @@ namespace micasa {
 			return;
 		}
 
+		// OpenZWave has an option to filter out duplicate values, but still it seems that some duplicate values are
+		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
+		// than once).
+		auto fIsDuplicate = [this,&valueId_,&reference]() -> bool {
+			std::string stringValue;
+			Manager::Get()->GetValueAsString( valueId_, &stringValue );
+			std::string valueIdExt = reference + "_df_" + stringValue;
+			if (
+				stringValue.empty()
+				|| this->_queuePendingUpdate( valueIdExt, 0, OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC )
+			) {
+				return false;
+			} else {
+				return true;
+			}
+		};
+
 		// Process all other values by command class.
 		unsigned int commandClass = valueId_.GetCommandClassId();
 		switch( commandClass ) {
@@ -476,7 +503,6 @@ namespace micasa {
 
 				std::string data; // data stored alognside pending update
 				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_, data );
-
 				bool boolValue = false;
 				if ( valueId_.GetType() == ValueID::ValueType_Bool ) {
 					if ( false == Manager::Get()->GetValueAsBool( valueId_, &boolValue ) ) {
@@ -516,7 +542,7 @@ namespace micasa {
 					&& ( source_ & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
 					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					g_logger->log( Logger::LogLevel::WARNING, this, "Possible wrong value notification." );
+					g_logger->logr( Logger::LogLevel::WARNING, this, "Possible wrong value notification. Received %s, expected %s.", Switch::resolveOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->RefreshValue( valueId_ );
 
 				// If the prevent_race_conditions setting is active and the race condition pending update is present,
@@ -524,21 +550,29 @@ namespace micasa {
 				// to the queue, which should make the bug-check above also work when fixing race conditions.
 				} else if (
 					! wasPendingUpdate
-					&& this->_releasePendingUpdate( reference + "_race", source_, data )
+					&& this->_hasPendingUpdate( reference + "_race", data )
 					&& targetValue != Switch::resolveOption( data )
 				) {
-					// NOTE the data variable is guaranteed to be set when the releasePendingUpdate call returns true.
+					// NOTE the data variable is guaranteed to be set when the _hasPendingUpdate call returns true.
 					// The data variable contains the value we should revert to.
 					std::thread( [=]{
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 							if ( this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
 								Manager::Get()->SetValue( valueId_, ( Switch::resolveOption( data ) == Switch::Option::ON ) ? true : false );
-								g_logger->log( Logger::LogLevel::WARNING, this, "Preventing race condition." );
+								g_logger->logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveOption( targetValue ).c_str(), data.c_str() );
 							}
 						}
 					} ).detach();
 
+				// After all checks have been done to make sure the proper value is set, it might still be a duplicate.
+				} else if (
+					! wasPendingUpdate
+					&& fIsDuplicate()
+				) {
+					g_logger->logr( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value. Received %s.", Switch::resolveOption( targetValue ).c_str() );
+
+				// The value appears to be valid and should be used to set the device.
 				} else {
 					
 					// If the prevent race conditions setting is active a special race condition pending update is set
@@ -546,9 +580,9 @@ namespace micasa {
 					// is detected is stored as data variable alongside the pending update.
 					if (
 						device->getSettings()->get<bool>( "prevent_race_conditions", false )
-						&& Device::resolveUpdateSource( source_ & Device::UpdateSource::USER ) > 0
+						&& Device::resolveUpdateSource( source_ & Device::UpdateSource::EVENT ) > 0
 					) {
-						data = Switch::resolveOption( boolValue ? Switch::Option::ON : Switch::Option::OFF );
+						data = Switch::resolveOption( targetValue );
 						this->_queuePendingUpdate( reference + "_race", source_, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
 					}
 
@@ -562,6 +596,7 @@ namespace micasa {
 				// NOTE: for instance, the fibaro dimmer has several multilevel devices, such as start level-,
 				// step size and dimming duration. These should be handled through the configuration.
 				if ( "Level" == label ) {
+
 					// Detect subtype.
 					auto subtype = Level::SubType::GENERIC;
 					auto hardwareLabel = this->getLabel();
@@ -572,7 +607,14 @@ namespace micasa {
 			
 					// If there's an update mutex available we need to make sure that it is properly notified of the
 					// execution of the update.
-					this->_releasePendingUpdate( reference, source_ );
+					bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
+					if (
+						! wasPendingUpdate
+						&& fIsDuplicate()
+					) {
+						g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+						break;
+					}
 
 					unsigned char byteValue = 0;
 					if (
@@ -595,6 +637,11 @@ namespace micasa {
 
 			case COMMAND_CLASS_METER:
 			case COMMAND_CLASS_SENSOR_MULTILEVEL: {
+				if ( fIsDuplicate() ) {
+					g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+					break;
+				}
+
 				float floatValue = 0.;
 				if (
 					valueId_.GetType() == ValueID::ValueType_Decimal

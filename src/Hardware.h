@@ -30,8 +30,7 @@ namespace micasa {
 			SOLAREDGE_INVERTER,
 			WEATHER_UNDERGROUND,
 			DUMMY,
-			TELEGRAM,
-			SUNRISET
+			TELEGRAM
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
@@ -110,15 +109,18 @@ namespace micasa {
 
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an update
 		// so that subsequent updates are blocked until the update has been confirmed by the hardware. It also makes
-		/// sure that the source of the update is remembered during this time. The caller can provide a pointer to
-		// arbitrary data in which case this method takes care of freeing this data. This is done because there's no
-		// way for the caller to access the pending updates anymore after they expire.
+		/// sure that the source of the update is remembered during this time.
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
+		bool _queuePendingUpdate( const std::string& reference_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _queuePendingUpdate( const std::string& reference_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
+		bool _releasePendingUpdate( const std::string& reference_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
 		bool _releasePendingUpdate( const std::string& reference_ );
+		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
+		bool _hasPendingUpdate( const std::string& reference_, std::string& data_ );
+		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
 		bool _hasPendingUpdate( const std::string& reference_ );
 
 	private:
@@ -127,6 +129,8 @@ namespace micasa {
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
 		State m_state = State::DISABLED;
+
+		bool _checkPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_, bool release_ );
 
 	}; // class Hardware
 

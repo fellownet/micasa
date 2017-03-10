@@ -35,7 +35,6 @@
 #include "hardware/RFXCom.h"
 #include "hardware/P1Meter.h"
 #include "hardware/Telegram.h"
-#include "hardware/Sunriset.h"
 #include "hardware/PiFace.h"
 
 #include "json.hpp"
@@ -605,11 +604,7 @@ namespace micasa {
 								{
 									{ "value", "telegram" },
 									{ "label", Telegram::label }
-								},
-								{
-									{ "value", "sunriset" },
-									{ "label", Sunriset::label }
-								},
+								}
 							} },
 							{ "sort", 2 }
 						};
