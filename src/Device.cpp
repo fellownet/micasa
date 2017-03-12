@@ -53,7 +53,7 @@ namespace micasa {
 	void Device::setLabel( const std::string& label_ ) {
 		if ( label_ != this->m_label ) {
 			this->m_label = label_;
-			g_database->putQuery(
+			g_database->putQueryAsync(
 				"UPDATE `devices` "
 				"SET `label`=%Q "
 				"WHERE `id`=%d"
@@ -123,7 +123,7 @@ namespace micasa {
 			result["signal_strength"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_SIGNAL_STRENGTH );
 		}
 
-		// TODO the webserver should not call getJson but query the database directly.
+		// TODO when fetching a list of devices, the database gets flooded with queries, that need to be improved.
 		json timeProperties = g_database->getQueryRow<json>(
 			"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) AS `last_update`, CAST(strftime('%%s','now') AS INTEGER) - CAST(strftime('%%s',`updated`) AS INTEGER) AS `age` "
 			"FROM `devices` "
@@ -202,7 +202,7 @@ namespace micasa {
 	};
 
 	void Device::touch() {
-		g_database->putQuery(
+		g_database->putQueryAsync(
 			"UPDATE `devices` "
 			"SET `updated`=datetime('now') "
 			"WHERE `id`=%d ",

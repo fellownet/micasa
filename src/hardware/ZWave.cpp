@@ -309,6 +309,8 @@ namespace micasa {
 	void ZWave::_handleNotification( const Notification* notification_ ) {
 		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 
+			auto start = std::chrono::system_clock::now();
+
 #ifdef _DEBUG
 			g_logger->log( Logger::LogLevel::DEBUG, this, notification_->GetAsString() );
 #endif // _DEBUG
@@ -403,6 +405,7 @@ namespace micasa {
 				}
 
 				case Notification::Type_NodeNaming: {
+					// TODO when adding nodes this might overwrite the controller name
 					if ( node == nullptr ) {
 						std::string manufacturer = Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
 						std::string product = Manager::Get()->GetNodeProductName( homeId, nodeId );
@@ -433,6 +436,12 @@ namespace micasa {
 				default: {
 					break;
 				}
+			}
+
+			auto end = std::chrono::system_clock::now();
+			unsigned long duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+			if ( duration > OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) {
+				g_logger->logr( Logger::LogLevel::WARNING, this, "OpenZWave notification %s took %lu milliseconds.", notification_->GetAsString().c_str(), duration );
 			}
 
 			ZWave::g_managerMutex.unlock();

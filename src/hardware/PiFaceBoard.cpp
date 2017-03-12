@@ -163,7 +163,8 @@ namespace micasa {
 
 	std::chrono::milliseconds PiFaceBoard::_work( const unsigned long int& iteration_ ) {
 
-		// Only read pin states when the hardware is ready and the devices have been created.
+		// Only read pin states when the hardware is ready and the devices have been created. Port- and pin states are
+		// first matched against a relatively quick port- and pin array before their corresponding devices are fetched.
 		if ( this->getState() != Hardware::State::READY ) {
 			return std::chrono::milliseconds( 1000 );
 		}
@@ -205,49 +206,55 @@ namespace micasa {
 					auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
 					Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
 					std::string portType = device->getSettings()->get( "port_type", "pulse" );
-					if ( portType == "pulse" ) {
-						if ( device->getValueOption() != value ) {
-							device->updateValue( Device::UpdateSource::HARDWARE, value );
-						}
 
-						if (
-							device->getSettings()->get<bool>( "count_pulses", false )
-							&& value == Switch::Option::ON
-						) {
-							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
-								this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
-									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-									{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-									{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-								} )->incrementValue( Device::UpdateSource::HARDWARE );
-								if ( iteration_ >= 2 ) {
-									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-									unsigned long duration = 0;
-									this->m_intervals[i].push_back( interval );
-									std::vector<unsigned long>::reverse_iterator intervalsIt;
-									for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
-										if ( duration < interval * 10 ) {
-											duration += *intervalsIt;
-										} else {
-											break;
-										}
-									}
-									this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
-									if ( this->m_intervals[i].size() >= 5 ) {
+					// Pulse ports can be set to "count", in which case separate counter/level devices are created that
+					// report on how often a pulse is counted. If set to pulse a switch is created that remains in the
+					// On position while the pulse is active (such as a doorbel).
+					if ( portType == "pulse" ) {
+						if ( ! device->getSettings()->get<bool>( "count_pulses", false ) ) {
+							if ( device->getValueOption() != value ) {
+								device->updateValue( Device::UpdateSource::HARDWARE, value );
+							}
+						} else {
+							if ( value == Switch::Option::ON ) {
+								if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
+									this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
+										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
+										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+									} )->incrementValue( Device::UpdateSource::HARDWARE );
+									if ( iteration_ >= 2 ) {
+										unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
+
+
+										//unsigned long duration = 0;
+										//this->m_intervals[i].push_back( interval );
+										// std::vector<unsigned long>::reverse_iterator intervalsIt;
+										// for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
+										// 	if ( duration < 15000 ) {
+										// 		duration += *intervalsIt;
+										// 	} else {
+										// 		break;
+										// 	}
+										// }
+										// this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
 										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
 											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
 											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / ( duration / (float)this->m_intervals[i].size() ) );
+										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
 									}
+									this->m_lastPulse[i] = system_clock::now();
+								} else {
+									g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
 								}
-								this->m_lastPulse[i] = system_clock::now();
-							} else {
-								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
 							}
 						}
+
+					// If the port is set to toggle a switch device is created. Each registered pulse on the port flips
+					// the switch into the opposite position.
 					} else if ( portType == "toggle" ) {
 						if ( value == Switch::Option::ON ) {
 							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_TOGGLE_WAIT_MSEC ) ) {

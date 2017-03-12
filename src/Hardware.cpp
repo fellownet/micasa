@@ -34,6 +34,7 @@
 
 namespace micasa {
 
+	using namespace std::chrono;
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
@@ -139,15 +140,15 @@ namespace micasa {
 			"WHERE `hardware_id`=%d",
 			this->m_id
 		);
-		for ( auto devicesIt = devicesData.begin(); devicesIt != devicesData.end(); devicesIt++ ) {
-			Device::Type type = Device::resolveType( (*devicesIt)["type"] );
-			std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), type, std::stoi( (*devicesIt)["id"] ), (*devicesIt)["reference"], (*devicesIt)["label"] );
+		for ( auto const &devicesDataIt : devicesData ) {
+			Device::Type type = Device::resolveType( devicesDataIt.at( "type" ) );
+			std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), type, std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ) );
 
-			if ( (*devicesIt)["enabled"] == "1" ) {
+			if ( devicesDataIt.at( "enabled" ) == "1" ) {
 				device->start();
 			}
 
-			this->m_devices.push_back( device );
+			this->m_devices[devicesDataIt.at( "reference" )] = device;
 		}
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
@@ -161,29 +162,14 @@ namespace micasa {
 	void Hardware::stop() {
 		{
 			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Stopping all devices (%d).", this->m_devices.size() );
-			for( auto devicesIt = this->m_devices.begin(); devicesIt < this->m_devices.end(); devicesIt++ ) {
-				auto device = (*devicesIt);
+			g_logger->logr( Logger::LogLevel::DEBUG, this, "Stopping all devices (%d).", this->m_devices.size() );
+			for ( auto const &devicesIt : this->m_devices ) {
+				auto device = devicesIt.second;
 				if ( device->isRunning() ) {
 					device->stop();
 				}
 			}
 			this->m_devices.clear();
-		}
-
-		{
-			std::lock_guard<std::mutex> lock( this->m_pendingUpdatesMutex );
-			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Releasing all pending updates (%d).", this->m_pendingUpdates.size() );
-			for ( auto pendingUpdateIt = this->m_pendingUpdates.begin(); pendingUpdateIt != this->m_pendingUpdates.end(); pendingUpdateIt++ ) {
-				auto pendingUpdate = pendingUpdateIt->second;
-				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
-				pendingUpdate->done = true;
-				notifyLock.unlock();
-				pendingUpdate->condition.notify_all();
-				if ( pendingUpdate->thread.joinable() ) {
-					pendingUpdate->thread.join();
-				}
-			}
 		}
 
 		if ( this->m_settings->isDirty() ) {
@@ -265,19 +251,18 @@ namespace micasa {
 
 	std::shared_ptr<Device> Hardware::getDevice( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getReference() == reference_ ) {
-				return *devicesIt;
-			}
+		try {
+			return this->m_devices.at( reference_ );
+		} catch( std::out_of_range ex_ ) {
+			return nullptr;
 		}
-		return nullptr;
 	};
 
 	std::shared_ptr<Device> Hardware::getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getId() == id_ ) {
-				return *devicesIt;
+		for ( auto const &devicesIt : this->m_devices ) {
+			if ( devicesIt.second->getId() == id_ ) {
+				return devicesIt.second;
 			}
 		}
 		return nullptr;
@@ -285,9 +270,9 @@ namespace micasa {
 
 	std::shared_ptr<Device> Hardware::getDeviceByName( const std::string& name_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getName() == name_ ) {
-				return *devicesIt;
+		for ( auto const &devicesIt : this->m_devices ) {
+			if ( devicesIt.second->getName() == name_ ) {
+				return devicesIt.second;
 			}
 		}
 		return nullptr;
@@ -295,9 +280,9 @@ namespace micasa {
 
 	std::shared_ptr<Device> Hardware::getDeviceByLabel( const std::string& label_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getLabel() == label_ ) {
-				return *devicesIt;
+		for ( auto const &devicesIt : this->m_devices ) {
+			if ( devicesIt.second->getLabel() == label_ ) {
+				return devicesIt.second;
 			}
 		}
 		return nullptr;
@@ -305,15 +290,19 @@ namespace micasa {
 
 	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices() const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		return std::vector<std::shared_ptr<Device> >( this->m_devices );
+		std::vector<std::shared_ptr<Device> > all;
+		for ( auto const &devicesIt : this->m_devices ) {
+			all.push_back( devicesIt.second );
+		}
+		return all;
 	};
 
 	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices( const std::string& prefix_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		std::vector<std::shared_ptr<Device> > result;
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getReference().substr( 0, prefix_.size() ) == prefix_ ) {
-				result.push_back( *devicesIt );
+		for ( auto const &devicesIt : this->m_devices ) {
+			if ( devicesIt.second->getReference().substr( 0, prefix_.size() ) == prefix_ ) {
+				result.push_back( devicesIt.second );
 			}
 		}
 		return result;
@@ -322,7 +311,7 @@ namespace micasa {
 	void Hardware::removeDevice( const std::shared_ptr<Device> device_ ) {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt) == device_ ) {
+			if ( devicesIt->second == device_ ) {
 
 				if ( device_->isRunning() ) {
 					device_->stop();
@@ -342,7 +331,7 @@ namespace micasa {
 
 	void Hardware::touch() {
 		if ( this->m_parent ) {
-			g_database->putQuery(
+			g_database->putQueryAsync(
 				"UPDATE `hardware` "
 				"SET `updated`=datetime('now') "
 				"WHERE `id`=%d "
@@ -351,7 +340,7 @@ namespace micasa {
 				this->m_parent->getId()
 			);
 		} else {
-			g_database->putQuery(
+			g_database->putQueryAsync(
 				"UPDATE `hardware` "
 				"SET `updated`=datetime('now') "
 				"WHERE `id`=%d ",
@@ -365,24 +354,22 @@ namespace micasa {
 		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
 		// can be altered at will by the client (maybe they want temperature and pressure).
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
-			if ( (*devicesIt)->getReference() == reference_ ) {
-				std::shared_ptr<T> device = std::static_pointer_cast<T>( *devicesIt );
+		try {
+			std::shared_ptr<T> device = std::static_pointer_cast<T>( this->m_devices.at( reference_ ) );
 
-				// System settings (settings that start with an underscore and are usually defined by #define)
-				// should always overwrite existing system settings.
-				for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
-					if ( (*settingsIt).first.at( 0 ) == '_' ) {
-						device->getSettings()->put( settingsIt->first, settingsIt->second );
-					}
+			// System settings (settings that start with an underscore and are usually defined by #define)
+			// should always overwrite existing system settings.
+			for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
+				if ( (*settingsIt).first.at( 0 ) == '_' ) {
+					device->getSettings()->put( settingsIt->first, settingsIt->second );
 				}
-				if ( device->getSettings()->isDirty() ) {
-					device->getSettings()->commit();
-				}
-
-				return device;
 			}
-		}
+			if ( device->getSettings()->isDirty() ) {
+				device->getSettings()->commit();
+			}
+
+			return device;
+		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `label`, `enabled` ) "
@@ -405,7 +392,7 @@ namespace micasa {
 			device->start();
 		}
 
-		this->m_devices.push_back( device );
+		this->m_devices[reference_] = device;
 
 		return device;
 
@@ -424,21 +411,26 @@ namespace micasa {
 		std::shared_ptr<PendingUpdate> pendingUpdate = this->m_pendingUpdates[reference_];
 		pendingUpdatesLock.unlock();
 
-		if ( pendingUpdate->updateMutex.try_lock_for( std::chrono::milliseconds( blockNewUpdate_ ) ) ) {
-			pendingUpdate->thread = std::thread( [this,pendingUpdate,reference_,waitForResult_] {
-				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
-				pendingUpdate->condition.wait_for( notifyLock, std::chrono::milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
+		if ( pendingUpdate->updateMutex.try_lock_for( milliseconds( blockNewUpdate_ ) ) ) {
 
-				std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
-				auto search = this->m_pendingUpdates.find( reference_ );
-				if ( search != this->m_pendingUpdates.end() ) {
-					this->m_pendingUpdates.erase( search );
+			// Instead of passing a reference to this to the thread, a shared pointer to this is passed. This way, the
+			// thread always holds a proper reference to the hardware, even when the hardware is removed (which happens
+			// when the controller is stopped for instance).
+			std::shared_ptr<Hardware> me = this->shared_from_this();
+			std::thread( [me,pendingUpdate,reference_,waitForResult_] {
+				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
+				pendingUpdate->condition.wait_for( notifyLock, milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
+
+				std::unique_lock<std::mutex> pendingUpdatesLock( me->m_pendingUpdatesMutex );
+				auto search = me->m_pendingUpdates.find( reference_ );
+				if ( search != me->m_pendingUpdates.end() ) {
+					me->m_pendingUpdates.erase( search );
 				}
 				pendingUpdatesLock.unlock();
 
 				pendingUpdate->updateMutex.unlock();
-			} );
-			pendingUpdate->thread.detach();
+			} ).detach();
+
 			return true;
 		} else {
 			return false;
@@ -508,9 +500,6 @@ namespace micasa {
 				pendingUpdate->done = true;
 				notifyLock.unlock();
 				pendingUpdate->condition.notify_all();
-				if ( pendingUpdate->thread.joinable() ) {
-					pendingUpdate->thread.join();
-				}
 			}
 			source_ |= pendingUpdate->source;
 			data_ = pendingUpdate->data;

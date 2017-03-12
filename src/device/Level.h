@@ -45,7 +45,7 @@ namespace micasa {
 		Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
 
 		Device::Type getType() const throw() override { return Level::type; };
-		
+
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const throw() { return this->m_value; };
 		t_value getPreviousValue() const throw() { return this->m_previousValue; };
@@ -59,6 +59,12 @@ namespace micasa {
 	private:
 		t_value m_value = 0;
 		t_value m_previousValue = 0;
+		struct {
+			t_value value;
+			unsigned long count = 0;
+			std::timed_mutex mutex;
+			bool trying = false;
+		} m_rateLimiter;
 
 	}; // class Level
 

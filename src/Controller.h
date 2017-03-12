@@ -3,6 +3,7 @@
 #include <chrono>
 #include <mutex>
 #include <vector>
+#include <unordered_map>
 #include <iostream>
 #include <list>
 
@@ -98,7 +99,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	private:
-		std::vector<std::shared_ptr<Hardware> > m_hardware;
+		std::unordered_map<std::string, std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
 		std::list<std::shared_ptr<Task> > m_taskQueue;
 		mutable std::mutex m_taskQueueMutex;

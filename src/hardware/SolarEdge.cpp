@@ -98,7 +98,7 @@ namespace micasa {
 					label << (*inverterIt)["manufacturer"].get<std::string>() << " " << (*inverterIt)["model"].get<std::string>();
 					//label << " (" << (*inverterIt)["serialNumber"].get<std::string>() << ")";
 					
-					g_controller->declareHardware(
+					auto inverter = g_controller->declareHardware(
 						Hardware::Type::SOLAREDGE_INVERTER,
 						(*inverterIt)["serialNumber"].get<std::string>(),
 						this->shared_from_this(),
@@ -107,9 +107,11 @@ namespace micasa {
 							{ "site_id", this->m_settings->get( "site_id" ) },
 							{ "serial", (*inverterIt)["serialNumber"].get<std::string>() },
 							{ "label", label.str() }
-						},
-						true // auto start
+						}
 					);
+					if ( ! inverter->isRunning() ) {
+						inverter->start();
+					}
 				}
 				
 				this->setState( Hardware::State::READY );

@@ -36,6 +36,11 @@ namespace micasa {
 	private:
 		t_value m_value = "";
 		t_value m_previousValue = "";
+		struct {
+			t_value value;
+			std::timed_mutex mutex;
+			bool trying = false;
+		} m_rateLimiter;
 
 	}; // class Text
 

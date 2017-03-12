@@ -3,6 +3,7 @@
 #include <map>
 #include <mutex>
 #include <vector>
+#include <unordered_map>
 #include <memory>
 
 #include "Device.h"
@@ -50,7 +51,6 @@ namespace micasa {
 		public:
 			PendingUpdate( Device::UpdateSource source_, std::string data_ ) : source( source_ ), data( data_ ) { };
 
-			std::thread thread;
 			std::timed_mutex updateMutex;
 			std::condition_variable condition;
 			std::mutex conditionMutex;
@@ -125,7 +125,7 @@ namespace micasa {
 		bool _hasPendingUpdate( const std::string& reference_ );
 
 	private:
-		std::vector<std::shared_ptr<Device> > m_devices;
+		std::unordered_map<std::string, std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
 		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;

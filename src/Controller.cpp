@@ -211,27 +211,27 @@ namespace micasa {
 			"FROM `hardware` "
 			"ORDER BY `id` ASC"
 		);
-		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
-			unsigned int parentId = atoi( (*hardwareIt)["hardware_id"].c_str() );
+		for ( auto const &hardwareDataIt : hardwareData ) {
+			unsigned int parentId = atoi( hardwareDataIt.at( "hardware_id" ).c_str() );
 			std::shared_ptr<Hardware> parent = nullptr;
 			if ( parentId > 0 ) {
-				for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-					if ( (*hardwareIt)->getId() == parentId ) {
-						parent = (*hardwareIt);
+				for ( auto const &hardwareIt : this->m_hardware ) {
+					if ( hardwareIt.second->getId() == parentId ) {
+						parent = hardwareIt.second;
 						break;
 					}
 				}
 			}
 
-			Hardware::Type type = Hardware::resolveType( (*hardwareIt)["type"] );
-			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
+			Hardware::Type type = Hardware::resolveType( hardwareDataIt.at( "type" ) );
+			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( hardwareDataIt.at( "id" ) ), hardwareDataIt.at( "reference" ), parent );
 
 			// Only parent hardware is started automatically. The hardware itself should take care of
 			// starting their children (for instance, right after declareHardware). Starting the hardware
 			// is done in a separate thread to work around the hardwareMutex being locked and hardware
 			// might want to declare hardware in their startup code.
 			if (
-				(*hardwareIt)["enabled"] == "1"
+				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
 			) {
 				std::thread( [hardware]() {
@@ -239,7 +239,7 @@ namespace micasa {
 				} ).detach();
 			}
 
-			this->m_hardware.push_back( hardware );
+			this->m_hardware[hardwareDataIt.at( "reference" )] = hardware;
 		}
 		hardwareLock.unlock();
 
@@ -290,8 +290,8 @@ namespace micasa {
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-			for( auto hardwareIt = this->m_hardware.begin(); hardwareIt < this->m_hardware.end(); hardwareIt++ ) {
-				auto hardware = (*hardwareIt);
+			for ( auto const &hardwareIt : this->m_hardware ) {
+				auto hardware = hardwareIt.second;
 				if ( hardware->isRunning() ) {
 
 					// Stop the hardware in a separate thread which is monitored. This way we can detect problems in the
@@ -316,19 +316,18 @@ namespace micasa {
 
 	std::shared_ptr<Hardware> Controller::getHardware( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getReference() == reference_ ) {
-				return *hardwareIt;
-			}
+		try {
+			return this->m_hardware.at( reference_ );
+		} catch( std::out_of_range ex_ ) {
+			return nullptr;
 		}
-		return nullptr;
 	};
 
 	std::shared_ptr<Hardware> Controller::getHardwareById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getId() == id_ ) {
-				return *hardwareIt;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			if ( hardwareIt.second->getId() == id_ ) {
+				return hardwareIt.second;
 			}
 		}
 		return nullptr;
@@ -337,22 +336,25 @@ namespace micasa {
 	std::vector<std::shared_ptr<Hardware> > Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		std::vector<std::shared_ptr<Hardware> > children;
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto parent = (*hardwareIt)->getParent();
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto parent = hardwareIt.second->getParent();
 			if (
 				parent != nullptr
 				&& parent.get() == &hardware_
 			) {
-				children.push_back( *hardwareIt );
+				children.push_back( hardwareIt.second );
 			}
 		}
 		return children;
-
 	};
 	
 	std::vector<std::shared_ptr<Hardware> > Controller::getAllHardware() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		return std::vector<std::shared_ptr<Hardware> >( this->m_hardware );
+		std::vector<std::shared_ptr<Hardware> > all;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			all.push_back( hardwareIt.second );
+		}
+		return all;
 	};
 	
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ ) {
@@ -361,14 +363,13 @@ namespace micasa {
 
 	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ ) {
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getReference() == reference_ ) {
-				if ( start_ ) {
-					(*hardwareIt)->start();
-				}
-				return *hardwareIt;
+		try {
+			auto hardware = this->m_hardware.at( reference_ );
+			if ( start_ ) {
+				hardware->start();
 			}
-		}
+			return hardware;
+		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id;
 		if ( parent_ ) {
@@ -408,7 +409,7 @@ namespace micasa {
 
 		// Reacquire lock when adding to the map to make it thread safe.
 		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
-		this->m_hardware.push_back( hardware );
+		this->m_hardware[reference_] = hardware;
 		lock.unlock();
 
 		return hardware;
@@ -420,9 +421,9 @@ namespace micasa {
 		// First all the childs are stopped and removed from the system. The database record is not yet
 		// removed because that is done when the parent is removed by foreign key constraints.
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( (*hardwareIt)->getParent() == hardware_ ) {
-				if ( (*hardwareIt)->isRunning() ) {
-					(*hardwareIt)->stop();
+			if ( hardwareIt->second->getParent() == hardware_ ) {
+				if ( hardwareIt->second->isRunning() ) {
+					hardwareIt->second->stop();
 				}
 				hardwareIt = this->m_hardware.erase( hardwareIt );
 			} else {
@@ -430,7 +431,7 @@ namespace micasa {
 			}
 		}
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( (*hardwareIt) == hardware_ ) {
+			if ( hardwareIt->second == hardware_ ) {
 				if ( hardware_->isRunning() ) {
 					hardware_->stop();
 				}
@@ -451,8 +452,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDevice( reference_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDevice( reference_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -462,8 +463,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceById( id_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceById( id_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -473,8 +474,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceByName( const std::string& name_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceByName( name_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceByName( name_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -484,8 +485,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceByLabel( const std::string& label_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceByLabel( label_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceByLabel( label_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -496,8 +497,8 @@ namespace micasa {
 	std::vector<std::shared_ptr<Device> > Controller::getAllDevices() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 		std::vector<std::shared_ptr<Device> > result;
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto devices = (*hardwareIt)->getAllDevices();
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto devices = hardwareIt.second->getAllDevices();
 			result.insert( result.end(), devices.begin(), devices.end() );
 		}
 		return result;
@@ -521,11 +522,6 @@ namespace micasa {
 			}
 
 			if ( ( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT ) {
-				json event;
-				event["value"] = device_->getValue();
-				event["previous_value"] = device_->getPreviousValue();
-				event["source"] = Device::resolveUpdateSource( source_ );
-				event["device"] = device_->getJson( false );
 
 				// NOTE The processing of the event is deliberatly done in a separate method because this method is
 				// templated and is essentially copied for each specialization.
@@ -539,6 +535,11 @@ namespace micasa {
 					device_->getId()
 				);
 				if ( scripts.size() > 0 ) {
+					json event;
+					event["value"] = device_->getValue();
+					event["previous_value"] = device_->getPreviousValue();
+					event["source"] = Device::resolveUpdateSource( source_ );
+					event["device"] = device_->getJson( false );
 					this->_runScripts( "event", event, scripts );
 				}
 			}
@@ -965,10 +966,10 @@ namespace micasa {
 				auto targetDevice = std::static_pointer_cast<Switch>( this->getDeviceById( std::stoi( (*linksIt)["target_device_id"] ) ) );
 				TaskOptions options = { 0, 0, 1, 0, false, false };
 				if ( (*linksIt)["after"].size() > 0 ) {
-					options.afterSec = std::stoi( (*linksIt)["after"] );
+					options.afterSec = std::stod( (*linksIt)["after"] );
 				}
 				if ( (*linksIt)["for"].size() > 0 ) {
-					options.forSec = std::stoi( (*linksIt)["for"] );
+					options.forSec = std::stod( (*linksIt)["for"] );
 				}
 				if ( (*linksIt)["clear"].size() > 0 ) {
 					options.clear = std::stoi( (*linksIt)["clear"] ) > 0;

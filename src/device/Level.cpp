@@ -12,8 +12,8 @@ namespace micasa {
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 
-	using namespace nlohmann;
 	using namespace std::chrono;
+	using namespace nlohmann;
 
 	const Device::Type Level::type = Device::Type::LEVEL;
 
@@ -60,7 +60,6 @@ namespace micasa {
 	};
 
 	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
-
 		// The update source should be defined in settings by the declaring hardware.
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			auto configured = Device::resolveUpdateSource( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) );
@@ -95,38 +94,75 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid value." );
 			return;
 		}
-	
-		// Make a local backup of the original value (the hardware might want to revert it).
-		t_value previous = this->m_value;
-		this->m_value = value_;
-			
-		// If the update originates from the hardware, do not send it to the hardware again.
-		bool success = true;
-		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
-			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
-		}
 
-		if ( success && apply ) {
-			g_database->putQuery(
-				"INSERT INTO `device_level_history` (`device_id`, `value`) "
-				"VALUES (%d, %.6lf)",
-				this->m_id,
-				value_
-			);
-			this->m_previousValue = previous; // before newEvent so previous value can be provided
-			if ( this->isRunning() ) {
-				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( this->shared_from_this() ), source_ );
+		auto fAction = []( std::shared_ptr<Level> me_, const Device::UpdateSource& source_, const t_value& value_ ) {
+			
+			// Make a local backup of the original value (the hardware might want to revert it).
+			t_value previous = me_->m_value;
+			me_->m_value = value_;
+				
+			// If the update originates from the hardware, do not send it to the hardware again.
+			bool success = true;
+			bool apply = true;
+			if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
+				success = me_->m_hardware->updateDevice( source_, me_, apply );
 			}
-			g_logger->logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", value_ );
+
+			if ( success && apply ) {
+				g_database->putQueryAsync(
+					"INSERT INTO `device_level_history` (`device_id`, `value`) "
+					"VALUES (%d, %.6lf)",
+					me_->m_id,
+					me_->m_value
+				);
+
+				me_->m_previousValue = previous; // before newEvent so previous value can be provided
+				if ( me_->isRunning() ) {
+					g_controller->newEvent<Level>( me_, source_ );
+				}
+				g_logger->logr( me_->isRunning() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, me_, "New value %.3lf.", me_->m_value );
+			} else {
+				me_->m_value = previous;
+			}
+			if (
+				success
+				&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+			) {
+				me_->touch();
+			}
+		};
+
+		std::shared_ptr<Level> me = std::static_pointer_cast<Level>( this->shared_from_this() );
+		if ( this->m_settings->contains( "rate_limit" ) ) {
+			std::thread( [me,source_,value_,fAction]() {
+
+				// TODO this assumes that every received value has the same 'weight', which might not be the case.
+				// Better would be to keep track of durations between values and use that as the 'weight' to calculate
+				// an average.
+				if ( me->m_rateLimiter.count == 0 ) {
+					me->m_rateLimiter.value = value_;
+				} else {
+					me->m_rateLimiter.value += value_;
+				}
+				me->m_rateLimiter.count++;
+
+				unsigned long duration = 1000 * me->m_settings->get<double>( "rate_limit" );
+				if ( me->m_rateLimiter.trying ) {
+					return;
+				}
+				me->m_rateLimiter.trying = true;
+				if ( me->m_rateLimiter.mutex.try_lock_for( milliseconds( duration ) ) ) {
+					me->m_rateLimiter.trying = false;
+					fAction( me, source_, me->m_rateLimiter.value / me->m_rateLimiter.count );
+					me->m_rateLimiter.count = 0;
+					std::this_thread::sleep_for( milliseconds( duration ) );
+					me->m_rateLimiter.mutex.unlock();
+				} else {
+					me->m_rateLimiter.trying = false;
+				}
+			} ).detach();
 		} else {
-			this->m_value = previous;
-		}
-		if (
-			success
-			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
-		) {
-			this->touch();
+			fAction( me, source_, value_ );
 		}
 	};
 
@@ -139,6 +175,7 @@ namespace micasa {
 		//ss << std::fixed << std::setprecision( 3 ) << this->getValue();
 		//result["value"] = ss.str();
 		result["value"] = round( ( ( this->m_value / divider ) + offset ) * 1000.0f ) / 1000.0f;
+		result["raw_value"] = this->m_value;
 		result["type"] = "level";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
@@ -154,6 +191,9 @@ namespace micasa {
 		}
 		if ( this->m_settings->contains( "offset" ) ) {
 			result["offset"] = this->m_settings->get<double>( "offset" );
+		}
+		if ( this->m_settings->contains( "rate_limit" ) ) {
+			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
 
 		if ( full_ ) {
@@ -204,7 +244,7 @@ namespace micasa {
 			{ "label", "Minimum" },
 			{ "type", "double" },
 			{ "class", "advanced" },
-			{ "sort", 996 }
+			{ "sort", 995 }
 		};
 
 		result += {
@@ -212,7 +252,7 @@ namespace micasa {
 			{ "label", "Maximum" },
 			{ "type", "double" },
 			{ "class", "advanced" },
-			{ "sort", 997 }
+			{ "sort", 996 }
 		};
 
 		result += {
@@ -221,13 +261,22 @@ namespace micasa {
 			{ "description", "A divider to convert the value to the designated unit." },
 			{ "type", "double" },
 			{ "class", "advanced" },
-			{ "sort", 998 }
+			{ "sort", 997 }
 		};
 
 		result += {
 			{ "name", "offset" },
 			{ "label", "Offset" },
 			{ "description", "A positive or negative value that is added to- or subtracted from the value in it's designated unit (after the optional divider has been applied)." },
+			{ "type", "double" },
+			{ "class", "advanced" },
+			{ "sort", 998 }
+		};
+
+		result += {
+			{ "name", "rate_limit" },
+			{ "label", "Rate Limiter" },
+			{ "description", "Limits the number of updates to once per configured time period in seconds." },
 			{ "type", "double" },
 			{ "class", "advanced" },
 			{ "sort", 999 }
@@ -306,7 +355,7 @@ namespace micasa {
 		}
 	};
 
-	std::chrono::milliseconds Level::_work( const unsigned long int& iteration_ ) {
+	milliseconds Level::_work( const unsigned long int& iteration_ ) {
 		if ( iteration_ > 0 ) {
 
 			std::string hourFormat = "%Y-%m-%d %H:30:00";
@@ -335,20 +384,20 @@ namespace micasa {
 
 			// Purge history after a configured period (defaults to 7 days for level devices because these have a
 			// separate trends table).
-			g_database->putQuery(
+			g_database->putQueryAsync(
 				"DELETE FROM `device_level_history` "
 				"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')",
 				this->m_id,
 				this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 			);
-			return std::chrono::milliseconds( 1000 * 60 * 5 );
+			return milliseconds( 1000 * 60 * 5 );
 
 		} else {
 
 			// To prevent all devices from crunching data at the same time an offset is used.
 			static volatile unsigned int offset = 0;
 			offset += ( 1000 * 10 ); // 10 seconds interval
-			return std::chrono::milliseconds( offset % ( 1000 * 60 * 5 ) );
+			return milliseconds( offset % ( 1000 * 60 * 5 ) );
 		}
 	};
 

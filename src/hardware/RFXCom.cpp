@@ -292,7 +292,7 @@ namespace micasa {
 			}
 			
 		} else if (
-			"lighting2" == rfxType
+			"lighting2" == rfxType // TODO AC is also lighting2, either use type or subtype, do not mix
 			&& device_->getType() == Device::Type::SWITCH
 		) {
 
@@ -301,6 +301,8 @@ namespace micasa {
 				auto parts = stringSplit( device->getReference(), '|' );
 				unsigned long prefix = std::stoul( parts[0] );
 
+				// TODO the id's for this packet should come from settings, just like if it were added manually. This
+				// way the same code can be used for manual as detected devices.
 				tRBUF packet;
 				packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
 				packet.LIGHTING2.packettype = pTypeLighting2;

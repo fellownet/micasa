@@ -15,6 +15,9 @@ namespace micasa {
 			DOOR_CONTACT,
 			BLINDS,
 			MOTION_DETECTOR,
+			FAN,
+			HEATER,
+			BELL,
 			ACTION
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
@@ -59,6 +62,11 @@ namespace micasa {
 	private:
 		Option m_value = Option::OFF;
 		Option m_previousValue = Option::OFF;
+		struct {
+			Option value;
+			std::timed_mutex mutex;
+			bool trying = false;
+		} m_rateLimiter;
 		
 	}; // class Switch
 
