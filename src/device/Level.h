@@ -2,6 +2,8 @@
 
 #include "../Device.h"
 
+#include "../Scheduler.h"
+
 namespace micasa {
 
 	class Level final : public Device {
@@ -42,7 +44,7 @@ namespace micasa {
 		// typedef t_levelValue t_value;
 		static const Device::Type type;
 		
-		Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
+		Level( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		Device::Type getType() const throw() override { return Level::type; };
 
@@ -53,18 +55,21 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 		nlohmann::json getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const;
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-
 	private:
 		t_value m_value = 0;
 		t_value m_previousValue = 0;
+		Scheduler m_scheduler;
 		struct {
 			t_value value;
 			unsigned long count = 0;
-			std::timed_mutex mutex;
-			bool trying = false;
+			Device::UpdateSource source;
+			std::chrono::steady_clock::time_point last;
+			std::weak_ptr<Scheduler::Task> task;
 		} m_rateLimiter;
+
+		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
+		void _processTrends() const;
+		void _purgeHistory() const;
 
 	}; // class Level
 

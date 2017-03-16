@@ -23,10 +23,10 @@ namespace micasa {
 
 			switch( logLevel_ ) {
 				case LogLevel::WARNING:
-					std::cout << "\033[0;36m" << timebuf << buffer << "\033[0m\n";
+					std::cerr << "\033[0;36m" << timebuf << buffer << "\033[0m\n";
 					break;
 				case LogLevel::ERROR:
-					std::cout << "\033[0;31m" << timebuf << buffer << "\033[0m\n";
+					std::cerr << "\033[0;31m" << timebuf << buffer << "\033[0m\n";
 					break;
 				case LogLevel::VERBOSE:
 				case LogLevel::DEBUG:

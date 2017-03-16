@@ -31,15 +31,15 @@ namespace micasa {
 		}; // enum class Event
 		ENUM_UTIL( Event );
 
+		typedef std::function<void( mg_connection* connection_, int event_, void* data_ )> t_callback;
+
 		Network();
 		~Network();
 		friend std::ostream& operator<<( std::ostream& out_, const Network* ) { out_ << "Network"; return out_; }
 
 		void start();
 		void stop();
-		
-		typedef std::function<void( mg_connection* connection_, int event_, void* data_ )> t_callback;
-		
+	
 		mg_connection* bind( const std::string port_, const t_callback callback_ );
 		mg_connection* bind( const std::string port_, const std::string cert_, const std::string key_, const t_callback callback_ );
 		mg_connection* connect( const std::string uri_, const t_callback callback_ );

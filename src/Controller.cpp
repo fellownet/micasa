@@ -256,7 +256,7 @@ namespace micasa {
 
 			// Start a new separate thread for the monitor.
 			this->m_udevMonitorThread = std::thread( [this]() {
-				while( ! this->m_shutdown ) {
+				while( this->isRunning() ) {
 					udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
 					if ( dev ) {
 						std::string port = std::string( udev_device_get_devnode( dev ) );
@@ -286,7 +286,7 @@ namespace micasa {
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		Worker::stop();
+		Worker::stop(); // makes sure the event handler ignores new events from hardware that haven't stopped yet
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
@@ -515,7 +515,10 @@ namespace micasa {
 	};
 
 	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
-		if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+		if (
+			this->isRunning()
+			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+		) {
 
 			if ( ( source_ & Device::UpdateSource::LINK ) != Device::UpdateSource::LINK ) {
 				this->_runLinks( device_ );
@@ -733,7 +736,7 @@ namespace micasa {
 						break;
 					case V7_EXEC_EXCEPTION:
 						// Extract error message from result. Note that if the buffer is too small, v7 allocates it's
-						// own memory chucnk which we need to free manually.
+						// own memory chunk which we need to free manually.
 						char buffer[100], *p;
 						p = v7_stringify( this->m_v7_js, js_result, buffer, sizeof( buffer ), V7_STRINGIFY_DEFAULT );
 						g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\" (%s).", (*scriptsIt).at( "name" ).c_str(), p );

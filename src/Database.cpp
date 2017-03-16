@@ -1,5 +1,4 @@
 #include <memory>
-#include <thread>
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -345,18 +344,6 @@ namespace micasa {
 		return insertId;
 	};
 
-	void Database::putQueryAsync( const std::string query_, ... ) const {
-		va_list arguments;
-		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this]( sqlite3_stmt *statement_ ) {
-			if ( SQLITE_DONE != sqlite3_step( statement_ ) ) {
-				const char *error = sqlite3_errmsg( this->m_connection );
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
-			}
-		}, true );
-		va_end( arguments );
-	};
-
 	int Database::getLastErrorCode() const {
 		return sqlite3_errcode( this->m_connection );
 	};
@@ -376,7 +363,7 @@ namespace micasa {
 		}
 	};
 	
-	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_, bool async_ ) const {
+	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const {
 		if ( ! this->m_connection ) {
 			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;
@@ -411,11 +398,7 @@ namespace micasa {
 			sqlite3_free( query );
 		};
 
-		if ( async_ ) {
-			std::thread( fExecute ).detach();
-		} else {
-			fExecute();
-		}
+		fExecute();
 	};
 	
 } // namespace micasa

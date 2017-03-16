@@ -871,10 +871,10 @@ namespace micasa {
 							auto devices = g_controller->getAllDevices();
 							for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
 								if ( enabledFilter ) {
-									if ( enabled && ! (*deviceIt)->isRunning() ) {
+									if ( enabled && ! (*deviceIt)->isEnabled() ) {
 										continue;
 									}
-									if ( ! enabled && (*deviceIt)->isRunning() ) {
+									if ( ! enabled && (*deviceIt)->isEnabled() ) {
 										continue;
 									}
 								}
@@ -911,7 +911,6 @@ namespace micasa {
 							user_->getRights() >= User::Rights::INSTALLER
 							&& deviceId != -1
 						) {
-
 							std::vector<std::string> invalid;
 							std::vector<std::string> missing;
 							std::vector<std::string> errors;
@@ -926,6 +925,7 @@ namespace micasa {
 
 							bool enabled = jsonGet<bool>( deviceData, "enabled" );
 							deviceData.erase( "enabled" );
+							device->setEnabled( enabled );
 
 							g_database->putQuery(
 								"UPDATE `devices` "
@@ -937,27 +937,9 @@ namespace micasa {
 
 							device->putSettingsJson( deviceData );
 							device->getSettings()->put( deviceData );
-							bool restart = false;
 							if ( device->getSettings()->isDirty() ) {
 								device->getSettings()->commit();
-								restart = true;
 							}
-
-							std::thread( [device,enabled,restart]{
-								if (
-									! enabled
-									|| restart
-								) {
-									if ( device->isRunning() ) {
-										device->stop();
-									}
-								}
-								if ( enabled ) {
-									if ( ! device->isRunning() ) {
-										device->start();
-									}
-								}
-							} ).detach();
 
 							// A scripts array can be passed along to set the scripts to run when the device is updated.
 							auto find = input_.find( "scripts");
@@ -1084,7 +1066,7 @@ namespace micasa {
 								|| ( (*devicesIt)->getType() == Device::Type::LEVEL && device->getType() == Device::Type::COUNTER )
 								|| ( (*devicesIt)->getType() == Device::Type::COUNTER && device->getType() == Device::Type::LEVEL )
 							)
-							&& (*devicesIt)->isRunning()
+							&& (*devicesIt)->isEnabled()
 							&& (
 								device->getType() != Device::Type::SWITCH
 								|| ! readOnly

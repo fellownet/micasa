@@ -25,7 +25,13 @@ namespace micasa {
 		{ Device::Type::TEXT, "text" },
 	};
 
-	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
+	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		m_hardware( hardware_ ),
+		m_id( id_ ),
+		m_reference( reference_ ),
+		m_enabled( enabled_ ),
+		m_label( label_ )
+	{
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be created before Device instances." );
 		assert( g_database && "Global Database instance should be created before Device instances." );
@@ -36,7 +42,7 @@ namespace micasa {
 	
 	Device::~Device() {
 #ifdef _DEBUG
-		assert( g_database && "Global Controller instance should be destroyed after Device instances." );
+		assert( g_controller && "Global Controller instance should be destroyed after Device instances." );
 		assert( g_database && "Global Database instance should be destroyed after Device instances." );
 		assert( g_logger && "Global Logger instance should be destroyed after Device instances." );
 #endif // _DEBUG
@@ -53,7 +59,7 @@ namespace micasa {
 	void Device::setLabel( const std::string& label_ ) {
 		if ( label_ != this->m_label ) {
 			this->m_label = label_;
-			g_database->putQueryAsync(
+			g_database->putQuery(
 				"UPDATE `devices` "
 				"SET `label`=%Q "
 				"WHERE `id`=%d"
@@ -86,19 +92,19 @@ namespace micasa {
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
 	
-	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
+	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:
-				return std::make_shared<Counter>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::LEVEL:
-				return std::make_shared<Level>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::SWITCH:
-				return std::make_shared<Switch>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::TEXT:
-				return std::make_shared<Text>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 		}
 		return nullptr;
@@ -109,8 +115,7 @@ namespace micasa {
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
-		result["enabled"] = this->isRunning();
-		//result["hardware"] = this->m_hardware->getJson( false );
+		result["enabled"] = this->isEnabled();
 		result["hardware"] = this->m_hardware->getName();
 		result["hardware_id"] = this->m_hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
@@ -201,8 +206,12 @@ namespace micasa {
 		this->m_hardware->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
+	void Device::setEnabled( bool enabled_ ) {
+		this->m_enabled = enabled_;
+	};
+
 	void Device::touch() {
-		g_database->putQueryAsync(
+		g_database->putQuery(
 			"UPDATE `devices` "
 			"SET `updated`=datetime('now') "
 			"WHERE `id`=%d ",

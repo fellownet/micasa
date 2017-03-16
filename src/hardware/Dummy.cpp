@@ -61,7 +61,7 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-					}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+					} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				} else if ( type == "create_counter_device" ) {
 					this->declareDevice<Counter>( randomString( 16 ), "Counter", {
@@ -71,7 +71,7 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_UNIT,           Counter::resolveUnit( Counter::Unit::GENERIC ) },
 						{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true },
 						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-					}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
+					} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0 );
 					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				} else if ( type == "create_level_device" ) {
 					this->declareDevice<Level>( randomString( 16 ), "Level", {
@@ -81,7 +81,7 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::GENERIC ) },
 						{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true },
 						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-					}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
+					} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, 0. );
 					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				} else if ( type == "create_text_device" ) {
 					this->declareDevice<Text>( randomString( 16 ), "Text", {
@@ -89,7 +89,7 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::GENERIC ) },
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-					}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
+					} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, "" );
 					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				}
 

@@ -10,6 +10,7 @@
 #include "WebServer.h"
 #include "Controller.h"
 #include "Settings.h"
+#include "Scheduler.h"
 
 namespace micasa {
 	
@@ -114,6 +115,6 @@ int main( int argc_, char* argv_[] ) {
 	g_settings = NULL;
 	g_database = NULL;
 	g_logger = NULL;
-	
+
 	return EXIT_SUCCESS;
 };

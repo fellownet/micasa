@@ -90,7 +90,7 @@ namespace micasa {
 		}
 		
 		mg_connection* connection;
-		this->_synchronize( [&]() {
+		this->_synchronize( [&]() -> void {
 			connection = mg_bind_opt( &this->m_manager, port_.c_str(), micasa_mg_handler, options );
 			if ( NULL != connection ) {
 				connection->user_data = this->_newHandler( callback_, true );
@@ -104,7 +104,7 @@ namespace micasa {
 	mg_connection* Network::connect( const std::string uri_, const Network::t_callback callback_ ) {
 		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Connecting to %s.", uri_.c_str() );
 		mg_connection* connection;
-		this->_synchronize( [&]() {
+		this->_synchronize( [&]() -> void {
 			if ( uri_.substr( 0, 4 ) == "http" ) {
 				connection = mg_connect_http( &this->m_manager, micasa_mg_handler, uri_.c_str(), NULL, NULL );
 			} else {
@@ -120,7 +120,7 @@ namespace micasa {
 	mg_connection* Network::connect( const std::string uri_, const Network::t_callback callback_, const json& body_ ) {
 		g_logger->logr( Logger::LogLevel::VERBOSE, this, "Connecting to %s.", uri_.c_str() );
 		mg_connection* connection;
-		this->_synchronize( [&]() {
+		this->_synchronize( [&]() -> void {
 			if ( uri_.substr( 0, 4 ) == "http" ) {
 				connection = mg_connect_http( &this->m_manager, micasa_mg_handler, uri_.c_str(), "Content-Type: application/json\r\n", body_.dump().c_str() );
 			} else {
@@ -137,10 +137,10 @@ namespace micasa {
 	Network::t_handler* Network::_newHandler( const Network::t_callback callback_, const bool binding_ ) {
 		return new Network::t_handler( [this, callback_, binding_]( mg_connection* connection_, int event_, void* data_ ) {
 			// If the network is shutting down, all connections are force closed. To give all open connections the
-			// ability to distinguish between a failty close and a shutdown we're rewriting the event.
+			// ability to distinguish between a 'normal' close and a shutdown we're rewriting the event.
 			if (
 				event_ == MG_EV_CLOSE
-				&& this->m_shutdown
+				&& ! this->isRunning()
 			) {
 				event_ = MG_EV_SHUTDOWN;
 			}

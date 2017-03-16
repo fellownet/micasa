@@ -4,6 +4,8 @@
 
 #include "../Device.h"
 
+#include "../Scheduler.h"
+
 namespace micasa {
 
 	class Switch final : public Device {
@@ -40,7 +42,7 @@ namespace micasa {
 		// typedef t_switchValue t_value;
 		static const Device::Type type;
 		
-		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
+		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		Device::Type getType() const throw() override { return Switch::type; };
 		
@@ -57,17 +59,22 @@ namespace micasa {
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
+		//std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
 		Option m_value = Option::OFF;
 		Option m_previousValue = Option::OFF;
+		Scheduler m_scheduler;
 		struct {
 			Option value;
-			std::timed_mutex mutex;
-			bool trying = false;
+			Device::UpdateSource source;
+			std::chrono::steady_clock::time_point last;
+			std::weak_ptr<Scheduler::Task> task;
 		} m_rateLimiter;
-		
+
+		void _processValue( const Device::UpdateSource& source_, const Option& value_ );
+		void _purgeHistory() const;
+
 	}; // class Switch
 
 }; // namespace micasa

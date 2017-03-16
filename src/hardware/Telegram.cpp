@@ -195,7 +195,7 @@ namespace micasa {
 						if (
 							(*deviceIt)->getType() == Device::Type::TEXT
 							&& (*deviceIt)->getReference() != "broadcast"
-							&& (*deviceIt)->isRunning()
+							//&& (*deviceIt)->isRunning()
 						) {
 							targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
 						}

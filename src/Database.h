@@ -36,12 +36,11 @@ namespace micasa {
 		std::map<std::string, std::string> getQueryMap( const std::string query_, ... ) const ;
 		template<typename T> T getQueryValue( const std::string query_, ... ) const;
 		long putQuery( const std::string query_, ... ) const;
-		void putQueryAsync( const std::string query_, ... ) const;
 		int getLastErrorCode() const;
 
 	private:
 		void _init() const;
-		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_, bool async_ = false ) const;
+		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const;
 
 		const std::string m_filename;
 		sqlite3 *m_connection;

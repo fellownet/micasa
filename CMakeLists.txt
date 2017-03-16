@@ -20,6 +20,7 @@ set( SRC
 	src/Utils.cpp
 	src/Arguments.cpp
 	src/Worker.cpp
+	src/Scheduler.cpp
 	src/Controller.cpp
 	src/Logger.cpp
 	src/Network.cpp

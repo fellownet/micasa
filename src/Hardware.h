@@ -61,7 +61,12 @@ namespace micasa {
 
 		static const constexpr char* settingsName = "hardware";
 
+		// Hardware instances should not be copied nor copy assigned.
+		Hardware( const Hardware& ) = delete;
+		Hardware& operator=( const Hardware& ) = delete;
+		
 		virtual ~Hardware();
+		
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
 		// This is the preferred way of creating a hardware instance of a specific type. Hence the protected
@@ -85,7 +90,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 		std::vector<std::shared_ptr<Device> > getAllDevices() const;
 		std::vector<std::shared_ptr<Device> > getAllDevices( const std::string& prefix_ ) const;
-		template<class T> std::shared_ptr<T> declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ = false );
+		template<class T> std::shared_ptr<T> declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
 		void removeDevice( const std::shared_ptr<Device> device_ );
 		void touch();
 

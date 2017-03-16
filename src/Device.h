@@ -25,7 +25,7 @@ namespace micasa {
 
 	class Hardware;
 
-	class Device : public Worker, public std::enable_shared_from_this<Device> {
+	class Device : public std::enable_shared_from_this<Device> {
 		
 	public:
 		enum class Type: unsigned short {
@@ -53,34 +53,18 @@ namespace micasa {
 			INTERNAL = 64 // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
-		
-		/*
-		typedef int t_counterValue;
-		typedef double t_levelValue;
-		typedef std::string t_switchValue;
-		typedef std::string t_textValue;
-
-		union Value {
-			Value() : text( "" ) { };
-			~Value() { };
-			Value( t_counterValue value_ ) : counter( value_ ) { };
-			Value( t_levelValue value_ ) : level( value_ ) { };
-			Value( t_textValue value_ ) : text( value_ ) { };
-
-			t_counterValue counter;
-			t_levelValue level;
-			t_textValue text;
-		}; // union Value
-		*/
 
 		static const constexpr char* settingsName = "device";
+
+		// Device instances should not be copied nor copy assigned.
+		Device( const Device& ) = delete;
+		Device& operator=( const Device& ) = delete;
 		
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 
-		// This is the preferred way to create a device of specific type (hence the protected
-		// constructor).
-		static std::shared_ptr<Device> factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
+		// This is the preferred way to create a device of specific type (hence the protected constructor).
+		static std::shared_ptr<Device> factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		unsigned int getId() const throw() { return this->m_id; };
 		std::string getReference() const throw() { return this->m_reference; };
@@ -92,6 +76,8 @@ namespace micasa {
 		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
+		bool isEnabled() const throw() { return this->m_enabled; };
+		void setEnabled( bool enabled_ = true );
 		void touch();
 
 		virtual nlohmann::json getJson( bool full_ = false ) const;
@@ -100,11 +86,12 @@ namespace micasa {
 		virtual Type getType() const =0;
 		
 	protected:
-		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
+		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;
 		const std::string m_reference;
+		bool m_enabled;
 		std::string m_label;
 		std::shared_ptr<Settings<Device> > m_settings;
 

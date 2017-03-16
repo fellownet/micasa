@@ -132,8 +132,6 @@ namespace micasa {
 	void Hardware::start() {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 
-		// Fetch all device records from the database, including those that are disabled. Disabled devices are *not*
-		// started but are still present in the devices vector.
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
@@ -142,12 +140,14 @@ namespace micasa {
 		);
 		for ( auto const &devicesDataIt : devicesData ) {
 			Device::Type type = Device::resolveType( devicesDataIt.at( "type" ) );
-			std::shared_ptr<Device> device = Device::factory( this->shared_from_this(), type, std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ) );
-
-			if ( devicesDataIt.at( "enabled" ) == "1" ) {
-				device->start();
-			}
-
+			std::shared_ptr<Device> device = Device::factory(
+				this->shared_from_this(),
+				type,
+				std::stoi( devicesDataIt.at( "id" ) ),
+				devicesDataIt.at( "reference" ),
+				devicesDataIt.at( "label" ),
+				devicesDataIt.at( "enabled" ) == "1"
+			);
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
 		}
 
@@ -160,22 +160,10 @@ namespace micasa {
 	};
 
 	void Hardware::stop() {
-		{
-			std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-			g_logger->logr( Logger::LogLevel::DEBUG, this, "Stopping all devices (%d).", this->m_devices.size() );
-			for ( auto const &devicesIt : this->m_devices ) {
-				auto device = devicesIt.second;
-				if ( device->isRunning() ) {
-					device->stop();
-				}
-			}
-			this->m_devices.clear();
-		}
-
+		this->m_devices.clear();
 		if ( this->m_settings->isDirty() ) {
 			this->m_settings->commit();
 		}
-
 		this->setState( State::DISABLED );
 		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
@@ -312,17 +300,11 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( devicesIt->second == device_ ) {
-
-				if ( device_->isRunning() ) {
-					device_->stop();
-				}
-
 				g_database->putQuery(
 					"DELETE FROM `devices` "
 					"WHERE `id`=%d",
 					device_->getId()
 				);
-
 				this->m_devices.erase( devicesIt );
 				break;
 			}
@@ -331,7 +313,7 @@ namespace micasa {
 
 	void Hardware::touch() {
 		if ( this->m_parent ) {
-			g_database->putQueryAsync(
+			g_database->putQuery(
 				"UPDATE `hardware` "
 				"SET `updated`=datetime('now') "
 				"WHERE `id`=%d "
@@ -340,7 +322,7 @@ namespace micasa {
 				this->m_parent->getId()
 			);
 		} else {
-			g_database->putQueryAsync(
+			g_database->putQuery(
 				"UPDATE `hardware` "
 				"SET `updated`=datetime('now') "
 				"WHERE `id`=%d ",
@@ -349,10 +331,7 @@ namespace micasa {
 		}
 	};
 
-	template<class T> std::shared_ptr<T> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ ) {
-		// TODO also declare relationships with other devices, such as energy and power, or temperature
-		// and humidity. Provide a hardcoded list of references upon declaring so that these relationships
-		// can be altered at will by the client (maybe they want temperature and pressure).
+	template<class T> std::shared_ptr<T> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		try {
 			std::shared_ptr<T> device = std::static_pointer_cast<T>( this->m_devices.at( reference_ ) );
@@ -373,14 +352,13 @@ namespace micasa {
 
 		long id = g_database->putQuery(
 			"INSERT INTO `devices` ( `hardware_id`, `reference`, `type`, `label`, `enabled` ) "
-			"VALUES ( %d, %Q, %Q, %Q, %d )",
+			"VALUES ( %d, %Q, %Q, %Q, 0 )",
 			this->m_id,
 			reference_.c_str(),
 			Device::resolveType( T::type ).c_str(),
-			label_.c_str(),
-			start_ ? 1 : 0
+			label_.c_str()
 		);
-		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::factory( this->shared_from_this(), T::type, id, reference_, label_ ) );
+		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::factory( this->shared_from_this(), T::type, id, reference_, label_, false ) );
 
 		auto settings = device->getSettings();
 		settings->insert( settings_ );
@@ -388,19 +366,15 @@ namespace micasa {
 			settings->commit();
 		}
 
-		if ( start_ ) {
-			device->start();
-		}
-
 		this->m_devices[reference_] = device;
 
 		return device;
 
 	};
-	template std::shared_ptr<Counter> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Level> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Switch> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
-	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_, const bool& start_ );
+	template std::shared_ptr<Counter> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
+	template std::shared_ptr<Level> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
+	template std::shared_ptr<Switch> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
+	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
