@@ -12,121 +12,180 @@ namespace micasa {
 
 	using namespace std::chrono;
 
-	Scheduler::Task::Task( t_taskFunc&& func_, std::chrono::steady_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
-		time( time_ ),
-		delay( delay_ ),
-		repeat( repeat_ ),
-		iteration( 0 ),
-		data( data_ ),
-		m_func( std::move( func_ ) ),
-		m_promise( std::make_shared<std::promise<void> >() )
-	{
+	// ========
+	// BaseTask
+	// ========
+
+	void Scheduler::BaseTask::proceed( unsigned long wait_ ) {
+		this->time = system_clock::now() + milliseconds( wait_ );
+		Scheduler::ThreadPool::get().notify();
 	};
 
-	void Scheduler::Task::proceed( unsigned long wait_ ) {
-		this->time = steady_clock::now() + milliseconds( wait_ );
-		this->m_scheduler->notify();
+	void Scheduler::BaseTask::advance( unsigned long duration_ ) {
+		this->time -= milliseconds( duration_ );
+		Scheduler::ThreadPool::get().notify();
 	};
+
+	// =======
+	// Task<T>
+	// =======
+
+	template<> void Scheduler::Task<void>::execute() {
+		if ( ! this->m_first ) {
+			std::lock_guard<std::mutex> lock( this->m_futureMutex );
+			this->m_future = std::shared_future<void>( m_promise->get_future() );
+		}
+		this->m_func( *this /*std::static_pointer_cast<Task<void> >( this->shared_from_this() )*/ );
+		this->m_promise->set_value(); // reason for specialization of void variant
+		this->m_promise = std::make_shared<std::promise<void> >();
+		this->m_first = false;
+	}
+
+	// =========
+	// Scheduler
+	// =========
+
+	Scheduler::Scheduler() {
+		static std::atomic<unsigned int> nextId( 0 );
+		this->m_id = ++nextId;
+	};
+
+	Scheduler::~Scheduler() {
+		// Purging all tasks for this scheduler *blocks* the current thread until all running tasks are completed.
+		auto& pool = Scheduler::ThreadPool::get();
+		pool.erase( this );
+	};
+
+	void Scheduler::erase( BaseTask::t_compareFunc&& func_ ) {
+		Scheduler::ThreadPool::get().erase( this, std::move( func_ ) );
+	};
+
+	std::shared_ptr<Scheduler::BaseTask> Scheduler::first( BaseTask::t_compareFunc&& func_ ) const {
+		return Scheduler::ThreadPool::get().first( this, std::move( func_ ) );
+	};
+
+	void Scheduler::notify() {
+		Scheduler::ThreadPool::get().notify();
+	};
+
+	// ==========
+	// ThreadPool
+	// ==========
 
 	Scheduler::ThreadPool::ThreadPool() :
 		m_shutdown( false ),
 		m_continue( false ),
-		m_threads( std::vector<std::thread>( std::max( 1U, std::thread::hardware_concurrency() ) ) )
+		m_threads( std::vector<std::thread>( std::max( 2U, 2 * std::thread::hardware_concurrency() ) ) )
 	{
 		for ( unsigned int i = 0; i < this->m_threads.size(); i++ ) {
-			this->m_threads[i] = std::thread( [this,i]() { this->_threadLoop( i ); } );
+			this->m_threads[i] = std::thread( [this,i]() { this->_loop( i ); } );
 		}
 	};
 
 	Scheduler::ThreadPool::~ThreadPool() {
-#ifdef _DEBUG
-		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		assert( this->m_tasks.size() == 0 && "All tasks should be purged when ThreadPool is destructed." );
-		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed.");
-		tasksLock.unlock();
-#endif // _DEBUG
 		this->_notify( true, [this]() -> void { this->m_shutdown = true; } );
 		for ( auto& thread: this->m_threads ) {
 			thread.join();
 		}
+#ifdef _DEBUG
+		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+		assert( this->m_tasks.empty() && "All tasks should be purged when ThreadPool is destructed." );
+		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed.");
+		tasksLock.unlock();
+#endif // _DEBUG
 	};
 
-	void Scheduler::ThreadPool::addTask( Scheduler* scheduler_, std::shared_ptr<Task> task_ ) {
+	void Scheduler::ThreadPool::schedule( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		task_->m_scheduler = scheduler_;
-		this->m_tasks.push( task_ );
+		this->_insert( scheduler_, task_ );
 		tasksLock.unlock();
 		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
-	void Scheduler::ThreadPool::purgeTasks( Scheduler* scheduler_ ) {
+	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		
-		// A priority queue doesn't support iterating directly, so iterating is implemented rather inefficiently here.
-		// This is accepted here though, because it is likely that schedulers are not created and destroyed very often.
-		std::priority_queue<std::shared_ptr<Task>, std::vector<std::shared_ptr<Task> >, TaskComparator> tasks;
-		while( ! this->m_tasks.empty() ) {
-			std::shared_ptr<Task> task = this->m_tasks.top(); //const_cast<std::shared_ptr<Task> >( this->m_tasks.top() );
-			this->m_tasks.pop();
-			if ( task->m_scheduler != scheduler_ ) {
-				tasks.push( task );
+		// Remove all pending tasks from the task queue.
+		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
+			if (
+				taskIt->first == scheduler_
+				&& func_( *( taskIt->second.get() ) )
+			) {
+				taskIt = this->m_tasks.erase( taskIt );
+			} else {
+				taskIt++;
 			}
 		}
-		this->m_tasks = std::move( tasks );
 
-		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat.
-		std::vector<std::shared_ptr<std::promise<void> > > promises;
-		for ( auto taskIt = this->m_activeTasks[scheduler_].begin(); taskIt != this->m_activeTasks[scheduler_].end(); taskIt++ ) {
-			(*taskIt)->repeat = 0;
-			promises.push_back( (*taskIt)->m_promise );
+		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat. Their
+		// futures are gathered.
+		std::vector<std::shared_ptr<BaseTask> > tasks;
+		for ( auto taskIt = this->m_activeTasks.begin(); taskIt != this->m_activeTasks.end(); taskIt++ ) {
+			if (
+				taskIt->first == scheduler_
+				&& func_( *( taskIt->second.get() ) )
+			) {
+				taskIt->second->repeat = 0;
+				tasks.push_back( taskIt->second );
+			}
 		}
+
 		tasksLock.unlock();
-		for ( auto const &promise : promises ) {
-			promise->get_future().get();
+
+		// Block the thread until all tasks have been completed.
+		for ( auto const &task : tasks ) {
+			task->complete();
 		}
-#ifdef _DEBUG
-		tasksLock.lock();
-		assert( this->m_activeTasks[scheduler_].size() == 0 && "All tasks should be completed after purge.");
-		tasksLock.unlock();
-#endif // _DEBUG
-		this->m_activeTasks.erase( scheduler_ );
+	};
+
+	std::shared_ptr<Scheduler::BaseTask> Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const {
+		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); taskIt++ ) {
+			if (
+				taskIt->first == scheduler_
+				&& func_( *( taskIt->second.get() ) )
+			) {
+				return taskIt->second;
+			}
+		}
+		return nullptr;
 	};
 
 	void Scheduler::ThreadPool::notify() {
 		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
-	void Scheduler::ThreadPool::_threadLoop( unsigned int index_ ) {
+	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 			while(
 				! this->m_tasks.empty()
-				&& this->m_tasks.top()->time <= steady_clock::now()
+				&& this->m_tasks.front().second->time <= system_clock::now()
 			) {
-				std::shared_ptr<Task> task = this->m_tasks.top(); //const_cast<std::shared_ptr<Task> >( this->m_tasks.top() );
-				this->m_tasks.pop();
+				// Pop the first scheduled task from the queue and inform other threads about the queue change.
+				t_scheduledTask stask = this->m_tasks.front();
+				this->m_tasks.pop_front();
 				this->_notify( false, [this]() -> void { this->m_continue = true; } );
-				auto& activeTasks = this->m_activeTasks[task->m_scheduler];
-				activeTasks.push_back( task );
-				task->iteration++;
+
+				// Push the task into the active tasks list.
+				this->m_activeTasks.push_back( stask );
 				tasksLock.unlock();
 				
-				task->m_func( task );
-				task->m_promise->set_value();
+				stask.second->iteration++;
+				stask.second->execute();
 
 				tasksLock.lock();
-				auto find = std::find( activeTasks.begin(), activeTasks.end(), task );
-				if ( find != activeTasks.end() ) {
-					activeTasks.erase( find );
+				auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
+				if ( find != this->m_activeTasks.end() ) {
+					this->m_activeTasks.erase( find );
 				}
 
-				if ( task->repeat > 1 ) {
-					if ( task->repeat != SCHEDULER_INFINITE ) {
-						task->repeat--;
+				if ( stask.second->repeat > 1 ) {
+					if ( stask.second->repeat != SCHEDULER_INFINITE ) {
+						stask.second->repeat--;
 					}
-					task->time += milliseconds( task->delay );
-					task->m_promise = std::make_shared<std::promise<void> >();
-					this->m_tasks.push( task );
+					stask.second->time += milliseconds( stask.second->delay );
+					this->_insert( stask.first, stask.second );
 					this->_notify( false, [this]() -> void { this->m_continue = true; } );
 				}
 			}
@@ -137,9 +196,9 @@ namespace micasa {
 				tasksLock.unlock();
 				this->m_continueCondition.wait( conditionLock, predicate );
 			} else {
-				auto now = steady_clock::now();
-				if ( now < this->m_tasks.top()->time ) {
-					auto wait = this->m_tasks.top()->time - now;
+				auto now = system_clock::now();
+				if ( now < this->m_tasks.front().second->time ) {
+					auto wait = this->m_tasks.front().second->time - now;
 					tasksLock.unlock();
 					this->m_continueCondition.wait_for( conditionLock, wait, predicate );
 				} else {
@@ -150,6 +209,18 @@ namespace micasa {
 			conditionLock.unlock();
 		}
 	};
+	
+	void Scheduler::ThreadPool::_insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
+		// NOTE this method should be called while holding a lock on the tasks mutex!
+		auto taskIt = this->m_tasks.begin();
+		while(
+			  taskIt != this->m_tasks.end()
+			  && task_->time > taskIt->second->time
+		) {
+			taskIt++;
+		}
+		this->m_tasks.insert( taskIt, { scheduler_, task_ } );
+	};
 
 	void Scheduler::ThreadPool::_notify( bool bAll_, std::function<void()>&& func_ ) {
 		std::lock_guard<std::mutex> lock( this->m_conditionMutex );
@@ -159,49 +230,6 @@ namespace micasa {
 		} else {
 			this->m_continueCondition.notify_one();
 		}
-	};
-
-	Scheduler::Scheduler() {
-		static std::atomic<unsigned int> nextId( 0 );
-		this->m_id = ++nextId;
-	};
-
-	Scheduler::~Scheduler() {
-		// Purging all tasks for this scheduler *blocks* the current thread until all running tasks are completed.
-		auto& pool = Scheduler::ThreadPool::get();
-		pool.purgeTasks( this );
-	};
-
-	std::shared_ptr<Scheduler::Task> Scheduler::schedule( unsigned long delay_, unsigned long repeat_, void* data_, Scheduler::Task::t_taskFunc&& func_ ) {
-		std::shared_ptr<Scheduler::Task> task = std::make_shared<Scheduler::Task>( std::forward<Scheduler::Task::t_taskFunc>( func_ ), steady_clock::now() + milliseconds( delay_ ), delay_, repeat_, data_ );
-		Scheduler::ThreadPool::get().addTask( this, task );
-		return task;
-	};
-
-	std::shared_ptr<Scheduler::Task> Scheduler::schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task> task_ ) {
-		task_->delay = delay_;
-		task_->repeat = repeat_;
-		task_->time = steady_clock::now() + milliseconds( delay_ );
-		Scheduler::ThreadPool::get().addTask( this, task_ );
-		return task_;
-	};
-
-	std::shared_ptr<Scheduler::Task> Scheduler::schedule( std::chrono::steady_clock::time_point time_, void* data_, Task::t_taskFunc&& func_ ) {
-		std::shared_ptr<Scheduler::Task> task = std::make_shared<Scheduler::Task>( std::forward<Scheduler::Task::t_taskFunc>( func_ ), time_, 0, 1, data_ );
-		Scheduler::ThreadPool::get().addTask( this, task );
-		return task;
-	};
-	
-	std::shared_ptr<Scheduler::Task> Scheduler::schedule( std::chrono::steady_clock::time_point time_, std::shared_ptr<Task> task_ ) {
-		task_->delay = 0;
-		task_->repeat = 1;
-		task_->time = time_;
-		Scheduler::ThreadPool::get().addTask( this, task_ );
-		return task_;
-	};
-
-	void Scheduler::notify() {
-		Scheduler::ThreadPool::get().notify();
 	};
 
 }; // namespace micasa

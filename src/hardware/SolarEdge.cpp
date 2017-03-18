@@ -11,7 +11,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Controller> g_controller;
 	
 	using namespace nlohmann;
@@ -66,7 +65,7 @@ namespace micasa {
 		std::stringstream url;
 		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/list?api_key=" << this->m_settings->get( "api_key" );
 		
-		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
 				std::string body;
 				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );

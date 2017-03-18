@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "Utils.h"
-#include "Worker.h"
 
 #include "json.hpp"
 
@@ -21,7 +20,7 @@ namespace micasa {
 
 	class User;
 
-	class WebServer final : public Worker {
+	class WebServer final {
 
 	public:
 		enum class Method: unsigned short {
@@ -72,8 +71,8 @@ namespace micasa {
 		void start();
 		void stop();
 		
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
+	//protected:
+		//std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
 		
 	private:
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;

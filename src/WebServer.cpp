@@ -49,7 +49,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Network> g_network;
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Settings<> > g_settings;
@@ -59,7 +58,6 @@ namespace micasa {
 	WebServer::WebServer() {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be created before global WebServer instance." );
-		assert( g_network && "Global Network instance should be created before global WebServer instance." );
 		assert( g_database && "Global Database instance should be created before global WebServer instance." );
 		assert( g_controller && "Global Controller instance should be created before global WebServer instance." );
 #endif // _DEBUG
@@ -69,7 +67,6 @@ namespace micasa {
 	WebServer::~WebServer() {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be destroyed after global WebServer instance." );
-		assert( g_network && "Global Network instance should be destroyed after global WebServer instance." );
 		assert( g_database && "Global Database instance should be destroyed after global WebServer instance." );
 		assert( g_controller && "Global Controller instance should be destroyed after global WebServer instance." );
 		for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
@@ -80,9 +77,6 @@ namespace micasa {
 	};
 
 	void WebServer::start() {
-#ifdef _DEBUG
-		assert( g_network->isRunning() && "Network should be running before WebServer is started." );
-#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		// Micasa only runs over HTTPS which requires a keys and certificate file. These are read and/or stored in the
@@ -165,7 +159,7 @@ namespace micasa {
 			fclose( f );
 		}
 
-		if ( NULL == g_network->bind( "80", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		if ( NULL == Network::get().bind( "80", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				if ( event_ == MG_EV_HTTP_REQUEST ) {
 					this->_processHttpRequest( connection_, (http_message*)data_ );
 				}
@@ -174,7 +168,7 @@ namespace micasa {
 			throw std::runtime_error( "unable to bind to port 80" );
 		}
 
-		if ( NULL == g_network->bind( "443", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		if ( NULL == Network::get().bind( "443", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				if ( event_ == MG_EV_HTTP_REQUEST ) {
 					this->_processHttpRequest( connection_, (http_message*)data_ );
 				}
@@ -200,14 +194,10 @@ namespace micasa {
 		this->_installTimerResourceHandler();
 		this->_installUserResourceHandler();
 		
-		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
 	void WebServer::stop() {
-#ifdef _DEBUG
-		assert( g_network->isRunning() && "Network should be running before WebServer is stopped." );
-#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
 		EVP_PKEY_free( this->m_key );
@@ -218,7 +208,6 @@ namespace micasa {
 			this->m_resources.clear();
 		}
 
-		Worker::stop();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 

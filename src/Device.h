@@ -5,7 +5,6 @@
 #include <map>
 #include <chrono>
 
-#include "Worker.h"
 #include "Settings.h"
 #include "Settings.h"
 #include "Utils.h"
@@ -56,9 +55,8 @@ namespace micasa {
 
 		static const constexpr char* settingsName = "device";
 
-		// Device instances should not be copied nor copy assigned.
-		Device( const Device& ) = delete;
-		Device& operator=( const Device& ) = delete;
+		Device( const Device& ) = delete; // Do not copy!
+		Device& operator=( const Device& ) = delete; // Do not copy-assign!
 		
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );

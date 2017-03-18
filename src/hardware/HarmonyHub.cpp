@@ -11,7 +11,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Network> g_network;
 
 	using namespace nlohmann;
 	
@@ -82,7 +81,7 @@ namespace micasa {
 			// will be destroyed.
 			
 			auto sharedPtr = this->shared_from_this();
-			this->m_connection = g_network->connect( uri, Network::t_callback( [sharedPtr]( mg_connection* connection_, int event_, void* data_ ) {
+			this->m_connection = Network::get().connect( uri, Network::t_callback( [sharedPtr]( mg_connection* connection_, int event_, void* data_ ) {
 				auto me = std::dynamic_pointer_cast<HarmonyHub>( sharedPtr );
 				switch( event_ ) {
 					case MG_EV_CONNECT: {
@@ -102,7 +101,7 @@ namespace micasa {
 						
 					case MG_EV_POLL:
 					case MG_EV_SEND:
-					case MG_EV_SHUTDOWN:
+					//case MG_EV_SHUTDOWN:
 						break;
 						
 					case MG_EV_TIMER: {

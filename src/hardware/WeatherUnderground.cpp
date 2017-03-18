@@ -16,7 +16,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Network> g_network;
 
 	using namespace nlohmann;
 
@@ -100,7 +99,7 @@ namespace micasa {
 		std::stringstream url;
 		url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
 
-		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
 				std::string body;
 				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );

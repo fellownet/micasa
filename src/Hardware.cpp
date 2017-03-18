@@ -377,34 +377,17 @@ namespace micasa {
 	template std::shared_ptr<Text> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
-		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
-		auto search = this->m_pendingUpdates.find( reference_ );
-		if ( search == this->m_pendingUpdates.end() ) {
-			this->m_pendingUpdates[reference_] = std::make_shared<PendingUpdate>( source_, data_ );
-		}
-		std::shared_ptr<PendingUpdate> pendingUpdate = this->m_pendingUpdates[reference_];
-		pendingUpdatesLock.unlock();
-
-		if ( pendingUpdate->updateMutex.try_lock_for( milliseconds( blockNewUpdate_ ) ) ) {
-
-			// Instead of passing a reference to this to the thread, a shared pointer to this is passed. This way, the
-			// thread always holds a proper reference to the hardware, even when the hardware is removed (which happens
-			// when the controller is stopped for instance).
-			std::shared_ptr<Hardware> me = this->shared_from_this();
-			std::thread( [me,pendingUpdate,reference_,waitForResult_] {
-				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
-				pendingUpdate->condition.wait_for( notifyLock, milliseconds( waitForResult_ ), [&pendingUpdate]{ return pendingUpdate->done; } );
-
-				std::unique_lock<std::mutex> pendingUpdatesLock( me->m_pendingUpdatesMutex );
-				auto search = me->m_pendingUpdates.find( reference_ );
-				if ( search != me->m_pendingUpdates.end() ) {
-					me->m_pendingUpdates.erase( search );
-				}
-				pendingUpdatesLock.unlock();
-
-				pendingUpdate->updateMutex.unlock();
-			} ).detach();
-
+		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		auto pendingUpdate = this->m_pendingUpdates[reference_];
+		if (
+			pendingUpdate == nullptr
+			|| pendingUpdate->waitFor( blockNewUpdate_ )
+		) {
+			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, NULL, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
+				std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+				this->m_pendingUpdates.erase( reference_ );
+				return { source_, data_ };
+			} );
 			return true;
 		} else {
 			return false;
@@ -427,7 +410,18 @@ namespace micasa {
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ ) {
-		return this->_checkPendingUpdate( reference_, source_, data_, true );
+		std::unique_lock<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
+		try {
+			auto pendingUpdate = this->m_pendingUpdates.at( reference_ );
+			pendingUpdatesLock.unlock(); // the task itself requires a lock on the pending updates aswell
+			pendingUpdate->proceed( 0 );
+			t_pendingUpdate update = pendingUpdate->wait();
+			source_ |= update.source;
+			data_ = update.data;
+			return true;
+		} catch( std::out_of_range ex_ ) {
+			return false;
+		}
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_, std::string& data_ ) {
@@ -443,43 +437,6 @@ namespace micasa {
 	bool Hardware::_releasePendingUpdate( const std::string& reference_ ) {
 		Device::UpdateSource dummy;
 		return this->_releasePendingUpdate( reference_, dummy );
-	};
-
-	bool Hardware::_hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ ) {
-		return this->_checkPendingUpdate( reference_, source_, data_, false );
-	};
-
-	bool Hardware::_hasPendingUpdate( const std::string& reference_, std::string& data_ ) {
-		Device::UpdateSource dummy;
-		return this->_hasPendingUpdate( reference_, dummy, data_ );
-	};
-
-	bool Hardware::_hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_ ) {
-		std::string dummy;
-		return this->_hasPendingUpdate( reference_, source_, dummy );
-	};
-
-	bool Hardware::_hasPendingUpdate( const std::string& reference_ ) {
-		Device::UpdateSource dummy;
-		return this->_hasPendingUpdate( reference_, dummy );
-	};
-
-	bool Hardware::_checkPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_, bool release_ ) {
-		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
-		auto search = this->m_pendingUpdates.find( reference_ );
-		if ( search != this->m_pendingUpdates.end() ) {
-			auto pendingUpdate = search->second;
-			if ( release_ ) {
-				std::unique_lock<std::mutex> notifyLock( pendingUpdate->conditionMutex );
-				pendingUpdate->done = true;
-				notifyLock.unlock();
-				pendingUpdate->condition.notify_all();
-			}
-			source_ |= pendingUpdate->source;
-			data_ = pendingUpdate->data;
-			return true;
-		}
-		return false;
 	};
 
 } // namespace micasa

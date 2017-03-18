@@ -14,7 +14,6 @@ namespace micasa {
 	
 	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Network> g_network;
 	
 	using namespace nlohmann;
 	
@@ -51,7 +50,7 @@ namespace micasa {
 		std::stringstream url;
 		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
 		
-		g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+		Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 			if ( event_ == MG_EV_HTTP_REPLY ) {
 				std::string body;
 				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );

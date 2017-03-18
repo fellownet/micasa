@@ -40,9 +40,9 @@ namespace micasa {
 		// time, a start offset is used.
 		static volatile unsigned int offset = 0;
 		offset += ( 1000 * 15 ); // 15 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, [this]( std::shared_ptr<Scheduler::Task> task_ ) -> void {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) -> void {
 			this->_purgeHistory();
-		} )->proceed( offset % SCHEDULER_INTERVAL_HOUR );
+		} )->advance( offset % SCHEDULER_INTERVAL_HOUR );
 	};
 
 	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
@@ -64,16 +64,16 @@ namespace micasa {
 		
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
-			steady_clock::time_point now = steady_clock::now();
-			steady_clock::time_point next = this->m_rateLimiter.last + milliseconds( rateLimit );
+			system_clock::time_point now = system_clock::now();
+			system_clock::time_point next = this->m_rateLimiter.last + milliseconds( rateLimit );
 			if ( next > now ) {
 				this->m_rateLimiter.source = source_;
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, [this]( std::shared_ptr<Scheduler::Task> task_ ) -> void {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<>& task_ ) -> void {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
-						this->m_rateLimiter.last = task_->time;
+						this->m_rateLimiter.last = task_.time;
 					} );
 				}
 			} else {

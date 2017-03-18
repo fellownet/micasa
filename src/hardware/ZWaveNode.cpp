@@ -550,10 +550,10 @@ namespace micasa {
 				// to the queue, which should make the bug-check above also work when fixing race conditions.
 				} else if (
 					! wasPendingUpdate
-					&& this->_hasPendingUpdate( reference + "_race", data )
+					&& this->_releasePendingUpdate( reference + "_race", data )
 					&& targetValue != Switch::resolveOption( data )
 				) {
-					// NOTE the data variable is guaranteed to be set when the _hasPendingUpdate call returns true.
+					// NOTE the data variable is guaranteed to be set when the _releasePendingUpdate call returns true.
 					// The data variable contains the value we should revert to.
 					std::thread( [=]{
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {

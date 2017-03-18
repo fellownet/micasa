@@ -68,8 +68,8 @@ namespace micasa {
 		struct {
 			Option value;
 			Device::UpdateSource source;
-			std::chrono::steady_clock::time_point last;
-			std::weak_ptr<Scheduler::Task> task;
+			std::chrono::system_clock::time_point last;
+			std::weak_ptr<Scheduler::Task<void> > task;
 		} m_rateLimiter;
 
 		void _processValue( const Device::UpdateSource& source_, const Option& value_ );

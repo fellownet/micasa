@@ -9,6 +9,7 @@
 #include "Device.h"
 #include "Settings.h"
 #include "Worker.h"
+#include "Scheduler.h"
 
 namespace micasa {
 
@@ -47,23 +48,10 @@ namespace micasa {
 		static const std::map<State, std::string> StateText;
 		ENUM_UTIL_W_TEXT( State, StateText );
 
-		struct PendingUpdate {
-		public:
-			PendingUpdate( Device::UpdateSource source_, std::string data_ ) : source( source_ ), data( data_ ) { };
-
-			std::timed_mutex updateMutex;
-			std::condition_variable condition;
-			std::mutex conditionMutex;
-			bool done = false;
-			Device::UpdateSource source;
-			std::string data;
-		}; // struct PendingUpdate
-
 		static const constexpr char* settingsName = "hardware";
 
-		// Hardware instances should not be copied nor copy assigned.
-		Hardware( const Hardware& ) = delete;
-		Hardware& operator=( const Hardware& ) = delete;
+		Hardware( const Hardware& ) = delete; // Do not copy!
+		Hardware& operator=( const Hardware& ) = delete; // Do not copy-assign!
 		
 		virtual ~Hardware();
 		
@@ -112,6 +100,8 @@ namespace micasa {
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
 		std::shared_ptr<Settings<Hardware> > m_settings;
+		
+		Scheduler m_scheduler;
 
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an update
 		// so that subsequent updates are blocked until the update has been confirmed by the hardware. It also makes
@@ -124,19 +114,18 @@ namespace micasa {
 		bool _releasePendingUpdate( const std::string& reference_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
 		bool _releasePendingUpdate( const std::string& reference_ );
-		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
-		bool _hasPendingUpdate( const std::string& reference_, std::string& data_ );
-		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
-		bool _hasPendingUpdate( const std::string& reference_ );
 
 	private:
+		typedef struct {
+			Device::UpdateSource source;
+			std::string data;
+		} t_pendingUpdate;
+
 		std::unordered_map<std::string, std::shared_ptr<Device> > m_devices;
 		mutable std::mutex m_devicesMutex;
-		std::map<std::string, std::shared_ptr<PendingUpdate> > m_pendingUpdates;
-		mutable std::mutex m_pendingUpdatesMutex;
 		State m_state = State::DISABLED;
-
-		bool _checkPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_, bool release_ );
+		std::map<std::string, std::shared_ptr<Scheduler::Task<t_pendingUpdate> > > m_pendingUpdates;
+		mutable std::mutex m_pendingUpdatesMutex;
 
 	}; // class Hardware
 
