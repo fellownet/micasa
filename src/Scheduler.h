@@ -4,7 +4,6 @@
 #include <future>
 #include <chrono>
 #include <vector>
-#include <list>
 #include <mutex>
 #include <condition_variable>
 #include <climits>
@@ -38,6 +37,13 @@ namespace micasa {
 			unsigned long iteration;
 			void* data;
 
+			/*
+			TODO implement our own linked list, taylored to our specific needs
+			BaseTask* previous = 0;
+			BaseTask* next = 0;
+			Scheduler* scheduler = 0;
+			*/
+
 			BaseTask( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 				time( time_ ),
 				delay( delay_ ),
@@ -62,7 +68,6 @@ namespace micasa {
 		template<typename T = void> class Task : public BaseTask {
 
 		public:
-			//typedef std::shared_ptr<Task<T> > t_taskPtr;
 			typedef std::function<T(Task<T>&)> t_taskFunc;
 
 			Task( t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
@@ -116,6 +121,12 @@ namespace micasa {
 
 		}; // class Task
 
+		// ==============
+		// TaskComparator
+		// ==============
+
+
+
 		Scheduler();
 		~Scheduler();
 
@@ -162,6 +173,11 @@ namespace micasa {
 		public:
 			typedef std::pair<Scheduler*, std::shared_ptr<BaseTask> > t_scheduledTask;
 
+			/*
+			TODO implement our own linked list, taylored to our specific needs
+			BaseTask* first = 0;
+			*/
+
 			ThreadPool( const ThreadPool& ) = delete; // Do not copy!
 			ThreadPool& operator=( const ThreadPool& ) = delete; // Do not copy-assign!
 
@@ -182,8 +198,8 @@ namespace micasa {
 
 			// Every mutation to m_tasks, the activeTask map and the Task objects therein, including adding a promise,
 			// should be done while holding a lock on the taskMutex.
-			std::list<t_scheduledTask> m_tasks;
-			std::list<t_scheduledTask> m_activeTasks;
+			std::vector<t_scheduledTask> m_tasks;
+			std::vector<t_scheduledTask> m_activeTasks;
 			mutable std::mutex m_tasksMutex;
 
 			std::vector<std::thread> m_threads;
@@ -194,8 +210,7 @@ namespace micasa {
 			~ThreadPool(); // private destructor
 
 			void _loop( unsigned int index_ );
-			void _insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ );
-			void _notify( bool bAll_, std::function<void()>&& func_ );
+			void _notify( bool all_, std::function<void()>&& func_ );
 
 		}; // class ThreadPool
 

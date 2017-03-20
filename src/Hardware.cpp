@@ -395,17 +395,17 @@ namespace micasa {
 	};
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
-		Device::UpdateSource dummy;
+		Device::UpdateSource dummy = Device::resolveUpdateSource( 0 );
 		return this->_queuePendingUpdate( reference_, dummy, data_, blockNewUpdate_, waitForResult_ );
 	};
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
-		std::string dummy;
+		std::string dummy = "";
 		return this->_queuePendingUpdate( reference_, source_, dummy, blockNewUpdate_, waitForResult_ );
 	};
 
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
-		Device::UpdateSource dummy;
+		Device::UpdateSource dummy = Device::resolveUpdateSource( 0 );
 		return this->_queuePendingUpdate( reference_, dummy, blockNewUpdate_, waitForResult_ );
 	};
 
@@ -425,17 +425,17 @@ namespace micasa {
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_, std::string& data_ ) {
-		Device::UpdateSource dummy;
+		Device::UpdateSource dummy = Device::resolveUpdateSource( 0 );
 		return this->_releasePendingUpdate( reference_, dummy, data_ );
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ ) {
-		std::string dummy;
+		std::string dummy = "";
 		return this->_releasePendingUpdate( reference_, source_, dummy );
 	};
 
 	bool Hardware::_releasePendingUpdate( const std::string& reference_ ) {
-		Device::UpdateSource dummy;
+		Device::UpdateSource dummy = Device::resolveUpdateSource( 0 );
 		return this->_releasePendingUpdate( reference_, dummy );
 	};
 

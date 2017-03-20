@@ -9,7 +9,7 @@
 #include "WebServer.h"
 #include "Controller.h"
 #include "Settings.h"
-#include "Scheduler.h"
+
 
 namespace micasa {
 	

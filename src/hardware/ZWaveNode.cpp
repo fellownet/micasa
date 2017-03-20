@@ -439,6 +439,8 @@ namespace micasa {
 		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
 		// than once).
 		auto fIsDuplicate = [this,&valueId_,&reference]() -> bool {
+			return false;
+			/*
 			std::string stringValue;
 			Manager::Get()->GetValueAsString( valueId_, &stringValue );
 			std::string valueIdExt = reference + "_df_" + stringValue;
@@ -450,6 +452,7 @@ namespace micasa {
 			} else {
 				return true;
 			}
+			*/
 		};
 
 		// Process all other values by command class.

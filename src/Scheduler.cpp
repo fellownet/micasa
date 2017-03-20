@@ -97,7 +97,7 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::schedule( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		this->_insert( scheduler_, task_ );
+		this->m_tasks.push_back( { scheduler_, task_ } );
 		tasksLock.unlock();
 		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
@@ -158,35 +158,44 @@ namespace micasa {
 	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-			while(
-				! this->m_tasks.empty()
-				&& this->m_tasks.front().second->time <= system_clock::now()
-			) {
-				// Pop the first scheduled task from the queue and inform other threads about the queue change.
-				t_scheduledTask stask = this->m_tasks.front();
-				this->m_tasks.pop_front();
-				this->_notify( false, [this]() -> void { this->m_continue = true; } );
 
-				// Push the task into the active tasks list.
-				this->m_activeTasks.push_back( stask );
-				tasksLock.unlock();
-				
-				stask.second->iteration++;
-				stask.second->execute();
-
-				tasksLock.lock();
-				auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
-				if ( find != this->m_activeTasks.end() ) {
-					this->m_activeTasks.erase( find );
-				}
-
-				if ( stask.second->repeat > 1 ) {
-					if ( stask.second->repeat != SCHEDULER_INFINITE ) {
-						stask.second->repeat--;
-					}
-					stask.second->time += milliseconds( stask.second->delay );
-					this->_insert( stask.first, stask.second );
+			if ( ! this->m_tasks.empty() ) {
+				std::nth_element( this->m_tasks.begin(), this->m_tasks.begin(), this->m_tasks.end(), []( const t_scheduledTask& a_, const t_scheduledTask& b_ ) -> bool {
+					return a_.second->time < b_.second->time;
+				} );
+				if ( this->m_tasks.front().second->time <= system_clock::now() ) {
+					
+					// Pop the first scheduled task from the queue and inform other threads about the queue change.
+					t_scheduledTask stask = this->m_tasks.front();
+					this->m_tasks.front() = std::move( this->m_tasks.back() );
+					this->m_tasks.pop_back();
 					this->_notify( false, [this]() -> void { this->m_continue = true; } );
+
+					// Push the task into the active tasks list.
+					this->m_activeTasks.push_back( stask );
+					tasksLock.unlock();
+					
+					stask.second->iteration++;
+					stask.second->execute();
+
+					tasksLock.lock();
+					auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
+					if ( find != this->m_activeTasks.end() ) {
+						this->m_activeTasks.erase( find );
+					}
+
+					if ( stask.second->repeat > 1 ) {
+						if ( stask.second->repeat != SCHEDULER_INFINITE ) {
+							stask.second->repeat--;
+						}
+						auto now = system_clock::now();
+						do {
+							// Make sure the thread doesn't get saturated at the expense of skipping intervals.
+							stask.second->time += milliseconds( stask.second->delay );
+						} while( stask.second->time < now );
+						this->m_tasks.push_back( stask );
+						this->_notify( false, [this]() -> void { this->m_continue = true; } );
+					}
 				}
 			}
 
@@ -210,6 +219,7 @@ namespace micasa {
 		}
 	};
 	
+	/*
 	void Scheduler::ThreadPool::_insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
 		// NOTE this method should be called while holding a lock on the tasks mutex!
 		auto taskIt = this->m_tasks.begin();
@@ -221,11 +231,12 @@ namespace micasa {
 		}
 		this->m_tasks.insert( taskIt, { scheduler_, task_ } );
 	};
+	*/
 
-	void Scheduler::ThreadPool::_notify( bool bAll_, std::function<void()>&& func_ ) {
+	void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {
 		std::lock_guard<std::mutex> lock( this->m_conditionMutex );
 		func_();
-		if ( bAll_ ) {
+		if ( all_ ) {
 			this->m_continueCondition.notify_all();
 		} else {
 			this->m_continueCondition.notify_one();
