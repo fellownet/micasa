@@ -414,7 +414,7 @@ namespace micasa {
 		try {
 			auto pendingUpdate = this->m_pendingUpdates.at( reference_ );
 			pendingUpdatesLock.unlock(); // the task itself requires a lock on the pending updates aswell
-			pendingUpdate->proceed( 0 );
+			this->m_scheduler.proceed( 0, pendingUpdate );
 			t_pendingUpdate update = pendingUpdate->wait();
 			source_ |= update.source;
 			data_ = update.data;

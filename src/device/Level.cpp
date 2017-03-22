@@ -58,18 +58,14 @@ namespace micasa {
 			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
 
-		// The device data crunching tasks are scheduled here. To prevent all devices from crunching data at the same
-		// time, a start offset is used.
-		static volatile unsigned int offset = 0;
-		offset += ( 1000 * 15 ); // 15 seconds interval
 		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 			this->_processTrends();
 			return true;
-		} )->advance( offset % SCHEDULER_INTERVAL_5MIN );
+		} );
 		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 			this->_purgeHistory();
 			return true;
-		} )->advance( offset % SCHEDULER_INTERVAL_HOUR );
+		} );
 	};
 
 	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {

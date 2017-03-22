@@ -12,26 +12,11 @@ namespace micasa {
 
 	using namespace std::chrono;
 
-	// ========
-	// BaseTask
-	// ========
-
-	void Scheduler::BaseTask::proceed( unsigned long wait_ ) {
-		this->time = system_clock::now() + milliseconds( wait_ );
-		Scheduler::ThreadPool::get().reschedule( this->shared_from_this() );
-	};
-
-	void Scheduler::BaseTask::advance( unsigned long duration_ ) {
-		this->time -= milliseconds( duration_ );
-		Scheduler::ThreadPool::get().reschedule( this->shared_from_this() );
-	};
-
 	// =========
 	// Scheduler
 	// =========
 
 	Scheduler::~Scheduler() {
-		// Purging all tasks for this scheduler *blocks* the current thread until all running tasks are completed.
 		auto& pool = Scheduler::ThreadPool::get();
 		pool.erase( this );
 	};
@@ -44,8 +29,8 @@ namespace micasa {
 		return Scheduler::ThreadPool::get().first( this, std::move( func_ ) );
 	};
 
-	void Scheduler::notify() {
-		Scheduler::ThreadPool::get().notify();
+	void Scheduler::proceed( unsigned long wait_, std::shared_ptr<BaseTask> task_ ) {
+		Scheduler::ThreadPool::get().proceed( this, wait_, task_ );
 	};
 
 	// ==========
@@ -69,56 +54,45 @@ namespace micasa {
 		}
 #ifdef _DEBUG
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		assert( this->m_tasks.empty() && "All tasks should be purged when ThreadPool is destructed." );
+		assert( this->m_start == nullptr && "All tasks should be purged when ThreadPool is destructed." );
 		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed.");
 		tasksLock.unlock();
 #endif // _DEBUG
 	};
 
-	void Scheduler::ThreadPool::schedule( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
-		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		this->_insert( scheduler_, task_ );
-		tasksLock.unlock();
-		this->_notify( false, [this]() -> void { this->m_continue = true; } );
-	};
-
-	void Scheduler::ThreadPool::reschedule( std::shared_ptr<BaseTask> task_ ) {
-		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		auto find = std::find_if( this->m_tasks.begin(), this->m_tasks.end(), [&]( const t_scheduledTask& stask_ ) -> bool {
-			return stask_.second == task_;
-		} );
-#ifdef _DEBUG
-		assert( find != this->m_tasks.end() && "Task that is rescheduled should already be scheduled.");
-#endif // _DEBUG
-		if ( find != this->m_tasks.end() ) {
-			auto stask = *find;
-			this->m_tasks.erase( find );
-			this->_insert( stask.first, stask.second );
-			this->_notify( false, [this]() -> void { this->m_continue = true; } );
-		}
+	void Scheduler::ThreadPool::schedule( std::shared_ptr<BaseTask> task_ ) {
+		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		this->_insert( task_ );
 	};
 
 	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		
-		// Remove all pending tasks from the task queue.
-		this->m_tasks.remove_if( [&]( const t_scheduledTask& stask_ ) -> bool {
-			return (
-				stask_.first == scheduler_
-				&& func_( *( stask_.second.get() ) )
-			);
-		} );
+		// The linked list is circular and because it's modified while iterating we're cannot detect when the invariant
+		// is looping. Instead, we're going to just investigate as many of the tasks as there are in the task queue and
+		// remove them if the condition matches.
+		auto position = this->m_start;
+		for ( unsigned int i = 0, total = this->m_count; i < total; i++ ) {
+			auto task = position;
+			position = position->m_next;
+			if (
+				task->m_scheduler == scheduler_
+				&& func_( *( task.get() ) )
+			) {
+				this->_erase( task );
+			}
+		}
 
 		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat. Their
 		// futures are gathered.
 		std::vector<std::shared_ptr<BaseTask> > tasks;
 		for ( auto taskIt = this->m_activeTasks.begin(); taskIt != this->m_activeTasks.end(); taskIt++ ) {
 			if (
-				taskIt->first == scheduler_
-				&& func_( *( taskIt->second.get() ) )
+				(*taskIt)->m_scheduler == scheduler_
+				&& func_( *( taskIt->get() ) )
 			) {
-				taskIt->second->repeat = 0;
-				tasks.push_back( taskIt->second );
+				(*taskIt)->repeat = 0;
+				tasks.push_back( *taskIt );
 			}
 		}
 
@@ -132,72 +106,71 @@ namespace micasa {
 
 	std::shared_ptr<Scheduler::BaseTask> Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		auto find = std::find_if( this->m_tasks.begin(), this->m_tasks.end(), [&]( const t_scheduledTask& stask_ ) -> bool {
-			return (
-				stask_.first == scheduler_
-				&& func_( *( stask_.second.get() ) )
-			);
-		} );
-		if ( find != this->m_tasks.end() ) {
-			return find->second;
-		} else {
-			return nullptr;
-		}
+		auto position = this->m_start;
+		do {
+			if (
+				position->m_scheduler == scheduler_
+				&& func_( *( position.get() ) )
+			) {
+				return position;
+			}
+			position = position->m_next;
+		} while( position != this->m_start );
+		return nullptr;
 	};
-
-	void Scheduler::ThreadPool::notify() {
-		this->_notify( false, [this]() -> void { this->m_continue = true; } );
+	
+	void Scheduler::ThreadPool::proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ ) {
+		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		this->_erase( task_ );
+		task_->time = system_clock::now() + milliseconds( wait_ );
+		this->_insert( task_ );
 	};
 
 	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-
 			if (
-				! this->m_tasks.empty()
-				&& this->m_tasks.front().second->time <= system_clock::now()
+				this->m_start != nullptr
+				&& this->m_start->time <= system_clock::now()
 			) {
-				// Pop the first scheduled task from the queue and inform other threads about the queue change.
-				t_scheduledTask stask = this->m_tasks.front();
-				this->m_tasks.pop_front();
-				this->_notify( false, [this]() -> void { this->m_continue = true; } );
+				auto task = this->m_start;
+				this->_erase( task );
 
 				// Push the task into the active tasks list.
-				this->m_activeTasks.push_back( stask );
+				this->m_activeTasks.push_back( task );
 				tasksLock.unlock();
 				
-				stask.second->iteration++;
-				stask.second->execute();
+				task->iteration++;
+				task->execute();
 
 				tasksLock.lock();
-				auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
+				auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), task );
 				if ( find != this->m_activeTasks.end() ) {
 					this->m_activeTasks.erase( find );
 				}
 
-				if ( stask.second->repeat > 1 ) {
-					if ( stask.second->repeat != SCHEDULER_INFINITE ) {
-						stask.second->repeat--;
+				if ( task->repeat > 1 ) {
+					if ( task->repeat != SCHEDULER_INFINITE ) {
+						task->repeat--;
 					}
 					auto now = system_clock::now();
 					do {
 						// Make sure the thread doesn't get saturated at the expense of skipping intervals.
-						stask.second->time += milliseconds( stask.second->delay );
-					} while( stask.second->time < now );
-					this->_insert( stask.first, stask.second );
-					this->_notify( false, [this]() -> void { this->m_continue = true; } );
+						task->time += milliseconds( task->delay );
+					} while( task->time < now );
+					this->_insert( task );
 				}
 			}
 
 			auto predicate = [&]() -> bool { return this->m_shutdown || this->m_continue; };
 			std::unique_lock<std::mutex> conditionLock( this->m_conditionMutex );
-			if ( this->m_tasks.empty() ) {
+			if ( this->m_start == nullptr ) {
 				tasksLock.unlock();
 				this->m_continueCondition.wait( conditionLock, predicate );
 			} else {
 				auto now = system_clock::now();
-				if ( now < this->m_tasks.front().second->time ) {
-					auto wait = this->m_tasks.front().second->time - now;
+				if ( now < this->m_start->time ) {
+					auto wait = this->m_start->time - now;
 					tasksLock.unlock();
 					this->m_continueCondition.wait_for( conditionLock, wait, predicate );
 				} else {
@@ -209,15 +182,58 @@ namespace micasa {
 		}
 	};
 	
-	void Scheduler::ThreadPool::_insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
-		auto taskIt = this->m_tasks.begin();
-		while(
-			  taskIt != this->m_tasks.end()
-			  && task_->time > taskIt->second->time
-		) {
-			taskIt++;
+	void Scheduler::ThreadPool::_insert( std::shared_ptr<BaseTask> task_ ) {
+#ifdef _DEBUG
+		assert( task_->m_previous == nullptr && task_->m_next == nullptr && "Task should not be part of the linked list before being inserted to it." );
+#endif // _DEBUG
+		if ( this->m_start == nullptr ) {
+			this->m_start = task_;
+			task_->m_previous = task_->m_next = task_;
+		} else {
+			auto position = this->m_start;
+			while( position->time < task_->time ) {
+				position = position->m_next;
+				if ( position == this->m_start ) {
+					break;
+				}
+			}
+			task_->m_previous = position->m_previous;
+			task_->m_next = position;
+			position->m_previous->m_next = task_;
+			position->m_previous = task_;
+
+			if ( task_->time < this->m_start->time ) {
+				this->m_start = task_;
+			}
+#ifdef _DEBUG
+		assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
+		assert( this->m_start->time <= this->m_start->m_next->time && "Start should be the first task in the list." );
+#endif // _DEBUG
 		}
-		this->m_tasks.insert( taskIt, { scheduler_, task_ } );
+		this->m_count++;
+		this->_notify( false, [this]() -> void { this->m_continue = true; } );
+	};
+
+	void Scheduler::ThreadPool::_erase( std::shared_ptr<BaseTask> task_ ) {
+#ifdef _DEBUG
+		assert( task_->m_previous != nullptr && task_->m_next != nullptr && "Task should be part of the linked list before being removed from it." );
+		assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
+#endif // _DEBUG
+		if ( task_->m_next == task_ ) {
+			this->m_start = nullptr;
+		} else {
+			if ( this->m_start == task_ ) {
+				this->m_start = task_->m_next;
+			}
+			task_->m_previous->m_next = task_->m_next;
+			task_->m_next->m_previous = task_->m_previous;
+		}
+		task_->m_previous = task_->m_next = nullptr;
+#ifdef _DEBUG
+		assert( ( this->m_start == nullptr || this->m_start->time <= this->m_start->m_next->time ) && "Start should be the first task in the list." );
+#endif // _DEBUG
+		this->m_count--;
+		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
 	void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {

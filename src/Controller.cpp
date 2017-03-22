@@ -496,7 +496,7 @@ namespace micasa {
 
 	bool Controller::isScheduled( std::shared_ptr<const Device> device_ ) const {
 		return this->m_scheduler.first(
-			[device_]( Scheduler::BaseTask& task_ ) -> bool {
+			[device_]( const Scheduler::BaseTask& task_ ) -> bool {
 				return task_.data == device_.get();
 			}
 		) != nullptr;
@@ -563,7 +563,7 @@ namespace micasa {
 	template<class D> void Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
 		if ( options_.clear ) {
 			this->m_scheduler.erase(
-				[device_]( Scheduler::BaseTask& task_ ) -> bool {
+				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
 					return task_.data == device_.get();
 				}
 			);
