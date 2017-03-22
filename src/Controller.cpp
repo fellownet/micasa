@@ -180,8 +180,9 @@ namespace micasa {
 		// to make sure the whole minute has passed.
 		auto now = system_clock::now();
 		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) -> void {
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 			this->_runTimers();
+			return true;
 		} );
 	};
 
@@ -252,7 +253,7 @@ namespace micasa {
 			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
 			udev_monitor_enable_receiving( this->m_udevMonitor );
 
-			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) -> void {
+			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 				udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
 				if ( dev ) {
 					std::string port = std::string( udev_device_get_devnode( dev ) );
@@ -264,6 +265,7 @@ namespace micasa {
 					g_logger->logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
 					udev_device_unref( dev );
 				}
+				return true;
 			} );
 		} else {
 			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
@@ -581,11 +583,12 @@ namespace micasa {
 		typename D::t_value currentValue = device_->getValue();
 		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
 			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) -> void {
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<bool>& ) -> bool {
 				auto targetDevice = device.lock();
 				if ( targetDevice ) {
 					targetDevice->updateValue( source, value_ );
 				}
+				return true;
 			} );
 
 			if (
@@ -596,11 +599,12 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<bool>& ) -> bool {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, currentValue );
 					}
+					return true;
 				} );
 			}
 		}

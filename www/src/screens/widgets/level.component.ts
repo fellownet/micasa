@@ -54,6 +54,7 @@ export class WidgetLevelComponent implements OnInit, AfterViewInit {
 		me._devicesService.getData( this.device.id, { group: 'none', range: 1, interval: 'day' } )
 			.subscribe(
 				function( data_: any[] ) {
+					/*
 					var data: Array<Array<any>> = [];
 					for ( var i = 0; i < data_.length; i++ ) {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
@@ -86,6 +87,7 @@ export class WidgetLevelComponent implements OnInit, AfterViewInit {
 							}
 						} ]
 					} );
+					*/
 				},
 				function( error_: string ) {
 					me.error = error_;

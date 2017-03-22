@@ -9,7 +9,7 @@
 #include "WebServer.h"
 #include "Controller.h"
 #include "Settings.h"
-
+#include "Scheduler.h"
 
 namespace micasa {
 	
@@ -56,6 +56,7 @@ int main( int argc_, char* argv_[] ) {
 		port = atoi( arguments.get( "--port" ).c_str() );
 	}
 */
+
 	Logger::LogLevel logLevel = Logger::LogLevel::NORMAL;
 	if ( arguments.exists( "-l" ) ) {
 		logLevel = Logger::resolveLogLevel( std::stoi( arguments.get( "-l" ) ) );

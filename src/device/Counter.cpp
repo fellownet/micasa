@@ -48,11 +48,13 @@ namespace micasa {
 		// time, a start offset is used.
 		static volatile unsigned int offset = 0;
 		offset += ( 1000 * 15 ); // 15 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) -> void {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 			this->_processTrends();
+			return true;
 		} )->advance( offset % SCHEDULER_INTERVAL_5MIN );
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) -> void {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
 			this->_purgeHistory();
+			return true;
 		} )->advance( offset % SCHEDULER_INTERVAL_HOUR );
 	};
 
@@ -82,9 +84,10 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<>& task_ ) -> void {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<bool>& task_ ) -> bool {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 						this->m_rateLimiter.last = task_.time;
+						return true;
 					} );
 				}
 			} else {

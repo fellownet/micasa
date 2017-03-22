@@ -18,37 +18,17 @@ namespace micasa {
 
 	void Scheduler::BaseTask::proceed( unsigned long wait_ ) {
 		this->time = system_clock::now() + milliseconds( wait_ );
-		Scheduler::ThreadPool::get().notify();
+		Scheduler::ThreadPool::get().reschedule( this->shared_from_this() );
 	};
 
 	void Scheduler::BaseTask::advance( unsigned long duration_ ) {
 		this->time -= milliseconds( duration_ );
-		Scheduler::ThreadPool::get().notify();
+		Scheduler::ThreadPool::get().reschedule( this->shared_from_this() );
 	};
-
-	// =======
-	// Task<T>
-	// =======
-
-	template<> void Scheduler::Task<void>::execute() {
-		if ( ! this->m_first ) {
-			std::lock_guard<std::mutex> lock( this->m_futureMutex );
-			this->m_future = std::shared_future<void>( m_promise->get_future() );
-		}
-		this->m_func( *this /*std::static_pointer_cast<Task<void> >( this->shared_from_this() )*/ );
-		this->m_promise->set_value(); // reason for specialization of void variant
-		this->m_promise = std::make_shared<std::promise<void> >();
-		this->m_first = false;
-	}
 
 	// =========
 	// Scheduler
 	// =========
-
-	Scheduler::Scheduler() {
-		static std::atomic<unsigned int> nextId( 0 );
-		this->m_id = ++nextId;
-	};
 
 	Scheduler::~Scheduler() {
 		// Purging all tasks for this scheduler *blocks* the current thread until all running tasks are completed.
@@ -97,25 +77,37 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::schedule( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		this->m_tasks.push_back( { scheduler_, task_ } );
+		this->_insert( scheduler_, task_ );
 		tasksLock.unlock();
 		this->_notify( false, [this]() -> void { this->m_continue = true; } );
+	};
+
+	void Scheduler::ThreadPool::reschedule( std::shared_ptr<BaseTask> task_ ) {
+		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+		auto find = std::find_if( this->m_tasks.begin(), this->m_tasks.end(), [&]( const t_scheduledTask& stask_ ) -> bool {
+			return stask_.second == task_;
+		} );
+#ifdef _DEBUG
+		assert( find != this->m_tasks.end() && "Task that is rescheduled should already be scheduled.");
+#endif // _DEBUG
+		if ( find != this->m_tasks.end() ) {
+			auto stask = *find;
+			this->m_tasks.erase( find );
+			this->_insert( stask.first, stask.second );
+			this->_notify( false, [this]() -> void { this->m_continue = true; } );
+		}
 	};
 
 	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		
 		// Remove all pending tasks from the task queue.
-		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
-			if (
-				taskIt->first == scheduler_
-				&& func_( *( taskIt->second.get() ) )
-			) {
-				taskIt = this->m_tasks.erase( taskIt );
-			} else {
-				taskIt++;
-			}
-		}
+		this->m_tasks.remove_if( [&]( const t_scheduledTask& stask_ ) -> bool {
+			return (
+				stask_.first == scheduler_
+				&& func_( *( stask_.second.get() ) )
+			);
+		} );
 
 		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat. Their
 		// futures are gathered.
@@ -140,15 +132,17 @@ namespace micasa {
 
 	std::shared_ptr<Scheduler::BaseTask> Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); taskIt++ ) {
-			if (
-				taskIt->first == scheduler_
-				&& func_( *( taskIt->second.get() ) )
-			) {
-				return taskIt->second;
-			}
+		auto find = std::find_if( this->m_tasks.begin(), this->m_tasks.end(), [&]( const t_scheduledTask& stask_ ) -> bool {
+			return (
+				stask_.first == scheduler_
+				&& func_( *( stask_.second.get() ) )
+			);
+		} );
+		if ( find != this->m_tasks.end() ) {
+			return find->second;
+		} else {
+			return nullptr;
 		}
-		return nullptr;
 	};
 
 	void Scheduler::ThreadPool::notify() {
@@ -159,43 +153,39 @@ namespace micasa {
 		while( ! this->m_shutdown ) {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 
-			if ( ! this->m_tasks.empty() ) {
-				std::nth_element( this->m_tasks.begin(), this->m_tasks.begin(), this->m_tasks.end(), []( const t_scheduledTask& a_, const t_scheduledTask& b_ ) -> bool {
-					return a_.second->time < b_.second->time;
-				} );
-				if ( this->m_tasks.front().second->time <= system_clock::now() ) {
-					
-					// Pop the first scheduled task from the queue and inform other threads about the queue change.
-					t_scheduledTask stask = this->m_tasks.front();
-					this->m_tasks.front() = std::move( this->m_tasks.back() );
-					this->m_tasks.pop_back();
+			if (
+				! this->m_tasks.empty()
+				&& this->m_tasks.front().second->time <= system_clock::now()
+			) {
+				// Pop the first scheduled task from the queue and inform other threads about the queue change.
+				t_scheduledTask stask = this->m_tasks.front();
+				this->m_tasks.pop_front();
+				this->_notify( false, [this]() -> void { this->m_continue = true; } );
+
+				// Push the task into the active tasks list.
+				this->m_activeTasks.push_back( stask );
+				tasksLock.unlock();
+				
+				stask.second->iteration++;
+				stask.second->execute();
+
+				tasksLock.lock();
+				auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
+				if ( find != this->m_activeTasks.end() ) {
+					this->m_activeTasks.erase( find );
+				}
+
+				if ( stask.second->repeat > 1 ) {
+					if ( stask.second->repeat != SCHEDULER_INFINITE ) {
+						stask.second->repeat--;
+					}
+					auto now = system_clock::now();
+					do {
+						// Make sure the thread doesn't get saturated at the expense of skipping intervals.
+						stask.second->time += milliseconds( stask.second->delay );
+					} while( stask.second->time < now );
+					this->_insert( stask.first, stask.second );
 					this->_notify( false, [this]() -> void { this->m_continue = true; } );
-
-					// Push the task into the active tasks list.
-					this->m_activeTasks.push_back( stask );
-					tasksLock.unlock();
-					
-					stask.second->iteration++;
-					stask.second->execute();
-
-					tasksLock.lock();
-					auto find = std::find( this->m_activeTasks.begin(), this->m_activeTasks.end(), stask );
-					if ( find != this->m_activeTasks.end() ) {
-						this->m_activeTasks.erase( find );
-					}
-
-					if ( stask.second->repeat > 1 ) {
-						if ( stask.second->repeat != SCHEDULER_INFINITE ) {
-							stask.second->repeat--;
-						}
-						auto now = system_clock::now();
-						do {
-							// Make sure the thread doesn't get saturated at the expense of skipping intervals.
-							stask.second->time += milliseconds( stask.second->delay );
-						} while( stask.second->time < now );
-						this->m_tasks.push_back( stask );
-						this->_notify( false, [this]() -> void { this->m_continue = true; } );
-					}
 				}
 			}
 
@@ -219,9 +209,7 @@ namespace micasa {
 		}
 	};
 	
-	/*
 	void Scheduler::ThreadPool::_insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ ) {
-		// NOTE this method should be called while holding a lock on the tasks mutex!
 		auto taskIt = this->m_tasks.begin();
 		while(
 			  taskIt != this->m_tasks.end()
@@ -231,7 +219,6 @@ namespace micasa {
 		}
 		this->m_tasks.insert( taskIt, { scheduler_, task_ } );
 	};
-	*/
 
 	void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {
 		std::lock_guard<std::mutex> lock( this->m_conditionMutex );

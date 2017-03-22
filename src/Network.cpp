@@ -47,9 +47,16 @@ namespace micasa {
 	};
 	
 	mg_connection* Network::bind( const std::string port_, const Network::t_callback callback_ ) {
-		return this->bind( port_, "", "", callback_ );
+		mg_connection* connection = mg_bind( &this->m_manager, port_.c_str(), micasa_mg_handler );
+		if ( NULL != connection ) {
+			connection->user_data = this->_newHandler( callback_, true );
+			mg_set_protocol_http_websocket( connection );
+			this->m_bindings.insert( connection );
+		}
+		return connection;
 	};
-	
+
+#ifdef _WITH_OPENSSL	
 	mg_connection* Network::bind( const std::string port_, const std::string cert_, const std::string key_, const Network::t_callback callback_ ) {
 		mg_bind_opts options;
 		memset( &options, 0, sizeof( options ) );
@@ -69,7 +76,8 @@ namespace micasa {
 		}
 		return connection;
 	};
-	
+#endif
+
 	mg_connection* Network::connect( const std::string uri_, const Network::t_callback callback_ ) {
 		mg_connection* connection;
 		if ( uri_.substr( 0, 4 ) == "http" ) {

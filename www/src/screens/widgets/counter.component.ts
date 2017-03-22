@@ -51,6 +51,7 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 
 	public ngAfterViewInit() {
 		var me = this;
+		/*
 		me._chart = Highcharts.chart( 'counter_chart_target_' + me.elementId, {
 			chart: {
 				type: 'column',
@@ -71,6 +72,7 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 				}
 			}
 		} );
+		*/
 		me._loadData();
 	};
 
@@ -100,6 +102,7 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 		me._devicesService.getData( this.device.id, { group: 'hour', range: 1, interval: 'day' } )
 			.subscribe(
 				function( data_: any[] ) {
+					/*
 					var data: Array<Array<any>> = [];
 					for ( var i = 0; i < data_.length; i++ ) {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
@@ -119,6 +122,7 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 							valueSuffix: ' ' + me.device.unit
 						}
 					} );
+					*/
 				},
 				function( error_: string ) {
 					me.error = error_;

@@ -166,7 +166,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
+add_definitions( -DMG_ENABLE_IPV6 )
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
@@ -246,13 +246,20 @@ endif()
 #
 # Check for OpenSSL
 #
-find_package( OpenSSL REQUIRED )
-if( OPENSSL_FOUND )
-	include_directories( ${OPENSSL_INCLUDE_DIRS} )
-	target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
+option( WITH_OPENSSL "Build with OpenSSL libraries" YES )
+if( WITH_OPENSSL )
+	message( STATUS "Build with OpenSSL libraries" )
+	find_package( OpenSSL )
+	if( OPENSSL_FOUND )
+		include_directories( ${OPENSSL_INCLUDE_DIRS} )
+		target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
+		add_definitions( -D_WITH_OPENSSL -DMG_ENABLE_SSL )
+	else()
+		message( FATAL_ERROR "OpenSSL not found on your system." )
+	endif( OPENSSL_FOUND )
 else()
-	message( FATAL_ERROR "OpenSSL not found on your system." )
-endif( OPENSSL_FOUND )
+	message( STATUS "WARNING: Building without OpenSSL is for debugging purposes only." )
+endif()
 
 #
 # Check for SQLite3

@@ -43,8 +43,10 @@
 
 #include "json.hpp"
 
-#define KEY_FILE "./var/key.pem"
-#define CERT_FILE "./var/cert.pem"
+#ifdef _WITH_OPENSSL
+	#define KEY_FILE "./var/key.pem"
+	#define CERT_FILE "./var/cert.pem"
+#endif
 
 namespace micasa {
 
@@ -83,6 +85,7 @@ namespace micasa {
 		// userdata folder. Webtokens / authentication is also encrypted using the same keys.
 		// http://stackoverflow.com/questions/256405/programmatically-create-x509-certificate-using-openssl
 
+#ifdef _WITH_OPENSSL
 		if (
 			access( KEY_FILE, F_OK ) != 0 
 			|| access( CERT_FILE, F_OK ) != 0
@@ -158,6 +161,7 @@ namespace micasa {
 			}
 			fclose( f );
 		}
+#endif
 
 		if ( NULL == Network::get().bind( "80", Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				if ( event_ == MG_EV_HTTP_REQUEST ) {
@@ -168,6 +172,7 @@ namespace micasa {
 			throw std::runtime_error( "unable to bind to port 80" );
 		}
 
+#ifdef _WITH_OPENSSL
 		if ( NULL == Network::get().bind( "443", CERT_FILE, KEY_FILE, Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
 				if ( event_ == MG_EV_HTTP_REQUEST ) {
 					this->_processHttpRequest( connection_, (http_message*)data_ );
@@ -176,6 +181,7 @@ namespace micasa {
 		) {
 			throw std::runtime_error( "unable to bind to port 443" );
 		}
+#endif
 
 		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
@@ -200,8 +206,10 @@ namespace micasa {
 	void WebServer::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
+#ifdef _WITH_OPENSSL
 		EVP_PKEY_free( this->m_key );
 		X509_free( this->m_certificate );
+#endif
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
@@ -211,6 +219,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
+#ifdef _WITH_OPENSSL
 	std::string WebServer::_encrypt64( const std::string& data_ ) const {
 #ifdef _DEBUG
 		// The maximum length of the data to be encrypted depends on the key length of the RSA key. If more data needs
@@ -299,6 +308,14 @@ namespace micasa {
 		}
 		return ss.str();
 	};
+#endif
+
+#ifndef _WITH_OPENSSL
+	std::string WebServer::_hash( const std::string& data_ ) const {
+		// TODO use something like http://www.zedwood.com/article/cpp-sha256-function
+		return "_DEBUGHASH_" + data_ + "_ENDOFDEBUGHASH";
+	};
+#endif
 
 	void WebServer::_processHttpRequest( mg_connection* connection_, http_message* message_ ) {
 
@@ -410,6 +427,7 @@ namespace micasa {
 			// Determine the access rights of the current client. If a valid token was provided, details of
 			// the token are added to the input aswell.
 			std::shared_ptr<User> user = nullptr;
+#ifdef _WITH_OPENSSL
 			if ( headers.find( "Authorization" ) != headers.end() ) {
 				try {
 					json token = json::parse( this->_decrypt64( headers["Authorization"] ) );
@@ -425,6 +443,10 @@ namespace micasa {
 					}
 				} catch( ... ) { }
 			} else if (
+#endif
+#ifndef _WITH_OPENSSL
+			if (
+#endif
 				input.find( "username" ) != input.end()
 				&& input.find( "password" ) != input.end()
 			) {
@@ -696,6 +718,7 @@ namespace micasa {
 							std::string reference = randomString( 16 );
 							hardware = g_controller->declareHardware( type, reference, { } );
 							hardwareId = hardware->getId();
+							output_["data"] = hardware->getJson( true );
 							output_["code"] = 201; // Created
 						} else {
 
@@ -757,8 +780,6 @@ namespace micasa {
 									}
 								}
 							} ).detach();
-
-							output_["data"] = hardware->getJson( true );
 							output_["code"] = 200;
 						}
 						break;
@@ -1273,6 +1294,7 @@ namespace micasa {
 								linkData["clear"].is_null() ? 0 : ( linkData["clear"].get<bool>() ? 1 : 0 )
 							);
 							link["id"] = linkId;
+							output_["data"] = link;
 							output_["code"] = 201; // Created
 						} else {
 							g_database->putQuery(
@@ -1424,6 +1446,7 @@ namespace micasa {
 								script["enabled"].get<bool>() ? 1 : 0
 							);
 							script["id"] = scriptId;
+							output_["data"] = script;
 							output_["code"] = 201; // Created
 						} else {
 							g_database->putQuery(
@@ -1618,6 +1641,7 @@ namespace micasa {
 								timer["enabled"].get<bool>() ? 1 : 0
 							);
 							timer["id"] = timerId;
+							output_["data"] = timer;
 							output_["code"] = 201; // Created
 						} else {
 							g_database->putQuery(
@@ -1759,6 +1783,7 @@ namespace micasa {
 					return;
 				}
 
+#ifdef _WITH_OPENSSL
 				json token = {
 					{ "user_id", user["id"].get<unsigned int>() },
 					{ "rights", user["rights"].get<unsigned int>() },
@@ -1774,6 +1799,7 @@ namespace micasa {
 					{ "created", created },
 					{ "token", this->_encrypt64( token.dump() ) }
 				};
+#endif
 			} )
 		) );
 
@@ -1925,6 +1951,8 @@ namespace micasa {
 								user["enabled"].get<bool>() ? 1 : 0
 							);
 							user["id"] = userId;
+							user.erase( "password" );
+							output_["data"] = user;
 							output_["code"] = 201; // Created
 						} else {
 							g_database->putQuery(

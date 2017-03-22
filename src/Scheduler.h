@@ -4,6 +4,7 @@
 #include <future>
 #include <chrono>
 #include <vector>
+#include <list>
 #include <mutex>
 #include <condition_variable>
 #include <climits>
@@ -26,7 +27,7 @@ namespace micasa {
 		// BaseTask
 		// ========
 
-		class BaseTask {
+		class BaseTask : public std::enable_shared_from_this<BaseTask> {
 		
 		public:
 			typedef std::function<bool(BaseTask&)> t_compareFunc;
@@ -36,13 +37,6 @@ namespace micasa {
 			unsigned long repeat;
 			unsigned long iteration;
 			void* data;
-
-			/*
-			TODO implement our own linked list, taylored to our specific needs
-			BaseTask* previous = 0;
-			BaseTask* next = 0;
-			Scheduler* scheduler = 0;
-			*/
 
 			BaseTask( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 				time( time_ ),
@@ -56,7 +50,7 @@ namespace micasa {
 
 			virtual void execute() = 0;
 			virtual void complete() = 0;
-			void proceed( unsigned long wait_ = 0 );
+			void proceed( unsigned long wait_ );
 			void advance( unsigned long duration_ );
 
 		}; // class BaseTask
@@ -65,7 +59,7 @@ namespace micasa {
 		// Task
 		// ====
 
-		template<typename T = void> class Task : public BaseTask {
+		template<typename T = bool> class Task : public BaseTask {
 
 		public:
 			typedef std::function<T(Task<T>&)> t_taskFunc;
@@ -73,25 +67,21 @@ namespace micasa {
 			Task( t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 				BaseTask( time_, delay_, repeat_, data_ ),
 				m_func( std::move( func_ ) ),
-				m_promise( std::make_shared<std::promise<T> >() ),
-				m_future( std::shared_future<T>( m_promise->get_future() ) )
+				m_first( true )
 			{
+				// Retrieving the first result for the task is blocking. All subsequent calls to retrieve the result are
+				// instant, returning the last generated value.
+				this->m_resultMutex.lock();
 			};
 			~Task() { };
 
-			// NOTE the void variant of execute is specialized in the cpp file. This is done because set_value cannot
-			// accept a return value of void from this->m_func. The declaration is at the bottom of this file, below
-			// the class defenition.
 			void execute() {
-				// When a task is first created, a promise and an accompanying shared future is created. The value of this
-				// shared future should be kept alive until the next execution of the task.
 				if ( ! this->m_first ) {
-					std::lock_guard<std::mutex> lock( this->m_futureMutex );
-					this->m_future = std::shared_future<T>( m_promise->get_future() );
+					this->m_resultMutex.lock();
 				}
-				this->m_promise->set_value( this->m_func( *this ) );
-				this->m_promise = std::make_shared<std::promise<T> >();
+				this->m_result = this->m_func( *this );
 				this->m_first = false;
+				this->m_resultMutex.unlock();
 			};
 
 			void complete() {
@@ -99,44 +89,32 @@ namespace micasa {
 			};
 
 			T wait() const {
-				std::unique_lock<std::mutex> lock( this->m_futureMutex );
-				std::shared_future<T> future = this->m_future;
-				lock.unlock();
-				return future.get();
+				std::lock_guard<std::timed_mutex> lock( this->m_resultMutex );
+				return this->m_result;
 			};
 
 			bool waitFor( unsigned long wait_ ) const {
-				std::unique_lock<std::mutex> lock( this->m_futureMutex );
-				std::shared_future<T> future = this->m_future;
-				lock.unlock();
-				return future.wait_for( std::chrono::milliseconds( wait_ ) ) == std::future_status::ready;
+				return this->m_resultMutex.try_lock_for( std::chrono::milliseconds( wait_ ) );
 			};
 
 		private:
 			t_taskFunc m_func;
-			std::shared_ptr<std::promise<T> > m_promise;
-			std::shared_future<T> m_future;
-			mutable std::mutex m_futureMutex;
-			volatile bool m_first = true;
+			mutable std::timed_mutex m_resultMutex;
+			T m_result;
+			bool m_first;
 
 		}; // class Task
 
-		// ==============
-		// TaskComparator
-		// ==============
-
-
-
-		Scheduler();
+		Scheduler() { };
 		~Scheduler();
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::forward<typename Task<V>::t_taskFunc>( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
+		template<typename V = bool> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( this, std::static_pointer_cast<BaseTask>( task ) );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+		template<typename V = bool> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
 			task_->delay = delay_;
 			task_->repeat = repeat_;
 			task_->time = std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ );
@@ -144,13 +122,13 @@ namespace micasa {
 			return task_;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::forward<typename Task<V>::t_taskFunc>( func_ ), time_, delay_, repeat_, data_ );
+		template<typename V = bool> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::move( func_ ), time_, delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( this, task );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+		template<typename V = bool> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
 			task_->delay = delay_;
 			task_->repeat = repeat_;
 			task_->time = time_;
@@ -173,15 +151,11 @@ namespace micasa {
 		public:
 			typedef std::pair<Scheduler*, std::shared_ptr<BaseTask> > t_scheduledTask;
 
-			/*
-			TODO implement our own linked list, taylored to our specific needs
-			BaseTask* first = 0;
-			*/
-
 			ThreadPool( const ThreadPool& ) = delete; // Do not copy!
 			ThreadPool& operator=( const ThreadPool& ) = delete; // Do not copy-assign!
 
 			void schedule( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ );
+			void reschedule( std::shared_ptr<BaseTask> task_ );
 			void erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( BaseTask& ) -> bool { return true; } );
 			std::shared_ptr<BaseTask> first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( BaseTask& ) -> bool { return true; } ) const;
 			void notify();
@@ -198,7 +172,7 @@ namespace micasa {
 
 			// Every mutation to m_tasks, the activeTask map and the Task objects therein, including adding a promise,
 			// should be done while holding a lock on the taskMutex.
-			std::vector<t_scheduledTask> m_tasks;
+			std::list<t_scheduledTask> m_tasks;
 			std::vector<t_scheduledTask> m_activeTasks;
 			mutable std::mutex m_tasksMutex;
 
@@ -210,15 +184,11 @@ namespace micasa {
 			~ThreadPool(); // private destructor
 
 			void _loop( unsigned int index_ );
+			void _insert( Scheduler* scheduler_, std::shared_ptr<BaseTask> task_ );
 			void _notify( bool all_, std::function<void()>&& func_ );
 
 		}; // class ThreadPool
 
-		unsigned int m_id;
-
 	}; // class Scheduler
-
-	// Task template specialization for void type. Implementation is in the cpp file.
-	template<> void Scheduler::Task<void>::execute();
 
 }; // namespace micasa

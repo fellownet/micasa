@@ -50,7 +50,7 @@ namespace micasa {
 			t_value value;
 			Device::UpdateSource source;
 			std::chrono::system_clock::time_point last;
-			std::weak_ptr<Scheduler::Task<void> > task;
+			std::weak_ptr<Scheduler::Task<bool> > task;
 		} m_rateLimiter;
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );

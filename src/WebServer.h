@@ -78,11 +78,13 @@ namespace micasa {
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
 		mutable std::mutex m_resourcesMutex;
 
+#ifdef _WITH_OPENSSL
 		X509* m_certificate;
 		EVP_PKEY* m_key; // private key
 
 		std::string _encrypt64( const std::string& data_ ) const;
 		std::string _decrypt64( const std::string& data_ ) const;
+#endif
 		std::string _hash( const std::string& data_ ) const;
 
 		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
