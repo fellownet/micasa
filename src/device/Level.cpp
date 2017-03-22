@@ -261,7 +261,7 @@ namespace micasa {
 			range_ *= 7;
 		}
 
-		std::vector<std::string> validGroups = { "none", "hour", "day", "month", "year" };
+		std::vector<std::string> validGroups = { "5min", "hour", "day", "month", "year" };
 		if ( std::find( validGroups.begin(), validGroups.end(), group_ ) == validGroups.end() ) {
 			return json::array();
 		}
@@ -269,15 +269,14 @@ namespace micasa {
 		double divider = this->m_settings->get<double>( "divider", 1 );
 		double offset = this->m_settings->get<double>( "offset", 0 );
 
-		if ( group_ == "none" ) {
-			std::string dateFormat = "%Y-%m-%d %H:%M:30";
-			std::string groupFormat = "%Y-%m-%d-%H-%M";
+		if ( group_ == "5min" ) {
+			std::string dateFormat = "%Y-%m-%d %H:%M:00";
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( avg(`value`) + %.6f ) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
+				"SELECT printf(\"%%.3f\", ( avg(`value`) + %.6f ) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MIN(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MIN( `date` ) ) AS `date` "
 				"FROM `device_level_history` "
 				"WHERE `device_id`=%d "
 				"AND `date` >= datetime('now','-%d %s') "
-				"GROUP BY strftime( %Q, `date` ) "
+				"GROUP BY printf( \"%%s-%%d\", strftime( '%%Y-%%m-%%d-%%H', `date` ), CAST( strftime( '%%M', `date` ) / 5 AS INTEGER ) ) "
 				"ORDER BY `date` ASC ",
 				offset,
 				divider,
@@ -285,8 +284,7 @@ namespace micasa {
 				dateFormat.c_str(),
 				this->m_id,
 				range_,
-				interval.c_str(),
-				groupFormat.c_str()
+				interval.c_str()
 			);
 		} else {
 			std::string dateFormat = "%Y-%m-%d %H:30:00";

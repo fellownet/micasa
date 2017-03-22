@@ -106,7 +106,7 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 					} )
 					.mergeMap( function( device_: Device ) {
 						if ( device_.type == 'level' ) {
-							return me._devicesService.getData( device_.id, { group: 'none', range: 1, interval: 'day' } )
+							return me._devicesService.getData( device_.id, { group: '5min', range: 1, interval: 'day' } )
 								.map( function( data_: any[] ) {
 									device_.dataBundle.day = data_;
 									return device_;
