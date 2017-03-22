@@ -28,6 +28,7 @@ namespace micasa {
 		// ========
 
 		class BaseTask : public std::enable_shared_from_this<BaseTask> {
+			friend class ThreadPool;
 		
 		public:
 			typedef std::function<bool(BaseTask&)> t_compareFunc;
@@ -38,12 +39,13 @@ namespace micasa {
 			unsigned long iteration;
 			void* data;
 
-			BaseTask( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
+			BaseTask( Scheduler* scheduler_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 				time( time_ ),
 				delay( delay_ ),
 				repeat( repeat_ ),
 				iteration( 0 ),
-				data( data_ )
+				data( data_ ),
+				m_scheduler( scheduler_ )
 			{
 			};
 			virtual ~BaseTask() { };
@@ -52,6 +54,9 @@ namespace micasa {
 			virtual void complete() = 0;
 			void proceed( unsigned long wait_ );
 			void advance( unsigned long duration_ );
+
+		private:
+			Scheduler* m_scheduler;
 
 		}; // class BaseTask
 
@@ -64,8 +69,8 @@ namespace micasa {
 		public:
 			typedef std::function<T(Task<T>&)> t_taskFunc;
 
-			Task( t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
-				BaseTask( time_, delay_, repeat_, data_ ),
+			Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
+				BaseTask( scheduler_, time_, delay_, repeat_, data_ ),
 				m_func( std::move( func_ ) ),
 				m_first( true )
 			{
@@ -109,7 +114,7 @@ namespace micasa {
 		~Scheduler();
 
 		template<typename V = bool> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( this, std::static_pointer_cast<BaseTask>( task ) );
 			return task;
 		};
@@ -123,7 +128,7 @@ namespace micasa {
 		};
 
 		template<typename V = bool> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( std::move( func_ ), time_, delay_, repeat_, data_ );
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), time_, delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( this, task );
 			return task;
 		};
