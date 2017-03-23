@@ -25,7 +25,6 @@
 #endif // _WITH_LINUX_SPI
 #include "hardware/WeatherUnderground.h"
 #include "hardware/HarmonyHub.h"
-#include "hardware/P1Meter.h"
 #include "hardware/RFXCom.h"
 #include "hardware/SolarEdge.h"
 #include "hardware/SolarEdgeInverter.h"
@@ -50,7 +49,6 @@ namespace micasa {
 		{ Hardware::Type::PIFACE, "piface" },
 		{ Hardware::Type::PIFACE_BOARD, "piface_board" },
 #endif // _WITH_LINUX_SPI
-		{ Hardware::Type::P1_METER, "p1_meter" },
 		{ Hardware::Type::RFXCOM, "rfxcom" },
 		{ Hardware::Type::SOLAREDGE, "solaredge" },
 		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
@@ -68,7 +66,7 @@ namespace micasa {
 		{ Hardware::State::DISCONNECTED, "disconnected" }
 	};
 
-	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Worker(), m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
+	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before Hardware instances." );
 		assert( g_logger && "Global Logger instance should be created before Hardware instances." );
@@ -104,9 +102,6 @@ namespace micasa {
 				return std::make_shared<PiFaceBoard>( id_, type_, reference_, parent_ );
 				break;
 #endif // _WITH_LINUX_SPI
-			case Type::P1_METER:
-				return std::make_shared<P1Meter>( id_, type_, reference_, parent_ );
-				break;
 			case Type::RFXCOM:
 				return std::make_shared<RFXCom>( id_, type_, reference_, parent_ );
 				break;
@@ -155,7 +150,6 @@ namespace micasa {
 		if ( this->getState() == State::DISABLED ) {
 			this->setState( INIT );
 		}
-		Worker::start();
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
@@ -164,8 +158,9 @@ namespace micasa {
 		if ( this->m_settings->isDirty() ) {
 			this->m_settings->commit();
 		}
-		this->setState( State::DISABLED );
-		Worker::stop();
+		if ( this->getState() != State::DISABLED ) {
+			this->setState( State::DISABLED );
+		}
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
@@ -184,7 +179,7 @@ namespace micasa {
 			{ "id", this->m_id },
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
-			{ "enabled", this->isRunning() },
+			{ "enabled", this->getState() != Hardware::State::DISABLED },
 			{ "type", Hardware::resolveType( this->m_type ) },
 			{ "state", Hardware::resolveState( this->m_state ) },
 			{ "last_update", g_database->getQueryValue<unsigned long>(
@@ -217,14 +212,17 @@ namespace micasa {
 		};
 		result += setting;
 
-		setting = {
-			{ "name", "enabled" },
-			{ "label", "Enabled" },
-			{ "type", "boolean" },
-			{ "default", false },
-			{ "sort", 2 }
-		};
-		result += setting;
+		// Child hardware is enabled and disabled by it's parent.
+		if ( this->getParent() != nullptr ) {
+			setting = {
+				{ "name", "enabled" },
+				{ "label", "Enabled" },
+				{ "type", "boolean" },
+				{ "default", false },
+				{ "sort", 2 }
+			};
+			result += setting;
+		}
 
 		return result;
 	};

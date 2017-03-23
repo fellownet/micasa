@@ -20,11 +20,8 @@ namespace micasa {
 		nlohmann::json getJson(  bool full_ = false  ) const override;
 		nlohmann::json getSettingsJson() const override;
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-		
 	private:
-		void _processHttpReply( const std::string& body_ );
+		void _process( const std::string& body_ );
 		
 	}; // class SolarEdge
 

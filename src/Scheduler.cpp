@@ -55,7 +55,7 @@ namespace micasa {
 #ifdef _DEBUG
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		assert( this->m_start == nullptr && "All tasks should be purged when ThreadPool is destructed." );
-		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed.");
+		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed." );
 		tasksLock.unlock();
 #endif // _DEBUG
 	};

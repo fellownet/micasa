@@ -36,9 +36,6 @@ namespace micasa {
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-
 	private:
 		std::shared_ptr<Serial> m_serial;
 		unsigned int m_packetPosition = 0;

@@ -32,16 +32,12 @@ namespace micasa {
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-
 	private:
 		static std::timed_mutex g_managerMutex;
 		static unsigned int g_managerWatchers;
 	
 		std::string m_port;
 		unsigned int m_homeId = 0;
-		bool m_performCancel = false;
 		
 		void _handleNotification( const OpenZWave::Notification* notification_ );
 

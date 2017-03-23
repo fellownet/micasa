@@ -2,6 +2,10 @@
 
 #include "../Hardware.h"
 
+extern "C" {
+	#include "mongoose.h"
+} // extern "C"
+
 namespace micasa {
 
 	class Telegram final : public Hardware {
@@ -20,15 +24,14 @@ namespace micasa {
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-		
 	private:
 		std::string m_username;
 		int m_lastUpdateId = -1;
 		volatile bool m_acceptMode = false;
+		mg_connection* m_connection;
 
-		void _processIncomingMessage( const nlohmann::json& message_ );
+		void _connect( bool identify_ );
+		void _process( const nlohmann::json& message_ );
 
 	}; // class PiFace
 

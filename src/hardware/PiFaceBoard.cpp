@@ -7,6 +7,10 @@
 
 #include "../device/Switch.h"
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
@@ -15,7 +19,11 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	void PiFaceBoard::start() {
+#ifdef _DEBUG
+		assert( this->getParent()->getState() == Hardware::State::READY && "Parent PiFace hardware should be ready when child hardware is started." );
+#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
 
 		// The parent has an open file descriptor to the SPI device which we need easy access to.
 		this->m_parent = std::static_pointer_cast<PiFace>( this->getParent() );
@@ -47,8 +55,6 @@ namespace micasa {
 
 		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, 0x00 ); // Set all pins on Port A as output, and deactivate
 
-		Hardware::start();
-
 		for ( unsigned short i = 0; i < 8; i++ ) {
 			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_OUTPUT ), "Output " + std::to_string( i ), {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
@@ -68,10 +74,15 @@ namespace micasa {
 		this->m_portState[0] = this->m_portState[1] = 0;
 
 		this->setState( Hardware::State::READY );
+
+		this->m_scheduler.schedule( PIFACEBOARD_PROCESS_INTERVAL_MSEC, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& task_ ) {
+			this->_process( task_.iteration );
+		} );
 	};
 	
 	void PiFaceBoard::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase();
 		Hardware::stop();
 	};
 
@@ -161,13 +172,7 @@ namespace micasa {
 		return result;
 	};
 
-	std::chrono::milliseconds PiFaceBoard::_work( const unsigned long int& iteration_ ) {
-
-		// Only read pin states when the hardware is ready and the devices have been created. Port- and pin states are
-		// first matched against a relatively quick port- and pin array before their corresponding devices are fetched.
-		if ( this->getState() != Hardware::State::READY ) {
-			return std::chrono::milliseconds( 1000 );
-		}
+	void PiFaceBoard::_process( unsigned long iteration_ ) {
 
 		// Read and process output pin states.
 		unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA );
@@ -226,19 +231,6 @@ namespace micasa {
 									} )->incrementValue( Device::UpdateSource::HARDWARE );
 									if ( iteration_ >= 2 ) {
 										unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-
-
-										//unsigned long duration = 0;
-										//this->m_intervals[i].push_back( interval );
-										// std::vector<unsigned long>::reverse_iterator intervalsIt;
-										// for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
-										// 	if ( duration < 15000 ) {
-										// 		duration += *intervalsIt;
-										// 	} else {
-										// 		break;
-										// 	}
-										// }
-										// this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
 										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
 											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
@@ -273,8 +265,6 @@ namespace micasa {
 				mask<<=1;
 			}
 		}
-
-		return std::chrono::milliseconds( PIFACEBOARD_WORK_WAIT_MSEC );
 	};
 
 	std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {

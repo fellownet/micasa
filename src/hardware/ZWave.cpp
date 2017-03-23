@@ -41,15 +41,16 @@ namespace micasa {
 	unsigned int ZWave::g_managerWatchers = 0;
 
 	void ZWave::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
+
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			this->setState( Hardware::State::FAILED );
 			return;
 		}
 
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		g_logger->logr( Logger::LogLevel::VERBOSE, this, "OpenZWave Version %s.", Manager::getVersionAsString().c_str() );
-
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		if (
 			NULL == Manager::Get()
@@ -143,11 +144,6 @@ namespace micasa {
 		} );
 #endif // _WITH_LIBUDEV
 
-		Hardware::start();
-
-		// Add the devices that will initiate controller actions. NOTE this has to be done *after* the
-		// parent hardware instance is started to make sure previously created devices get picked up by the
-		// declareDevice method.
 		this->declareDevice<Switch>( "heal", "Network Heal", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
@@ -247,16 +243,16 @@ namespace micasa {
 					
 					Manager::Get()->HealNetwork( this->m_homeId, true );
 					g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
-					this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 
 				} else if ( device->getReference() == "include" ) {
 
 					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-
-						// Wake up the worker thread after xx microsecnds to cancel the in-/exclusion mode.
-						this->m_performCancel = true;
-						this->wakeUpAfter( std::chrono::milliseconds( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES ) );
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, NULL, [this]( Scheduler::Task<>& ) {
+							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+								Manager::Get()->CancelControllerCommand( this->m_homeId );
+							}
+						} );
 					} else {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
 					}
@@ -265,10 +261,11 @@ namespace micasa {
 
 					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-
-						// Wake up the worker thread after xx microsecnds to cancel the in-/exclusion mode.
-						this->m_performCancel = true;
-						this->wakeUpAfter( std::chrono::milliseconds( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES ) );
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, NULL, [this]( Scheduler::Task<>& ) {
+							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+								Manager::Get()->CancelControllerCommand( this->m_homeId );
+							}
+						} );
 					} else {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
 					}
@@ -280,30 +277,6 @@ namespace micasa {
 		}
 		
 		return false;
-	};
-
-	std::chrono::milliseconds ZWave::_work( const unsigned long int& iteration_ ) {
-		// Because the action devices needed to be created after the hardware was started, they might not exist in
-		// the first iteration.
-		if ( iteration_ > 1 ) {
-			if ( this->m_performCancel ) {
-				if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					Manager::Get()->CancelControllerCommand( this->m_homeId );
-					
-					std::static_pointer_cast<Switch>( this->getDevice( "include" ) )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-					std::static_pointer_cast<Switch>( this->getDevice( "exclude" ) )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-					
-					this->m_performCancel = false;
-				} else {
-					return std::chrono::milliseconds( 1000 * 60 );
-				}
-			}
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-			}
-		}
-		return std::chrono::milliseconds( 1000 * 60 * 15 );
 	};
 
 	void ZWave::_handleNotification( const Notification* notification_ ) {
@@ -324,7 +297,7 @@ namespace micasa {
 			auto node = std::static_pointer_cast<ZWaveNode>( g_controller->getHardware( reference.str() ) );
 			if (
 				node != nullptr
-				&& node->isRunning()
+				&& node->getState() != Hardware::State::DISABLED
 			) {
 				node->_handleNotification( notification_ );
 			}

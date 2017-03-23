@@ -17,9 +17,6 @@ namespace micasa {
 
 		std::string getLabel() const throw() override { return Dummy::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
-		
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 	
 	}; // class Dummy
 	

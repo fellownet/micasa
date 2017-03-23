@@ -29,17 +29,16 @@
 
 #include "hardware/Dummy.h"
 #include "hardware/HarmonyHub.h"
+#include "hardware/SolarEdge.h"
+#include "hardware/WeatherUnderground.h"
+#include "hardware/RFXCom.h"
+#include "hardware/Telegram.h"
 #ifdef _WITH_OPENZWAVE
 	#include "hardware/ZWave.h"
 #endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 	#include "hardware/PiFace.h"
 #endif // _WITH_LINUX_SPI
-#include "hardware/SolarEdge.h"
-#include "hardware/WeatherUnderground.h"
-#include "hardware/RFXCom.h"
-#include "hardware/P1Meter.h"
-#include "hardware/Telegram.h"
 
 #include "json.hpp"
 
@@ -613,10 +612,6 @@ namespace micasa {
 									{ "label", RFXCom::label }
 								},
 								{
-									{ "value", "p1meter" },
-									{ "label", P1Meter::label }
-								},
-								{
 									{ "value", "telegram" },
 									{ "label", Telegram::label }
 								}
@@ -716,7 +711,7 @@ namespace micasa {
 						if ( hardwareId == -1 ) {
 							Hardware::Type type = Hardware::resolveType( hardwareData["type"].get<std::string>() );
 							std::string reference = randomString( 16 );
-							hardware = g_controller->declareHardware( type, reference, { } );
+							hardware = g_controller->declareHardware( type, reference, { }, false ); // start disabled
 							hardwareId = hardware->getId();
 							output_["data"] = hardware->getJson( true );
 							output_["code"] = 201; // Created
@@ -724,7 +719,7 @@ namespace micasa {
 
 							// The enabled property can be used to enable or disable the hardware. For now this is only
 							// possible on parent/main hardware, no children.
-							bool enabled = hardware->isRunning();
+							bool enabled = ( hardware->getState() != Hardware::State::DISABLED );
 							if ( hardware->getParent() == nullptr ) {
 								enabled = jsonGet<bool>( hardwareData, "enabled" );
 								hardwareData.erase( "enabled" );
@@ -754,26 +749,26 @@ namespace micasa {
 									! enabled
 									|| restart
 								) {
-									if ( hardware->isRunning() ) {
+									if ( hardware->getState() != Hardware::State::DISABLED ) {
 										hardware->stop();
 									}
 									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
 										if (
 											(*hardwareIt)->getParent() == hardware
-											&& (*hardwareIt)->isRunning()
+											&& (*hardwareIt)->getState() != Hardware::State::DISABLED
 										) {
 											(*hardwareIt)->stop();
 										}
 									}
 								}
 								if ( enabled ) {
-									if ( ! hardware->isRunning() ) {
+									if ( hardware->getState() == Hardware::State::DISABLED ) {
 										hardware->start();
 									}
 									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
 										if (
 											(*hardwareIt)->getParent() == hardware
-											&& ! (*hardwareIt)->isRunning()
+											&& ! (*hardwareIt)->getState() == Hardware::State::DISABLED
 										) {
 											(*hardwareIt)->start();
 										}

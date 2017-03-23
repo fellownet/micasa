@@ -2,8 +2,9 @@
 
 #include <list>
 
-#include "../Hardware.h"
 #include "ZWave.h"
+
+#include "../Hardware.h"
 
 #include "Notification.h"
 
@@ -34,10 +35,6 @@ namespace micasa {
 		void putSettingsJson( nlohmann::json& settings_ ) override;
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
-		void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) override;
-
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
 		unsigned int m_homeId = 0;

@@ -20,9 +20,6 @@ namespace micasa {
 		std::string getLabel() const throw() override { return PiFace::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-
 	private:
 		int m_fd;
 

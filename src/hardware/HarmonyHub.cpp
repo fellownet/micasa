@@ -8,6 +8,10 @@
 #include "../User.h"
 #include "../Logger.h"
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
@@ -17,13 +21,16 @@ namespace micasa {
 	void HarmonyHub::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
+		
+		// Connect to the configured Harmony Hub. This method will set the state of the hardware.
+		this->_connect();
 	};
 	
 	void HarmonyHub::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		if ( this->m_connectionState != ConnectionState::CLOSED ) {
-			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 			this->m_connectionState = ConnectionState::CLOSED;
+			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		}
 		Hardware::stop();
 	};
@@ -61,73 +68,6 @@ namespace micasa {
 		return result;
 	};
 
-	std::chrono::milliseconds HarmonyHub::_work( const unsigned long int& iteration_ ) {
-		
-		// A connection to the Harmony Hub should remain open at all times, so if it isn't, a new
-		// connection will be made.
-		if ( this->m_connectionState == ConnectionState::CLOSED ) {
-
-			if ( ! this->m_settings->contains( { "address", "port" } ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-				return std::chrono::milliseconds( 1000 * 60 * 5 );
-			}
-
-			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
-			this->m_connectionState = ConnectionState::CONNECTING;
-			
-			// Instead of capturing 'this' we're capturing a shared_ptr to this. This way the instance will
-			// not be destroyed if the hardware gets removed because the callback still holds a shared pointer
-			// to it. When the callback gets destroyed, after the connection is properly closed, the hardware
-			// will be destroyed.
-			
-			auto sharedPtr = this->shared_from_this();
-			this->m_connection = Network::get().connect( uri, Network::t_callback( [sharedPtr]( mg_connection* connection_, int event_, void* data_ ) {
-				auto me = std::dynamic_pointer_cast<HarmonyHub>( sharedPtr );
-				switch( event_ ) {
-					case MG_EV_CONNECT: {
-						int status = *(int*) data_;
-						if ( status == 0 ) {
-							mg_set_timer( connection_, 0 ); // clear timeout timer
-							me->_processConnection( true );
-						} else {
-							me->_processConnection( false );
-						}
-						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
-						break;
-					}
-					case MG_EV_RECV:
-						me->_processConnection( true );
-						break;
-						
-					case MG_EV_POLL:
-					case MG_EV_SEND:
-					//case MG_EV_SHUTDOWN:
-						break;
-						
-					case MG_EV_TIMER: {
-#ifdef _DEBUG
-						g_logger->log( Logger::LogLevel::DEBUG, me, "Sending ping." );
-#endif // _DEBUG
-						std::stringstream send;
-						send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-						send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
-						mg_send( me->m_connection, send.str().c_str(), send.str().size() );
-						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
-						break;
-					}
-						
-					default:
-						me->_processConnection( false );
-						break;
-				}
-			} ) );
-		}
-		
-		// Waiting for 5 minutes ensures that a new connection is made at least every 5 minutes if
-		// an error has occured.
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	};
-	
 	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
@@ -175,14 +115,80 @@ namespace micasa {
 		}
 	};
 	
+	void HarmonyHub::_connect() {
+#ifdef _DEBUG
+		assert( this->m_connectionState == ConnectionState::CLOSED && "HarmonyHub should not already be connected when connecting." );
+#endif // _DEBUG
+		if ( ! this->m_settings->contains( { "address", "port" } ) ) {
+			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			this->setState( Hardware::State::FAILED );
+			return;
+		}
+
+		std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
+		this->m_connectionState = ConnectionState::CONNECTING;
+		
+		// A weak pointer to this is captured into the connection handler to make sure the handler doesn't keep the
+		// hardware from being destroyed by the controller.
+		std::weak_ptr<HarmonyHub> ptr = std::static_pointer_cast<HarmonyHub>( this->shared_from_this() );
+		this->m_connection = Network::get().connect( uri, Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+			auto me = ptr.lock();
+			if ( me ) {
+				switch( event_ ) {
+					case MG_EV_CONNECT: {
+						int status = *(int*) data_;
+						if ( status == 0 ) {
+							mg_set_timer( connection_, 0 ); // clear timeout timer
+							me->_process( true );
+						} else {
+							me->_process( false );
+						}
+						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						break;
+					}
+					case MG_EV_RECV:
+						me->_process( true );
+						break;
+						
+					case MG_EV_POLL:
+					case MG_EV_SEND:
+						break;
+						
+					case MG_EV_TIMER: {
+#ifdef _DEBUG
+						g_logger->log( Logger::LogLevel::DEBUG, me, "Sending ping." );
+#endif // _DEBUG
+						std::stringstream send;
+						send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+						send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
+						mg_send( me->m_connection, send.str().c_str(), send.str().size() );
+						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
+						break;
+					}
+						
+					default:
+						me->_process( false );
+						break;
+				}
+			} else {
+				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+			}
+		} ) );
+	};
+
 	void HarmonyHub::_disconnect( const std::string message_ ) {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
-		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		this->m_connectionState = ConnectionState::CLOSED;
+		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		this->setState( Hardware::State::FAILED );
+
+		// Try to reconnect automatically in 1 minute if the connection was unexpectedly dropped.
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, NULL, [this]( Scheduler::Task<>& ) {
+			this->_connect();
+		} );
 	};
 	
-	void HarmonyHub::_processConnection( const bool ready_ ) {
+	void HarmonyHub::_process( const bool ready_ ) {
 		if ( ready_ ) {
 			
 			static std::string received;
@@ -367,6 +373,8 @@ namespace micasa {
 			
 			received.clear();
 			
+		// If the state is already set to CLOSED the cause has already been taken care of. This can be a hardware
+		// shutdown or the _disconnect method has already ben called.
 		} else if ( this->m_connectionState != ConnectionState::CLOSED ) {
 			this->_disconnect( "Connection closed." );
 		}

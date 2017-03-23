@@ -65,8 +65,8 @@ namespace micasa {
 		std::shared_ptr<Hardware> getHardwareById( const unsigned int& id_ ) const;
 		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
 		std::vector<std::shared_ptr<Hardware> > getAllHardware() const;
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ = false );
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ = false );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ );
+		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ );
 		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
 
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
@@ -84,6 +84,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	private:
+		bool m_running = false;
 		std::unordered_map<std::string, std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
 		Scheduler m_scheduler;
@@ -97,7 +98,6 @@ namespace micasa {
 		udev_monitor* m_udevMonitor;
 #endif // _WITH_LIBUDEV
 		
-		//std::chrono::milliseconds _work( const unsigned long int& iteration_ );
 		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
 		void _runTimers();

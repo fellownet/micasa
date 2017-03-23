@@ -22,10 +22,37 @@ namespace micasa {
 	void WeatherUnderground::start() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
+
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+			if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				this->setState( Hardware::State::FAILED );
+				return;
+			}
+
+			std::stringstream url;
+			url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
+
+			Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REPLY ) {
+					std::string body;
+					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+					this->_process( body );
+					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+				}  else if (
+					event_ == MG_EV_CLOSE
+					&& this->getState() == Hardware::State::INIT
+				) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
+					this->setState( Hardware::State::FAILED );
+				}
+			} ) );
+		} );
 	};
 	
 	void WeatherUnderground::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase();
 		Hardware::stop();
 	};
 
@@ -88,36 +115,7 @@ namespace micasa {
 		return result;
 	};
 
-	std::chrono::milliseconds WeatherUnderground::_work( const unsigned long int& iteration_ ) {
-		
-		if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
-			return std::chrono::milliseconds( 60 * 1000 );
-		}
-
-		std::stringstream url;
-		url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
-
-		Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-			if ( event_ == MG_EV_HTTP_REPLY ) {
-				std::string body;
-				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-				this->_processHttpReply( body );
-				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-			}  else if (
-				event_ == MG_EV_CLOSE
-				&& this->getState() == Hardware::State::INIT
-			) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-				this->setState( Hardware::State::FAILED );
-			}
-		} ) );
-		
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	};
-
-	void WeatherUnderground::_processHttpReply( const std::string& body_ ) {
+	void WeatherUnderground::_process( const std::string& body_ ) {
 		try {
 			json data = json::parse( body_ );
 

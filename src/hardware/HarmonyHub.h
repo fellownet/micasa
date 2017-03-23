@@ -39,17 +39,15 @@ namespace micasa {
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
-
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 		
 	private:
 		mg_connection* m_connection;
 		volatile ConnectionState m_connectionState = ConnectionState::CLOSED;
 		std::string m_currentActivityId = "-1";
 	
+		void _connect();
 		void _disconnect( const std::string message_ );
-		void _processConnection( const bool ready_ );
+		void _process( const bool ready_ );
 		
 	}; // class HarmonyHub
 

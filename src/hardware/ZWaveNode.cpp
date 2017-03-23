@@ -39,23 +39,12 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_settings->contains( { "home_id", "node_id" } ) && "ZWaveNode should be declared with home_id and node_id." );
 #endif // _DEBUG
-
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
-		
+		Hardware::start();
+
 		this->m_homeId = this->m_settings->get<unsigned int>( "home_id" );
 		this->m_nodeId = this->m_settings->get<unsigned int>( "node_id" );
 
-		// If the parent z-wave hardware is already running we can immediately set the state of this node
-		// to ready.
-		if ( this->getParent()->getState() == Hardware::State::READY ) {
-			this->setState( Hardware::State::READY );
-		}
-
-		Hardware::start();
-
-		// Add the devices that will initiate controller actions. NOTE this has to be done *after* the
-		// parent hardware instance is started to make sure previously created devices get picked up by the
-		// declareDevice method.
 		this->declareDevice<Switch>( "heal", "Node Heal", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
@@ -205,14 +194,6 @@ namespace micasa {
 		return result;
 	};
 
-	void ZWaveNode::putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) {
-		// The provided settings should've been verified by the webserver and each device should have a mandatory name
-		// property, so we can blindly set it here.
-		// NOTE we're dependant on the original label for detecting the subtype and unit.
-		//ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-		//return Manager::Get()->SetValueLabel( valueId, settings_["name"] );
-	};
-
 	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		
 		if ( device_->getType() == Device::Type::SWITCH ) {
@@ -231,7 +212,6 @@ namespace micasa {
 
 				Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
 				g_logger->log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
-				this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 
 				ZWave::g_managerMutex.unlock();
 				return true;
@@ -307,23 +287,10 @@ namespace micasa {
 
 		return true;
 	};
-	
-	std::chrono::milliseconds ZWaveNode::_work( const unsigned long int& iteration_ ) {
-		// Because the action devices needed to be created after the hardware was started, they might not exist in
-		// the first iteration.
-		if ( iteration_ > 1 ) {
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-			}
-		}
-		return std::chrono::milliseconds( 1000 * 60 * 15 );
-	};
 
 	void ZWaveNode::_handleNotification( const Notification* notification_ ) {
 		// No need to lock here, the parent ZWave instance already holds a lock while proxying the
 		// notification to us.
-
 #ifdef _DEBUG
 		assert( this->m_homeId == notification_->GetHomeId() && "ZWaveNode home_id should be correct." );
 		assert( this->m_nodeId == notification_->GetNodeId() && "ZWaveNode node_id should be correct." );
@@ -440,7 +407,6 @@ namespace micasa {
 		// than once).
 		auto fIsDuplicate = [this,&valueId_,&reference]() -> bool {
 			return false;
-			/*
 			std::string stringValue;
 			Manager::Get()->GetValueAsString( valueId_, &stringValue );
 			std::string valueIdExt = reference + "_df_" + stringValue;
@@ -452,7 +418,6 @@ namespace micasa {
 			} else {
 				return true;
 			}
-			*/
 		};
 
 		// Process all other values by command class.

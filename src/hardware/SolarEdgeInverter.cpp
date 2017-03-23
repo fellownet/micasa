@@ -10,6 +10,10 @@
 
 #include "json.hpp"
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 	
 	extern std::shared_ptr<Logger> g_logger;
@@ -18,12 +22,50 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	void SolarEdgeInverter::start() {
+#ifdef _DEBUG
+		assert( this->getParent()->getState() == Hardware::State::READY && "Parent PiFace hardware should be ready when child hardware is started." );
+		assert( this->m_settings->contains( { "api_key", "site_id", "serial" } ) && "SolarEdgeInverter should be declared with mandatory settings." );
+#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
+		
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+			if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
+				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				this->setState( Hardware::State::FAILED );
+				return;
+			}
+
+			auto dates = g_database->getQueryRow(
+				"SELECT date('now','-1 day','localtime') AS `startdate`, "
+				"time('now','-1 day','localtime') AS `starttime`, "
+				"date('now','+1 day','localtime') AS `enddate`, "
+				"time('now','+1 day','localtime') AS `endtime` "
+			);
+
+			std::stringstream url;
+			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
+			
+			Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
+				if ( event_ == MG_EV_HTTP_REPLY ) {
+					std::string body;
+					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+					this->_process( body );
+					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+				} else if (
+					event_ == MG_EV_CLOSE
+					&& this->getState() == Hardware::State::INIT
+				) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
+					this->setState( Hardware::State::FAILED );
+				}
+			} ) );
+		} );
 	};
 	
 	void SolarEdgeInverter::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase();
 		Hardware::stop();
 	};
 
@@ -31,44 +73,7 @@ namespace micasa {
 		return this->m_settings->get( "label", std::string( SolarEdgeInverter::label ) );
 	};
 
-	std::chrono::milliseconds SolarEdgeInverter::_work( const unsigned long int& iteration_ ) {
-		
-		// The settings should've been provided by the SolarEdge parent hardware.
-		if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
-			return std::chrono::milliseconds( 60 * 1000 );
-		}
-
-		auto dates = g_database->getQueryRow(
-			"SELECT date('now','-1 day','localtime') AS `startdate`, "
-			"time('now','-1 day','localtime') AS `starttime`, "
-			"date('now','+1 day','localtime') AS `enddate`, "
-			"time('now','+1 day','localtime') AS `endtime` "
-		);
-
-		std::stringstream url;
-		url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
-		
-		Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-			if ( event_ == MG_EV_HTTP_REPLY ) {
-				std::string body;
-				body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-				this->_processHttpReply( body );
-				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-			} else if (
-				event_ == MG_EV_CLOSE
-				&& this->getState() == Hardware::State::INIT
-			) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-				this->setState( Hardware::State::FAILED );
-			}
-		} ) );
-		
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	};
-	
-	void SolarEdgeInverter::_processHttpReply( const std::string& body_ ) {
+	void SolarEdgeInverter::_process( const std::string& body_ ) {
 		try {
 			json data = json::parse( body_ );
 			if (

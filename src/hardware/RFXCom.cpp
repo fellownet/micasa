@@ -19,13 +19,14 @@ namespace micasa {
 	using namespace nlohmann;
 
 	void RFXCom::start() {
+		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
+
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			this->setState( Hardware::State::FAILED );
 			return;
 		}
-
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		this->m_serial = std::make_shared<Serial>(
 			this->m_settings->get( "port" ),
@@ -76,11 +77,6 @@ namespace micasa {
 			this->setState( Hardware::State::FAILED );
 		}
 
-		Hardware::start();
-
-		// Add the devices that allow the user to create new devices. NOTE this has to be done *after* the
-		// parent hardware instance is started to make sure previously created devices get picked up by the
-		// declareDevice method.
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
@@ -288,7 +284,6 @@ namespace micasa {
 					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 					{ DEVICE_SETTING_ADDED_MANUALLY,         true }
 				} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
-				this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
 				return true;
 			}
 		}
@@ -363,18 +358,6 @@ namespace micasa {
 		}
 
 		return false;
-	};
-
-	std::chrono::milliseconds RFXCom::_work( const unsigned long int& iteration_ ) {
-		// Because the action devices needed to be created after the hardware was started, they might not exist in
-		// the first iteration.
-		if ( iteration_ > 1 ) {
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( "create_switch_device" ) );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-			}
-		}
-		return std::chrono::milliseconds( 1000 * 60 * 15 );
 	};
 
 	bool RFXCom::_processPacket() {

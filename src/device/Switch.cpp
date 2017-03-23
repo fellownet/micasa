@@ -50,13 +50,18 @@ namespace micasa {
 				this->m_id
 			);
 			this->m_value = Switch::resolveOption( value );
+			if ( this->m_value == Switch::Option::ACTIVATE ) {
+				this->m_value = Switch::Option::IDLE;
+			}
 		} catch( const Database::NoResultsException& ex_ ) {
 			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
+		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
+		static std::atomic<unsigned int> offset( 0 );
+		offset += ( 1000 * 11 ); // 11 seconds interval
+		this->m_scheduler.schedule( system_clock::now() + milliseconds( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ) ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
-			return true;
 		} );
 	};
 
@@ -72,7 +77,6 @@ namespace micasa {
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
 			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
-			&& value_ != Option::ACTIVATE // needs to be executed every time
 		) {
 			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
@@ -87,10 +91,9 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<bool>& task_ ) -> bool {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 						this->m_rateLimiter.last = task_.time;
-						return true;
 					} );
 				}
 			} else {
@@ -238,7 +241,12 @@ namespace micasa {
 			if ( this->isEnabled() ) {
 				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
 			}
-			g_logger->logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
+			if ( this->m_value == Switch::Option::ACTIVATE ) {
+				this->m_value = Switch::Option::IDLE;
+				g_logger->log( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "Activated." );
+			} else {
+				g_logger->logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
+			}
 		} else {
 			this->m_value = previous;
 		}

@@ -175,15 +175,6 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
-
-		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
-		// to make sure the whole minute has passed.
-		auto now = system_clock::now();
-		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
-			this->_runTimers();
-			return true;
-		} );
 	};
 
 	Controller::~Controller() {
@@ -225,10 +216,9 @@ namespace micasa {
 			Hardware::Type type = Hardware::resolveType( hardwareDataIt.at( "type" ) );
 			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( hardwareDataIt.at( "id" ) ), hardwareDataIt.at( "reference" ), parent );
 
-			// Only parent hardware is started automatically. The hardware itself should take care of
-			// starting their children (for instance, right after declareHardware). Starting the hardware
-			// is done in a separate thread to work around the hardwareMutex being locked and hardware
-			// might want to declare hardware in their startup code.
+			// Only parent hardware is started automatically. The hardware itself should take care of starting it's
+			// children (for instance, right after declareHardware). Starting the hardware is done in a separate thread
+			// to work around the hardwareMutex being locked.
 			if (
 				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
@@ -253,7 +243,7 @@ namespace micasa {
 			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
 			udev_monitor_enable_receiving( this->m_udevMonitor );
 
-			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
+			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
 				udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
 				if ( dev ) {
 					std::string port = std::string( udev_device_get_devnode( dev ) );
@@ -265,24 +255,34 @@ namespace micasa {
 					g_logger->logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
 					udev_device_unref( dev );
 				}
-				return true;
 			} );
 		} else {
 			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
 		}
 #endif // _WITH_LIBUDEV
 
+		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
+		// to make sure the whole minute has passed.
+		auto now = system_clock::now();
+		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+			this->_runTimers();
+		} );
+
+		this->m_running = true;
 		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
 	void Controller::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase();
+		this->m_running = false;
 
 		{
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 			for ( auto const &hardwareIt : this->m_hardware ) {
 				auto hardware = hardwareIt.second;
-				if ( hardware->isRunning() ) {
+				if ( hardware->getState() != Hardware::State::DISABLED ) {
 
 					// Stop the hardware in a separate thread which is monitored. This way we can detect problems in the
 					// hardware implementation more easily.
@@ -347,18 +347,14 @@ namespace micasa {
 		return all;
 	};
 	
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ ) {
-		return this->declareHardware( type_, reference_, nullptr, settings_, start_ );
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ ) {
+		return this->declareHardware( type_, reference_, nullptr, settings_, enabled_ );
 	};
 
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ ) {
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
 		try {
-			auto hardware = this->m_hardware.at( reference_ );
-			if ( start_ ) {
-				hardware->start();
-			}
-			return hardware;
+			return this->m_hardware.at( reference_ );
 		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id;
@@ -369,7 +365,7 @@ namespace micasa {
 				parent_->getId(),
 				reference_.c_str(),
 				Hardware::resolveType( type_ ).c_str(),
-				start_ ? 1 : 0
+				enabled_ ? 1 : 0
 			);
 		} else {
 			id = g_database->putQuery(
@@ -377,7 +373,7 @@ namespace micasa {
 				"VALUES ( %Q, %Q, %d )",
 				reference_.c_str(),
 				Hardware::resolveType( type_ ).c_str(),
-				start_ ? 1 : 0
+				enabled_ ? 1 : 0
 			);
 		}
 
@@ -393,10 +389,6 @@ namespace micasa {
 			settings->commit();
 		}
 
-		if ( start_ ) {
-			hardware->start();
-		}
-
 		// Reacquire lock when adding to the map to make it thread safe.
 		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
 		this->m_hardware[reference_] = hardware;
@@ -408,11 +400,10 @@ namespace micasa {
 	void Controller::removeHardware( const std::shared_ptr<Hardware> hardware_ ) {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
-		// First all the childs are stopped and removed from the system. The database record is not yet
-		// removed because that is done when the parent is removed by foreign key constraints.
+		// First all the children of this hardware are stopped and removed from the list.
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
 			if ( hardwareIt->second->getParent() == hardware_ ) {
-				if ( hardwareIt->second->isRunning() ) {
+				if ( hardwareIt->second->getState() != Hardware::State::DISABLED ) {
 					hardwareIt->second->stop();
 				}
 				hardwareIt = this->m_hardware.erase( hardwareIt );
@@ -420,9 +411,12 @@ namespace micasa {
 				hardwareIt++;
 			}
 		}
+
+		// Then the hardware itself is stopped and removed. NOTE all the children records in the database will be
+		// removed automatically due to foreign key constraints.
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
 			if ( hardwareIt->second == hardware_ ) {
-				if ( hardware_->isRunning() ) {
+				if ( hardware_->getState() != Hardware::State::DISABLED ) {
 					hardware_->stop();
 				}
 
@@ -504,8 +498,8 @@ namespace micasa {
 
 	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
 		if (
-			//this->isRunning()
-			( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
+			this->m_running
+			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
 		) {
 
 			if ( ( source_ & Device::UpdateSource::LINK ) != Device::UpdateSource::LINK ) {
@@ -583,12 +577,11 @@ namespace micasa {
 		typename D::t_value currentValue = device_->getValue();
 		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
 			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<bool>& ) -> bool {
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
 				auto targetDevice = device.lock();
 				if ( targetDevice ) {
 					targetDevice->updateValue( source, value_ );
 				}
-				return true;
 			} );
 
 			if (
@@ -599,12 +592,11 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<bool>& ) -> bool {
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, currentValue );
 					}
-					return true;
 				} );
 			}
 		}
@@ -692,163 +684,165 @@ namespace micasa {
 	};
 
 	void Controller::_runTimers() {
-		auto timers = g_database->getQuery(
-			"SELECT DISTINCT `id`, `cron`, `name` "
-			"FROM `timers` "
-			"WHERE `enabled`=1 "
-			"ORDER BY `id` ASC"
-		);
-		for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
-			try {
-				bool run = true;
+		if ( this->m_running ) {
+			auto timers = g_database->getQuery(
+				"SELECT DISTINCT `id`, `cron`, `name` "
+				"FROM `timers` "
+				"WHERE `enabled`=1 "
+				"ORDER BY `id` ASC"
+			);
+			for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
+				try {
+					bool run = true;
 
-				// Split the cron string into exactly 5 fields; m h dom mon dow.
-				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
-				auto fields = stringSplit( (*timerIt)["cron"], ' ' );
-				if ( fields.size() != 5 ) {
-					throw std::runtime_error( "invalid number of cron fields" );
-				}
-				for ( unsigned int field = 0; field <= 4; field++ ) {
-
-					// Determine the values that are valid for each field by parsing the field and
-					// filling an array with valid values.
-					std::vector<std::string> subexpressions;
-					if ( fields[field].find( "," ) != std::string::npos ) {
-						subexpressions = stringSplit( fields[field], ',' );
-					} else {
-						subexpressions.push_back( fields[field] );
+					// Split the cron string into exactly 5 fields; m h dom mon dow.
+					std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
+					auto fields = stringSplit( (*timerIt)["cron"], ' ' );
+					if ( fields.size() != 5 ) {
+						throw std::runtime_error( "invalid number of cron fields" );
 					}
+					for ( unsigned int field = 0; field <= 4; field++ ) {
 
-					std::vector<unsigned int> rangeitems;
-
-					for ( auto& subexpression : subexpressions ) {
-						unsigned int start = extremes[field].first;
-						unsigned int end = extremes[field].second;
-						unsigned int modulo = 0;
-
-						if ( subexpression.find( "/" ) != std::string::npos ) {
-							auto parts = stringSplit( subexpression, '/' );
-							if ( parts.size() != 2 ) {
-								throw std::runtime_error( "invalid cron field devider" );
-							}
-							modulo = std::stoi( parts[1] );
-							subexpression = parts[0];
+						// Determine the values that are valid for each field by parsing the field and
+						// filling an array with valid values.
+						std::vector<std::string> subexpressions;
+						if ( fields[field].find( "," ) != std::string::npos ) {
+							subexpressions = stringSplit( fields[field], ',' );
+						} else {
+							subexpressions.push_back( fields[field] );
 						}
 
-						if ( subexpression.find( "-" ) != std::string::npos ) {
-							auto parts = stringSplit( subexpression, '-' );
-							if ( parts.size() != 2 ) {
-								throw std::runtime_error( "invalid cron field range" );
-							}
-							start = std::stoi( parts[0] );
-							end = std::stoi( parts[1] );
-						} else if (
-							subexpression != "*"
-							&& modulo == 0
-						) {
-							start = std::stoi( subexpression );
-							end = start;
-						}
+						std::vector<unsigned int> rangeitems;
 
-						for ( unsigned int index = start; index <= end; index++ ) {
-							if ( modulo > 0 ) {
-								int remainder = index % modulo;
-								if ( subexpression == "*" ) {
-									if ( 0 == remainder ) {
+						for ( auto& subexpression : subexpressions ) {
+							unsigned int start = extremes[field].first;
+							unsigned int end = extremes[field].second;
+							unsigned int modulo = 0;
+
+							if ( subexpression.find( "/" ) != std::string::npos ) {
+								auto parts = stringSplit( subexpression, '/' );
+								if ( parts.size() != 2 ) {
+									throw std::runtime_error( "invalid cron field devider" );
+								}
+								modulo = std::stoi( parts[1] );
+								subexpression = parts[0];
+							}
+
+							if ( subexpression.find( "-" ) != std::string::npos ) {
+								auto parts = stringSplit( subexpression, '-' );
+								if ( parts.size() != 2 ) {
+									throw std::runtime_error( "invalid cron field range" );
+								}
+								start = std::stoi( parts[0] );
+								end = std::stoi( parts[1] );
+							} else if (
+								subexpression != "*"
+								&& modulo == 0
+							) {
+								start = std::stoi( subexpression );
+								end = start;
+							}
+
+							for ( unsigned int index = start; index <= end; index++ ) {
+								if ( modulo > 0 ) {
+									int remainder = index % modulo;
+									if ( subexpression == "*" ) {
+										if ( 0 == remainder ) {
+											rangeitems.push_back( index );
+										}
+									} else if ( remainder == std::stoi( subexpression ) ) {
 										rangeitems.push_back( index );
 									}
-								} else if ( remainder == std::stoi( subexpression ) ) {
+								} else {
 									rangeitems.push_back( index );
 								}
-							} else {
-								rangeitems.push_back( index );
+							}
+						}
+
+						time_t rawtime;
+						time( &rawtime );
+						struct tm* timeinfo;
+						timeinfo = localtime( &rawtime );
+
+						unsigned int current;
+						switch( field ) {
+							case 0: current = timeinfo->tm_min; break;
+							case 1: current = timeinfo->tm_hour; break;
+							case 2: current = timeinfo->tm_mday; break;
+							case 3: current = timeinfo->tm_mon + 1; break;
+							case 4: current = timeinfo->tm_wday == 0 ? 7 : timeinfo->tm_wday; break;
+						}
+
+						if ( std::find( rangeitems.begin(), rangeitems.end(), current ) == rangeitems.end() ) {
+							run = false;
+						}
+
+						// If this field didn't match there's no need to investigate the other fields.
+						if ( ! run ) {
+							break;
+						}
+					}
+
+					if ( run ) {
+						
+						// First run the scripts that are associated with this timer.
+						json data = (*timerIt);
+						auto scripts = g_database->getQuery(
+							"SELECT s.`id`, s.`name`, s.`code` "
+							"FROM `x_timer_scripts` x, `scripts` s "
+							"WHERE x.`script_id`=s.`id` "
+							"AND x.`timer_id`=%q "
+							"AND s.`enabled`=1 "
+							"ORDER BY s.`id` ASC",
+							(*timerIt)["id"].c_str()
+						);
+						if ( scripts.size() > 0 ) {
+							this->_runScripts( "timer", data, scripts );
+						}
+						
+						// Then update the devices that are associated with this timer.
+						auto devices = g_database->getQuery(
+							"SELECT x.`device_id`, x.`value` "
+							"FROM `x_timer_devices` x, `devices` d "
+							"WHERE x.`device_id`=d.`id` "
+							"AND x.`timer_id`=%q "
+							"AND d.`enabled`=1 "
+							"ORDER BY d.`id` ASC",
+							(*timerIt)["id"].c_str()
+						);
+						if ( devices.size() > 0 ) {
+							for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+								auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
+								TaskOptions options = { 0, 0, 1, 0, false, false };
+								switch( device->getType() ) {
+									case Device::Type::COUNTER:
+										this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::LEVEL:
+										this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::SWITCH:
+										this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::TEXT:
+										this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
+								}
 							}
 						}
 					}
 
-					time_t rawtime;
-					time( &rawtime );
-					struct tm* timeinfo;
-					timeinfo = localtime( &rawtime );
+				} catch( std::exception ex_ ) {
 
-					unsigned int current;
-					switch( field ) {
-						case 0: current = timeinfo->tm_min; break;
-						case 1: current = timeinfo->tm_hour; break;
-						case 2: current = timeinfo->tm_mday; break;
-						case 3: current = timeinfo->tm_mon + 1; break;
-						case 4: current = timeinfo->tm_wday == 0 ? 7 : timeinfo->tm_wday; break;
-					}
-
-					if ( std::find( rangeitems.begin(), rangeitems.end(), current ) == rangeitems.end() ) {
-						run = false;
-					}
-
-					// If this field didn't match there's no need to investigate the other fields.
-					if ( ! run ) {
-						break;
-					}
-				}
-
-				if ( run ) {
-					
-					// First run the scripts that are associated with this timer.
-					json data = (*timerIt);
-					auto scripts = g_database->getQuery(
-						"SELECT s.`id`, s.`name`, s.`code` "
-						"FROM `x_timer_scripts` x, `scripts` s "
-						"WHERE x.`script_id`=s.`id` "
-						"AND x.`timer_id`=%q "
-						"AND s.`enabled`=1 "
-						"ORDER BY s.`id` ASC",
-						(*timerIt)["id"].c_str()
+					// Something went wrong while parsing the cron string. The timer is marked as disabled.
+					g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
+					g_database->putQuery(
+						"UPDATE `timers` "
+						"SET `enabled`=0 "
+						"WHERE `id`=%q",
+						(*timerIt).at( "id" ).c_str()
 					);
-					if ( scripts.size() > 0 ) {
-						this->_runScripts( "timer", data, scripts );
-					}
-					
-					// Then update the devices that are associated with this timer.
-					auto devices = g_database->getQuery(
-						"SELECT x.`device_id`, x.`value` "
-						"FROM `x_timer_devices` x, `devices` d "
-						"WHERE x.`device_id`=d.`id` "
-						"AND x.`timer_id`=%q "
-						"AND d.`enabled`=1 "
-						"ORDER BY d.`id` ASC",
-						(*timerIt)["id"].c_str()
-					);
-					if ( devices.size() > 0 ) {
-						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
-							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
-							TaskOptions options = { 0, 0, 1, 0, false, false };
-							switch( device->getType() ) {
-								case Device::Type::COUNTER:
-									this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::LEVEL:
-									this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::SWITCH:
-									this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::TEXT:
-									this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-									break;
-							}
-						}
-					}
 				}
-
-			} catch( std::exception ex_ ) {
-
-				// Something went wrong while parsing the cron string. The timer is marked as disabled.
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
-				g_database->putQuery(
-					"UPDATE `timers` "
-					"SET `enabled`=0 "
-					"WHERE `id`=%q",
-					(*timerIt).at( "id" ).c_str()
-				);
 			}
 		}
 	};

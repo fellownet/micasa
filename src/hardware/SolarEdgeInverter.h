@@ -18,13 +18,10 @@ namespace micasa {
 		std::string getLabel() const override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-		
 	private:
 		bool m_first = true;
 		
-		void _processHttpReply( const std::string& body_ );
+		void _process( const std::string& body_ );
 		
 	}; // class SolarEdgeInverter
 	

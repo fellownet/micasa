@@ -1,3 +1,6 @@
+#include <atomic>
+#include <algorithm>
+
 #include "Counter.h"
 
 #include "../Logger.h"
@@ -32,7 +35,7 @@ namespace micasa {
 
 	Counter::Counter( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) : Device( hardware_, id_, reference_, label_, enabled_ ) {
 		try {
-			this->m_value = g_database->getQueryValue<Counter::t_value>(
+			this->m_value = this->m_rateLimiter.value = g_database->getQueryValue<Counter::t_value>(
 				"SELECT `value` "
 				"FROM `device_counter_history` "
 				"WHERE `device_id`=%d "
@@ -41,16 +44,19 @@ namespace micasa {
 				this->m_id
 			);
 		} catch( const Database::NoResultsException& ex_ ) {
+			// A counter device always needs a starting point.
+			this->m_value = this->m_rateLimiter.value = 0;
 			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
+		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
+		static std::atomic<unsigned int> offset( 0 );
+		offset += ( 1000 * 11 ); // 11 seconds interval
+		this->m_scheduler.schedule( system_clock::now() + milliseconds( SCHEDULER_INTERVAL_5MIN + ( offset % SCHEDULER_INTERVAL_5MIN ) ), SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
 			this->_processTrends();
-			return true;
 		} );
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<bool>& ) -> bool {
+		this->m_scheduler.schedule( system_clock::now() + milliseconds( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ) ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
-			return true;
 		} );
 	};
 
@@ -80,10 +86,9 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<bool>& task_ ) -> bool {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 						this->m_rateLimiter.last = task_.time;
-						return true;
 					} );
 				}
 			} else {
@@ -96,7 +101,7 @@ namespace micasa {
 	};
 
 	void Counter::incrementValue( const Device::UpdateSource& source_, const t_value& value_ ) {
-		this->updateValue( source_, this->m_value + value_ );
+		this->updateValue( source_, std::max( this->m_value, this->m_rateLimiter.value ) + value_ );
 	};
 	
 	json Counter::getJson( bool full_ ) const {

@@ -19,7 +19,6 @@ set( SRC
 	src/micasa.cpp
 	src/Utils.cpp
 	src/Arguments.cpp
-	src/Worker.cpp
 	src/Scheduler.cpp
 	src/Controller.cpp
 	src/Logger.cpp
@@ -34,7 +33,6 @@ set( SRC
 
 	# hardware
 	src/hardware/RFXCom.cpp
-	src/hardware/P1Meter.cpp
 	src/hardware/SolarEdge.cpp
 	src/hardware/SolarEdgeInverter.cpp
 	src/hardware/WeatherUnderground.cpp

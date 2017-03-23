@@ -8,12 +8,11 @@
 
 #include "Device.h"
 #include "Settings.h"
-#include "Worker.h"
 #include "Scheduler.h"
 
 namespace micasa {
 
-	class Hardware : public Worker, public std::enable_shared_from_this<Hardware> {
+	class Hardware : public std::enable_shared_from_this<Hardware> {
 
 	public:
 		enum class Type: unsigned short {
@@ -26,7 +25,6 @@ namespace micasa {
 			PIFACE,
 			PIFACE_BOARD,
 #endif // _WITH_LINUX_SPI
-			P1_METER,
 			RFXCOM,
 			SOLAREDGE,
 			SOLAREDGE_INVERTER,
@@ -57,8 +55,6 @@ namespace micasa {
 		
 		friend std::ostream& operator<<( std::ostream& out_, const Hardware* hardware_ ) { out_ << hardware_->getName(); return out_; }
 
-		// This is the preferred way of creating a hardware instance of a specific type. Hence the protected
-		// constructor.
 		static std::shared_ptr<Hardware> factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 
 		virtual void start();
@@ -88,20 +84,18 @@ namespace micasa {
 		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
 		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
 		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) { };
-
 		virtual std::string getLabel() const =0;
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 
 	protected:
-		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
-
 		const unsigned int m_id;
 		const Type m_type;
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
 		std::shared_ptr<Settings<Hardware> > m_settings;
-		
 		Scheduler m_scheduler;
+
+		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 
 		// The queuePendingUpdate and it's counterpart _releasePendingUpdate methods can be used to queue an update
 		// so that subsequent updates are blocked until the update has been confirmed by the hardware. It also makes
