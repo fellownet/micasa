@@ -39,7 +39,7 @@ namespace micasa {
 		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
 		static std::atomic<unsigned int> offset( 0 );
 		offset += ( 1000 * 11 ); // 11 seconds interval
-		this->m_scheduler.schedule( system_clock::now() + milliseconds( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ) ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 	};

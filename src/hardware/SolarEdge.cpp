@@ -19,7 +19,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -48,7 +48,9 @@ namespace micasa {
 	
 	void SolarEdge::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->m_scheduler.erase();
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 
@@ -68,6 +70,7 @@ namespace micasa {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -75,6 +78,7 @@ namespace micasa {
 			{ "name", "site_id" },
 			{ "label", "Site ID" },
 			{ "type", "string" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};

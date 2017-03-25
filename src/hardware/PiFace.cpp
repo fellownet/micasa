@@ -88,11 +88,9 @@ namespace micasa {
 	
 	void PiFace::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		
 		if ( this->getState() == Hardware::State::READY ) {
 			close( this->m_fd );
 		}
-		
 		Hardware::stop();
 	};
 

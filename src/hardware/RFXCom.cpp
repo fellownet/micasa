@@ -86,14 +86,12 @@ namespace micasa {
 
 	void RFXCom::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-
 		try {
 			this->m_serial->close();
 		} catch( Serial::SerialException exception_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
 		}
 		this->m_serial = nullptr;
-
 		Hardware::stop();
 	};
 
@@ -112,7 +110,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};

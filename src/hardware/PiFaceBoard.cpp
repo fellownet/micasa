@@ -75,14 +75,16 @@ namespace micasa {
 
 		this->setState( Hardware::State::READY );
 
-		this->m_scheduler.schedule( PIFACEBOARD_PROCESS_INTERVAL_MSEC, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& task_ ) {
+		this->m_scheduler.schedule( PIFACEBOARD_PROCESS_INTERVAL_MSEC, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& task_ ) {
 			this->_process( task_.iteration );
 		} );
 	};
 	
 	void PiFaceBoard::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->m_scheduler.erase();
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 

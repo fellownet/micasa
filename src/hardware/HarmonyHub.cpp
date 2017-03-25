@@ -32,6 +32,9 @@ namespace micasa {
 			this->m_connectionState = ConnectionState::CLOSED;
 			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
 		}
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 
@@ -51,7 +54,7 @@ namespace micasa {
 			{ "name", "address" },
 			{ "label", "Address" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "address" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -61,7 +64,7 @@ namespace micasa {
 			{ "type", "short" },
 			{ "min", "1" },
 			{ "max", "65536" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -183,7 +186,7 @@ namespace micasa {
 		this->setState( Hardware::State::FAILED );
 
 		// Try to reconnect automatically in 1 minute if the connection was unexpectedly dropped.
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& ) {
 			this->_connect();
 		} );
 	};

@@ -213,7 +213,7 @@ namespace micasa {
 		result += setting;
 
 		// Child hardware is enabled and disabled by it's parent.
-		if ( this->getParent() != nullptr ) {
+		if ( this->getParent() == nullptr ) {
 			setting = {
 				{ "name", "enabled" },
 				{ "label", "Enabled" },

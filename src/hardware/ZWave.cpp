@@ -41,7 +41,7 @@ namespace micasa {
 	unsigned int ZWave::g_managerWatchers = 0;
 
 	void ZWave::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		g_logger->log( Logger::LogLevel::NORMAL, this, "Starting..." );
 		Hardware::start();
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
@@ -162,7 +162,7 @@ namespace micasa {
 	};
 
 	void ZWave::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopping..." );
 
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		Manager::Get()->RemoveWatcher( micasa_openzwave_notification_handler, this );
@@ -203,7 +203,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -230,15 +230,19 @@ namespace micasa {
 		if ( device_->getType() == Device::Type::SWITCH ) {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-			
-				if (
-					this->getState() != Hardware::State::READY
-					|| ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) == false
-				) {
+
+				if ( this->getState() != Hardware::State::READY ) {
+					g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+					return false;
+				}
+
+				if ( ! ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
 					return false;
 				}
-			
+
+				std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+				
 				if ( device->getReference() == "heal" ) {
 					
 					Manager::Get()->HealNetwork( this->m_homeId, true );
@@ -248,8 +252,9 @@ namespace micasa {
 
 					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, NULL, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );
 							}
 						} );
@@ -261,8 +266,9 @@ namespace micasa {
 
 					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, NULL, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );
 							}
 						} );
@@ -271,7 +277,6 @@ namespace micasa {
 					}
 				}
 
-				ZWave::g_managerMutex.unlock();
 				return true;
 			}
 		}

@@ -23,7 +23,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -52,7 +52,9 @@ namespace micasa {
 	
 	void WeatherUnderground::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->m_scheduler.erase();
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 
@@ -83,7 +85,7 @@ namespace micasa {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "api_key" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 97 }
 		};
@@ -91,6 +93,7 @@ namespace micasa {
 			{ "name", "location" },
 			{ "label", "Location" },
 			{ "type", "string" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -98,7 +101,7 @@ namespace micasa {
 			{ "name", "scale" },
 			{ "label", "Scale" },
 			{ "type", "list" },
-			{ "class", this->m_settings->contains( "scale" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 },
 			{ "options", {
@@ -183,6 +186,12 @@ namespace micasa {
 						this->declareDevice<Switch>( "6", "Daytime in " + this->m_settings->get( "location" ), {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, value );
+						this->declareDevice<Level>( "7", "Sunrise in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, sunrise );
+						this->declareDevice<Level>( "8", "Sunset in " + this->m_settings->get( "location" ), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+						} )->updateValue( Device::UpdateSource::HARDWARE, sunset );
 					}
 
 					this->setState( Hardware::State::READY );

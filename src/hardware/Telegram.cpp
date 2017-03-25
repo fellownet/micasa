@@ -35,6 +35,9 @@ namespace micasa {
 	void Telegram::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 
@@ -63,7 +66,7 @@ namespace micasa {
 					} else {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
 						this->m_acceptMode = true;
-						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, NULL, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this]( Scheduler::Task<>& ) {
 							this->m_acceptMode = false;
 							g_logger->log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
 						} );
@@ -149,7 +152,7 @@ namespace micasa {
 			{ "name", "token" },
 			{ "label", "Token" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "token" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -171,7 +174,8 @@ namespace micasa {
 		std::weak_ptr<Telegram> ptr = std::static_pointer_cast<Telegram>( this->shared_from_this() );
 		if ( identify_ ) {
 			url << "/getMe";
-			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, url.str() );
+			this->m_connection = Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
 				auto me = ptr.lock();
 				if ( me ) {
 					if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -182,7 +186,7 @@ namespace micasa {
 							json data = json::parse( body );
 							bool success = data["ok"].get<bool>();
 							if ( ! success ) {
-								throw std::runtime_error( "Telegram API reported a failure" );
+								throw std::runtime_error( data["description"].get<std::string>() + "." );
 							}
 
 							me->m_username = data["result"]["username"].get<std::string>();
@@ -214,7 +218,8 @@ namespace micasa {
 			if ( this->m_lastUpdateId > -1 ) {
 				params["offset"] = this->m_lastUpdateId + 1;
 			}
-			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+			g_logger->log( Logger::LogLevel::DEBUG, this, url.str() );
+			this->m_connection = Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
 				auto me = ptr.lock();
 				if ( me ) {
 					if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -225,7 +230,7 @@ namespace micasa {
 							json data = json::parse( body );
 							bool success = data["ok"].get<bool>();
 							if ( ! success ) {
-								throw std::runtime_error( "Telegram API reported a failure" );
+								throw std::runtime_error( data["description"].get<std::string>() + "." );
 							}
 
 							auto find = data.find( "result" );
@@ -254,11 +259,14 @@ namespace micasa {
 						}
 						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 
-					}  else if (
-						event_ == MG_EV_CLOSE
-						&& me->getState() == Hardware::State::READY
-					) {
-						me->_connect( false );
+					}  else if ( event_ == MG_EV_CLOSE ) {
+						if ( me->getState() == Hardware::State::READY ) {
+							me->_connect( false );
+						} else {
+							me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me.get(), [me]( Scheduler::Task<>& ) {
+								me->_connect( true );
+							} );
+						}
 					}
 				} else {
 					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;

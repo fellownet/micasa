@@ -765,14 +765,17 @@ namespace micasa {
 									if ( hardware->getState() == Hardware::State::DISABLED ) {
 										hardware->start();
 									}
+									/*
+									DISABLED > hardware should take care of starting it's children > remove this
 									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
 										if (
 											(*hardwareIt)->getParent() == hardware
-											&& ! (*hardwareIt)->getState() == Hardware::State::DISABLED
+											&& (*hardwareIt)->getState() == Hardware::State::DISABLED
 										) {
 											(*hardwareIt)->start();
 										}
 									}
+									*/
 								}
 							} ).detach();
 							output_["code"] = 200;

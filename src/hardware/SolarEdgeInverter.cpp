@@ -29,7 +29,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 		
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -65,7 +65,9 @@ namespace micasa {
 	
 	void SolarEdgeInverter::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->m_scheduler.erase();
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		Hardware::stop();
 	};
 

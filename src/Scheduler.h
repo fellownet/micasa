@@ -134,6 +134,10 @@ namespace micasa {
 			return task;
 		};
 
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, data_, std::move( func_ ) );
+		};
+
 		void erase( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 		std::shared_ptr<BaseTask> first( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 		void proceed( unsigned long wait_, std::shared_ptr<BaseTask> task_ );
