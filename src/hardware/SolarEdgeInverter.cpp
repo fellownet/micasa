@@ -23,7 +23,6 @@ namespace micasa {
 	
 	void SolarEdgeInverter::start() {
 #ifdef _DEBUG
-		assert( this->getParent()->getState() == Hardware::State::READY && "Parent PiFace hardware should be ready when child hardware is started." );
 		assert( this->m_settings->contains( { "api_key", "site_id", "serial" } ) && "SolarEdgeInverter should be declared with mandatory settings." );
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );

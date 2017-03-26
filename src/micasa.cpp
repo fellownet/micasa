@@ -95,7 +95,7 @@ int main( int argc_, char* argv_[] ) {
 	g_controller->start();
 	g_webServer->start();
 
-	while ( ! g_shutdown ) 	{
+	while ( ! g_shutdown ) {
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 	}
 

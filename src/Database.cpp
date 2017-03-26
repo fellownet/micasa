@@ -32,9 +32,6 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( g_logger && "Global Logger instance should be destroyed after global Database instances." );
 #endif // _DEBUG
-
-		this->putQuery( "VACUUM" );
-
 		int result = sqlite3_close( this->m_connection );
 		if ( SQLITE_OK == result ) {
 			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );

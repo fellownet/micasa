@@ -362,22 +362,26 @@ namespace micasa {
 		auto trends = g_database->getQuery(
 			"SELECT MAX(`value`) AS `max`, MIN(`value`) AS `min`, AVG(`value`) AS `average`, strftime(%Q, MAX(`date`)) AS `date` "
 			"FROM `device_level_history` "
-			"WHERE `device_id`=%d AND `Date` > datetime('now','-4 hour') "
+			"WHERE `device_id`=%d AND `Date` > datetime('now','-5 hour') "
 			"GROUP BY strftime(%Q, `date`)",
 			hourFormat.c_str(),
 			this->m_id,
 			groupFormat.c_str()
 		);
+		// NOTE the first group is skipped because the select query starts somewhere in the middle of the interval and
+		// the diff value is therefore incorrect.
 		for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
-			g_database->putQuery(
-				"REPLACE INTO `device_level_trends` (`device_id`, `min`, `max`, `average`, `date`) "
-				"VALUES (%d, %.6lf, %.6lf, %.6lf, %Q)",
-				this->m_id,
-				std::stod( (*trendsIt)["min"] ),
-				std::stod( (*trendsIt)["max"] ),
-				std::stod( (*trendsIt)["average"] ),
-				(*trendsIt)["date"].c_str()
-			);
+			if ( trendsIt != trends.begin() ) {
+				g_database->putQuery(
+					"REPLACE INTO `device_level_trends` (`device_id`, `min`, `max`, `average`, `date`) "
+					"VALUES (%d, %.6lf, %.6lf, %.6lf, %Q)",
+					this->m_id,
+					std::stod( (*trendsIt)["min"] ),
+					std::stod( (*trendsIt)["max"] ),
+					std::stod( (*trendsIt)["average"] ),
+					(*trendsIt)["date"].c_str()
+				);
+			}
 		}
 	};
 
