@@ -27,6 +27,7 @@ set( SRC
 	src/WebServer.cpp
 	src/Hardware.cpp
 	src/Device.cpp
+	src/Device2.cpp
 	src/User.cpp
 	src/Settings.cpp
 	src/Database.cpp

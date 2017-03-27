@@ -60,7 +60,7 @@ namespace micasa {
 		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
 		static std::atomic<unsigned int> offset( 0 );
 		offset += ( 1000 * 11 ); // 11 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, "switch purge", [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 	};
@@ -91,7 +91,7 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, [this]( Scheduler::Task<>& task_ ) {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, "switch ratelimiter", [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 						this->m_rateLimiter.last = task_.time;
 					} );

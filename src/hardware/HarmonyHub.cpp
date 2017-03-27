@@ -187,7 +187,7 @@ namespace micasa {
 		this->setState( FAILED );
 
 		// Try to reconnect automatically in 1 minute if the connection was unexpectedly dropped.
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, "harmonyhub reconnect", [this]( Scheduler::Task<>& ) {
 			this->_connect();
 		} );
 	};

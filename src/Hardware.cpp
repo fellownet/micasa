@@ -31,6 +31,8 @@
 #include "hardware/Dummy.h"
 #include "hardware/Telegram.h"
 
+#include "Device2.h"
+
 namespace micasa {
 
 	using namespace std::chrono;
@@ -144,6 +146,30 @@ namespace micasa {
 				devicesDataIt.at( "enabled" ) == "1"
 			);
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
+
+			std::shared_ptr<DeviceBase> device2;
+			if ( devicesDataIt.at( "type" ) == "counter" ) {
+				device2 = std::make_shared<Device2<Counter2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
+			} else if ( devicesDataIt.at( "type" ) == "level" ) {
+				device2 = std::make_shared<Device2<Level2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
+			} else if ( devicesDataIt.at( "type" ) == "switch" ) {
+				device2 = std::make_shared<Device2<Switch2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
+			} else if ( devicesDataIt.at( "type" ) == "text" ) {
+				device2 = std::make_shared<Device2<Text2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
+			}
+
+			std::cout << device2->getJson() << "\n";
+
+			/*
+			Switch2 poe(
+					this->shared_from_this(),
+					std::stoi( devicesDataIt.at( "id" ) ),
+					devicesDataIt.at( "reference" ),
+					devicesDataIt.at( "label" ),
+					devicesDataIt.at( "enabled" ) == "1"
+
+			);
+			*/
 		}
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
@@ -381,7 +407,7 @@ namespace micasa {
 			pendingUpdate == nullptr
 			|| pendingUpdate->waitFor( blockNewUpdate_ )
 		) {
-			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, NULL, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
+			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, NULL, "pending update", [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
 				std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 				this->m_pendingUpdates.erase( reference_ );
 				return { source_, data_ };

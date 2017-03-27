@@ -10,9 +10,8 @@
 #define PIFACEBOARD_TOGGLE_WAIT_MSEC       1500 // how long between toggles
 #define PIFACEBOARD_MIN_COUNTER_PULSE_MSEC 100 // the minimum duration of a counter pulse
 #define PIFACEBOARD_PROCESS_INTERVAL_MSEC  20
-
-#define PIFACEBOARD_PORT_INPUT      0
-#define PIFACEBOARD_PORT_OUTPUT     1
+#define PIFACEBOARD_PORT_INPUT             0
+#define PIFACEBOARD_PORT_OUTPUT            1
 
 namespace micasa {
 

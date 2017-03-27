@@ -66,7 +66,7 @@ namespace micasa {
 					} else {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
 						this->m_acceptMode = true;
-						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, "telegram accept mode off", [this]( Scheduler::Task<>& ) {
 							this->m_acceptMode = false;
 							g_logger->log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
 						} );
@@ -263,7 +263,7 @@ namespace micasa {
 						if ( me->getState() == READY ) {
 							me->_connect( false );
 						} else {
-							me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me.get(), [me]( Scheduler::Task<>& ) {
+							me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me.get(), "telegram retry", [me]( Scheduler::Task<>& ) {
 								me->_connect( true );
 							} );
 						}

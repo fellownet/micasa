@@ -53,6 +53,14 @@ namespace micasa {
 			thread.join();
 		}
 #ifdef _DEBUG
+		if ( this->m_start != nullptr ) {
+			auto position = this->m_start;
+			do {
+				std::cout << position->name << "\n";
+				position = position->m_next;
+			} while( position != this->m_start );
+		}
+
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		assert( this->m_start == nullptr && "All tasks should be purged when ThreadPool is destructed." );
 		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed." );

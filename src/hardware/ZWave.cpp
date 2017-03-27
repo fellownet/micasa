@@ -252,7 +252,7 @@ namespace micasa {
 
 					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave inclusion mode off", [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );
@@ -266,7 +266,7 @@ namespace micasa {
 
 					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave exclusion mode off", [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );

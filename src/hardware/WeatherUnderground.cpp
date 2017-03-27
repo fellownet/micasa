@@ -23,7 +23,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, "weatherunderground", [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( FAILED );
@@ -200,7 +200,7 @@ namespace micasa {
 					}
 
 					this->setState( READY );
-					this->m_scheduler.schedule( 1000 * 10, 1, NULL, [this]( Scheduler::Task<>& ) -> void {
+					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground retry", [this]( Scheduler::Task<>& ) -> void {
 						this->setState( SLEEPING );
 					} );
 

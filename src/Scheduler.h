@@ -43,13 +43,15 @@ namespace micasa {
 			unsigned long repeat;
 			unsigned long iteration;
 			void* data;
+			std::string name;
 
-			BaseTask( Scheduler* scheduler_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
+			BaseTask( Scheduler* scheduler_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_ ) :
 				time( time_ ),
 				delay( delay_ ),
 				repeat( repeat_ ),
 				iteration( 0 ),
 				data( data_ ),
+				name( name_ ),
 				m_scheduler( scheduler_ )
 			{
 			};
@@ -75,8 +77,8 @@ namespace micasa {
 		public:
 			typedef std::function<T(Task<T>&)> t_taskFunc;
 
-			Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
-				BaseTask( scheduler_, time_, delay_, repeat_, data_ ),
+			Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_ ) :
+				BaseTask( scheduler_, time_, delay_, repeat_, data_, name_ ),
 				m_func( std::move( func_ ) ),
 				m_first( true )
 			{
@@ -122,20 +124,20 @@ namespace micasa {
 		Scheduler( const Scheduler& ) = delete; // Do not copy!
 		Scheduler& operator=( const Scheduler& ) = delete; // Do not copy-assign!
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_, name_ );
 			Scheduler::ThreadPool::get().schedule( std::static_pointer_cast<BaseTask>( task ) );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), time_, delay_, repeat_, data_ );
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), time_, delay_, repeat_, data_, name_ );
 			Scheduler::ThreadPool::get().schedule( task );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, data_, std::move( func_ ) );
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_, typename Task<V>::t_taskFunc&& func_ ) {
+			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, data_, name_, std::move( func_ ) );
 		};
 
 		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
@@ -219,8 +221,8 @@ namespace micasa {
 	public:
 		typedef std::function<void(Task<void>&)> t_taskFunc;
 
-		Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
-			BaseTask( scheduler_, time_, delay_, repeat_, data_ ),
+		Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, const std::string& name_ ) :
+			BaseTask( scheduler_, time_, delay_, repeat_, data_, name_ ),
 			m_func( std::move( func_ ) ),
 			m_first( true )
 		{

@@ -243,7 +243,7 @@ namespace micasa {
 			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
 			udev_monitor_enable_receiving( this->m_udevMonitor );
 
-			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, this, "udev", [this]( Scheduler::Task<>& ) {
 				udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
 				if ( dev ) {
 					std::string port = std::string( udev_device_get_devnode( dev ) );
@@ -265,7 +265,7 @@ namespace micasa {
 		// to make sure the whole minute has passed.
 		auto now = system_clock::now();
 		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, NULL, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, "timers", [this]( Scheduler::Task<>& ) {
 			this->_runTimers();
 		} );
 
@@ -577,7 +577,7 @@ namespace micasa {
 		typename D::t_value currentValue = device_->getValue();
 		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
 			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,value_]( Scheduler::Task<>& ) {
 				auto targetDevice = device.lock();
 				if ( targetDevice ) {
 					targetDevice->updateValue( source, value_ );
@@ -592,7 +592,7 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( delay, 1, device_.get(), "event for", [device,source,currentValue]( Scheduler::Task<>& ) {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, currentValue );

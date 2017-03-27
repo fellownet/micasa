@@ -19,7 +19,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, "solaredge", [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( FAILED );
@@ -122,7 +122,7 @@ namespace micasa {
 					)->start();
 				}
 				this->setState( READY );
-				this->m_scheduler.schedule( 1000 * 10, 1, NULL, [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, NULL, "solaredge retry", [this]( Scheduler::Task<>& ) -> void {
 					this->setState( SLEEPING );
 				} );
 				return true;
