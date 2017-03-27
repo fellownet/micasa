@@ -26,25 +26,29 @@ namespace micasa {
 		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-				this->setState( Hardware::State::FAILED );
+				this->setState( FAILED );
 				return;
 			}
 
 			std::stringstream url;
 			url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
 
-			Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					std::string body;
-					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-					this->_process( body );
-					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-				}  else if (
-					event_ == MG_EV_CLOSE
-					&& this->getState() == Hardware::State::INIT
-				) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-					this->setState( Hardware::State::FAILED );
+			std::weak_ptr<WeatherUnderground> ptr = std::static_pointer_cast<WeatherUnderground>( this->shared_from_this() );
+			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+				auto me = ptr.lock();
+				if ( me ) {
+					if ( event_ == MG_EV_HTTP_REPLY ) {
+						std::string body;
+						body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+						me->_process( body );
+						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+					}  else if (
+						event_ == MG_EV_CLOSE
+						&& me->getState() == INIT
+					) {
+						g_logger->log( Logger::LogLevel::ERROR, me, "Connection failure." );
+						me->setState( FAILED );
+					}
 				}
 			} ) );
 		} );
@@ -81,11 +85,12 @@ namespace micasa {
 
 	json WeatherUnderground::getSettingsJson() const {
 		json result = Hardware::getSettingsJson();
+		Hardware::State state = this->getState();
 		result += {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 97 }
 		};
@@ -93,7 +98,7 @@ namespace micasa {
 			{ "name", "location" },
 			{ "label", "Location" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -101,7 +106,7 @@ namespace micasa {
 			{ "name", "scale" },
 			{ "label", "Scale" },
 			{ "type", "list" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 },
 			{ "options", {
@@ -194,20 +199,23 @@ namespace micasa {
 						} )->updateValue( Device::UpdateSource::HARDWARE, sunset );
 					}
 
-					this->setState( Hardware::State::READY );
+					this->setState( READY );
+					this->m_scheduler.schedule( 1000 * 10, 1, NULL, [this]( Scheduler::Task<>& ) -> void {
+						this->setState( SLEEPING );
+					} );
 
 				} else {
 					if (
 						data["response"]["error"].is_object()
 						&& ! data["response"]["error"]["description"].is_null()
 					) {
-						this->setState( Hardware::State::FAILED );
+						this->setState( FAILED );
 						g_logger->log( Logger::LogLevel::ERROR, this, data["response"]["error"]["description"].get<std::string>() );
 					}
 				}
 			}
 		} catch( ... ) {
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
 		}
 	};

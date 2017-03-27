@@ -21,7 +21,9 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 
 	private:
-		void _process( const std::string& body_ );
+		std::shared_ptr<Scheduler::Task<> > m_task;
+
+		bool _process( const std::string& body_ );
 		
 	}; // class SolarEdge
 

@@ -37,7 +37,7 @@ namespace micasa {
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 
-		this->setState( READY );
+		this->setState( SLEEPING );
 	}
 	
 	void Dummy::stop() {

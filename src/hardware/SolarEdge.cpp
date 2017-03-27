@@ -19,28 +19,38 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-				this->setState( Hardware::State::FAILED );
+				this->setState( FAILED );
+				this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 				return;
 			}
 
 			std::stringstream url;
 			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/list?api_key=" << this->m_settings->get( "api_key" );
-			
-			Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					std::string body;
-					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-					this->_process( body );
-					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-				} else if (
-					event_ == MG_EV_CLOSE
-					&& this->getState() == Hardware::State::INIT
-				) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-					this->setState( Hardware::State::FAILED );
+		
+			// A weak pointer to this is captured into the connection handler to make sure the handler doesn't keep the
+			// hardware from being destroyed by the controller.
+			std::weak_ptr<SolarEdge> ptr = std::static_pointer_cast<SolarEdge>( this->shared_from_this() );
+			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+				auto me = ptr.lock();
+				if ( me ) {
+					if ( event_ == MG_EV_HTTP_REPLY ) {
+						std::string body;
+						body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+						if ( ! me->_process( body ) ) {
+							me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me->m_task );	
+						}
+						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+					} else if (
+						event_ == MG_EV_CLOSE
+						&& me->getState() == INIT
+					) {
+						g_logger->log( Logger::LogLevel::ERROR, me, "Connection failure." );
+						me->setState( FAILED );
+						me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me->m_task );
+					}
 				}
 			} ) );
 		} );
@@ -66,11 +76,12 @@ namespace micasa {
 
 	json SolarEdge::getSettingsJson() const {
 		json result = Hardware::getSettingsJson();
+		Hardware::State state = this->getState();
 		result += {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -78,14 +89,14 @@ namespace micasa {
 			{ "name", "site_id" },
 			{ "label", "Site ID" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
 		return result;
 	};
 
-	void SolarEdge::_process( const std::string& body_ ) {
+	bool SolarEdge::_process( const std::string& body_ ) {
 		try {
 			json data = json::parse( body_ );
 			if (
@@ -110,12 +121,17 @@ namespace micasa {
 						true
 					)->start();
 				}
-				this->setState( Hardware::State::READY );
+				this->setState( READY );
+				this->m_scheduler.schedule( 1000 * 10, 1, NULL, [this]( Scheduler::Task<>& ) -> void {
+					this->setState( SLEEPING );
+				} );
+				return true;
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 		}
+		return false;
 	};
 	
 }; // namespace micasa

@@ -202,8 +202,8 @@ namespace micasa {
 
 				std::shared_ptr<ZWave> parent = std::static_pointer_cast<ZWave>( this->m_parent );
 				if (
-					this->getState() != Hardware::State::READY
-					|| parent->getState() == Hardware::State::READY
+					this->getState() != READY
+					|| parent->getState() == READY
 					|| ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) == false
 				) {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
@@ -224,11 +224,11 @@ namespace micasa {
 		if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 			std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
-			if ( this->getState() != Hardware::State::READY ) {
-				if ( this->getState() == Hardware::State::FAILED ) {
+			if ( this->getState() != READY ) {
+				if ( this->getState() == FAILED ) {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
 					return false;
-				} else if ( this->getState() == Hardware::State::SLEEPING ) {
+				} else if ( this->getState() == SLEEPING ) {
 					g_logger->log( Logger::LogLevel::WARNING, this, "Node is sleeping." );
 					// fallthrough, event can be sent regardless of sleeping state.
 				} else {
@@ -299,9 +299,9 @@ namespace micasa {
 		switch( notification_->GetType() ) {
 
 			case Notification::Type_EssentialNodeQueriesComplete: {
-				if ( this->getState() == Hardware::State::INIT ) {
+				if ( this->getState() == INIT ) {
 					g_logger->log( Logger::LogLevel::NORMAL, this, "Node ready." );
-					this->setState( Hardware::State::READY );
+					this->setState( READY );
 				}
 				this->_updateNames();
 				break;
@@ -316,7 +316,7 @@ namespace micasa {
 			case Notification::Type_ValueChanged: {
 				ValueID valueId = notification_->GetValueID();
 				Device::UpdateSource source = Device::UpdateSource::HARDWARE;
-				if ( this->getParent()->getState() != Hardware::State::READY ) {
+				if ( this->getParent()->getState() != READY ) {
 					source |= Device::UpdateSource::INIT;
 				}
 				this->_processValue( valueId, source );
@@ -334,29 +334,29 @@ namespace micasa {
 			case Notification::Type_Notification: {
 				switch( notification_->GetNotification() ) {
 					case Notification::Code_Alive: {
-						if ( this->getState() == Hardware::State::FAILED ) {
+						if ( this->getState() == FAILED ) {
 							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is alive again." );
 						}
 						this->_updateNames();
-						this->setState( Hardware::State::READY );
+						this->setState( READY );
 						break;
 					}
 					case Notification::Code_Dead: {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Node is dead." );
-						this->setState( Hardware::State::FAILED );
+						this->setState( FAILED );
 						break;
 					}
 					case Notification::Code_Awake: {
-						if ( this->getState() == Hardware::State::SLEEPING ) {
+						if ( this->getState() == SLEEPING ) {
 							g_logger->log( Logger::LogLevel::NORMAL, this, "Node is awake again." );
 						}
-						this->setState( Hardware::State::READY );
+						this->setState( READY );
 						this->_updateNames();
 						break;
 					}
 					case Notification::Code_Sleep: {
 						g_logger->log( Logger::LogLevel::NORMAL, this, "Node is asleep." );
-						this->setState( Hardware::State::SLEEPING );
+						this->setState( SLEEPING );
 						break;
 					}
 					case Notification::Code_Timeout: {

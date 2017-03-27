@@ -69,26 +69,26 @@ namespace micasa {
 				}
 
 				if ( detected > 0 ) {
-					this->setState( Hardware::State::READY );
+					this->setState( READY );
 				} else {
 					g_logger->log( Logger::LogLevel::ERROR, this, "No PiFaces were found." );
-					this->setState( Hardware::State::FAILED );
+					this->setState( FAILED );
 					close( this->m_fd );
 				}
 			} else {
 				g_logger->log( Logger::LogLevel::ERROR, this, "SPI device configuration failure." );
-				this->setState( Hardware::State::FAILED );
+				this->setState( FAILED );
 				close( this->m_fd );
 			}
 		} else {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to open SPI device." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 		}
 	};
 	
 	void PiFace::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		if ( this->getState() == Hardware::State::READY ) {
+		if ( this->getState() == READY ) {
 			close( this->m_fd );
 		}
 		Hardware::stop();

@@ -66,7 +66,7 @@ namespace micasa {
 		}
 		this->m_portState[0] = this->m_portState[1] = 0;
 
-		this->setState( Hardware::State::READY );
+		this->setState( READY );
 
 		this->m_shutdown = false;
 		this->m_worker = std::thread( [this]() -> void {

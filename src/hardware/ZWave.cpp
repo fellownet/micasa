@@ -46,7 +46,7 @@ namespace micasa {
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			return;
 		}
 
@@ -87,7 +87,7 @@ namespace micasa {
 			|| ! Manager::Get()->AddDriver( this->m_settings->get( "port" ) )
 		) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to initialize OpenZWave manager." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			return;
 		}
 
@@ -110,10 +110,10 @@ namespace micasa {
 				Manager::Get()->RemoveDriver( serialPort_ );
 				this->m_port.clear();
 				
-				this->setState( Hardware::State::DISCONNECTED );
+				this->setState( DISCONNECTED );
 				auto children = g_controller->getChildrenOfHardware( *this );
 				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( Hardware::State::DISCONNECTED );
+					(*childrenIt)->setState( DISCONNECTED );
 				}
 
 				g_logger->log( Logger::LogLevel::WARNING, this, "Disconnected." );
@@ -126,17 +126,17 @@ namespace micasa {
 			if (
 				action_ == "add"
 				&& (
-					this->getState() == Hardware::State::DISCONNECTED
-					|| this->getState() == Hardware::State::FAILED
+					this->getState() == DISCONNECTED
+					|| this->getState() == FAILED
 				)
 				&& Manager::Get()->AddDriver( serialPort_ )
 			) {
 				this->m_port = serialPort_;
 			
-				this->setState( Hardware::State::INIT );
+				this->setState( INIT );
 				auto children = g_controller->getChildrenOfHardware( *this );
 				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( Hardware::State::INIT );
+					(*childrenIt)->setState( INIT );
 				}
 			
 				g_logger->log( Logger::LogLevel::VERBOSE, this, "Device added." );
@@ -203,7 +203,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", this->getState() == READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -231,7 +231,7 @@ namespace micasa {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
-				if ( this->getState() != Hardware::State::READY ) {
+				if ( this->getState() != READY ) {
 					g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
 					return false;
 				}
@@ -302,7 +302,7 @@ namespace micasa {
 			auto node = std::static_pointer_cast<ZWaveNode>( g_controller->getHardware( reference.str() ) );
 			if (
 				node != nullptr
-				&& node->getState() != Hardware::State::DISABLED
+				&& node->getState() != DISABLED
 			) {
 				node->_handleNotification( notification_ );
 			}
@@ -328,7 +328,7 @@ namespace micasa {
 				}
 
 				case Notification::Type_DriverFailed: {
-					this->setState( Hardware::State::FAILED );
+					this->setState( FAILED );
 					if ( this->m_port == this->m_settings->get( "port" ) ) {
 						g_logger->log( Logger::LogLevel::ERROR, this, "Driver failed." );
 					}
@@ -340,7 +340,7 @@ namespace micasa {
 				case Notification::Type_AwakeNodesQueried:
 				case Notification::Type_AllNodesQueried:
 				case Notification::Type_AllNodesQueriedSomeDead: {
-					this->setState( Hardware::State::READY );
+					this->setState( READY );
 					
 					// At this point we're going to instruct all nodes to report their configuration parameters.
 					g_logger->logr( Logger::LogLevel::WARNING, this, "Requesting all node configuration parameters." );

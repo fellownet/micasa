@@ -31,7 +31,7 @@ namespace micasa {
 		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
 				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-				this->setState( Hardware::State::FAILED );
+				this->setState( FAILED );
 				return;
 			}
 
@@ -58,10 +58,10 @@ namespace micasa {
 						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 					} else if (
 						event_ == MG_EV_CLOSE
-						&& me->getState() == Hardware::State::INIT
+						&& me->getState() == INIT
 					) {
 						g_logger->log( Logger::LogLevel::ERROR, me, "Connection failure." );
-						me->setState( Hardware::State::FAILED );
+						me->setState( FAILED );
 					}
 				}
 			} ) );
@@ -130,11 +130,14 @@ namespace micasa {
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}
 
-				this->setState( Hardware::State::SLEEPING );
+				this->setState( READY );
+				this->m_scheduler.schedule( 1000 * 10, 1, NULL, [this]( Scheduler::Task<>& ) -> void {
+					this->setState( SLEEPING );
+				} );
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 		}
 	};
 	

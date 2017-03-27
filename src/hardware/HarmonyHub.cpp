@@ -50,11 +50,12 @@ namespace micasa {
 
 	json HarmonyHub::getSettingsJson() const {
 		json result = Hardware::getSettingsJson();
+		Hardware::State state = this->getState();
 		result += {
 			{ "name", "address" },
 			{ "label", "Address" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -64,7 +65,7 @@ namespace micasa {
 			{ "type", "short" },
 			{ "min", "1" },
 			{ "max", "65536" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", state == READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -74,7 +75,7 @@ namespace micasa {
 	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
-		if ( this->getState() != Hardware::State::READY ) {
+		if ( this->getState() != READY ) {
 			return false;
 		}
 
@@ -124,7 +125,7 @@ namespace micasa {
 #endif // _DEBUG
 		if ( ! this->m_settings->contains( { "address", "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			return;
 		}
 
@@ -183,7 +184,7 @@ namespace micasa {
 		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
 		this->m_connectionState = ConnectionState::CLOSED;
 		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		this->setState( Hardware::State::FAILED );
+		this->setState( FAILED );
 
 		// Try to reconnect automatically in 1 minute if the connection was unexpectedly dropped.
 		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& ) {
@@ -286,7 +287,7 @@ namespace micasa {
 							// After the activities have been recieved we're putting the connection in idle state. At this
 							// point changes in activities can be received and processed.
 							this->m_connectionState = ConnectionState::IDLE;
-							this->setState( Hardware::State::READY );
+							this->setState( READY );
 						} else {
 							this->_disconnect( "Malformed activities data." );
 							break;

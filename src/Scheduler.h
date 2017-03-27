@@ -138,6 +138,26 @@ namespace micasa {
 			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, data_, std::move( func_ ) );
 		};
 
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+			task_->time = std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ );
+			task_->delay = delay_;
+			task_->repeat = repeat_;
+			Scheduler::ThreadPool::get().schedule( task_ );
+			return task_;
+		};
+
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+			task_->time = time_;
+			task_->delay = delay_;
+			task_->repeat = repeat_;
+			Scheduler::ThreadPool::get().schedule( task_ );
+			return task_;
+		};
+
+		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, task_ );
+		};
+
 		void erase( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 		std::shared_ptr<BaseTask> first( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 		void proceed( unsigned long wait_, std::shared_ptr<BaseTask> task_ );

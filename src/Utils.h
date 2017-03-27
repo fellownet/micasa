@@ -92,7 +92,7 @@ namespace micasa {
 //	std::string decrypt64( const std::string& input_, const std::string& publicKey_ );
 
 #define ENUM_UTIL_BASE(E) \
-typedef std::underlying_type<E>::type E ## _t; \
+typedef typename std::underlying_type<E>::type E ## _t; \
 friend inline E operator|( E a_, E b_ )    { return static_cast<E>( static_cast<E ## _t>( a_ ) | static_cast<E ## _t>( b_ ) ); }; \
 friend inline E operator&( E a_, E b_ )    { return static_cast<E>( static_cast<E ## _t>( a_ ) & static_cast<E ## _t>( b_ ) ); }; \
 friend inline E operator^( E a_, E b_ )    { return static_cast<E>( static_cast<E ## _t>( a_ ) ^ static_cast<E ## _t>( b_ ) ); }; \

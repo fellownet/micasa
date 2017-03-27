@@ -52,7 +52,7 @@ namespace micasa {
 	};
 
 	bool Telegram::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() == Hardware::State::READY ) {
+		if ( this->getState() == READY ) {
 			if ( device_->getType() == Device::Type::SWITCH ) {
 
 				// This part takes care of temprarely enabling the accept new chats mode.
@@ -152,7 +152,7 @@ namespace micasa {
 			{ "name", "token" },
 			{ "label", "Token" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", this->getState() == READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -162,7 +162,7 @@ namespace micasa {
 	void Telegram::_connect( bool identify_ ) {
 		if ( ! this->m_settings->contains( { "token" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			return;
 		}
 
@@ -190,19 +190,19 @@ namespace micasa {
 							}
 
 							me->m_username = data["result"]["username"].get<std::string>();
-							me->setState( Hardware::State::READY );
+							me->setState( READY );
 						} catch( std::invalid_argument ex_ ) {
 							g_logger->log( Logger::LogLevel::ERROR, me, "Invalid data received from the Telegram API." );
-							me->setState( Hardware::State::FAILED );
+							me->setState( FAILED );
 						} catch( std::runtime_error ex_ ) {
 							g_logger->log( Logger::LogLevel::ERROR, me, ex_.what() );
-							me->setState( Hardware::State::FAILED );
+							me->setState( FAILED );
 						}
 						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 
 					} else if (
 						event_ == MG_EV_CLOSE
-						&& me->getState() == Hardware::State::READY
+						&& me->getState() == READY
 					) {
 						me->_connect( false );
 					}
@@ -252,15 +252,15 @@ namespace micasa {
 
 						} catch( std::invalid_argument ex_ ) {
 							g_logger->log( Logger::LogLevel::ERROR, me, "Invalid data received from the Telegram API." );
-							me->setState( Hardware::State::FAILED );
+							me->setState( FAILED );
 						} catch( std::runtime_error ex_ ) {
 							g_logger->log( Logger::LogLevel::ERROR, me, ex_.what() );
-							me->setState( Hardware::State::FAILED );
+							me->setState( FAILED );
 						}
 						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
 
 					}  else if ( event_ == MG_EV_CLOSE ) {
-						if ( me->getState() == Hardware::State::READY ) {
+						if ( me->getState() == READY ) {
 							me->_connect( false );
 						} else {
 							me->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, me.get(), [me]( Scheduler::Task<>& ) {

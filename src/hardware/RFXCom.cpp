@@ -24,7 +24,7 @@ namespace micasa {
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 			return;
 		}
 
@@ -71,10 +71,10 @@ namespace micasa {
 
 		try {
 			this->m_serial->open();
-			this->setState( Hardware::State::READY );
+			this->setState( READY );
 		} catch( Serial::SerialException exception_ ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
-			this->setState( Hardware::State::FAILED );
+			this->setState( FAILED );
 		}
 
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
@@ -110,7 +110,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
+			{ "class", this->getState() == READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -263,7 +263,7 @@ namespace micasa {
 	};
 
 	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() != Hardware::State::READY ) {
+		if ( this->getState() != READY ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
 			return false;
 		}
