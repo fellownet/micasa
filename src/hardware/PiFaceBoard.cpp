@@ -7,10 +7,6 @@
 
 #include "../device/Switch.h"
 
-#ifdef _DEBUG
-	#include <cassert>
-#endif // _DEBUG
-
 namespace micasa {
 
 	extern std::shared_ptr<Logger> g_logger;
@@ -19,9 +15,6 @@ namespace micasa {
 	using namespace nlohmann;
 	
 	void PiFaceBoard::start() {
-#ifdef _DEBUG
-		assert( this->getParent()->getState() == Hardware::State::READY && "Parent PiFace hardware should be ready when child hardware is started." );
-#endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
@@ -75,16 +68,22 @@ namespace micasa {
 
 		this->setState( Hardware::State::READY );
 
-		this->m_scheduler.schedule( PIFACEBOARD_PROCESS_INTERVAL_MSEC, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& task_ ) {
-			this->_process( task_.iteration );
+		this->m_shutdown = false;
+		this->m_worker = std::thread( [this]() -> void {
+			unsigned long iteration = 0;
+			while ( ! this->m_shutdown ) {
+				this->_process( ++iteration );
+				std::this_thread::sleep_for( std::chrono::milliseconds( PIFACEBOARD_PROCESS_INTERVAL_MSEC ) );
+			}
 		} );
 	};
 	
 	void PiFaceBoard::stop() {
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
-			return task_.data == this;
-		} );
+		this->m_shutdown = true;
+		if ( this->m_worker.joinable() ) {
+			this->m_worker.join();
+		}
 		Hardware::stop();
 	};
 

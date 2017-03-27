@@ -6,7 +6,6 @@
 #include <chrono>
 
 #include "Settings.h"
-#include "Settings.h"
 #include "Utils.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
@@ -27,6 +26,20 @@ namespace micasa {
 	class Device : public std::enable_shared_from_this<Device> {
 		
 	public:
+		/*
+		typedef double t_counterValue;
+		typedef double t_levelValue;
+		typedef std::string t_switchValue;
+		typedef std::string t_textValue;
+
+		typedef union {
+			t_counterValue counterval;
+			t_levelValue levelval;
+			t_switchValue switchval;
+			t_textValue textval;
+		} t_value;
+		*/
+
 		enum class Type: unsigned short {
 			COUNTER = 1,
 			LEVEL,

@@ -33,6 +33,8 @@ namespace micasa {
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
 
 	private:
+		volatile bool m_shutdown = true;
+		std::thread m_worker;
 		std::shared_ptr<PiFace> m_parent;
 		unsigned char m_devId;
 		unsigned char m_portState[2];

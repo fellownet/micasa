@@ -378,7 +378,7 @@ namespace micasa {
 						g_controller->declareHardware( Hardware::Type::ZWAVE_NODE, reference.str(), this->shared_from_this(), {
 							{ "home_id", std::to_string( homeId ) },
 							{ "node_id", std::to_string( nodeId ) }
-						}, true /* auto start */ );
+						}, true )->start();
 					}
 				}
 
