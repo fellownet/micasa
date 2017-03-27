@@ -23,7 +23,6 @@ namespace micasa {
 	
 	void SolarEdgeInverter::start() {
 #ifdef _DEBUG
-		assert( this->getParent()->getState() == Hardware::State::READY && "Parent PiFace hardware should be ready when child hardware is started." );
 		assert( this->m_settings->contains( { "api_key", "site_id", "serial" } ) && "SolarEdgeInverter should be declared with mandatory settings." );
 #endif // _DEBUG
 		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
@@ -46,18 +45,24 @@ namespace micasa {
 			std::stringstream url;
 			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
 			
-			Network::get().connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					std::string body;
-					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-					this->_process( body );
-					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-				} else if (
-					event_ == MG_EV_CLOSE
-					&& this->getState() == Hardware::State::INIT
-				) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Connection failure." );
-					this->setState( Hardware::State::FAILED );
+			// A weak pointer to this is captured into the connection handler to make sure the handler doesn't keep the
+			// hardware from being destroyed by the controller.
+			std::weak_ptr<SolarEdgeInverter> ptr = std::static_pointer_cast<SolarEdgeInverter>( this->shared_from_this() );
+			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
+				auto me = ptr.lock();
+				if ( me ) {
+					if ( event_ == MG_EV_HTTP_REPLY ) {
+						std::string body;
+						body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
+						me->_process( body );
+						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
+					} else if (
+						event_ == MG_EV_CLOSE
+						&& me->getState() == Hardware::State::INIT
+					) {
+						g_logger->log( Logger::LogLevel::ERROR, me, "Connection failure." );
+						me->setState( Hardware::State::FAILED );
+					}
 				}
 			} ) );
 		} );
@@ -125,7 +130,7 @@ namespace micasa {
 					device->updateValue( source, telemetry["temperature"].get<double>() );
 				}
 
-				this->setState( Hardware::State::READY );
+				this->setState( Hardware::State::SLEEPING );
 			}
 		} catch( ... ) {
 			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
