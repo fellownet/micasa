@@ -111,7 +111,7 @@ namespace micasa {
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Counter::resolveSubType( Counter::SubType::ENERGY ) },
 						{ DEVICE_SETTING_DEFAULT_UNIT,           Counter::resolveUnit( Counter::Unit::KILOWATTHOUR ) }
 					} );
-					device->updateValue( source, telemetry["totalEnergy"].get<int>() );
+					device->updateValue( source, telemetry["totalEnergy"].get<int>() / 1000. );
 				}
 				if ( ! telemetry["dcVoltage"].empty() ) {
 					auto device = this->declareDevice<Level>( this->getReference() + "(DC)", "DC voltage", {

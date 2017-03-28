@@ -147,6 +147,7 @@ namespace micasa {
 			);
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
 
+			/*
 			std::shared_ptr<DeviceBase> device2;
 			if ( devicesDataIt.at( "type" ) == "counter" ) {
 				device2 = std::make_shared<Device2<Counter2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
@@ -157,19 +158,8 @@ namespace micasa {
 			} else if ( devicesDataIt.at( "type" ) == "text" ) {
 				device2 = std::make_shared<Device2<Text2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
 			}
-
-			std::cout << device2->getJson() << "\n";
-
-			/*
-			Switch2 poe(
-					this->shared_from_this(),
-					std::stoi( devicesDataIt.at( "id" ) ),
-					devicesDataIt.at( "reference" ),
-					devicesDataIt.at( "label" ),
-					devicesDataIt.at( "enabled" ) == "1"
-
-			);
 			*/
+
 		}
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.

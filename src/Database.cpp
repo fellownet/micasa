@@ -1,3 +1,5 @@
+// https://blogs.gnome.org/jnelson/2015/01/06/sqlite-vacuum-and-auto_vacuum/
+
 #include <memory>
 
 #ifdef _DEBUG
@@ -349,6 +351,7 @@ namespace micasa {
 		this->putQuery( "PRAGMA synchronous=NORMAL" );
 		this->putQuery( "PRAGMA foreign_keys=ON" );
 		
+		g_logger->log( Logger::LogLevel::NORMAL, this, "Optimizing database." );
 		this->putQuery( "VACUUM" );
 		
 		unsigned int version = this->getQueryValue<unsigned int>( "PRAGMA user_version" );

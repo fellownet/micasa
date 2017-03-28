@@ -27,7 +27,7 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 	public loading: boolean = false;
 	public error: String;
 	public devices: Device[];
-
+	
 	@Input() public hardware?: Hardware; // gets set when used from the hardware edit component
 	@Input() public parent?: Hardware;
 	@Input() public script?: Script; // gets set when used from scripts

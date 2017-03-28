@@ -1,17 +1,21 @@
 import {
 	Component,
-	OnInit
-}                            from '@angular/core';
+	OnInit,
+	ViewChild
+}                               from '@angular/core';
 import {
 	Router,
 	ActivatedRoute
-}                            from '@angular/router';
+}                               from '@angular/router';
 
 import {
 	Hardware,
 	HardwareService
-}                            from './hardware.service';
-import { Device }            from '../devices/devices.service';
+}                               from './hardware.service';
+import {
+	Device, DevicesService
+}                               from '../devices/devices.service';
+import { DevicesListComponent } from '../devices/list.component';
 
 @Component( {
 	templateUrl: 'tpl/hardware-edit.html'
@@ -27,10 +31,13 @@ export class HardwareEditComponent implements OnInit {
 	public hasAdvancedSettings: boolean = false;
 	public hasActionDevices: boolean = false;
 
+	@ViewChild('devicesList') private _devicesListComponent: DevicesListComponent;
+
 	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
-		private _hardwareService: HardwareService
+		private _hardwareService: HardwareService,
+		private _devicesService: DevicesService
 	) {
 	};
 
@@ -96,9 +103,19 @@ export class HardwareEditComponent implements OnInit {
 		var me = this;
 		me.loading = true;
 		this._hardwareService.performAction( me.hardware, action_ )
+			.mergeMap( function( success_: boolean ) {
+				me.loading = false;
+				me._devicesListComponent.loading = true;
+				return me._devicesService.getDevices( me.hardware.id );
+
+			} )
+			// TODO once the websocket code is in place the device list should update itself, optionally
+			// highlighting the row that has changed.
+			.delay( new Date( Date.now() + 500 ) )
 			.subscribe(
-				function( success_: boolean ) {
-					me.loading = false;
+				function( devices_: Device[] ) {
+					me._devicesListComponent.devices = devices_;
+					me._devicesListComponent.loading = false;
 				},
 				function( error_: string ) {
 					me.error = error_;
