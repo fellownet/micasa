@@ -14,17 +14,17 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-
 	using namespace nlohmann;
 
+	const char* RFXCom::label = "RFXCom";
+
 	void RFXCom::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			this->setState( Hardware::State::FAILED );
 			return;
 		}
 
@@ -52,14 +52,14 @@ namespace micasa {
 					this->m_packetPosition++;
 
 					if ( this->m_packetPosition >= sizeof( this->m_packet ) - 1 ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
 						this->m_packetPosition = 0;
 					}
 
 					// The first (accepted) byte should contain the length of the packet.
 					if ( this->m_packetPosition > this->m_packet[0] ) {
 						if ( false == this->_processPacket() ) {
-							g_logger->logr( Logger::LogLevel::ERROR, this, "Error while processing packet." );
+							Logger::logr( Logger::LogLevel::ERROR, this, "Error while processing packet." );
 						}
 						this->m_packetPosition = 0;
 					}
@@ -71,25 +71,25 @@ namespace micasa {
 
 		try {
 			this->m_serial->open();
-			this->setState( READY );
+			this->setState( Hardware::State::READY );
 		} catch( Serial::SerialException exception_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
-			this->setState( FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+			this->setState( Hardware::State::FAILED );
 		}
 
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void RFXCom::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		try {
 			this->m_serial->close();
 		} catch( Serial::SerialException exception_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
+			Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 		}
 		this->m_serial = nullptr;
 		Hardware::stop();
@@ -110,7 +110,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->getState() == READY ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -263,8 +263,8 @@ namespace micasa {
 	};
 
 	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() != READY ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
+		if ( this->getState() != Hardware::State::READY ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
 			return false;
 		}
 
@@ -278,10 +278,10 @@ namespace micasa {
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 				this->declareDevice<Switch>( randomString( 16 ), "Switch", {
 					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 					{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-				} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+				} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 				return true;
 			}
 		}
@@ -322,7 +322,7 @@ namespace micasa {
 				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
 				return true;
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Hardware busy." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Hardware busy." );
 				return false;
 			}
 
@@ -350,7 +350,7 @@ namespace micasa {
 				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
 				return true;
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Hardware busy." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Hardware busy." );
 				return false;
 			}
 		}
@@ -367,7 +367,7 @@ namespace micasa {
 		BYTE type = ((BYTE*)&this->m_packet)[1];
 		BYTE subtype = ((BYTE*)&this->m_packet)[2];
 		if ( length < 1 ) {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Invalid packet received." );
+			Logger::log( Logger::LogLevel::WARNING, this, "Invalid packet received." );
 			return false;
 		}
 
@@ -437,7 +437,7 @@ namespace micasa {
 				break;
 		}
 
-		g_logger->logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
+		Logger::logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
 		return true;
 	};
 
@@ -458,9 +458,9 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(T)", "Temperature", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::CELSIUS ) },
 			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
 			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
@@ -472,9 +472,9 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(H)", "Humidity", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::HUMIDITY ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) },
 			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
 			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
@@ -501,7 +501,7 @@ namespace micasa {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
 			this->declareDevice<Switch>( reference, "Switch", {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
 				{ "rfx_type", "lighting2" },
 				{ "rfx_subtype", (unsigned int)packet_->LIGHTING2.subtype },

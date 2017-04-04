@@ -18,7 +18,7 @@ namespace micasa {
 	class PiFaceBoard final : public Hardware {
 
 	public:
-		static const constexpr char* label = "PiFace Board";
+		static const char* label;
 
 		PiFaceBoard( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~PiFaceBoard() { };
@@ -32,7 +32,7 @@ namespace micasa {
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
 
 	private:
-		volatile bool m_shutdown = true;
+		std::atomic<bool> m_shutdown;
 		std::thread m_worker;
 		std::shared_ptr<PiFace> m_parent;
 		unsigned char m_devId;

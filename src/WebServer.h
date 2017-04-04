@@ -6,8 +6,13 @@
 #include <vector>
 
 #include "Utils.h"
+#include "Network.h"
 
 #include "json.hpp"
+
+#include <openssl/bio.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
 
 extern "C" {
 	#include "mongoose.h"
@@ -41,7 +46,8 @@ namespace micasa {
 			// v Return available methods for resource or collection
 			OPTIONS = 64
 		}; // enum class Method
-		ENUM_UTIL( Method );
+		static const std::map<Method, std::string> MethodText;
+		ENUM_UTIL_W_TEXT( Method, MethodText );
 		
 		typedef std::function<void( std::shared_ptr<User> user_, const nlohmann::json& input_, const Method& method_, nlohmann::json& output_ )> t_callback;
 		
@@ -77,8 +83,10 @@ namespace micasa {
 	private:
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
 		mutable std::mutex m_resourcesMutex;
+		std::shared_ptr<Network::Connection> m_bind;
 
 #ifdef _WITH_OPENSSL
+		std::shared_ptr<Network::Connection> m_bindSecure;
 		X509* m_certificate;
 		EVP_PKEY* m_key; // private key
 
@@ -87,7 +95,7 @@ namespace micasa {
 #endif
 		std::string _hash( const std::string& data_ ) const;
 
-		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
+		void _processRequest( Network::Connection& connection_, const std::string& data_ );
 		
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();

@@ -8,7 +8,6 @@
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 
 	using namespace std::chrono;
@@ -39,7 +38,12 @@ namespace micasa {
 		{ Switch::Option::ACTIVATE, "Activate" },
 	};
 	
-	Switch::Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) : Device( hardware_, id_, reference_, label_, enabled_ ) {
+	Switch::Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		Device( hardware_, id_, reference_, label_, enabled_ ),
+		m_value( Option::OFF ),
+		m_previousValue( Option::OFF ),
+		m_rateLimiter( { Option::OFF, Device::resolveUpdateSource( 0 ), system_clock::now() } )
+	{
 		try {
 			std::string value = g_database->getQueryValue<std::string>(
 				"SELECT `value` "
@@ -49,40 +53,43 @@ namespace micasa {
 				"LIMIT 1",
 				this->m_id
 			);
-			this->m_value = Switch::resolveOption( value );
+			this->m_value = Switch::resolveTextOption( value );
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
 				this->m_value = Switch::Option::IDLE;
 			}
 		} catch( const Database::NoResultsException& ex_ ) {
-			g_logger->log( Logger::LogLevel::DEBUG, this, "No starting value." );
+			Logger::log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
+	};
 
+	void Switch::_init() {
 		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
 		static std::atomic<unsigned int> offset( 0 );
 		offset += ( 1000 * 11 ); // 11 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, NULL, "switch purge", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "switch purge", [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 	};
 
 	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
-			auto configured = Device::resolveUpdateSource( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) );
-			auto requested = Device::resolveUpdateSource( source_ );
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid update source (%d vs %d).", configured, requested );
+			Logger::log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return;
 		}
 
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
 			&& this->m_value == value_
-			&& static_cast<unsigned short>( source_ & Device::UpdateSource::INIT ) == 0
+			&& this->getHardware()->getState() == Hardware::State::READY
 		) {
-			g_logger->log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
 		}
 
-		if ( this->m_settings->contains( "rate_limit" ) ) {
+		if (
+			this->m_settings->contains( "rate_limit" )
+			&& this->getHardware()->getState() == Hardware::State::READY
+		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();
 			system_clock::time_point next = this->m_rateLimiter.last + milliseconds( rateLimit );
@@ -128,7 +135,7 @@ namespace micasa {
 	};
 
 	Switch::t_value Switch::getOppositeValue( const Switch::t_value& value_ ) throw() {
-		return Switch::resolveOption( Switch::getOppositeValueOption( Switch::resolveOption( value_ ) ) );
+		return Switch::resolveTextOption( Switch::getOppositeValueOption( Switch::resolveTextOption( value_ ) ) );
 	};
 
 	json Switch::getJson( bool full_ ) const {
@@ -138,13 +145,24 @@ namespace micasa {
 		
 		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
 		result["subtype"] = subtype;
-		if ( subtype == resolveSubType( Switch::SubType::BLINDS ) ) {
+		if ( subtype == resolveTextSubType( Switch::SubType::BLINDS ) ) {
 			result["inverted"] = this->m_settings->get( "inverted", false );
 		}
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
-	
+
+		try {
+			json timeProperties = g_database->getQueryRow<json>(
+				"SELECT CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `last_update`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `age` "
+				"FROM `device_switch_history` "
+				"WHERE `device_id`=%d ",
+				this->getId()
+			);
+			result["last_update"] = timeProperties["last_update"].get<unsigned long>();
+			result["age"] = timeProperties["age"].get<unsigned long>();
+		} catch( json::exception ex_ ) { }
+
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
@@ -235,26 +253,23 @@ namespace micasa {
 				"INSERT INTO `device_switch_history` (`device_id`, `value`) "
 				"VALUES (%d, %Q)",
 				this->m_id,
-				Switch::resolveOption( this->m_value ).c_str()
+				Switch::resolveTextOption( this->m_value ).c_str()
 			);
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
-			if ( this->isEnabled() ) {
+			if (
+				this->isEnabled()
+				&& this->getHardware()->getState() != Hardware::State::READY
+			) {
 				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
 				this->m_value = Switch::Option::IDLE;
-				g_logger->log( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "Activated." );
+				Logger::log( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "Activated." );
 			} else {
-				g_logger->logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
+				Logger::logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
 			}
 		} else {
 			this->m_value = previous;
-		}
-		if (
-			success
-			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
-		) {
-			this->touch();
 		}
 	};
 

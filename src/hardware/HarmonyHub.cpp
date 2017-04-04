@@ -14,27 +14,87 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-
 	using namespace nlohmann;
-	
+
+	const char* HarmonyHub::label = "Harmony Hub";
+
 	void HarmonyHub::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
-		
-		// Connect to the configured Harmony Hub. This method will set the state of the hardware.
-		this->_connect();
+
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, "harmony hub", [this]( Scheduler::Task<>& task_ ) {
+			if ( ! this->m_settings->contains( { "address", "port" } ) ) {
+				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				this->setState( Hardware::State::FAILED );
+				return;
+			}
+
+			if ( this->m_connection != nullptr ) {
+				this->m_connection->join();
+			}
+
+			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
+			this->m_connectionState = ConnectionState::IDLE;
+			this->m_connection = Network::connect( uri, [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+				switch( event_ ) {
+					case Network::Connection::Event::CONNECT: {
+						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
+
+						// Upon connecting we're immediately requesting the currently active activity.
+						std::stringstream response;
+						response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
+						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
+						connection_.send( response.str() );
+						
+						this->m_connectionState = ConnectionState::WAIT_FOR_CURRENT_ACTIVITY;
+						break;
+					}
+					case Network::Connection::Event::FAILURE: {
+						Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+						this->setState( Hardware::State::FAILED );
+						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
+						break;
+					}
+					case Network::Connection::Event::DATA: {
+						this->m_received.append( data_ );
+						if ( this->_process() ) {
+							this->m_received.clear();
+						}
+						break;
+					}
+					case Network::Connection::Event::DROPPED: {
+						Logger::log( Logger::LogLevel::WARNING, this, "Connection dropped." );
+						this->setState( Hardware::State::FAILED );
+						this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this->m_task );
+						break;
+					}
+					case Network::Connection::Event::CLOSE: {
+						Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
+						break;
+					}
+				}
+			} );
+		} );
+
+		this->m_scheduler.schedule( 1000 * HARMONY_HUB_PING_INTERVAL_SEC, SCHEDULER_INFINITE, this, "harmony hub pinger", [this]( Scheduler::Task<>& task_ ) {
+			if ( this->getState() == Hardware::State::READY ) {
+				std::stringstream response;
+				response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+				response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
+				this->m_connection->send( response.str() );
+			}
+		} );
 	};
 	
 	void HarmonyHub::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		if ( this->m_connectionState != ConnectionState::CLOSED ) {
-			this->m_connectionState = ConnectionState::CLOSED;
-			this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		}
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );
+		if ( this->m_connection != nullptr ) {
+			this->m_connection->close();
+			this->m_connection->join();
+		}
 		Hardware::stop();
 	};
 
@@ -55,7 +115,7 @@ namespace micasa {
 			{ "name", "address" },
 			{ "label", "Address" },
 			{ "type", "string" },
-			{ "class", state == READY ? "advanced" : "normal" },
+			{ "class", state >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -65,7 +125,7 @@ namespace micasa {
 			{ "type", "short" },
 			{ "min", "1" },
 			{ "max", "65536" },
-			{ "class", state == READY ? "advanced" : "normal" },
+			{ "class", state >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -75,7 +135,8 @@ namespace micasa {
 	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		apply_ = false;
 
-		if ( this->getState() != READY ) {
+		if ( this->getState() != Hardware::State::READY ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub not ready (yet)." );
 			return false;
 		}
 
@@ -86,7 +147,16 @@ namespace micasa {
 			device->getValueOption() == Switch::Option::OFF
 			&& device->getReference() == this->m_currentActivityId
 		) {
-			startActivityId = "-1"; // PowerOff
+			if ( device->getReference() == "-1" ) {
+				startActivityId = this->m_settings->get( HARMONY_HUB_LAST_ACTIVITY_SETTING, "-1" );
+				if ( startActivityId == "-1" ) {
+					Logger::log( Logger::LogLevel::WARNING, this, "Unable to start last known activity." );
+				} else {
+					Logger::logr( Logger::LogLevel::VERBOSE, this, "Starting last known activity." );
+				}
+			} else {
+				startActivityId = "-1"; // PowerOff
+			}
 		}
 		if (
 			device->getValueOption() == Switch::Option::ON
@@ -96,292 +166,164 @@ namespace micasa {
 		}
 		
 		if ( startActivityId != "" ) {
-			if ( this->_queuePendingUpdate( "hub", source_, HARMONY_HUB_BUSY_BLOCK_MSEC, HARMONY_HUB_BUSY_WAIT_MSEC ) ) {
-				if ( device->getValueOption() == Switch::Option::ON ) {
-					g_logger->logr( Logger::LogLevel::NORMAL, this, "Starting activity %s.", device_->getLabel().c_str() );
-				} else {
-					g_logger->logr( Logger::LogLevel::NORMAL, this, "Stopping activity %s.", device_->getLabel().c_str() );
-				}
-				
-				std::stringstream response;
-				response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-				response << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
-				response << startActivityId << ":timestamp=0</oa></iq>";
-				mg_send( this->m_connection, response.str().c_str(), response.str().size() );
+			if ( this->_queuePendingUpdate( "harmony_hub_" + std::to_string( this->m_id ), source_, HARMONY_HUB_BUSY_BLOCK_MSEC, HARMONY_HUB_BUSY_WAIT_MSEC ) ) {
+				std::stringstream command;
+				command << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+				command << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
+				command << startActivityId << ":timestamp=0</oa></iq>";
+				this->m_connection->send( command.str() );
 				return true;
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Harmony Hub busy." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub busy." );
 				return false;
 			}
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid activity." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Invalid activity." );
 			return false;
 		}
+
+		return true;
 	};
-	
-	void HarmonyHub::_connect() {
-#ifdef _DEBUG
-		assert( this->m_connectionState == ConnectionState::CLOSED && "HarmonyHub should not already be connected when connecting." );
-#endif // _DEBUG
-		if ( ! this->m_settings->contains( { "address", "port" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( FAILED );
-			return;
+
+	bool HarmonyHub::_process() {
+		if (
+			this->m_received.size() > 0
+			&& this->m_received.at( this->m_received.size() - 1 ) != '>'
+		) {
+			return false;
+		}
+		if ( this->m_received == "<iq/>" ) {
+			return false;
 		}
 
-		std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
-		this->m_connectionState = ConnectionState::CONNECTING;
-		
-		// A weak pointer to this is captured into the connection handler to make sure the handler doesn't keep the
-		// hardware from being destroyed by the controller.
-		std::weak_ptr<HarmonyHub> ptr = std::static_pointer_cast<HarmonyHub>( this->shared_from_this() );
-		this->m_connection = Network::get().connect( uri, Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
-			auto me = ptr.lock();
-			if ( me ) {
-				switch( event_ ) {
-					case MG_EV_CONNECT: {
-						int status = *(int*) data_;
-						if ( status == 0 ) {
-							mg_set_timer( connection_, 0 ); // clear timeout timer
-							me->_process( true );
-						} else {
-							me->_process( false );
-						}
-						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
-						break;
-					}
-					case MG_EV_RECV:
-						me->_process( true );
-						break;
-						
-					case MG_EV_POLL:
-					case MG_EV_SEND:
-						break;
-						
-					case MG_EV_TIMER: {
-#ifdef _DEBUG
-						g_logger->log( Logger::LogLevel::DEBUG, me, "Sending ping." );
-#endif // _DEBUG
-						std::stringstream send;
-						send << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-						send << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.ping\"></oa></iq>";
-						mg_send( me->m_connection, send.str().c_str(), send.str().size() );
-						mg_set_timer( me->m_connection, mg_time() + HARMONY_HUB_PING_INTERVAL_SEC );
-						break;
-					}
-						
-					default:
-						me->_process( false );
-						break;
-				}
-			} else {
-				connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-			}
-		} ) );
-	};
-
-	void HarmonyHub::_disconnect( const std::string message_ ) {
-		g_logger->log( Logger::LogLevel::ERROR, this, message_ );
-		this->m_connectionState = ConnectionState::CLOSED;
-		this->m_connection->flags |= MG_F_CLOSE_IMMEDIATELY;
-		this->setState( FAILED );
-
-		// Try to reconnect automatically in 1 minute if the connection was unexpectedly dropped.
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, "harmonyhub reconnect", [this]( Scheduler::Task<>& ) {
-			this->_connect();
-		} );
-	};
-	
-	void HarmonyHub::_process( const bool ready_ ) {
-		if ( ready_ ) {
-			
-			static std::string received;
-
-			// Tje received string is filled with the buffer and preprocessed. If incomplete- or unimportant data was
-			// received it will not (yet) be processed.
-			struct mbuf *rcvBuffer = &this->m_connection->recv_mbuf;
-			received.append( rcvBuffer->buf, rcvBuffer->len );
-			mbuf_remove( rcvBuffer, rcvBuffer->len );
-			
-			if (
-				received.size() > 0
-				&& received.at( received.size() - 1 ) != '>'
-			) {
-				return;
-			}
-			if ( received == "<iq/>" ) {
-				return;
-			}
-
-			switch( this->m_connectionState ) {
-				case ConnectionState::CLOSED: {
-					break;
-				}
-					
-				case ConnectionState::CONNECTING: {
-					// Upon connecting we're immediately requesting the currently active activity.
+		switch( this->m_connectionState ) {
+			case ConnectionState::WAIT_FOR_CURRENT_ACTIVITY: {
+				if (
+					this->m_received.find( "vnd.logitech.harmony.engine?getCurrentActivity" ) != std::string::npos
+					&& stringIsolate( this->m_received, "<![CDATA[result=", "]]>", this->m_currentActivityId )
+				) {
 					std::stringstream response;
-					response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
-					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
-					mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-					this->m_connectionState = ConnectionState::WAIT_FOR_CURRENT_ACTIVITY;
+					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
+					this->m_connection->send( response.str() );
+					this->m_connectionState = ConnectionState::WAIT_FOR_ACTIVITIES;
+				}
+				break;
+			}
+			case ConnectionState::WAIT_FOR_ACTIVITIES: {
+				std::string raw;
+				if (
+					this->m_received.find( "vnd.logitech.harmony/vnd.logitech.harmony.engine?config" ) != std::string::npos
+					&& stringIsolate( this->m_received, "<![CDATA[", "]]>", raw )
+				) {
+					try {
+						json data = json::parse( raw );
+						json activities = jsonGet<json>( data, "activity" );
+						for ( auto activityIt = activities.begin(); activityIt != activities.end(); activityIt++ ) {
+							json activity = *activityIt;
+							std::string activityId = jsonGet<std::string>( activity, "id" );
+							std::string label = jsonGet<std::string>( activity, "label" );
+							auto device = this->declareDevice<Switch>( activityId, label, {
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) }
+							} );
+							if ( activityId == this->m_currentActivityId ) {
+								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
+							} else {
+								device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+							}
+						}
+						this->m_connectionState = ConnectionState::IDLE;
+						this->setState( Hardware::State::READY );
+					} catch( json::exception ex_ ) {
+						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
+						this->m_connection->terminate(); // results in dropped vs. closed
+						break;
+					}
+				}
+			}
+			case ConnectionState::IDLE: {
+				if (
+					this->m_received.find( "vnd.logitech.ping" ) != std::string::npos
+					&& this->m_received.find( "errorcode='200'" ) == std::string::npos
+				) {
+					Logger::log( Logger::LogLevel::ERROR, this, "Invalid ping response." );
+					this->m_connection->terminate(); // results in dropped vs. closed
 					break;
 				}
 
-				case ConnectionState::WAIT_FOR_CURRENT_ACTIVITY: {
-					if (
-						received.find( "vnd.logitech.harmony.engine?getCurrentActivity" ) != std::string::npos
-						&& stringIsolate( received, "<![CDATA[result=", "]]>", this->m_currentActivityId )
-					) {
-						// When the currently active activity was received we're requesting the configuration of the
-						// hub, which includes the list of available activities.
-						std::stringstream response;
-						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
-						mg_send( this->m_connection, response.str().c_str(), response.str().size() );
-						this->m_connectionState = ConnectionState::WAIT_FOR_ACTIVITIES;
-						
-					}
-					break;
-				}
-					
-				case ConnectionState::WAIT_FOR_ACTIVITIES: {
-					std::string raw;
-					if (
-						received.find( "vnd.logitech.harmony/vnd.logitech.harmony.engine?config" ) != std::string::npos
-						&& stringIsolate( received, "<![CDATA[", "]]>", raw )
-					) {
-						json data;
-						try {
-							data = json::parse( raw );
-						} catch( std::invalid_argument ) {
-							this->_disconnect( "Malformed activities data." );
-							break;
+				std::string raw;
+				if (
+					this->m_received.find( "connect.stateDigest?notify" ) != std::string::npos
+					&& stringIsolate( this->m_received, "<![CDATA[", "]]>", raw )
+				) {
+					try {
+						json data = json::parse( raw );
+						int activityStatus = jsonGet<int>( data, "activityStatus" );
+						std::string activityId = jsonGet<std::string>( data, "activityId" );
+
+						// ActivityStatus 3 if reported just before a full poweroff on the activity that is being
+						// turned off. We're masquarading this as a full power off.
+						if ( 3 == activityStatus ) {
+							activityStatus = 0;
+							activityId = "-1";
 						}
-						
+
 						if (
-							data.find( "activity" ) != data.end()
-							&& data["activity"].is_array()
+							1 == activityStatus
+							|| 0 == activityStatus // full power off
 						) {
-							for ( auto activityIt = data["activity"].begin(); activityIt != data["activity"].end(); activityIt++ ) {
-								json activity = *activityIt;
+							Device::UpdateSource source = Device::UpdateSource::HARDWARE;
+							this->_releasePendingUpdate( "harmony_hub_" + std::to_string( this->m_id ), source );
+
+							// First switch off the current activity if it differes from the one being started.
+							if ( this->m_currentActivityId != activityId ) {
+								std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( this->m_currentActivityId ) );
 								if (
-									! activity["id"].is_null()
-									&& ! activity["label"].is_null()
+									device != nullptr
+									&& device->getValueOption() != Switch::Option::OFF
 								) {
-									std::string activityId = activity["id"].get<std::string>();
-									std::string label = activity["label"].get<std::string>();
-									if ( activityId != "-1" ) {
-										auto device = this->declareDevice<Switch>( activityId, label, {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) }
-										} );
-										if ( activityId == this->m_currentActivityId ) {
-											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::ON );
-										} else {
-											device->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
-										}
-									}
+									device->updateValue( source, Switch::Option::OFF );
 								}
 							}
-							
-							// After the activities have been recieved we're putting the connection in idle state. At this
-							// point changes in activities can be received and processed.
-							this->m_connectionState = ConnectionState::IDLE;
-							this->setState( READY );
-						} else {
-							this->_disconnect( "Malformed activities data." );
-							break;
+
+							// Then turn on the activity if it's not already on.
+							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( activityId ) );
+							if (
+								device != nullptr
+								&& device->getValueOption() != Switch::Option::ON
+							) {
+								device->updateValue( source, Switch::Option::ON );
+
+								// Store the last non-PowerOff activity in settings. This is used when the PowerOff
+								// activity is turned off directly without a specific activity.
+								if ( activityId != "-1" ) {
+									this->m_settings->put( HARMONY_HUB_LAST_ACTIVITY_SETTING, activityId );
+								}
+							}
+
+							this->m_currentActivityId = activityId;
 						}
-					}
-				}
-					
-				case ConnectionState::IDLE: {
-					// Detect and analyze ping responses.
-					if (
-						received.find( "vnd.logitech.ping" ) != std::string::npos
-						&& received.find( "errorcode='200'" ) == std::string::npos
-					) {
-						this->_disconnect( "Invalid ping response." );
+					} catch( json::exception ex_ ) {
+						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
+						this->m_connection->terminate(); // results in dropped vs. closed
 						break;
 					}
-					
-					// When the first notification of an activity change comes int we're going to lock the hub to prevent
-					// other commands from being sent during the change.
-					std::string raw;
-					if (
-						received.find( "connect.stateDigest?notify" ) != std::string::npos
-						&& stringIsolate( received, "<![CDATA[", "]]>", raw )
-					) {
-						json data;
-						try {
-							data = json::parse( raw );
-						} catch( std::invalid_argument ) {
-							this->_disconnect( "Malformed notification data." );
-							break;
-						}
-						
-						if (
-							data.find( "activityStatus" ) != data.end()
-							&& data["activityStatus"].is_number()
-						) {
-							int activityStatus = data["activityStatus"].get<int>();
-							if ( 1 == activityStatus ) {
-								// When the hardware initiates a switch the hub should also be locked from new updates
-								// while the update is pending.
-								this->_queuePendingUpdate( "hub", Device::UpdateSource::HARDWARE, 0, HARMONY_HUB_BUSY_WAIT_MSEC );
-							}
-						} else {
-							this->_disconnect( "Malformed activity status data." );
-							break;
-						}
-					}
-					
-					// Detect "startActivityFinished" events which indicate a finalized activity change.
-					std::string activityId;
-					if (
-						received.find( "startActivityFinished" ) != std::string::npos
-						&& stringIsolate( received, "activityId=", ":", activityId )
-					) {
-						// Release any pending updates and use the corresponding update source for our source.
-						Device::UpdateSource source = Device::UpdateSource::HARDWARE;
-						this->_releasePendingUpdate( "hub", source );
-
-						// Turn off the current activity when a different activity was started than the one currently
-						// active, or on full power off (=-1).
-						if (
-							activityId == "-1" // full power off
-							|| (
-								this->m_currentActivityId != "-1"
-								&& this->m_currentActivityId != activityId
-							)
-						) {
-							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( this->m_currentActivityId ) );
-							if ( device != nullptr ) {
-								device->updateValue( source, Switch::Option::OFF );
-							}
-							this->m_currentActivityId = "-1";
-						}
-						
-						// Turn the new activity on.
-						if ( activityId != "-1" ) {
-							std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( this->getDevice( activityId ) );
-							if ( device != nullptr ) {
-								device->updateValue( source, Switch::Option::ON );
-								this->m_currentActivityId = activityId;
-							}
-						}
-					}
-					break;
 				}
+
+#ifdef _DEBUG
+				std::string activityId;
+				if (
+					this->m_received.find( "startActivityFinished" ) != std::string::npos
+					&& stringIsolate( this->m_received, "activityId=", ":", activityId )
+				) {
+					assert( this->m_currentActivityId == activityId && "Activity finished notification should match currecnt active activity." );
+				}
+#endif // _DEBUG
+				break;
 			}
-			
-			received.clear();
-			
-		// If the state is already set to CLOSED the cause has already been taken care of. This can be a hardware
-		// shutdown or the _disconnect method has already ben called.
-		} else if ( this->m_connectionState != ConnectionState::CLOSED ) {
-			this->_disconnect( "Connection closed." );
 		}
+
+		return true;
 	};
 	
 }; // namespace micasa

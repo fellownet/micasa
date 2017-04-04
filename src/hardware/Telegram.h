@@ -1,17 +1,14 @@
 #pragma once
 
 #include "../Hardware.h"
-
-extern "C" {
-	#include "mongoose.h"
-} // extern "C"
+#include "../Network.h"
 
 namespace micasa {
 
 	class Telegram final : public Hardware {
 
 	public:
-		static const constexpr char* label = "Telegram Bot";
+		static const char* label;
 	
 		Telegram( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~Telegram() { };
@@ -25,13 +22,13 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 
 	private:
-		std::string m_username;
+		std::shared_ptr<Scheduler::Task<> > m_task;
+		std::shared_ptr<Network::Connection> m_connection;
+		std::string m_username = "";
 		int m_lastUpdateId = -1;
-		volatile bool m_acceptMode = false;
-		mg_connection* m_connection;
+		bool m_acceptMode = false;
 
-		void _connect( bool identify_ );
-		void _process( const nlohmann::json& message_ );
+		bool _process( const std::string& data_ );
 
 	}; // class PiFace
 

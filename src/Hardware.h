@@ -35,18 +35,18 @@ namespace micasa {
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 
-		enum State {
+		enum class State: unsigned short {
 			DISABLED = 1,
 			INIT,
-			READY,
 			FAILED,
-			SLEEPING,
-			DISCONNECTED
+			DISCONNECTED,
+			READY    = 99,
+			SLEEPING
 		}; // enum State
 		static const std::map<State, std::string> StateText;
 		ENUM_UTIL_W_TEXT( State, StateText );
 
-		static const constexpr char* settingsName = "hardware";
+		static const char* settingsName;
 
 		Hardware( const Hardware& ) = delete; // Do not copy!
 		Hardware& operator=( const Hardware& ) = delete; // Do not copy-assign!
@@ -76,14 +76,13 @@ namespace micasa {
 		std::vector<std::shared_ptr<Device> > getAllDevices( const std::string& prefix_ ) const;
 		template<class T> std::shared_ptr<T> declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
 		void removeDevice( const std::shared_ptr<Device> device_ );
-		void touch();
 
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
-		virtual void putSettingsJson( nlohmann::json& settings_ ) { };
+		virtual void putSettingsJson( const nlohmann::json& settings_ ) { };
 		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
 		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
-		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) { };
+		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& settings_ ) { };
 		virtual std::string getLabel() const =0;
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
 

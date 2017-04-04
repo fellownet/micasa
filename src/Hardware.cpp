@@ -31,15 +31,14 @@
 #include "hardware/Dummy.h"
 #include "hardware/Telegram.h"
 
-#include "Device2.h"
-
 namespace micasa {
 
 	using namespace std::chrono;
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
+
+	const char* Hardware::settingsName = "hardware";
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
 		{ Hardware::Type::HARMONY_HUB, "harmony_hub" },
@@ -71,7 +70,6 @@ namespace micasa {
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before Hardware instances." );
-		assert( g_logger && "Global Logger instance should be created before Hardware instances." );
 #endif // _DEBUG
 		this->m_settings = std::make_shared<Settings<Hardware> >( *this );
 	};
@@ -79,7 +77,6 @@ namespace micasa {
 	Hardware::~Hardware() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be destroyed after Hardware instances." );
-		assert( g_logger && "Global Logger instance should be destroyed after Hardware instances." );
 #endif // _DEBUG
 	};
 
@@ -136,7 +133,7 @@ namespace micasa {
 			this->m_id
 		);
 		for ( auto const &devicesDataIt : devicesData ) {
-			Device::Type type = Device::resolveType( devicesDataIt.at( "type" ) );
+			Device::Type type = Device::resolveTextType( devicesDataIt.at( "type" ) );
 			std::shared_ptr<Device> device = Device::factory(
 				this->shared_from_this(),
 				type,
@@ -146,27 +143,13 @@ namespace micasa {
 				devicesDataIt.at( "enabled" ) == "1"
 			);
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
-
-			/*
-			std::shared_ptr<DeviceBase> device2;
-			if ( devicesDataIt.at( "type" ) == "counter" ) {
-				device2 = std::make_shared<Device2<Counter2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
-			} else if ( devicesDataIt.at( "type" ) == "level" ) {
-				device2 = std::make_shared<Device2<Level2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
-			} else if ( devicesDataIt.at( "type" ) == "switch" ) {
-				device2 = std::make_shared<Device2<Switch2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
-			} else if ( devicesDataIt.at( "type" ) == "text" ) {
-				device2 = std::make_shared<Device2<Text2> >( this->shared_from_this(), std::stoi( devicesDataIt.at( "id" ) ), devicesDataIt.at( "reference" ), devicesDataIt.at( "label" ), devicesDataIt.at( "enabled" ) == "1" );
-			}
-			*/
-
 		}
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
 		if ( this->getState() == State::DISABLED ) {
-			this->setState( INIT );
+			this->setState( Hardware::State::INIT );
 		}
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
 	void Hardware::stop() {
@@ -177,7 +160,7 @@ namespace micasa {
 		if ( this->getState() != State::DISABLED ) {
 			this->setState( State::DISABLED );
 		}
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
 	std::string Hardware::getName() const {
@@ -196,14 +179,8 @@ namespace micasa {
 			{ "label", this->getLabel() },
 			{ "name", this->getName() },
 			{ "enabled", this->getState() != Hardware::State::DISABLED },
-			{ "type", Hardware::resolveType( this->m_type ) },
-			{ "state", Hardware::resolveState( this->m_state ) },
-			{ "last_update", g_database->getQueryValue<unsigned long>(
-				"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) "
-				"FROM `hardware` "
-				"WHERE `id`=%d ",
-				this->getId()
-			) }
+			{ "type", Hardware::resolveTextType( this->m_type ) },
+			{ "state", Hardware::resolveTextState( this->m_state ) }
 		};
 		if ( this->m_parent ) {
 			result["parent"] = this->m_parent->getJson( false );
@@ -325,26 +302,6 @@ namespace micasa {
 		}
 	};
 
-	void Hardware::touch() {
-		if ( this->m_parent ) {
-			g_database->putQuery(
-				"UPDATE `hardware` "
-				"SET `updated`=datetime('now') "
-				"WHERE `id`=%d "
-				"OR `id`=%d ",
-				this->getId(),
-				this->m_parent->getId()
-			);
-		} else {
-			g_database->putQuery(
-				"UPDATE `hardware` "
-				"SET `updated`=datetime('now') "
-				"WHERE `id`=%d ",
-				this->getId()
-			);
-		}
-	};
-
 	template<class T> std::shared_ptr<T> Hardware::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ ) {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		try {
@@ -369,7 +326,7 @@ namespace micasa {
 			"VALUES ( %d, %Q, %Q, %Q, 0 )",
 			this->m_id,
 			reference_.c_str(),
-			Device::resolveType( T::type ).c_str(),
+			Device::resolveTextType( T::type ).c_str(),
 			label_.c_str()
 		);
 		std::shared_ptr<T> device = std::static_pointer_cast<T>( Device::factory( this->shared_from_this(), T::type, id, reference_, label_, false ) );

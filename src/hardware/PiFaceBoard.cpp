@@ -9,13 +9,13 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-	
 	using namespace std::chrono;
 	using namespace nlohmann;
 	
+	const char* PiFaceBoard::label = "PiFace Board";
+
 	void PiFaceBoard::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
 		// The parent has an open file descriptor to the SPI device which we need easy access to.
@@ -51,14 +51,14 @@ namespace micasa {
 		for ( unsigned short i = 0; i < 8; i++ ) {
 			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_OUTPUT ), "Output " + std::to_string( i ), {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+			} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_INPUT ), "Input " + std::to_string( i ), {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+			} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 
 			this->m_inputs[i] = false;
 			this->m_outputs[i] = false;
@@ -66,7 +66,7 @@ namespace micasa {
 		}
 		this->m_portState[0] = this->m_portState[1] = 0;
 
-		this->setState( READY );
+		this->setState( Hardware::State::READY );
 
 		this->m_shutdown = false;
 		this->m_worker = std::thread( [this]() -> void {
@@ -79,7 +79,7 @@ namespace micasa {
 	};
 	
 	void PiFaceBoard::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_shutdown = true;
 		if ( this->m_worker.joinable() ) {
 			this->m_worker.join();
@@ -115,7 +115,7 @@ namespace micasa {
 			return true;
 
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
+			Logger::log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
 			return false;
 		}
 	};
@@ -225,23 +225,23 @@ namespace micasa {
 							if ( value == Switch::Option::ON ) {
 								if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
 									this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
-										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
 									} )->incrementValue( Device::UpdateSource::HARDWARE );
 									if ( iteration_ >= 2 ) {
 										unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
 										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
 										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
 									}
 									this->m_lastPulse[i] = system_clock::now();
 								} else {
-									g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
+									Logger::log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
 								}
 							}
 						}
@@ -258,7 +258,7 @@ namespace micasa {
 									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
 								}
 							} else {
-								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring toggle." );
+								Logger::log( Logger::LogLevel::WARNING, this, "Ignoring toggle." );
 							}
 						}
 					}

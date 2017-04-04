@@ -21,7 +21,7 @@ namespace micasa {
 	class RFXCom final : public Hardware {
 
 	public:
-		static const constexpr char* label = "RFXCom";
+		static const char* label;
 
 		RFXCom( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~RFXCom() { };

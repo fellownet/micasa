@@ -24,7 +24,7 @@ namespace micasa {
 		}; // enum class Rights
 		ENUM_UTIL( Rights );
 
-		static const constexpr char* settingsName = "user";
+		static const char* settingsName;
 
 		User( const unsigned int id_, const std::string name_, const Rights rights_ );
 		~User();

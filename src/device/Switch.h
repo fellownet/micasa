@@ -39,7 +39,6 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Option, OptionText );
 
 		typedef std::string t_value;
-		// typedef t_switchValue t_value;
 		static const Device::Type type;
 		
 		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
@@ -58,12 +57,9 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
-	protected:
-		//std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
-
 	private:
-		Option m_value = Option::OFF;
-		Option m_previousValue = Option::OFF;
+		Option m_value;
+		Option m_previousValue;
 		Scheduler m_scheduler;
 		struct {
 			Option value;
@@ -72,6 +68,7 @@ namespace micasa {
 			std::weak_ptr<Scheduler::Task<> > task;
 		} m_rateLimiter;
 
+		void _init() override;
 		void _processValue( const Device::UpdateSource& source_, const Option& value_ );
 		void _purgeHistory() const;
 

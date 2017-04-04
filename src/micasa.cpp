@@ -13,7 +13,6 @@
 
 namespace micasa {
 	
-	std::shared_ptr<Logger> g_logger;
 	std::shared_ptr<Database> g_database;
 	std::shared_ptr<Settings<> > g_settings;
 	std::shared_ptr<WebServer> g_webServer;
@@ -27,7 +26,6 @@ namespace micasa {
 		switch( signal_ ) {
 			case SIGINT:
 			case SIGTERM:
-				g_logger->log( Logger::LogLevel::WARNING, g_controller, "Shutting down." );
 				g_shutdown = true;
 				break;
 		}
@@ -63,6 +61,7 @@ int main( int argc_, char* argv_[] ) {
 	} else if ( arguments.exists( "--loglevel" ) ) {
 		logLevel = Logger::resolveLogLevel( std::stoi( arguments.get( "--loglevel" ) ) );
 	}
+	auto logger = Logger::addReceiver<ConsoleLogger>( logLevel );
 
 	bool daemonize = false;
 	if (
@@ -86,7 +85,6 @@ int main( int argc_, char* argv_[] ) {
 		signal( SIGTERM, signal_handler );
 	}
 
-	g_logger = std::make_shared<Logger>( logLevel );
 	g_database = std::make_shared<Database>( database );
 	g_settings = std::make_shared<Settings<> >();
 	g_controller = std::make_shared<Controller>();
@@ -109,7 +107,6 @@ int main( int argc_, char* argv_[] ) {
 	}
 	g_settings = NULL;
 	g_database = NULL;
-	g_logger = NULL;
 
 	return EXIT_SUCCESS;
 };

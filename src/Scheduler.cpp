@@ -69,6 +69,9 @@ namespace micasa {
 	};
 
 	void Scheduler::ThreadPool::schedule( std::shared_ptr<BaseTask> task_ ) {
+#ifdef _DEBUG
+		assert( this->m_shutdown == false && "Tasks should only be scheduled when scheduler is running." );
+#endif // _DEBUG
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
 		this->_insert( task_ );
 	};

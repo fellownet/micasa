@@ -20,7 +20,7 @@
 #endif // _DEBUG
 
 v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
 
@@ -71,7 +71,7 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
 
@@ -112,7 +112,7 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	std::string script;
@@ -128,7 +128,7 @@ v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
 }
 
 v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	std::string log;
@@ -148,13 +148,11 @@ namespace micasa {
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Settings<> > g_settings;
 
 	Controller::Controller() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
-		assert( g_logger && "Global Logger instance should be created before global Controller instance." );
 #endif // _DEBUG
 
 		// Initialize the v7 javascript environment.
@@ -164,9 +162,9 @@ namespace micasa {
 
 		v7_val_t userDataObj;
 		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( "userdata", "{}" ).c_str(), &userDataObj ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
 			if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
 			}
 		}
 		v7_set( this->m_v7_js, root, "userdata", ~0, userDataObj );
@@ -180,7 +178,6 @@ namespace micasa {
 	Controller::~Controller() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be destroyed after global Controller instance." );
-		assert( g_logger && "Global Logger instance should be destroyed after global Controller instance." );
 #ifdef _WITH_LIBUDEV
 		assert( this->m_serialPortCallbacks.size() == 0 && "All serialport callbacks should be removed before the global Controller instance is destroyed." );
 #endif // _WITH_LIBUDEV
@@ -191,7 +188,7 @@ namespace micasa {
 	};
 
 	void Controller::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
 
@@ -213,7 +210,7 @@ namespace micasa {
 				}
 			}
 
-			Hardware::Type type = Hardware::resolveType( hardwareDataIt.at( "type" ) );
+			Hardware::Type type = Hardware::resolveTextType( hardwareDataIt.at( "type" ) );
 			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( hardwareDataIt.at( "id" ) ), hardwareDataIt.at( "reference" ), parent );
 
 			// Only parent hardware is started automatically. The hardware itself should take care of starting it's
@@ -252,12 +249,12 @@ namespace micasa {
 					for ( auto callbackIt = this->m_serialPortCallbacks.begin(); callbackIt != this->m_serialPortCallbacks.end(); callbackIt++ ) {
 						callbackIt->second( port, action );
 					}
-					g_logger->logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
+					Logger::logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
 					udev_device_unref( dev );
 				}
 			} );
 		} else {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
+			Logger::log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
 		}
 #endif // _WITH_LIBUDEV
 
@@ -270,38 +267,49 @@ namespace micasa {
 		} );
 
 		this->m_running = true;
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
 	void Controller::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_scheduler.erase();
 		this->m_running = false;
 
+#ifdef _WITH_LIBUDEV
+		if ( this->m_udev ) {
+			udev_monitor_unref( this->m_udevMonitor );
+			udev_unref( this->m_udev );
+		}
+#endif // _WITH_LIBUDEV
+
 		{
+			// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a
+			// separate thread.
 			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+			std::map<std::string, std::future<void> > futures;
 			for ( auto const &hardwareIt : this->m_hardware ) {
 				auto hardware = hardwareIt.second;
 				if ( hardware->getState() != Hardware::State::DISABLED ) {
-
-					// Stop the hardware in a separate thread which is monitored. This way we can detect problems in the
-					// hardware implementation more easily.
-					std::future<void> controlledStop( std::async( std::launch::async, [hardware] {
+					futures[hardware->getName()] = std::async( std::launch::async, [hardware] {
 						hardware->stop();
-					} ) );
-					std::future_status status = controlledStop.wait_for( seconds( 15 ) );
-					if ( status == std::future_status::timeout ) {
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", hardware->getName().c_str() );
-					}
-#ifdef _DEBUG
-					assert( status == std::future_status::ready && "Hardware should stop properly." );
-#endif // _DEBUG
+					} );
 				}
 			}
 			this->m_hardware.clear();
+
+			// Then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
+			for ( auto const &futuresIt : futures ) {
+				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+				if ( status == std::future_status::timeout ) {
+					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
+				}
+#ifdef _DEBUG
+				assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
+			}
 		}
 
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
 	std::shared_ptr<Hardware> Controller::getHardware( const std::string& reference_ ) const {
@@ -364,7 +372,7 @@ namespace micasa {
 				"VALUES ( %d, %Q, %Q, %d )",
 				parent_->getId(),
 				reference_.c_str(),
-				Hardware::resolveType( type_ ).c_str(),
+				Hardware::resolveTextType( type_ ).c_str(),
 				enabled_ ? 1 : 0
 			);
 		} else {
@@ -372,7 +380,7 @@ namespace micasa {
 				"INSERT INTO `hardware` ( `reference`, `type`, `enabled` ) "
 				"VALUES ( %Q, %Q, %d )",
 				reference_.c_str(),
-				Hardware::resolveType( type_ ).c_str(),
+				Hardware::resolveTextType( type_ ).c_str(),
 				enabled_ ? 1 : 0
 			);
 		}
@@ -497,10 +505,7 @@ namespace micasa {
 	};
 
 	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
-		if (
-			this->m_running
-			&& ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT
-		) {
+		if ( this->m_running ) {
 
 			if ( ( source_ & Device::UpdateSource::LINK ) != Device::UpdateSource::LINK ) {
 				this->_runLinks( device_ );
@@ -615,9 +620,9 @@ namespace micasa {
 			// Configure the v7 javascript environment with context data.
 			v7_val_t dataObj;
 			if ( V7_OK != v7_parse_json( this->m_v7_js, data_.dump().c_str(), &dataObj ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
 #ifdef _DEBUG
-				g_logger->log( Logger::LogLevel::VERBOSE, this, data_.dump().c_str() );
+				Logger::log( Logger::LogLevel::VERBOSE, this, data_.dump().c_str() );
 #endif // _DEBUG
 				return;
 			}
@@ -632,27 +637,27 @@ namespace micasa {
 
 				switch( js_error ) {
 					case V7_SYNTAX_ERROR:
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Syntax error in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Syntax error in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
 						success = false;
 						break;
 					case V7_EXEC_EXCEPTION:
-						// Extract error message from result. Note that if the buffer is too small, v7 allocates it's
-						// own memory chunk which we need to free manually.
+						// Extract error message from result. NOTE 1 that if the buffer is too small, v7 allocates it's
+						// own memory chunk which we need to free manually. NOTE 2 these exceptions will not result in
+						// the script getting disabled, so the success flag is still true.
 						char buffer[100], *p;
 						p = v7_stringify( this->m_v7_js, js_result, buffer, sizeof( buffer ), V7_STRINGIFY_DEFAULT );
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\" (%s).", (*scriptsIt).at( "name" ).c_str(), p );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\" (%s).", (*scriptsIt).at( "name" ).c_str(), p );
 						if ( p != buffer ) {
 							free(p);
 						}
-						success = false;
 						break;
 					case V7_AST_TOO_LARGE:
 					case V7_INTERNAL_ERROR:
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Internal error in in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Internal error in in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
 						success = false;
 						break;
 					case V7_OK:
-						g_logger->logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
 						break;
 				}
 				
@@ -835,7 +840,7 @@ namespace micasa {
 				} catch( std::exception ex_ ) {
 
 					// Something went wrong while parsing the cron string. The timer is marked as disabled.
-					g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
+					Logger::logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
 					g_database->putQuery(
 						"UPDATE `timers` "
 						"SET `enabled`=0 "
@@ -972,7 +977,7 @@ namespace micasa {
 	};
 
 	void Controller::_js_log( const std::string& log_ ) {
-		g_logger->log( Logger::LogLevel::SCRIPT, log_ );
+		Logger::log( Logger::LogLevel::SCRIPT, this, log_ );
 	};
 
 }; // namespace micasa

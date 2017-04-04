@@ -26,20 +26,6 @@ namespace micasa {
 	class Device : public std::enable_shared_from_this<Device> {
 		
 	public:
-		/*
-		typedef double t_counterValue;
-		typedef double t_levelValue;
-		typedef std::string t_switchValue;
-		typedef std::string t_textValue;
-
-		typedef union {
-			t_counterValue counterval;
-			t_levelValue levelval;
-			t_switchValue switchval;
-			t_textValue textval;
-		} t_value;
-		*/
-
 		enum class Type: unsigned short {
 			COUNTER = 1,
 			LEVEL,
@@ -50,23 +36,22 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 		
 		enum class UpdateSource: unsigned short {
-			INIT = 1,
-			HARDWARE = 2,
-			TIMER = 4,
-			SCRIPT = 8,
-			API = 16,
-			LINK = 32,
+			HARDWARE = 1,
+			TIMER    = 2,
+			SCRIPT   = 4,
+			API      = 8,
+			LINK     = 16,
+			SYSTEM   = 32,
 
-			USER = TIMER | SCRIPT | API | LINK,
-			EVENT = TIMER | SCRIPT | LINK,
-			CONTROLLER = INIT | HARDWARE,
-			ANY = USER | CONTROLLER,
+			USER     = TIMER | SCRIPT | API | LINK,
+			EVENT    = TIMER | SCRIPT | LINK,
+			ANY      = HARDWARE | TIMER | SCRIPT | API | LINK | SYSTEM,
 
 			INTERNAL = 64 // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 
-		static const constexpr char* settingsName = "device";
+		static const char* settingsName;
 
 		Device( const Device& ) = delete; // Do not copy!
 		Device& operator=( const Device& ) = delete; // Do not copy-assign!
@@ -89,15 +74,16 @@ namespace micasa {
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
 		bool isEnabled() const throw() { return this->m_enabled; };
 		void setEnabled( bool enabled_ = true );
-		void touch();
 
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
-		virtual void putSettingsJson( nlohmann::json& settings_ );
+		virtual void putSettingsJson( const nlohmann::json& settings_ );
 		virtual Type getType() const =0;
 		
 	protected:
 		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+
+		virtual void _init() = 0;
 
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;

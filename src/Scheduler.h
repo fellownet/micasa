@@ -107,7 +107,11 @@ namespace micasa {
 			};
 
 			bool waitFor( unsigned long wait_ ) const {
-				return this->m_resultMutex.try_lock_for( std::chrono::milliseconds( wait_ ) );
+				if ( this->m_resultMutex.try_lock_for( std::chrono::milliseconds( wait_ ) ) ) {
+					this->m_resultMutex.unlock();
+					return true;
+				}
+				return false;
 			};
 
 		private:

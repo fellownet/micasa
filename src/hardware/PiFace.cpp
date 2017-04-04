@@ -22,11 +22,12 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 	
+	const char* PiFace::label = "PiFace";
+
 	void PiFace::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
 		// First the SPI device is openend.
@@ -40,7 +41,7 @@ namespace micasa {
 				&& ioctl( this->m_fd, SPI_IOC_WR_BITS_PER_WORD, &spiBPW ) >= 0
 				&& ioctl( this->m_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed ) >= 0
 			) {
-				g_logger->log( Logger::LogLevel::VERBOSE, this, "SPI device opened successfully." );
+				Logger::log( Logger::LogLevel::VERBOSE, this, "SPI device opened successfully." );
 				int detected = 0;
 
 				// Once the SPI device is opened we need to detect the number of boards present. This is done by writing
@@ -69,26 +70,26 @@ namespace micasa {
 				}
 
 				if ( detected > 0 ) {
-					this->setState( READY );
+					this->setState( Hardware::State::READY );
 				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "No PiFaces were found." );
-					this->setState( FAILED );
+					Logger::log( Logger::LogLevel::ERROR, this, "No PiFaces were found." );
+					this->setState( Hardware::State::FAILED );
 					close( this->m_fd );
 				}
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "SPI device configuration failure." );
-				this->setState( FAILED );
+				Logger::log( Logger::LogLevel::ERROR, this, "SPI device configuration failure." );
+				this->setState( Hardware::State::FAILED );
 				close( this->m_fd );
 			}
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to open SPI device." );
-			this->setState( FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to open SPI device." );
+			this->setState( Hardware::State::FAILED );
 		}
 	};
 	
 	void PiFace::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		if ( this->getState() == READY ) {
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		if ( this->getState() == Hardware::State::READY ) {
 			close( this->m_fd );
 		}
 		Hardware::stop();

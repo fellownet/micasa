@@ -27,13 +27,11 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Unit, UnitText );
 		
 		typedef double t_value;
-		// typedef t_counterValue t_value;
 		static const Device::Type type;
 
 		Counter( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 	
 		Device::Type getType() const throw() override { return Counter::type; };
-		
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );
 		t_value getValue() const throw() { return this->m_value; };
@@ -43,8 +41,8 @@ namespace micasa {
 		nlohmann::json getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const;
 
 	private:
-		t_value m_value = 0;
-		t_value m_previousValue = 0;
+		t_value m_value;
+		t_value m_previousValue;
 		Scheduler m_scheduler;
 		struct {
 			t_value value;
@@ -53,6 +51,7 @@ namespace micasa {
 			std::weak_ptr<Scheduler::Task<> > task;
 		} m_rateLimiter;
 
+		void _init() override;
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void _processTrends() const;
 		void _purgeHistory() const;

@@ -2,44 +2,31 @@
 
 #include <memory>
 
-#ifdef _DEBUG
-	#include <cassert>
-#endif // _DEBUG
-
 #include "Database.h"
 #include "Structs.h"
 #include "Logger.h"
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-
 	using namespace nlohmann;
 
 	Database::Database( std::string filename_ ) : m_filename( filename_ ) {
-#ifdef _DEBUG
-		assert( g_logger && "Global Logger instance should be created before global Database instances." );
-#endif // _DEBUG
-
 		int result = sqlite3_open_v2( filename_.c_str(), &this->m_connection, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_WAL, NULL );
 		if ( result == SQLITE_OK ) {
-			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s opened.", filename_.c_str() );
+			Logger::logr( Logger::LogLevel::VERBOSE, this, "Database %s opened.", filename_.c_str() );
 			this->_init();
 		} else {
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to open database %s.", filename_.c_str() );
+			Logger::logr( Logger::LogLevel::ERROR, this, "Unable to open database %s.", filename_.c_str() );
 		}
 	};
 
 	Database::~Database() {
-#ifdef _DEBUG
-		assert( g_logger && "Global Logger instance should be destroyed after global Database instances." );
-#endif // _DEBUG
 		int result = sqlite3_close( this->m_connection );
 		if ( SQLITE_OK == result ) {
-			g_logger->logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
+			Logger::logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
 		} else {
 			const char *error = sqlite3_errmsg( this->m_connection );
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly (%s).", this->m_filename.c_str(), error );
+			Logger::logr( Logger::LogLevel::ERROR, this, "Database %s was not closed properly (%s).", this->m_filename.c_str(), error );
 		}
 	};
 
@@ -334,7 +321,7 @@ namespace micasa {
 		this->_wrapQuery( query_, arguments, [this,&insertId]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_DONE != sqlite3_step( statement_ ) ) {
 				const char *error = sqlite3_errmsg( this->m_connection );
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+				Logger::logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 			} else {
 				insertId = sqlite3_last_insert_rowid( this->m_connection );
 			}
@@ -351,7 +338,7 @@ namespace micasa {
 		this->putQuery( "PRAGMA synchronous=NORMAL" );
 		this->putQuery( "PRAGMA foreign_keys=ON" );
 		
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Optimizing database." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Optimizing database." );
 		this->putQuery( "VACUUM" );
 		
 		unsigned int version = this->getQueryValue<unsigned int>( "PRAGMA user_version" );
@@ -365,18 +352,18 @@ namespace micasa {
 	
 	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const {
 		if ( ! this->m_connection ) {
-			g_logger->logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
+			Logger::logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;
 		}
 		
 		char *query = sqlite3_vmprintf( query_.c_str(), arguments_ );
 		if ( ! query ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
 			return;
 		}
 
 #ifdef _DEBUG
-		g_logger->log( Logger::LogLevel::DEBUG, this, std::string( query ) );
+		Logger::log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
 		
 		std::lock_guard<std::mutex> lock( this->m_queryMutex );
@@ -393,7 +380,7 @@ namespace micasa {
 				sqlite3_finalize( statement );
 			} else {
 				const char *error = sqlite3_errmsg( this->m_connection );
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+				Logger::logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
 			}
 			sqlite3_free( query );
 		};

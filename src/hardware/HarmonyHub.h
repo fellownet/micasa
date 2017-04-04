@@ -2,16 +2,13 @@
 
 #include "../Hardware.h"
 #include "../Utils.h"
+#include "../Network.h"
 
-extern "C" {
-	#include "mongoose.h"
-} // extern "C"
-
-#define HARMONY_HUB_BUSY_WAIT_MSEC  60000 // how long to wait for result
-#define HARMONY_HUB_BUSY_BLOCK_MSEC 3000  // how long to block activies while waiting for result
-
-#define HARMONY_HUB_CONNECTION_ID		"21345678-1234-5678-1234-123456789012-1"
-#define HARMONY_HUB_PING_INTERVAL_SEC	30
+#define HARMONY_HUB_BUSY_WAIT_MSEC        60000 // how long to wait for result
+#define HARMONY_HUB_BUSY_BLOCK_MSEC       3000  // how long to block activies while waiting for result
+#define HARMONY_HUB_CONNECTION_ID         "21345678-1234-5678-1234-123456789012-1"
+#define HARMONY_HUB_PING_INTERVAL_SEC     30
+#define HARMONY_HUB_LAST_ACTIVITY_SETTING "_last_activity"
 
 namespace micasa {
 
@@ -19,15 +16,13 @@ namespace micasa {
 		
 	public:
 		enum class ConnectionState: unsigned short {
-			CLOSED = 1,
-			CONNECTING,
 			WAIT_FOR_CURRENT_ACTIVITY,
 			WAIT_FOR_ACTIVITIES,
 			IDLE,
 		}; // enum class ConnectionState
 		ENUM_UTIL( ConnectionState );
 		
-		static const constexpr char* label = "Harmony Hub";
+		static const char* label;
 
 		HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~HarmonyHub() { };
@@ -41,13 +36,13 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 		
 	private:
-		mg_connection* m_connection;
-		volatile ConnectionState m_connectionState = ConnectionState::CLOSED;
+		std::shared_ptr<Scheduler::Task<> > m_task;
+		std::shared_ptr<Network::Connection> m_connection;
+		ConnectionState m_connectionState = ConnectionState::IDLE;
 		std::string m_currentActivityId = "-1";
+		std::string m_received = "";
 	
-		void _connect();
-		void _disconnect( const std::string message_ );
-		void _process( const bool ready_ );
+		bool _process();
 		
 	}; // class HarmonyHub
 

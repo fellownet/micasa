@@ -9,7 +9,7 @@ namespace micasa {
 		friend class PiFaceBoard;
 
 	public:
-		static const constexpr char* label = "PiFace";
+		static const char* label;
 	
 		PiFace( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~PiFace() { };

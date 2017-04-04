@@ -14,9 +14,10 @@ namespace micasa {
 
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
 
 	using namespace nlohmann;
+
+	const char* Device::settingsName = "device";
 
 	const std::map<Device::Type, std::string> Device::TypeText = {
 		{ Device::Type::COUNTER, "counter" },
@@ -35,7 +36,6 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be created before Device instances." );
 		assert( g_database && "Global Database instance should be created before Device instances." );
-		assert( g_logger && "Global Logger instance should be created before Device instances." );
 #endif // _DEBUG
 		this->m_settings = std::make_shared<Settings<Device> >( *this );
 	};
@@ -44,7 +44,6 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be destroyed after Device instances." );
 		assert( g_database && "Global Database instance should be destroyed after Device instances." );
-		assert( g_logger && "Global Logger instance should be destroyed after Device instances." );
 #endif // _DEBUG
 	};
 
@@ -93,21 +92,23 @@ namespace micasa {
 	template Text::t_value Device::getValue<Text>() const;
 	
 	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
+		std::shared_ptr<Device> device;
 		switch( type_ ) {
 			case Type::COUNTER:
-				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
+				device = std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::LEVEL:
-				return std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
+				device = std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::SWITCH:
-				return std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
+				device = std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::TEXT:
-				return std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
+				device = std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 		}
-		return nullptr;
+		device->_init();
+		return device;
 	};
 
 	json Device::getJson( bool full_ ) const {
@@ -129,15 +130,6 @@ namespace micasa {
 		}
 
 		// TODO when fetching a list of devices, the database gets flooded with queries, that need to be improved.
-		json timeProperties = g_database->getQueryRow<json>(
-			"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) AS `last_update`, CAST(strftime('%%s','now') AS INTEGER) - CAST(strftime('%%s',`updated`) AS INTEGER) AS `age` "
-			"FROM `devices` "
-			"WHERE `id`=%d ",
-			this->getId()
-		);
-		result["last_update"] = timeProperties["last_update"].get<unsigned long>();
-		result["age"] = timeProperties["age"].get<unsigned long>();
-			
 		result["total_timers"] = g_database->getQueryValue<unsigned int>(
 			"SELECT COUNT(`timer_id`) "
 			"FROM `x_timer_devices` "
@@ -202,7 +194,7 @@ namespace micasa {
 		return result;
 	};
 
-	void Device::putSettingsJson( json& settings_ ) {
+	void Device::putSettingsJson( const json& settings_ ) {
 		this->m_hardware->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
@@ -210,16 +202,6 @@ namespace micasa {
 		this->m_enabled = enabled_;
 	};
 
-	void Device::touch() {
-		g_database->putQuery(
-			"UPDATE `devices` "
-			"SET `updated`=datetime('now') "
-			"WHERE `id`=%d ",
-			this->getId()
-		);
-		this->m_hardware->touch();
-	};
-	
 	void Device::setScripts( std::vector<unsigned int>& scriptIds_ ) {
 		std::stringstream list;
 		unsigned int index = 0;

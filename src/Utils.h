@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <type_traits>
+#include <iomanip>
 
 #include "json.hpp"
 
@@ -86,6 +87,24 @@ namespace micasa {
 		}
 	};
 
+	template<> inline nlohmann::json jsonGet<nlohmann::json>( const nlohmann::basic_json<>::value_type& input_ ) {
+		if ( input_.is_array() ) {
+			return input_;
+		} else if ( input_.is_object() ) {
+			return input_;
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+	template<> inline nlohmann::json jsonGet<nlohmann::json>( const nlohmann::json& input_, const std::string& key_ ) {
+		auto find = input_.find( key_ );
+		if ( find != input_.end() ) {
+			return jsonGet<nlohmann::json>( find.value() );
+		} else {
+			throw std::runtime_error( "invalid type" );
+		}
+	};
+
 //	bool generateKeys( std::string& public_, std::string& private_ );
 //	std::string generateHash( const std::string& input_, const std::string& privateKey_ );
 //	std::string encrypt64( const std::string& input_, const std::string& privateKey_ );
@@ -103,10 +122,16 @@ friend inline E& operator^=( E& a_, E b_ ) { a_ = a_ ^ b_; return a_; };
 
 #define ENUM_UTIL_W_TEXT(E,S) \
 ENUM_UTIL_BASE(E) \
-static inline std::string resolve ## E( const E& enum_ ) { \
+static inline E ## _t resolve ## E( const E& enum_ ) { \
+	return static_cast<E ## _t>( enum_ ); \
+}; \
+static inline E resolve ## E( const E ## _t& enum_ ) { \
+	return static_cast<E>( enum_ ); \
+}; \
+static inline std::string resolveText ## E( const E& enum_ ) { \
 	return S.at( enum_ ); \
 }; \
-static inline E resolve ## E( const std::string& enum_ ) { \
+static inline E resolveText ## E( const std::string& enum_ ) { \
 	for ( auto textIt = S.begin(); textIt != S.end(); textIt++ ) { \
 		if ( textIt->second == enum_ ) { \
 			return textIt->first; \
@@ -154,7 +179,5 @@ friend std::istream& operator>>( std::istream& is_, E& enum_ ) { \
 	enum_ = static_cast<E>( value ); \
 	return is_; \
 };
-
-
 
 }; // namespace micasa

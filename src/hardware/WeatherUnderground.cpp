@@ -15,50 +15,60 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-
 	using namespace nlohmann;
 
+	const char* WeatherUnderground::label = "Weather Underground";
+
 	void WeatherUnderground::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
 		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, "weatherunderground", [this]( Scheduler::Task<>& ) {
 			if ( ! this->m_settings->contains( { "api_key", "location", "scale" } ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-				this->setState( FAILED );
+				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				this->setState( Hardware::State::FAILED );
 				return;
+			}
+
+			if ( this->m_connection != nullptr ) {
+				this->m_connection->join();
 			}
 
 			std::stringstream url;
 			url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
-
-			std::weak_ptr<WeatherUnderground> ptr = std::static_pointer_cast<WeatherUnderground>( this->shared_from_this() );
-			Network::get().connect( url.str(), Network::t_callback( [ptr]( mg_connection* connection_, int event_, void* data_ ) {
-				auto me = ptr.lock();
-				if ( me ) {
-					if ( event_ == MG_EV_HTTP_REPLY ) {
-						std::string body;
-						body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-						me->_process( body );
-						connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-					}  else if (
-						event_ == MG_EV_CLOSE
-						&& me->getState() == INIT
-					) {
-						g_logger->log( Logger::LogLevel::ERROR, me, "Connection failure." );
-						me->setState( FAILED );
+			this->m_connection = Network::connect( url.str(), [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+				switch( event_ ) {
+					case Network::Connection::Event::CONNECT: {
+						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
+						break;
+					}
+					case Network::Connection::Event::FAILURE: {
+						Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+						this->setState( Hardware::State::FAILED );
+						break;
+					}
+					case Network::Connection::Event::DATA: {
+						this->_process( data_ );
+						break;
+					}
+					case Network::Connection::Event::DROPPED:
+					case Network::Connection::Event::CLOSE: {
+						Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
+						break;
 					}
 				}
-			} ) );
+			} );
 		} );
 	};
 	
 	void WeatherUnderground::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );
+		if ( this->m_connection != nullptr ) {
+			this->m_connection->join();
+		}
 		Hardware::stop();
 	};
 
@@ -90,7 +100,7 @@ namespace micasa {
 			{ "name", "api_key" },
 			{ "label", "API Key" },
 			{ "type", "string" },
-			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
+			{ "class", state >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 97 }
 		};
@@ -98,7 +108,7 @@ namespace micasa {
 			{ "name", "location" },
 			{ "label", "Location" },
 			{ "type", "string" },
-			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
+			{ "class", state >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 98 }
 		};
@@ -106,7 +116,7 @@ namespace micasa {
 			{ "name", "scale" },
 			{ "label", "Scale" },
 			{ "type", "list" },
-			{ "class", state == READY || state == SLEEPING ? "advanced" : "normal" },
+			{ "class", state >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 },
 			{ "options", {
@@ -123,12 +133,14 @@ namespace micasa {
 		return result;
 	};
 
-	void WeatherUnderground::_process( const std::string& body_ ) {
+	void WeatherUnderground::_process( const std::string& data_ ) {
 		try {
-			json data = json::parse( body_ );
+			json data = json::parse( data_ );
 
 			if ( data["response"].is_object() ) {
 				if ( data["response"]["error"].is_null() ) {
+					this->setState( Hardware::State::READY );
+
 					if (
 						! data["current_observation"].is_null()
 						&& data["current_observation"].is_object()
@@ -137,30 +149,30 @@ namespace micasa {
 
 						if ( this->m_settings->get( "scale" ) == "fahrenheit" ) {
 							this->declareDevice<Level>( "1", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::FAHRENHEIT ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::FAHRENHEIT ) }
 							} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "temp_f" ) );
 						} else if ( this->m_settings->get( "scale" ) == "celsius" ) {
 							this->declareDevice<Level>( "2", "Temperature in " + this->m_settings->get( "location" ), {
-								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) }
+								{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+								{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
+								{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::CELSIUS ) }
 							} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "temp_c" ) );
 						}
 						this->declareDevice<Level>( "3", "Humidity in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
-							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::HUMIDITY ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "relative_humidity" ) );
 						this->declareDevice<Level>( "4", "Barometric pressure in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::PRESSURE ) },
-							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PASCAL ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::PRESSURE ) },
+							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PASCAL ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<double>( observation, "pressure_mb" ) );
 						this->declareDevice<Text>( "5", "Wind Direction in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::WIND_DIRECTION ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveTextSubType( Text::SubType::WIND_DIRECTION ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, jsonGet<std::string>( observation, "wind_dir" ) );
 					}
 
@@ -189,34 +201,32 @@ namespace micasa {
 						}
 
 						this->declareDevice<Switch>( "6", "Daytime in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, value );
 						this->declareDevice<Level>( "7", "Sunrise in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, sunrise );
 						this->declareDevice<Level>( "8", "Sunset in " + this->m_settings->get( "location" ), {
-							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) }
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) }
 						} )->updateValue( Device::UpdateSource::HARDWARE, sunset );
 					}
 
-					this->setState( READY );
 					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground retry", [this]( Scheduler::Task<>& ) -> void {
-						this->setState( SLEEPING );
+						this->setState( Hardware::State::SLEEPING );
 					} );
-
 				} else {
 					if (
 						data["response"]["error"].is_object()
 						&& ! data["response"]["error"]["description"].is_null()
 					) {
-						this->setState( FAILED );
-						g_logger->log( Logger::LogLevel::ERROR, this, data["response"]["error"]["description"].get<std::string>() );
+						this->setState( Hardware::State::FAILED );
+						Logger::log( Logger::LogLevel::ERROR, this, data["response"]["error"]["description"].get<std::string>() );
 					}
 				}
 			}
-		} catch( ... ) {
-			this->setState( FAILED );
-			g_logger->log( Logger::LogLevel::ERROR, this, "Invalid response." );
+		} catch( json::exception ex_ ) {
+			this->setState( Hardware::State::FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
 		}
 	};
 	

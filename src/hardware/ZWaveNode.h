@@ -20,7 +20,7 @@ namespace micasa {
 		friend class ZWave;
 
 	public:
-		static const constexpr char* label = "Z-Wave Node";
+		static const char* label;
 
 		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~ZWaveNode() { };
@@ -32,7 +32,7 @@ namespace micasa {
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
-		void putSettingsJson( nlohmann::json& settings_ ) override;
+		void putSettingsJson( const nlohmann::json& settings_ ) override;
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
 

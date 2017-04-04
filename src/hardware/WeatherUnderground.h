@@ -3,13 +3,14 @@
 #include <chrono>
 
 #include "../Hardware.h"
+#include "../Network.h"
 
 namespace micasa {
 
 	class WeatherUnderground final : public Hardware {
 
 	public:
-		static const constexpr char* label = "Weather Underground";
+		static const char* label;
 
 		WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~WeatherUnderground() { };
@@ -23,9 +24,10 @@ namespace micasa {
 		nlohmann::json getSettingsJson() const override;
 		
 	private:
+		std::shared_ptr<Network::Connection> m_connection;
 		std::string m_details;
 
-		void _process( const std::string& body_ );
+		void _process( const std::string& data_ );
 	
 	}; // class WeatherUnderground
 

@@ -11,6 +11,10 @@
 
 namespace micasa {
 
+	// ======
+	// Logger
+	// ======
+
 	class Logger final {
 
 	public:
@@ -24,35 +28,78 @@ namespace micasa {
 		}; // enum class LogLevel
 		ENUM_UTIL( LogLevel );
 
-		Logger( const LogLevel logLevel_ ) : m_logLevel( logLevel_ ) { };
-		~Logger() { };
+		// ========
+		// Receiver
+		// ========
 
-		void logr( const LogLevel logLevel_, std::string message_, ... ) const;
-		void log( const LogLevel logLevel_, std::string message_ ) const;
-		
-		// Unfortunately template based methods need to be implemented in the header file for it to accept *all*
-		// types of classes.
-		template<class T> void logr( const LogLevel logLevel_, const T& instance_, std::string message_, ... ) const {
+		class Receiver {
+
+		public:
+			virtual void log( const LogLevel& logLevel_, const std::string& message_ ) = 0;
+
+		}; // class Receiver
+
+		Logger( const Logger& ) = delete; // do not copy
+		Logger& operator=( const Logger& ) = delete; // do not copy-assign
+
+		template<class T> static void logr( const LogLevel logLevel_, const T& instance_, std::string message_, ... ) {
+			Logger& logger = Logger::get();
 			std::stringstream message;
 			message << "[" << instance_ << "] " << message_;
 			va_list arguments;
 			va_start( arguments, message_ );
-			this->_doLog( logLevel_, message.str(), true, arguments );
+			logger._doLog( logLevel_, message.str(), true, arguments );
 			va_end( arguments );
 		};
-		template<class T> void log( const LogLevel logLevel_, const T& instance_, std::string message_ ) const {
+		template<class T> static void log( const LogLevel logLevel_, const T& instance_, std::string message_ ) {
+			Logger& logger = Logger::get();
 			std::stringstream message;
 			message << "[" << instance_ << "] " << message_;
 			va_list empty;
-			this->_doLog( logLevel_, message.str(), false, empty );
+			logger._doLog( logLevel_, message.str(), false, empty );
+		};
+
+		static void addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ );
+		static void removeReceiver( std::shared_ptr<Receiver> receiver_ );
+
+		template<class T> static std::shared_ptr<T> addReceiver( LogLevel level_ ) {
+			std::shared_ptr<T> receiver = std::make_shared<T>();
+			Logger::addReceiver( receiver, level_ );
+			return receiver;
 		};
 
 	private:
-		LogLevel m_logLevel;
-		mutable std::mutex m_logMutex;
+		struct t_logReceiver {
+			std::weak_ptr<Receiver> receiver;
+			LogLevel level;
+			mutable unsigned short recursions;
+		};
 
-		void _doLog( const LogLevel logLevel_, std::string message_, bool hasArguments_, va_list arguments_ ) const;
+		mutable std::recursive_mutex m_logMutex;
+		std::vector<t_logReceiver> m_receivers;
+		
+		Logger() { }; // private constructor
+		~Logger() { }; // private destructor
+
+		static Logger& get() {
+			// In c++11 static initialization is supposed to be thread-safe.
+			static Logger instance;
+			return instance;
+		}
+
+		void _doLog( const LogLevel& logLevel_, const std::string& message_, bool hasArguments_, va_list arguments_ );
 
 	}; // class Logger
+
+	// =============
+	// ConsoleLogger
+	// =============
+
+	class ConsoleLogger : public Logger::Receiver {
+
+	public:
+		void log( const Logger::LogLevel& logLevel_, const std::string& message_ ) override;
+
+	}; // class ConsoleLogger
 
 }; // namespace micasa

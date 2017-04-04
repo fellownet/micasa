@@ -1,13 +1,14 @@
 #pragma once
 
 #include "../Hardware.h"
+#include "../Network.h"
 
 namespace micasa {
 
 	class SolarEdge final : public Hardware {
 
 	public:
-		static const constexpr char* label = "SolarEdge API";
+		static const char* label;
 
 		SolarEdge( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
 		~SolarEdge() { };
@@ -22,8 +23,9 @@ namespace micasa {
 
 	private:
 		std::shared_ptr<Scheduler::Task<> > m_task;
+		std::shared_ptr<Network::Connection> m_connection;
 
-		bool _process( const std::string& body_ );
+		bool _process( const std::string& data_ );
 		
 	}; // class SolarEdge
 

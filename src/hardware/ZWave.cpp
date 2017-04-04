@@ -25,7 +25,7 @@
 #include "Defs.h"
 
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ ) {
-	auto target = reinterpret_cast<micasa::ZWave*>( handler_ );
+	auto target = static_cast<micasa::ZWave*>( handler_ );
 	target->_handleNotification( notification_ );
 };
 
@@ -34,23 +34,24 @@ namespace micasa {
 	using namespace nlohmann;
 	using namespace OpenZWave;
 
-	extern std::shared_ptr<Logger> g_logger;
+	const char* ZWave::label = "Z-Wave";
+
 	extern std::shared_ptr<Controller> g_controller;
 
 	std::timed_mutex ZWave::g_managerMutex;
 	unsigned int ZWave::g_managerWatchers = 0;
 
 	void ZWave::start() {
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Starting..." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Starting..." );
 		Hardware::start();
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			this->setState( Hardware::State::FAILED );
 			return;
 		}
 
-		g_logger->logr( Logger::LogLevel::VERBOSE, this, "OpenZWave Version %s.", Manager::getVersionAsString().c_str() );
+		Logger::logr( Logger::LogLevel::VERBOSE, this, "OpenZWave Version %s.", Manager::getVersionAsString().c_str() );
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		if (
 			NULL == Manager::Get()
@@ -86,8 +87,8 @@ namespace micasa {
 			|| ! Manager::Get()->AddWatcher( micasa_openzwave_notification_handler, this )
 			|| ! Manager::Get()->AddDriver( this->m_settings->get( "port" ) )
 		) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to initialize OpenZWave manager." );
-			this->setState( FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to initialize OpenZWave manager." );
+			this->setState( Hardware::State::FAILED );
 			return;
 		}
 
@@ -110,13 +111,13 @@ namespace micasa {
 				Manager::Get()->RemoveDriver( serialPort_ );
 				this->m_port.clear();
 				
-				this->setState( DISCONNECTED );
+				this->setState( Hardware::State::DISCONNECTED );
 				auto children = g_controller->getChildrenOfHardware( *this );
 				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( DISCONNECTED );
+					(*childrenIt)->setState( Hardware::State::DISCONNECTED );
 				}
 
-				g_logger->log( Logger::LogLevel::WARNING, this, "Disconnected." );
+				Logger::log( Logger::LogLevel::WARNING, this, "Disconnected." );
 			}
 
 			// If a serial port was added (not necessarely ours) and we're currently disabled, see if it
@@ -126,43 +127,43 @@ namespace micasa {
 			if (
 				action_ == "add"
 				&& (
-					this->getState() == DISCONNECTED
-					|| this->getState() == FAILED
+					this->getState() == Hardware::State::DISCONNECTED
+					|| this->getState() == Hardware::State::FAILED
 				)
 				&& Manager::Get()->AddDriver( serialPort_ )
 			) {
 				this->m_port = serialPort_;
 			
-				this->setState( INIT );
+				this->setState( Hardware::State::INIT );
 				auto children = g_controller->getChildrenOfHardware( *this );
 				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( INIT );
+					(*childrenIt)->setState( Hardware::State::INIT );
 				}
 			
-				g_logger->log( Logger::LogLevel::VERBOSE, this, "Device added." );
+				Logger::log( Logger::LogLevel::VERBOSE, this, "Device added." );
 			}
 		} );
 #endif // _WITH_LIBUDEV
 
 		this->declareDevice<Switch>( "heal", "Network Heal", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "include", "Inclusion Mode", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "exclude", "Exclusion Mode", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void ZWave::stop() {
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Stopping..." );
 
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		Manager::Get()->RemoveWatcher( micasa_openzwave_notification_handler, this );
@@ -203,7 +204,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->getState() == READY ? "advanced" : "normal" },
+			{ "class", this->getState() >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -231,13 +232,13 @@ namespace micasa {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
-				if ( this->getState() != READY ) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+				if ( this->getState() != Hardware::State::READY ) {
+					Logger::log( Logger::LogLevel::ERROR, this, "Controller not ready." );
 					return false;
 				}
 
 				if ( ! ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					g_logger->log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					Logger::log( Logger::LogLevel::ERROR, this, "Controller busy." );
 					return false;
 				}
 
@@ -246,12 +247,12 @@ namespace micasa {
 				if ( device->getReference() == "heal" ) {
 					
 					Manager::Get()->HealNetwork( this->m_homeId, true );
-					g_logger->log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
+					Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
 
 				} else if ( device->getReference() == "include" ) {
 
 					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
+						Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
 						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave inclusion mode off", [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
@@ -259,13 +260,13 @@ namespace micasa {
 							}
 						} );
 					} else {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
 					}
 
 				} else if ( device->getReference() == "exclude" ) {
 
 					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
+						Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
 						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave exclusion mode off", [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
@@ -273,7 +274,7 @@ namespace micasa {
 							}
 						} );
 					} else {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
 					}
 				}
 
@@ -290,7 +291,7 @@ namespace micasa {
 			auto start = std::chrono::system_clock::now();
 
 #ifdef _DEBUG
-			g_logger->log( Logger::LogLevel::DEBUG, this, notification_->GetAsString() );
+			Logger::log( Logger::LogLevel::DEBUG, this, notification_->GetAsString() );
 #endif // _DEBUG
 
 			unsigned int homeId = notification_->GetHomeId();
@@ -302,7 +303,7 @@ namespace micasa {
 			auto node = std::static_pointer_cast<ZWaveNode>( g_controller->getHardware( reference.str() ) );
 			if (
 				node != nullptr
-				&& node->getState() != DISABLED
+				&& node->getState() != Hardware::State::DISABLED
 			) {
 				node->_handleNotification( notification_ );
 			}
@@ -318,19 +319,19 @@ namespace micasa {
 						this->m_homeId = homeId;
 						this->m_settings->put( "port", this->m_port );
 						this->m_settings->put( "home_id", homeId );
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Driver ready." );
+						Logger::log( Logger::LogLevel::NORMAL, this, "Driver ready." );
 					} else {
 						Manager::Get()->RemoveDriver( this->m_port );
 						this->m_port.clear();
-						g_logger->log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
 					}
 					break;
 				}
 
 				case Notification::Type_DriverFailed: {
-					this->setState( FAILED );
+					this->setState( Hardware::State::FAILED );
 					if ( this->m_port == this->m_settings->get( "port" ) ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Driver failed." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Driver failed." );
 					}
 					Manager::Get()->RemoveDriver( this->m_port );
 					this->m_port.clear();
@@ -340,10 +341,10 @@ namespace micasa {
 				case Notification::Type_AwakeNodesQueried:
 				case Notification::Type_AllNodesQueried:
 				case Notification::Type_AllNodesQueriedSomeDead: {
-					this->setState( READY );
-					
+					this->setState( Hardware::State::READY );
+
 					// At this point we're going to instruct all nodes to report their configuration parameters.
-					g_logger->logr( Logger::LogLevel::WARNING, this, "Requesting all node configuration parameters." );
+					Logger::logr( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
 					auto nodes = g_controller->getChildrenOfHardware( *this );
 					for ( auto nodeIt = nodes.begin(); nodeIt != nodes.end(); nodeIt++ ) {
 						auto node = std::static_pointer_cast<ZWaveNode>( *nodeIt );
@@ -419,13 +420,13 @@ namespace micasa {
 			auto end = std::chrono::system_clock::now();
 			unsigned long duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
 			if ( duration > OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) {
-				g_logger->logr( Logger::LogLevel::WARNING, this, "OpenZWave notification %s took %lu milliseconds.", notification_->GetAsString().c_str(), duration );
+				Logger::logr( Logger::LogLevel::WARNING, this, "OpenZWave notification %s took %lu milliseconds.", notification_->GetAsString().c_str(), duration );
 			}
 
 			ZWave::g_managerMutex.unlock();
 
 		} else {
-			g_logger->logr( Logger::LogLevel::VERBOSE, this, "OpenZWave notification \"%s\" missed.", notification_->GetAsString().c_str() );
+			Logger::logr( Logger::LogLevel::VERBOSE, this, "OpenZWave notification \"%s\" missed.", notification_->GetAsString().c_str() );
 		}
 	};
 
