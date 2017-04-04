@@ -11,7 +11,6 @@ export class Hardware {
 	type: string;
 	enabled: boolean;
 	state: string;
-	last_update: number;
 	parent?: Hardware;
 	settings?: Setting[];
 }

@@ -35,6 +35,14 @@ namespace micasa {
 
 	const char* ZWaveNode::label = "Z-Wave Node";
 
+	ZWaveNode::ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_homeId( 0 ),
+		m_nodeId( 0 ),
+		m_configuration( json::object() )
+	{
+	};
+
 	void ZWaveNode::start() {
 #ifdef _DEBUG
 		assert( this->m_settings->contains( { "home_id", "node_id" } ) && "ZWaveNode should be declared with home_id and node_id." );
@@ -49,7 +57,7 @@ namespace micasa {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 	};
 
 	void ZWaveNode::stop() {

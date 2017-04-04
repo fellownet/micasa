@@ -15,7 +15,6 @@ namespace micasa {
 
 		void start() override;
 		void stop() override;
-
 		std::string getLabel() const throw() override { return SolarEdge::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
 		nlohmann::json getJson(  bool full_ = false  ) const override;

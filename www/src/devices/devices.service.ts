@@ -21,7 +21,7 @@ export class Device {
 	enabled: boolean;
 	value?: any;
 	unit: string;
-	last_update: number;
+	age: number;
 	scripts?: number[];
 	links?: number[];
 	settings?: Setting[];

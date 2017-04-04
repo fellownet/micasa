@@ -39,7 +39,7 @@
 		<th [gridField]="'value'">Value</th>
 		<th [gridField]="'hardware'">Hardware</th>
 		<th [gridField]="'label'">Label</th>
-		<th [gridField]="'last_update'">Last Update</th>
+		<th [gridField]="'age'">Last Update</th>
 		<!-- th [gridField]="'type'">Type</th -->
 		<!-- th [gridField]="'subtype'">SubType</th -->
 	</tr>
@@ -99,7 +99,7 @@
 		</td>
 		<td>{{device.hardware}}</td>
 		<td>{{device.label}}</td>
-		<td>{{device.last_update | timestamp}}</td>
+		<td>{{-device.age | timestamp}}</td>
 		<!-- td><span class="label label-default">{{device.type}}</span></td -->
 		<!-- td><span class="label label-default">{{device.subtype}}</span></td -->
 	</tr>

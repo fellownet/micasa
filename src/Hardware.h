@@ -59,7 +59,6 @@ namespace micasa {
 
 		virtual void start();
 		virtual void stop();
-
 		unsigned int getId() const throw() { return this->m_id; };
 		Type getType() const throw() { return this->m_type; };
 		State getState() const throw() { return this->m_state; };

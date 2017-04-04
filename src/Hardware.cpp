@@ -15,6 +15,13 @@
 #include "device/Text.h"
 #include "device/Switch.h"
 
+#include "hardware/WeatherUnderground.h"
+#include "hardware/HarmonyHub.h"
+#include "hardware/RFXCom.h"
+#include "hardware/SolarEdge.h"
+#include "hardware/SolarEdgeInverter.h"
+#include "hardware/Dummy.h"
+#include "hardware/Telegram.h"
 #ifdef _WITH_OPENZWAVE
 	#include "hardware/ZWave.h"
 	#include "hardware/ZWaveNode.h"
@@ -23,13 +30,6 @@
 	#include "hardware/PiFace.h"
 	#include "hardware/PiFaceBoard.h"
 #endif // _WITH_LINUX_SPI
-#include "hardware/WeatherUnderground.h"
-#include "hardware/HarmonyHub.h"
-#include "hardware/RFXCom.h"
-#include "hardware/SolarEdge.h"
-#include "hardware/SolarEdgeInverter.h"
-#include "hardware/Dummy.h"
-#include "hardware/Telegram.h"
 
 namespace micasa {
 
@@ -42,20 +42,20 @@ namespace micasa {
 
 	const std::map<Hardware::Type, std::string> Hardware::TypeText = {
 		{ Hardware::Type::HARMONY_HUB, "harmony_hub" },
+		{ Hardware::Type::RFXCOM, "rfxcom" },
+		{ Hardware::Type::SOLAREDGE, "solaredge" },
+		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
+		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" },
+		{ Hardware::Type::DUMMY, "dummy" },
+		{ Hardware::Type::TELEGRAM, "telegram" },
 #ifdef _WITH_OPENZWAVE
 		{ Hardware::Type::ZWAVE, "zwave" },
 		{ Hardware::Type::ZWAVE_NODE, "zwave_node" },
 #endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 		{ Hardware::Type::PIFACE, "piface" },
-		{ Hardware::Type::PIFACE_BOARD, "piface_board" },
+		{ Hardware::Type::PIFACE_BOARD, "piface_board" }
 #endif // _WITH_LINUX_SPI
-		{ Hardware::Type::RFXCOM, "rfxcom" },
-		{ Hardware::Type::SOLAREDGE, "solaredge" },
-		{ Hardware::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
-		{ Hardware::Type::WEATHER_UNDERGROUND, "weather_underground" },
-		{ Hardware::Type::DUMMY, "dummy" },
-		{ Hardware::Type::TELEGRAM, "telegram" }
 	};
 
 	const std::map<Hardware::State, std::string> Hardware::StateText = {
@@ -77,6 +77,7 @@ namespace micasa {
 	Hardware::~Hardware() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be destroyed after Hardware instances." );
+		assert( this->m_state == Hardware::State::DISABLED && "Hardware should be stopped before being destructed." );
 #endif // _DEBUG
 	};
 
@@ -125,7 +126,6 @@ namespace micasa {
 
 	void Hardware::start() {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
@@ -134,14 +134,18 @@ namespace micasa {
 		);
 		for ( auto const &devicesDataIt : devicesData ) {
 			Device::Type type = Device::resolveTextType( devicesDataIt.at( "type" ) );
+			bool enabled = ( devicesDataIt.at( "enabled" ) == "1" );
 			std::shared_ptr<Device> device = Device::factory(
 				this->shared_from_this(),
 				type,
 				std::stoi( devicesDataIt.at( "id" ) ),
 				devicesDataIt.at( "reference" ),
 				devicesDataIt.at( "label" ),
-				devicesDataIt.at( "enabled" ) == "1"
+				enabled
 			);
+			if ( enabled ) {
+				device->start();
+			}
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
 		}
 
@@ -153,7 +157,15 @@ namespace micasa {
 	};
 
 	void Hardware::stop() {
+		std::unique_lock<std::mutex> devicesLock( this->m_devicesMutex );
+		for ( auto const &deviceIt : this->m_devices ) {
+			if ( deviceIt.second->isEnabled() ) {
+				deviceIt.second->stop();
+			}
+		}
 		this->m_devices.clear();
+		devicesLock.unlock();
+
 		if ( this->m_settings->isDirty() ) {
 			this->m_settings->commit();
 		}

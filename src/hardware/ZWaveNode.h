@@ -22,12 +22,11 @@ namespace micasa {
 	public:
 		static const char* label;
 
-		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
+		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		~ZWaveNode() { };
 
 		void start() override;
 		void stop() override;
-
 		std::string getLabel() const override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
@@ -37,9 +36,9 @@ namespace micasa {
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
 
 	private:
-		unsigned int m_homeId = 0;
-		unsigned int m_nodeId = 0;
-		nlohmann::json m_configuration = nlohmann::json::object();
+		unsigned int m_homeId;
+		unsigned int m_nodeId;
+		nlohmann::json m_configuration;
 		mutable std::mutex m_configurationMutex;
 
 		void _handleNotification( const OpenZWave::Notification* notification_ );

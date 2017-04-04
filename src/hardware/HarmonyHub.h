@@ -24,12 +24,11 @@ namespace micasa {
 		
 		static const char* label;
 
-		HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
+		HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		~HarmonyHub() { };
 		
 		void start() override;
 		void stop() override;
-		
 		std::string getLabel() const throw() override { return HarmonyHub::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
@@ -38,9 +37,9 @@ namespace micasa {
 	private:
 		std::shared_ptr<Scheduler::Task<> > m_task;
 		std::shared_ptr<Network::Connection> m_connection;
-		ConnectionState m_connectionState = ConnectionState::IDLE;
-		std::string m_currentActivityId = "-1";
-		std::string m_received = "";
+		ConnectionState m_connectionState;
+		std::string m_currentActivityId;
+		std::string m_received;
 	
 		bool _process();
 		

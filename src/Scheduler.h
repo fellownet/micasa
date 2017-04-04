@@ -194,12 +194,10 @@ namespace micasa {
 		private:
 			bool m_shutdown;
 			bool m_continue;
-
 			std::shared_ptr<BaseTask> m_start;
-			unsigned int m_count = 0;
+			unsigned int m_count;
 			std::vector<std::shared_ptr<BaseTask> > m_activeTasks;
 			mutable std::mutex m_tasksMutex;
-			
 			std::vector<std::thread> m_threads;
 			std::condition_variable m_continueCondition;
 			mutable std::mutex m_conditionMutex;

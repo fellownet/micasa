@@ -19,6 +19,12 @@ namespace micasa {
 
 	const char* WeatherUnderground::label = "Weather Underground";
 
+	WeatherUnderground::WeatherUnderground( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_details( "" )
+	{
+	};
+
 	void WeatherUnderground::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -211,7 +217,7 @@ namespace micasa {
 						} )->updateValue( Device::UpdateSource::HARDWARE, sunset );
 					}
 
-					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground retry", [this]( Scheduler::Task<>& ) -> void {
+					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground", [this]( Scheduler::Task<>& ) -> void {
 						this->setState( Hardware::State::SLEEPING );
 					} );
 				} else {

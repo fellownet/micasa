@@ -36,23 +36,29 @@ namespace micasa {
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
 		m_previousValue( 0 ),
-		m_rateLimiter( { 0, Device::resolveUpdateSource( 0 ), system_clock::now() } )
+		m_updated( system_clock::now() ),
+		m_rateLimiter( { 0, Device::resolveUpdateSource( 0 ) } )
 	{
 		try {
-			this->m_value = this->m_rateLimiter.value = g_database->getQueryValue<Counter::t_value>(
-				"SELECT `value` "
+			json result = g_database->getQueryRow<json>(
+				"SELECT `value`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `age` "
 				"FROM `device_counter_history` "
 				"WHERE `device_id`=%d "
 				"ORDER BY `date` DESC "
 				"LIMIT 1",
 				this->m_id
 			);
+			this->m_value = this->m_rateLimiter.value = jsonGet<double>( result, "value" );
+			this->m_updated = system_clock::now() - seconds( jsonGet<unsigned int>( result, "age" ) );
 		} catch( const Database::NoResultsException& ex_ ) {
 			Logger::log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
 	};
 
-	void Counter::_init() {
+	void Counter::start() {
+#ifdef _DEBUG
+		assert( this->m_enabled && "Device needs to be enabled while being started." );
+#endif // _DEBUG
 		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
 		static std::atomic<unsigned int> offset( 0 );
 		offset += ( 1000 * 11 ); // 11 seconds interval
@@ -64,14 +70,34 @@ namespace micasa {
 		} );
 	};
 
-	void Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
-		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
+	void Counter::stop() {
+#ifdef _DEBUG
+		assert( this->m_enabled && "Device needs to be enabled while being stopped." );
+#endif // _DEBUG
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
+	};
+
+	void Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
+		if (
+			! force_
+			&& ! this->m_enabled
+		) {
+			return;
+		}
+
+		if (
+			! force_
+			&& ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_
+		) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return;
 		}
 		
 		if (
-			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
+			! force_
+			&& this->getSettings()->get<bool>( "ignore_duplicates", false )
 			&& this->m_value == value_
 			&& this->getHardware()->getState() == Hardware::State::READY
 		) {
@@ -80,12 +106,13 @@ namespace micasa {
 		}
 
 		if (
-			this->m_settings->contains( "rate_limit" )
+			! force_
+			&& this->m_settings->contains( "rate_limit" )
 			&& this->getHardware()->getState() == Hardware::State::READY
 		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();
-			system_clock::time_point next = this->m_rateLimiter.last + milliseconds( rateLimit );
+			system_clock::time_point next = this->m_updated + milliseconds( rateLimit );
 			if ( next > now ) {
 				this->m_rateLimiter.source = source_;
 				this->m_rateLimiter.value = value_;
@@ -93,12 +120,10 @@ namespace micasa {
 				if ( ! task ) {
 					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, "counter ratelimiter", [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
-						this->m_rateLimiter.last = task_.time;
 					} );
 				}
 			} else {
 				this->_processValue( source_, value_ );
-				this->m_rateLimiter.last = now;
 			}
 		} else {
 			this->_processValue( source_, value_ );
@@ -110,13 +135,14 @@ namespace micasa {
 	};
 	
 	json Counter::getJson( bool full_ ) const {
-		double divider = this->m_settings->get<double>( "divider", 1 );
-
 		json result = Device::getJson( full_ );
+
+		double divider = this->m_settings->get<double>( "divider", 1 );
 		result["value"] = round( ( this->m_value / divider ) * 1000.0f ) / 1000.0f;
 		result["raw_value"] = this->m_value;
+		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "counter";
-		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
+		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
 		if ( this->m_settings->contains( "divider" ) ) {
 			result["divider"] = this->m_settings->get<double>( "divider" );
@@ -124,18 +150,6 @@ namespace micasa {
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
-
-		try {
-			json timeProperties = g_database->getQueryRow<json>(
-				"SELECT CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `last_update`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `age` "
-				"FROM `device_counter_history` "
-				"WHERE `device_id`=%d ",
-				this->getId()
-			);
-			result["last_update"] = timeProperties["last_update"].get<unsigned long>();
-			result["age"] = timeProperties["age"].get<unsigned long>();
-		} catch( json::exception ex_ ) { }
-
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
@@ -287,13 +301,11 @@ namespace micasa {
 				this->m_value
 			);
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
-			if (
-				this->isEnabled()
-				&& this->getHardware()->getState() != Hardware::State::READY
-			) {
+			this->m_updated = system_clock::now();
+			if ( this->getHardware()->getState() >= Hardware::State::READY ) {
 				g_controller->newEvent<Counter>( std::static_pointer_cast<Counter>( this->shared_from_this() ), source_ );
 			}
-			Logger::logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %.3lf.", this->m_value );
+			Logger::logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", this->m_value );
 		} else {
 			this->m_value = previous;
 		}
@@ -335,12 +347,20 @@ namespace micasa {
 	};
 
 	void Counter::_purgeHistory() const {
+#ifdef _DEBUG
 		g_database->putQuery(
 			"DELETE FROM `device_counter_history` "
-			"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')",
+			"WHERE `Date` < datetime( 'now','-%d day' )",
+			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+		);
+#else // _DEBUG
+		g_database->putQuery(
+			"DELETE FROM `device_counter_history` "
+			"WHERE `device_id`=%d AND `Date` < datetime( 'now','-%d day' )",
 			this->m_id,
 			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
 		);
+#endif // _DEBUG
 	};
 
 }; // namespace micasa

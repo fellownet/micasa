@@ -41,6 +41,13 @@ namespace micasa {
 	std::timed_mutex ZWave::g_managerMutex;
 	unsigned int ZWave::g_managerWatchers = 0;
 
+	ZWave::ZWave( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_port( "" ),
+		m_homeId( 0 )
+	{
+	};
+
 	void ZWave::start() {
 		Logger::log( Logger::LogLevel::NORMAL, this, "Starting..." );
 		Hardware::start();
@@ -149,17 +156,17 @@ namespace micasa {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 		this->declareDevice<Switch>( "include", "Inclusion Mode", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 		this->declareDevice<Switch>( "exclude", "Exclusion Mode", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 	};
 
 	void ZWave::stop() {

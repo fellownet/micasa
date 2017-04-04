@@ -67,7 +67,7 @@ namespace micasa {
 		std::string getLabel() const throw() { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
-		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
+		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ = false );
 		template<class T> typename T::t_value getValue() const;
 		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
@@ -75,15 +75,15 @@ namespace micasa {
 		bool isEnabled() const throw() { return this->m_enabled; };
 		void setEnabled( bool enabled_ = true );
 
+		virtual void start() = 0;
+		virtual void stop() = 0;
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
 		virtual void putSettingsJson( const nlohmann::json& settings_ );
 		virtual Type getType() const =0;
-		
+	
 	protected:
 		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
-
-		virtual void _init() = 0;
 
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;

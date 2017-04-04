@@ -84,7 +84,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	private:
-		bool m_running = false;
+		bool m_running;
 		std::unordered_map<std::string, std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
 		Scheduler m_scheduler;

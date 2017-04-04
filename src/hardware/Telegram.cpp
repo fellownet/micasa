@@ -14,6 +14,14 @@ namespace micasa {
 
 	const char* Telegram::label = "Telegram Bot";
 
+	Telegram::Telegram( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_username( "" ),
+		m_lastUpdateId( -1 ),
+		m_acceptMode( false )
+	{
+	};
+
 	void Telegram::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -23,7 +31,7 @@ namespace micasa {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 		this->declareDevice<Text>( "broadcast", "Broadcast", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveTextSubType( Text::SubType::NOTIFICATION ) }

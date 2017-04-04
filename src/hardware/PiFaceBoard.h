@@ -25,7 +25,6 @@ namespace micasa {
 
 		void start() override;
 		void stop() override;
-		
 		std::string getLabel() const override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;

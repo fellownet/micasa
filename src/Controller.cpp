@@ -150,7 +150,9 @@ namespace micasa {
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Settings<> > g_settings;
 
-	Controller::Controller() {
+	Controller::Controller() :
+		m_running( false )
+	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
 #endif // _DEBUG

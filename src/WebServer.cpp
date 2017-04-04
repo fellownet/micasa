@@ -871,8 +871,16 @@ namespace micasa {
 							}
 
 							bool enabled = jsonGet<bool>( deviceData, "enabled" );
-							deviceData.erase( "enabled" );
-							device->setEnabled( enabled );
+							deviceData.erase( "enabled" ); // prevents it from ending up in settings
+							if ( enabled != device->isEnabled() ) {
+								if ( enabled ) {
+									device->setEnabled( enabled );
+									device->start();
+								} else {
+									device->stop();
+									device->setEnabled( enabled );
+								}
+							}
 
 							g_database->putQuery(
 								"UPDATE `devices` "

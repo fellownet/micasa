@@ -18,6 +18,14 @@ namespace micasa {
 
 	const char* HarmonyHub::label = "Harmony Hub";
 
+	HarmonyHub::HarmonyHub( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_connectionState( ConnectionState::IDLE ),
+		m_currentActivityId( "-1" ),
+		m_received( "" )
+	{
+	};
+
 	void HarmonyHub::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();

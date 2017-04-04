@@ -23,12 +23,11 @@ namespace micasa {
 	public:
 		static const char* label;
 
-		RFXCom( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
+		RFXCom( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		~RFXCom() { };
 
 		void start() override;
 		void stop() override;
-
 		std::string getLabel() const throw() override { return RFXCom::label; };
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
@@ -38,7 +37,7 @@ namespace micasa {
 
 	private:
 		std::shared_ptr<Serial> m_serial;
-		unsigned int m_packetPosition = 0;
+		unsigned int m_packetPosition;
 		unsigned char m_packet[RFXCOM_MAX_PACKET_SIZE];
 
 		bool _processPacket();

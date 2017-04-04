@@ -42,27 +42,32 @@ namespace micasa {
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( Option::OFF ),
 		m_previousValue( Option::OFF ),
-		m_rateLimiter( { Option::OFF, Device::resolveUpdateSource( 0 ), system_clock::now() } )
+		m_updated( system_clock::now() ),
+		m_rateLimiter( { Option::OFF, Device::resolveUpdateSource( 0 ) } )
 	{
 		try {
-			std::string value = g_database->getQueryValue<std::string>(
-				"SELECT `value` "
+			json result = g_database->getQueryRow<json>(
+				"SELECT `value`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `age` "
 				"FROM `device_switch_history` "
 				"WHERE `device_id`=%d "
 				"ORDER BY `date` DESC "
 				"LIMIT 1",
 				this->m_id
 			);
-			this->m_value = Switch::resolveTextOption( value );
+			this->m_value = this->m_rateLimiter.value = Switch::resolveTextOption( jsonGet<std::string>( result, "value" ) );
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
-				this->m_value = Switch::Option::IDLE;
+				this->m_value = this->m_rateLimiter.value = Switch::Option::IDLE;
 			}
+			this->m_updated = system_clock::now() - seconds( jsonGet<unsigned int>( result, "age" ) );
 		} catch( const Database::NoResultsException& ex_ ) {
 			Logger::log( Logger::LogLevel::DEBUG, this, "No starting value." );
 		}
 	};
 
-	void Switch::_init() {
+	void Switch::start() {
+#ifdef _DEBUG
+		assert( this->m_enabled && "Device needs to be enabled while being started." );
+#endif // _DEBUG
 		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
 		static std::atomic<unsigned int> offset( 0 );
 		offset += ( 1000 * 11 ); // 11 seconds interval
@@ -71,14 +76,36 @@ namespace micasa {
 		} );
 	};
 
-	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
-		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
+	void Switch::stop() {
+#ifdef _DEBUG
+		assert( this->m_enabled && "Device needs to be enabled while being stopped." );
+#endif // _DEBUG
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
+	};
+
+	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ ) {
+		Switch::SubType subType = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
+		if (
+			! force_
+			&& subType != Switch::SubType::ACTION
+			&& ! this->m_enabled
+		) {
+			return;
+		}
+
+		if (
+			! force_
+			&& ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_
+		) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return;
 		}
 
 		if (
-			this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT )
+			! force_
+			&& this->getSettings()->get<bool>( "ignore_duplicates", true )
 			&& this->m_value == value_
 			&& this->getHardware()->getState() == Hardware::State::READY
 		) {
@@ -87,12 +114,13 @@ namespace micasa {
 		}
 
 		if (
-			this->m_settings->contains( "rate_limit" )
+			! force_
+			&& this->m_settings->contains( "rate_limit" )
 			&& this->getHardware()->getState() == Hardware::State::READY
 		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();
-			system_clock::time_point next = this->m_rateLimiter.last + milliseconds( rateLimit );
+			system_clock::time_point next = this->m_updated + milliseconds( rateLimit );
 			if ( next > now ) {
 				this->m_rateLimiter.source = source_;
 				this->m_rateLimiter.value = value_;
@@ -100,19 +128,17 @@ namespace micasa {
 				if ( ! task ) {
 					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, "switch ratelimiter", [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
-						this->m_rateLimiter.last = task_.time;
 					} );
 				}
 			} else {
 				this->_processValue( source_, value_ );
-				this->m_rateLimiter.last = now;
 			}
 		} else {
 			this->_processValue( source_, value_ );
 		}
 	};
 	
-	void Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );
@@ -140,10 +166,11 @@ namespace micasa {
 
 	json Switch::getJson( bool full_ ) const {
 		json result = Device::getJson( full_ );
+
 		result["value"] = this->getValue();
+		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "switch";
-		
-		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "" ) );
+		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 		result["subtype"] = subtype;
 		if ( subtype == resolveTextSubType( Switch::SubType::BLINDS ) ) {
 			result["inverted"] = this->m_settings->get( "inverted", false );
@@ -151,18 +178,6 @@ namespace micasa {
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
-
-		try {
-			json timeProperties = g_database->getQueryRow<json>(
-				"SELECT CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `last_update`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', MAX( `date` ) OR 'now' ) AS INTEGER ) AS `age` "
-				"FROM `device_switch_history` "
-				"WHERE `device_id`=%d ",
-				this->getId()
-			);
-			result["last_update"] = timeProperties["last_update"].get<unsigned long>();
-			result["age"] = timeProperties["age"].get<unsigned long>();
-		} catch( json::exception ex_ ) { }
-
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
@@ -256,17 +271,15 @@ namespace micasa {
 				Switch::resolveTextOption( this->m_value ).c_str()
 			);
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
-			if (
-				this->isEnabled()
-				&& this->getHardware()->getState() != Hardware::State::READY
-			) {
+			this->m_updated = system_clock::now();
+			if ( this->getHardware()->getState() >= Hardware::State::READY ) {
 				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
 				this->m_value = Switch::Option::IDLE;
-				Logger::log( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "Activated." );
+				Logger::log( Logger::LogLevel::NORMAL, this, "Activated." );
 			} else {
-				Logger::logr( this->isEnabled() ? Logger::LogLevel::NORMAL : Logger::LogLevel::DEBUG, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
+				Logger::logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
 			}
 		} else {
 			this->m_value = previous;
@@ -274,11 +287,20 @@ namespace micasa {
 	};
 
 	void Switch::_purgeHistory() const {
+#ifdef _DEBUG
 		g_database->putQuery(
 			"DELETE FROM `device_switch_history` "
-			"WHERE `device_id`=%d AND `Date` < datetime('now','-%d day')"
-			, this->m_id, this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
+			"WHERE `Date` < datetime( 'now','-%d day' )",
+			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
 		);
+#else // _DEBUG
+		g_database->putQuery(
+			"DELETE FROM `device_switch_history` "
+			"WHERE `device_id`=%d AND `Date` < datetime( 'now','-%d day' )",
+			this->m_id,
+			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
+		);
+#endif // _DEBUG
 	};
 
 }; // namespace micasa

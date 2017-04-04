@@ -67,17 +67,17 @@ namespace micasa {
 		}
 	};
 
-	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
+	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ ) {
 		auto target = dynamic_cast<T*>( this );
 #ifdef _DEBUG
 		assert( target && "Invalid device template specifier." );
 #endif // _DEBUG
-		target->updateValue( source_, value_ );
+		target->updateValue( source_, value_, force_ );
 	};
-	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
-	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
-	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
-	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
+	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_, bool force_ );
+	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_, bool force_ );
+	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_, bool force_ );
+	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_, bool force_ );
 	
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
@@ -92,23 +92,21 @@ namespace micasa {
 	template Text::t_value Device::getValue<Text>() const;
 	
 	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
-		std::shared_ptr<Device> device;
 		switch( type_ ) {
 			case Type::COUNTER:
-				device = std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::LEVEL:
-				device = std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::SWITCH:
-				device = std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::TEXT:
-				device = std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 		}
-		device->_init();
-		return device;
+		return nullptr;
 	};
 
 	json Device::getJson( bool full_ ) const {

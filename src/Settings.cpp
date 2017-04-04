@@ -53,7 +53,10 @@ namespace micasa {
 		this->assign( value_ );
 	};
 
-	template<class T> SettingsHelper<T>::SettingsHelper( const T& target_ ) : m_target( target_ ) {
+	template<class T> SettingsHelper<T>::SettingsHelper( const T& target_ ) :
+		m_target( target_ ),
+		m_populated( false )
+	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before settings instances." );
 #endif // _DEBUG
@@ -107,7 +110,9 @@ namespace micasa {
 
 	// The void-variant of the class is fully specialized, resulting in a fully instantiated type
 	// called SettingsHelper<void>.
-	SettingsHelper<void>::SettingsHelper() {
+	SettingsHelper<void>::SettingsHelper() :
+		m_populated( false )
+	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before settings instances." );
 #endif // _DEBUG

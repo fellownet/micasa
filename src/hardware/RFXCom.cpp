@@ -18,6 +18,12 @@ namespace micasa {
 
 	const char* RFXCom::label = "RFXCom";
 
+	RFXCom::RFXCom( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_packetPosition( 0 )
+	{
+	};
+
 	void RFXCom::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
@@ -81,7 +87,7 @@ namespace micasa {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 	};
 
 	void RFXCom::stop() {

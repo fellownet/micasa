@@ -33,8 +33,16 @@ namespace micasa {
 	std::vector<Serial*> Serial::g_serialInstances;
 	std::mutex Serial::g_serialInstancesMutex;
 
-	Serial::Serial( const std::string& port_, const unsigned int baudRate_, const CharacterSize charSize_, const Parity parity_, const StopBits stopBits_, const FlowControl flowControl_, std::shared_ptr<t_callback> callback_ )
-		: m_port( port_ ), m_baudRate( baudRate_ ), m_charSize( charSize_ ), m_parity( parity_ ), m_stopBits( stopBits_ ), m_flowControl( flowControl_ ), m_callback( callback_ ) {
+	Serial::Serial( const std::string& port_, const unsigned int baudRate_, const CharacterSize charSize_, const Parity parity_, const StopBits stopBits_, const FlowControl flowControl_, std::shared_ptr<t_callback> callback_ ) :
+		m_port( port_ ),
+		m_baudRate( baudRate_ ),
+		m_charSize( charSize_ ),
+		m_parity( parity_ ),
+		m_stopBits( stopBits_ ),
+		m_flowControl( flowControl_ ),
+		m_callback( callback_ ),
+		m_fd( -1 )
+	{
 	};
 	
 	Serial::~Serial() {
