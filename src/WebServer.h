@@ -7,6 +7,7 @@
 
 #include "Utils.h"
 #include "Network.h"
+#include "Scheduler.h"
 
 #include "json.hpp"
 
@@ -81,6 +82,7 @@ namespace micasa {
 		//std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
 		
 	private:
+		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
 		mutable std::mutex m_resourcesMutex;
 		std::shared_ptr<Network::Connection> m_bind;

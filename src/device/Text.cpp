@@ -81,28 +81,23 @@ namespace micasa {
 			return;
 		}
 
-		if (
-			! force_
-			&& ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_
-		) {
+		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & source_ ) != source_ ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return;
 		}
 
 		if (
-			! force_
-			&& this->getSettings()->get<bool>( "ignore_duplicates", true )
+			this->getSettings()->get<bool>( "ignore_duplicates", true )
 			&& this->m_value == value_
-			&& this->getHardware()->getState() == Hardware::State::READY
+			&& this->getHardware()->getState() >= Hardware::State::READY
 		) {
 			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
 		}
 		
 		if (
-			! force_
-			&& this->m_settings->contains( "rate_limit" )
-			&& this->getHardware()->getState() == Hardware::State::READY
+			this->m_settings->contains( "rate_limit" )
+			&& this->getHardware()->getState() >= Hardware::State::READY
 		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();

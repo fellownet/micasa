@@ -820,20 +820,22 @@ namespace micasa {
 						if ( devices.size() > 0 ) {
 							for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 								auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
-								TaskOptions options = { 0, 0, 1, 0, false, false };
-								switch( device->getType() ) {
-									case Device::Type::COUNTER:
-										this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-										break;
-									case Device::Type::LEVEL:
-										this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-										break;
-									case Device::Type::SWITCH:
-										this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-										break;
-									case Device::Type::TEXT:
-										this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-										break;
+								if ( device ) {
+									TaskOptions options = { 0, 0, 1, 0, false, false };
+									switch( device->getType() ) {
+										case Device::Type::COUNTER:
+											this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+											break;
+										case Device::Type::LEVEL:
+											this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+											break;
+										case Device::Type::SWITCH:
+											this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+											break;
+										case Device::Type::TEXT:
+											this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+											break;
+									}
 								}
 							}
 						}
@@ -877,17 +879,19 @@ namespace micasa {
 
 			for ( auto linksIt = links.begin(); linksIt != links.end(); linksIt++ ) {
 				auto targetDevice = std::static_pointer_cast<Switch>( this->getDeviceById( std::stoi( (*linksIt)["target_device_id"] ) ) );
-				TaskOptions options = { 0, 0, 1, 0, false, false };
-				if ( (*linksIt)["after"].size() > 0 ) {
-					options.afterSec = std::stod( (*linksIt)["after"] );
+				if ( targetDevice ) {
+					TaskOptions options = { 0, 0, 1, 0, false, false };
+					if ( (*linksIt)["after"].size() > 0 ) {
+						options.afterSec = std::stod( (*linksIt)["after"] );
+					}
+					if ( (*linksIt)["for"].size() > 0 ) {
+						options.forSec = std::stod( (*linksIt)["for"] );
+					}
+					if ( (*linksIt)["clear"].size() > 0 ) {
+						options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
+					}
+					this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
 				}
-				if ( (*linksIt)["for"].size() > 0 ) {
-					options.forSec = std::stod( (*linksIt)["for"] );
-				}
-				if ( (*linksIt)["clear"].size() > 0 ) {
-					options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
-				}
-				this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
 			}
 		}
 	};

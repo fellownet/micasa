@@ -173,7 +173,9 @@ namespace micasa {
 				Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 80." );
 			}
 			if ( event_ == Network::Connection::Event::DATA ) {
-				this->_processRequest( connection_, data_ );
+				this->m_scheduler.schedule( 0, 1, this, "webserver response 80", [this,&connection_]( Scheduler::Task<>& ) {
+					this->_processRequest( connection_ );
+				} );
 			}
 		} );
 #ifdef _WITH_OPENSSL
@@ -182,7 +184,9 @@ namespace micasa {
 				Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 443." );
 			}
 			if ( event_ == Network::Connection::Event::DATA ) {
-				this->_processRequest( connection_, data_ );
+				this->m_scheduler.schedule( 0, 1, this, "webserver response 443", [this,&connection_]( Scheduler::Task<>& ) {
+					this->_processRequest( connection_ );
+				} );
 			}
 		} );
 #endif
@@ -241,7 +245,7 @@ namespace micasa {
 		}
 		int size = EVP_PKEY_size( key );
 		char encrypted[size];
-		if ( ! RSA_public_encrypt( data_.size(), (unsigned char*)data_.c_str(), (unsigned char*)encrypted, EVP_PKEY_get1_RSA( key ), RSA_PKCS1_PADDING ) ) {
+		if ( -1 == RSA_public_encrypt( data_.size(), (unsigned char*)data_.c_str(), (unsigned char*)encrypted, EVP_PKEY_get1_RSA( key ), RSA_PKCS1_PADDING ) ) {
 			throw std::runtime_error( "unable to encrypt string" );
 		}
 		EVP_PKEY_free( key );
@@ -291,9 +295,10 @@ namespace micasa {
 		int size2 = EVP_PKEY_size( this->m_key );
 		char decrypted[size2];
 		size2 = RSA_private_decrypt( size1, (unsigned char*)decoded, (unsigned char*)decrypted, EVP_PKEY_get1_RSA( this->m_key ), RSA_PKCS1_PADDING );
-		if ( ! size2 ) {
+		if ( -1 == size2 ) {
 			throw std::runtime_error( "rsa decrypt failure" );
 		}
+
 		std::string result( decrypted, size2 );
 		return result;
 	};
@@ -325,7 +330,7 @@ namespace micasa {
 	};
 #endif
 
-	void WebServer::_processRequest( Network::Connection& connection_, const std::string& data_ ) {
+	void WebServer::_processRequest( Network::Connection& connection_ ) {
 
 		// Determine wether or not the request is an API request or a request for static files. Static files
 		// are handled by Mongoose internally.
@@ -350,143 +355,137 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			std::thread( [this,uri,method,params,headers,data_,&connection_]() -> void {
-
-				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
-				// string).
-				json input = json::object();
-				if (
-					WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
-					&& data_.length() > 2
-				) {
-					try {
-						input = json::parse( data_ );
-					} catch( json::exception ex_ ) {
-						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
-					}
-				}
-				for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
-					input[(*paramsIt).first] = (*paramsIt).second;
-				}
-
-				// Determine the access rights of the current client. If a valid token was provided, details of
-				// the token are added to the input aswell.
-				std::shared_ptr<User> user = nullptr;
-#ifdef _WITH_OPENSSL
-				if ( headers.find( "Authorization" ) != headers.end() ) {
-					try {
-						json token = json::parse( this->_decrypt64( headers.at( "Authorization" ) ) );
-						unsigned int userId = token["user_id"].get<unsigned int>();
-						auto userData = g_database->getQueryRow(
-							"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
-							"FROM `users` u "
-							"WHERE `id`=%d ",
-							userId
-						);
-						if ( token["valid"].get<int>() >= std::stoi( userData["now"] ) ) {
-							user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-						}
-					} catch( json::exception ex_ ) { }
-				} else if (
-#endif
-#ifndef _WITH_OPENSSL
-				if (
-#endif
-					input.find( "username" ) != input.end()
-					&& input.find( "password" ) != input.end()
-				) {
-					try {
-						auto userData = g_database->getQueryRow(
-							"SELECT `id`, `name`, `rights` "
-							"FROM `users` "
-							"WHERE `username`='%s' "
-							"AND `password`='%s' "
-							"AND `enabled`=1",
-							input["username"].get<std::string>().c_str(),
-							this->_hash( input["password"].get<std::string>() ).c_str()
-						);
-						user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-					} catch( ... ) { }
-				}
-
-				// Prepare the output json object that is eventually send back to the client.
-				json output = {
-					{ "result", "OK" },
-					{ "code", 204 }, // no content
-				};
-
+			// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
+			// string).
+			json input = json::object();
+			if (
+				WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
+				&& data_.length() > 2
+			) {
 				try {
-					std::vector<std::shared_ptr<ResourceCallback> > callbacks;
-					std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
-					for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-						std::regex pattern( (*resourceIt)->uri );
-						std::smatch match;
-						if (
-							std::regex_search( uri, match, pattern )
-							&& ( (*resourceIt)->methods & method ) == method
-						) {
-							
-							// Add each matched paramter to the input for the callback to determine which individual
-							// resource was accessed.
-							for ( unsigned int i = 1; i < match.size(); i++ ) {
-								if ( match.str( i ).size() > 0 ) {
-									input["$" + std::to_string( i )] = match.str( i );
-								}
-							}
-
-							callbacks.push_back( *resourceIt );
-						}
-					}
-					resourcesLock.unlock();
-
-					for ( auto callbacksIt = callbacks.begin(); callbacksIt != callbacks.end(); callbacksIt++ ) {
-						(*callbacksIt)->callback( user, input, method, output );
-					}
-
-					// If no callbacks we're called the code should still be 204 and should be replaced with a 404
-					// indicating a resource not found error.
-					if ( output["code"].get<unsigned int>() == 204 ) {
-						output["result"] = "ERROR";
-						output["code"] = 404;
-						output["error"] = "Resource.Not.Found";
-						output["message"] = "The requested resource was not found.";
-					}
-				
-				} catch( const ResourceException& exception_ ) {
-					output["result"] = "ERROR";
-					output["code"] = exception_.code;
-					output["error"] = exception_.error;
-					output["message"] = exception_.message;
-				} catch( std::exception& exception_ ) { // also catches json::exception
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-					Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
-#ifndef _DEBUG
-				} catch( ... ) {
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-#endif // _DEBUG
+					input = json::parse( data_ );
+				} catch( json::exception ex_ ) {
+					Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
 				}
+			}
+			for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
+				input[(*paramsIt).first] = (*paramsIt).second;
+			}
+
+			// Determine the access rights of the current client. If a valid token was provided, details of
+			// the token are added to the input aswell.
+			std::shared_ptr<User> user = nullptr;
+			if (
+				input.find( "username" ) != input.end()
+				&& input.find( "password" ) != input.end()
+			) {
+				try {
+					auto userData = g_database->getQueryRow(
+						"SELECT `id`, `name`, `rights` "
+						"FROM `users` "
+						"WHERE `username`='%s' "
+						"AND `password`='%s' "
+						"AND `enabled`=1",
+						input["username"].get<std::string>().c_str(),
+						this->_hash( input["password"].get<std::string>() ).c_str()
+					);
+					user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
+				} catch( ... ) { }
+#ifdef _WITH_OPENSSL
+			} else if ( headers.find( "Authorization" ) != headers.end() ) {
+				try {
+					json token = json::parse( this->_decrypt64( headers.at( "Authorization" ) ) );
+					unsigned int userId = token["user_id"].get<unsigned int>();
+					auto userData = g_database->getQueryRow(
+						"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
+						"FROM `users` u "
+						"WHERE `id`=%d ",
+						userId
+					);
+					if ( token["valid"].get<int>() >= std::stoi( userData["now"] ) ) {
+						user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
+					}
+				} catch( ... ) { }
+#endif
+			}
+
+			// Prepare the output json object that is eventually send back to the client.
+			json output = {
+				{ "result", "OK" },
+				{ "code", 204 }, // no content
+			};
+
+			try {
+				std::vector<std::shared_ptr<ResourceCallback> > callbacks;
+				std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
+				for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
+					std::regex pattern( (*resourceIt)->uri );
+					std::smatch match;
+					if (
+						std::regex_search( uri, match, pattern )
+						&& ( (*resourceIt)->methods & method ) == method
+					) {
+						
+						// Add each matched paramter to the input for the callback to determine which individual
+						// resource was accessed.
+						for ( unsigned int i = 1; i < match.size(); i++ ) {
+							if ( match.str( i ).size() > 0 ) {
+								input["$" + std::to_string( i )] = match.str( i );
+							}
+						}
+
+						callbacks.push_back( *resourceIt );
+					}
+				}
+				resourcesLock.unlock();
+
+				for ( auto callbacksIt = callbacks.begin(); callbacksIt != callbacks.end(); callbacksIt++ ) {
+					(*callbacksIt)->callback( user, input, method, output );
+				}
+
+				// If no callbacks we're called the code should still be 204 and should be replaced with a 404
+				// indicating a resource not found error.
+				if ( output["code"].get<unsigned int>() == 204 ) {
+					output["result"] = "ERROR";
+					output["code"] = 404;
+					output["error"] = "Resource.Not.Found";
+					output["message"] = "The requested resource was not found.";
+				}
+			
+			} catch( const ResourceException& exception_ ) {
+				output["result"] = "ERROR";
+				output["code"] = exception_.code;
+				output["error"] = exception_.error;
+				output["message"] = exception_.message;
+			} catch( std::exception& exception_ ) { // also catches json::exception
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+				Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+#ifndef _DEBUG
+			} catch( ... ) {
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+#endif // _DEBUG
+			}
 
 #ifdef _DEBUG
-				assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
-				assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
-				const std::string content = output.dump( 4 );
+			assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
+			assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
+			const std::string content = output.dump( 4 );
 #else
-				const std::string content = output.dump();
+			const std::string content = output.dump();
 #endif // _DEBUG
 
-				unsigned int code = output["code"].get<unsigned int>();
-				connection_.reply( content, code, {
-					{ "Content-Type", "Content-type: application/json" },
-					{ "Access-Control-Allow-Origin", "*" },
-					{ "Cache-Control", "no-cache, no-store, must-revalidate" }
-				} );
-			} ).detach();
+			unsigned int code = output["code"].get<unsigned int>();
+			connection_.reply( content, code, {
+				{ "Content-Type", "Content-type: application/json" },
+				{ "Access-Control-Allow-Origin", "*" },
+				{ "Cache-Control", "no-cache, no-store, must-revalidate" }
+			} );
 		}
 	};
 

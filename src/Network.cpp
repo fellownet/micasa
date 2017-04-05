@@ -1,13 +1,12 @@
+// https://forum.cesanta.com/mobile/index.php?p=/discussion/274/multithreading-web-server
+
 #include <regex>
 #include <future>
 
 #include "Network.h"
 
 void micasa_mg_handler( mg_connection* connection_, int event_, void* data_ ) {
-	if (
-		MG_EV_POLL != event_
-		&& connection_->user_data != NULL
-	) {
+	if ( connection_->user_data != NULL ) {
 		micasa::Network::Connection* connection = static_cast<micasa::Network::Connection*>( connection_->user_data );
 		connection->_handler( connection_, event_, data_ );
 	}
@@ -64,15 +63,19 @@ namespace micasa {
 
 	void Network::Connection::send( const std::string& data_ ) {
 		if ( this->m_connection != NULL ) {
-			Network::_synchronize( [this,data_]() {
+			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+			this->m_tasks.push( [this,data_]() {
 				mg_send( this->m_connection, data_.c_str(), data_.length() );
 			} );
+			tasksLock.unlock();
+			Network::_wakeUp();
 		}
 	};
 
 	void Network::Connection::reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_ ) {
 		if ( this->m_connection != NULL ) {
-			Network::_synchronize( [this,data_,code_,headers_]() {
+			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+			this->m_tasks.push( [this,data_,code_,headers_]() {
 				std::stringstream headers;
 				for( auto headersIt = headers_.begin(); headersIt != headers_.end(); ) {
 					headers << headersIt->first << ": " << headersIt->second;
@@ -87,6 +90,8 @@ namespace micasa {
 				this->m_connection->flags |= MG_F_SEND_AND_CLOSE;
 				this->m_connection->flags |= MG_F_USER_1;
 			} );
+			tasksLock.unlock();
+			Network::_wakeUp();
 		}
 	};
 
@@ -199,6 +204,17 @@ namespace micasa {
 
 	void Network::Connection::_handler( mg_connection* connection_, int event_, void* data_ ) {
 		switch( event_ ) {
+
+			case MG_EV_POLL: {
+				std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+				while( ! this->m_tasks.empty() ) {
+					auto task = this->m_tasks.front();
+					this->m_tasks.pop();
+					task();
+				}
+				tasksLock.unlock();
+				break;
+			}
 			case MG_EV_ACCEPT: {
 				// The accept event is called when a new connection is received on a bind connection. A new Connection
 				// instance is created which we need to dispose of manually when the connection is closed. All future
@@ -290,6 +306,15 @@ namespace micasa {
 		}
 	};
 
+
+
+
+
+
+
+
+
+
 	// =======
 	// Network
 	// =======
@@ -297,29 +322,33 @@ namespace micasa {
 	Network::Network() {
 		mg_mgr_init( &this->m_manager, NULL );
 		this->m_shutdown = false;
-
-		// Everything related to Mongoose, except for mg_broadcast, needs to be executed on the same thread. Therefore
-		// we're using a queue to process tasks in between calls to mg_mgr_poll. The poller is interrupted by a call
-		// to mg_broadcast after a new task is scheduled to have it executed immediately.
 		this->m_worker = std::thread( [this]() -> void {
 			do {
-				mg_mgr_poll( &this->m_manager, 5000 );
-
-				std::unique_lock<std::recursive_mutex> tasksLock( this->m_tasksMutex );
+				std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 				while( ! this->m_tasks.empty() ) {
 					auto task = this->m_tasks.front();
 					this->m_tasks.pop();
 					task();
 				}
+
+				mg_mgr_poll( &this->m_manager, 1000 );
 			} while( ! this->m_shutdown );
 		} );
 	};
-	
+
 	Network::~Network() {
+		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+		std::queue<std::function<void(void)> > empty;
+		std::swap( this->m_tasks, empty );
+		tasksLock.unlock();
+
 		this->m_shutdown = true;
-		Network::_wakeUp();
+		Network::_interrupt();
 		this->m_worker.join();
+
 		mg_mgr_free( &this->m_manager ); // closes and deallocates all active connections
+
+
 	};
 
 	std::shared_ptr<Network::Connection> Network::bind( const std::string& port_, Connection::t_eventFunc&& func_ ) {
@@ -394,19 +423,17 @@ namespace micasa {
 		return std::make_shared<Network::Connection>( future.get(), std::move( func_ ), NETWORK_CONNECTION_FLAG_HTTP );
 	};
 
+	void Network::interrupt() {
+		Network& network = Network::get();
+		mg_broadcast( &network.m_manager, micasa_mg_handler, (void*)"", 0 );
+	};
+
 	void Network::_synchronize( std::function<void(void)>&& task_ ) {
 		Network& network = Network::get();
-		std::unique_lock<std::recursive_mutex> tasksLock( network.m_tasksMutex );
+		std::unique_lock<std::mutex> tasksLock( network.m_tasksMutex );
 		network.m_tasks.push( std::move( task_ ) );
 		tasksLock.unlock();
 		Network::_wakeUp();
-	};
-
-	void Network::_wakeUp() {
-		std::thread( []() { // mg_broadcast needs to be called in a separate thread from mg_mgr_poll
-			Network& network = Network::get();
-			mg_broadcast( &network.m_manager, micasa_mg_handler, (void*)"", 0 );
-		} ).detach();
 	};
 
 }; // namespace micasa

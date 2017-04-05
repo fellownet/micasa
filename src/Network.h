@@ -23,7 +23,7 @@ extern "C" {
 #define NETWORK_CONNECTION_FLAG_BIND     (1 << 1) // the connection is a listening connection
 #define NETWORK_CONNECTION_FLAG_HAS_HTTP (1 << 2) // indicates that a valid http message is present
 #define NETWORK_CONNECTION_FLAG_REQUEST  (1 << 3) // this connection is an incoming connection
-#define NETWORK_CONNECTION_FLAG_JOINED   (1 << 4) // the connection has been joined after close
+#define NETWORK_CONNECTION_FLAG_JOINED   (1 << 5) // the connection has been joined after close
 
 namespace micasa {
 
@@ -49,7 +49,8 @@ namespace micasa {
 				FAILURE,
 				DATA,
 				DROPPED,
-				CLOSE
+				CLOSE,
+				TERMINATE
 			}; // enum class Event
 			ENUM_UTIL( Event );
 
@@ -81,6 +82,8 @@ namespace micasa {
 			t_eventFunc m_func;
 			unsigned short m_flags;
 			http_message* m_http;
+			std::queue<std::function<void(void)> > m_tasks;
+			mutable std::mutex m_tasksMutex;
 #ifdef _DEBUG
 			mutable std::timed_mutex m_openMutex;
 #else
@@ -95,7 +98,9 @@ namespace micasa {
 
 		}; // class Connection
 
-		friend class Connection;
+
+
+
 
 		Network( const Network& ) = delete; // do not copy
 		Network& operator=( const Network& ) = delete; // do not copy-assign
@@ -106,13 +111,15 @@ namespace micasa {
 #endif
 		static std::shared_ptr<Connection> connect( const std::string& uri_, Connection::t_eventFunc&& func_ = []( Connection&, Connection::Event, const std::string& ) { } );
 		static std::shared_ptr<Connection> connect( const std::string& uri_, const std::string& data_, Connection::t_eventFunc&& func_ = []( Connection&, Connection::Event, const std::string& ) { } );
+		static void interrupt();
 
 	private:
 		mg_mgr m_manager;
 		std::atomic<bool> m_shutdown;
 		std::thread m_worker;
+		std::map<mg_connection*, std::shared_ptr<Connection> > m_connections;
 		std::queue<std::function<void(void)> > m_tasks;
-		mutable std::recursive_mutex m_tasksMutex;
+		mutable std::mutex m_tasksMutex;
 
 		Network(); // private constructor
 		~Network(); // private destructor
@@ -123,10 +130,7 @@ namespace micasa {
 			return instance;
 		}
 
-		static mg_connection* _connect( const std::string& uri_ );
-		static mg_connection* _connectHttp( const std::string& uri_ );
 		static void _synchronize( std::function<void(void)>&& task_ );
-		static void _wakeUp();
 
 	}; // class Network
 
