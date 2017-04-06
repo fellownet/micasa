@@ -105,6 +105,10 @@ namespace micasa {
 		}
 	};
 
+	// =====
+	// ENUMS
+	// =====
+
 //	bool generateKeys( std::string& public_, std::string& private_ );
 //	std::string generateHash( const std::string& input_, const std::string& privateKey_ );
 //	std::string encrypt64( const std::string& input_, const std::string& privateKey_ );

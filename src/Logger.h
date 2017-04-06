@@ -19,12 +19,12 @@ namespace micasa {
 
 	public:
 		enum class LogLevel: int {
-			ERROR = -99,
+			ERROR   = -99,
 			WARNING = -98,
-			SCRIPT = -1,
-			NORMAL = 0,
-			VERBOSE,
-			DEBUG = 99,
+			SCRIPT  = -1,
+			NORMAL  = 0,
+			VERBOSE = 1,
+			DEBUG   = 99
 		}; // enum class LogLevel
 		ENUM_UTIL( LogLevel );
 
@@ -74,10 +74,9 @@ namespace micasa {
 			LogLevel level;
 			mutable unsigned short recursions;
 		};
-
-		mutable std::recursive_mutex m_logMutex;
 		std::vector<t_logReceiver> m_receivers;
-		
+		mutable std::recursive_mutex m_receiversMutex;
+
 		Logger() { }; // private constructor
 		~Logger() { }; // private destructor
 

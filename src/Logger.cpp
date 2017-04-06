@@ -11,13 +11,13 @@ namespace micasa {
 
 	void Logger::addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ ) {
 		Logger& logger = Logger::get();
-		std::lock_guard<std::recursive_mutex> lock( logger.m_logMutex );
+		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
 		logger.m_receivers.push_back( { receiver_, level_, 0 } );
 	};
 	
 	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
 		Logger& logger = Logger::get();
-		std::lock_guard<std::recursive_mutex> lock( logger.m_logMutex );
+		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
 		for ( auto receiversIt = logger.m_receivers.begin(); receiversIt != logger.m_receivers.end(); ) {
 			if ( (*receiversIt).receiver.lock() == receiver_ ) {
 				receiversIt = logger.m_receivers.erase( receiversIt );
@@ -28,14 +28,17 @@ namespace micasa {
 	};
 
 	void Logger::_doLog( const LogLevel& logLevel_, const std::string& message_, bool hasArguments_, va_list arguments_ ) {
-		std::lock_guard<std::recursive_mutex> lock( this->m_logMutex );
 		char buffer[MAX_LOG_LINE_LENGTH];
 		if ( ! hasArguments_ ) {
 			strncpy( buffer, message_.c_str(), sizeof( buffer ) );
 		} else {
 			vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
 		}
-		for ( auto receiversIt = this->m_receivers.begin(); receiversIt != this->m_receivers.end(); ) {
+		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
+		std::vector<t_logReceiver> receivers( this->m_receivers );
+		receiversLock.unlock();
+
+		for ( auto receiversIt = receivers.begin(); receiversIt != receivers.end(); ) {
 			std::shared_ptr<Receiver> receiver = (*receiversIt).receiver.lock();
 			if ( receiver ) {
 				if (
