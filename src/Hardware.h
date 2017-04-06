@@ -57,12 +57,13 @@ namespace micasa {
 
 		static std::shared_ptr<Hardware> factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 
+		void init();
 		virtual void start();
 		virtual void stop();
 		unsigned int getId() const throw() { return this->m_id; };
 		Type getType() const throw() { return this->m_type; };
 		State getState() const throw() { return this->m_state; };
-		void setState( const State& state_ );
+		void setState( const State& state_, bool children_ = false );
 		std::string getReference() const throw() { return this->m_reference; };
 		std::string getName() const;
 		std::shared_ptr<Settings<Hardware> > getSettings() const throw() { return this->m_settings; };

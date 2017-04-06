@@ -12,7 +12,7 @@ namespace micasa {
 	void Logger::addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ ) {
 		Logger& logger = Logger::get();
 		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
-		logger.m_receivers.push_back( { receiver_, level_, 0 } );
+		logger.m_receivers.push_back( { receiver_, level_ } );
 	};
 	
 	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
@@ -34,24 +34,19 @@ namespace micasa {
 		} else {
 			vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
 		}
-		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
-		std::vector<t_logReceiver> receivers( this->m_receivers );
-		receiversLock.unlock();
+		std::string message( buffer );
 
-		for ( auto receiversIt = receivers.begin(); receiversIt != receivers.end(); ) {
-			std::shared_ptr<Receiver> receiver = (*receiversIt).receiver.lock();
-			if ( receiver ) {
-				if (
-					logLevel_ <= (*receiversIt).level
-					&& (*receiversIt).recursions < 5
-				) {
-					(*receiversIt).recursions++;
-					receiver->log( logLevel_, buffer );
-					(*receiversIt).recursions--;
-				}
-				receiversIt++;
-			} else {
-				receiversIt = this->m_receivers.erase( receiversIt );
+		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
+		std::vector<std::reference_wrapper<t_logReceiver> > receivers( this->m_receivers.begin(), this->m_receivers.end() );
+		receiversLock.unlock();
+		
+		for ( auto receiversIt = receivers.begin(); receiversIt != receivers.end(); receiversIt++ ) {
+			std::shared_ptr<Receiver> receiver = (*receiversIt).get().receiver.lock();
+			if (
+				receiver
+				&& logLevel_ <= (*receiversIt).get().level
+			) {
+				receiver->log( logLevel_, message );
 			}
 		}
 	};

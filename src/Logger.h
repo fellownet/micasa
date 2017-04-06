@@ -72,7 +72,6 @@ namespace micasa {
 		struct t_logReceiver {
 			std::weak_ptr<Receiver> receiver;
 			LogLevel level;
-			mutable unsigned short recursions;
 		};
 		std::vector<t_logReceiver> m_receivers;
 		mutable std::recursive_mutex m_receiversMutex;

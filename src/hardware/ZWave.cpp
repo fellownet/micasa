@@ -50,11 +50,12 @@ namespace micasa {
 
 	void ZWave::start() {
 		Logger::log( Logger::LogLevel::NORMAL, this, "Starting..." );
+		this->setState( Hardware::State::INIT, true );
 		Hardware::start();
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED, true );
 			return;
 		}
 
@@ -95,7 +96,7 @@ namespace micasa {
 			|| ! Manager::Get()->AddDriver( this->m_settings->get( "port" ) )
 		) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Unable to initialize OpenZWave manager." );
-			this->setState( Hardware::State::FAILED );
+			this->setState( Hardware::State::FAILED, true );
 			return;
 		}
 
@@ -117,13 +118,7 @@ namespace micasa {
 			) {
 				Manager::Get()->RemoveDriver( serialPort_ );
 				this->m_port.clear();
-				
-				this->setState( Hardware::State::DISCONNECTED );
-				auto children = g_controller->getChildrenOfHardware( *this );
-				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( Hardware::State::DISCONNECTED );
-				}
-
+				this->setState( Hardware::State::DISCONNECTED, true );
 				Logger::log( Logger::LogLevel::WARNING, this, "Disconnected." );
 			}
 
@@ -141,12 +136,7 @@ namespace micasa {
 			) {
 				this->m_port = serialPort_;
 			
-				this->setState( Hardware::State::INIT );
-				auto children = g_controller->getChildrenOfHardware( *this );
-				for ( auto childrenIt = children.begin(); childrenIt != children.end(); childrenIt++ ) {
-					(*childrenIt)->setState( Hardware::State::INIT );
-				}
-			
+				this->setState( Hardware::State::INIT, true );
 				Logger::log( Logger::LogLevel::VERBOSE, this, "Device added." );
 			}
 		} );
@@ -328,20 +318,25 @@ namespace micasa {
 						this->m_settings->put( "home_id", homeId );
 						Logger::log( Logger::LogLevel::NORMAL, this, "Driver ready." );
 					} else {
-						Manager::Get()->RemoveDriver( this->m_port );
-						this->m_port.clear();
+						this->setState( Hardware::State::FAILED, true );
 						Logger::log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
+						this->m_scheduler.schedule( 0, 1, this, "remove wrong driver", [this]( Scheduler::Task<>& ) {
+							Manager::Get()->RemoveDriver( this->m_port );
+							this->m_port.clear();
+						} );
 					}
 					break;
 				}
 
 				case Notification::Type_DriverFailed: {
-					this->setState( Hardware::State::FAILED );
+					this->setState( Hardware::State::FAILED, true );
 					if ( this->m_port == this->m_settings->get( "port" ) ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Driver failed." );
 					}
-					Manager::Get()->RemoveDriver( this->m_port );
-					this->m_port.clear();
+					this->m_scheduler.schedule( 0, 1, this, "remove wrong driver", [this]( Scheduler::Task<>& ) {
+						Manager::Get()->RemoveDriver( this->m_port );
+						this->m_port.clear();
+					} );
 					break;
 				}
 
@@ -349,6 +344,15 @@ namespace micasa {
 				case Notification::Type_AllNodesQueried:
 				case Notification::Type_AllNodesQueriedSomeDead: {
 					this->setState( Hardware::State::READY );
+
+					// All nodes that aren't set ready yet have failed. They are not present within the controller
+					// somehow.
+					for ( auto& node : g_controller->getChildrenOfHardware( *this ) ) {
+						if ( node->getState() < Hardware::State::READY ) {
+							Logger::log( Logger::LogLevel::ERROR, node.get(), "Node failed." );
+							node->setState( Hardware::State::FAILED );
+						}
+					}
 
 					// At this point we're going to instruct all nodes to report their configuration parameters.
 					Logger::logr( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );

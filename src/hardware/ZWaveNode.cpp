@@ -77,11 +77,6 @@ namespace micasa {
 		if ( full_ ) {
 			result["settings"] = this->getSettingsJson();
 		}
-		if ( Manager::Get()->IsNodeZWavePlus( this->m_homeId, this->m_nodeId ) ) {
-			result["zwave_plus"] = "Yes, " + Manager::Get()->GetNodePlusTypeString( this->m_homeId, this->m_nodeId );
-		} else {
-			result["zwave_plus"] = "No";
-		}
 		return result;
 	}
 

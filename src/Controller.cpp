@@ -192,9 +192,10 @@ namespace micasa {
 	void Controller::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
+		// Fetch all the hardware from the database to initialize our local map of hardware instances. NOTE parents
+		// always have a higher id than clients, so the query order should make sure parents are created first and are
+		// present when childs are created.
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-
-		// Fetch all the hardware from the database to initialize our local map of hardware instances.
 		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
 			"SELECT `id`, `hardware_id`, `reference`, `type`, `enabled` "
 			"FROM `hardware` "
@@ -212,9 +213,17 @@ namespace micasa {
 				}
 			}
 
-			Hardware::Type type = Hardware::resolveTextType( hardwareDataIt.at( "type" ) );
-			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( hardwareDataIt.at( "id" ) ), hardwareDataIt.at( "reference" ), parent );
-
+			// The hardware is then created and immeidately initialized. NOTE the init method is necessary because the
+			// hardware cannot initialize it's devices if it's not already wrapped in a shared pointer.
+			std::shared_ptr<Hardware> hardware = Hardware::factory(
+				Hardware::resolveTextType( hardwareDataIt.at( "type" ) ),
+				std::stoi( hardwareDataIt.at( "id" ) ),
+				hardwareDataIt.at( "reference" ),
+				parent
+			);
+			hardware->init();
+			this->m_hardware[hardwareDataIt.at( "reference" )] = hardware;
+			
 			// Only parent hardware is started automatically. The hardware itself should take care of starting it's
 			// children (for instance, right after declareHardware). Starting the hardware is done in a separate thread
 			// to work around the hardwareMutex being locked.
@@ -226,8 +235,6 @@ namespace micasa {
 					hardware->start();
 				} ).detach();
 			}
-
-			this->m_hardware[hardwareDataIt.at( "reference" )] = hardware;
 		}
 		hardwareLock.unlock();
 

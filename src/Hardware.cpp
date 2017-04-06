@@ -9,6 +9,7 @@
 
 #include "Logger.h"
 #include "Database.h"
+#include "Controller.h"
 
 #include "device/Level.h"
 #include "device/Counter.h"
@@ -37,6 +38,7 @@ namespace micasa {
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
+	extern std::shared_ptr<Controller> g_controller;
 
 	const char* Hardware::settingsName = "hardware";
 
@@ -124,8 +126,8 @@ namespace micasa {
 		return nullptr;
 	}
 
-	void Hardware::start() {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+	void Hardware::init() {
+		std::lock_guard<std::mutex> devicesLock( this->m_devicesMutex );
 		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
@@ -133,26 +135,32 @@ namespace micasa {
 			this->m_id
 		);
 		for ( auto const &devicesDataIt : devicesData ) {
-			Device::Type type = Device::resolveTextType( devicesDataIt.at( "type" ) );
-			bool enabled = ( devicesDataIt.at( "enabled" ) == "1" );
 			std::shared_ptr<Device> device = Device::factory(
 				this->shared_from_this(),
-				type,
+				Device::resolveTextType( devicesDataIt.at( "type" ) ),
 				std::stoi( devicesDataIt.at( "id" ) ),
 				devicesDataIt.at( "reference" ),
 				devicesDataIt.at( "label" ),
-				enabled
+				( devicesDataIt.at( "enabled" ) == "1" )
 			);
-			if ( enabled ) {
-				device->start();
-			}
 			this->m_devices[devicesDataIt.at( "reference" )] = device;
 		}
+	};
+
+	void Hardware::start() {
+		std::unique_lock<std::mutex> devicesLock( this->m_devicesMutex );
+		for ( auto const &deviceIt : this->m_devices ) {
+			if ( deviceIt.second->isEnabled() ) {
+				deviceIt.second->start();
+			}
+		}
+		devicesLock.unlock();
 
 		// Set the state to initializing if the hardware itself didn't already set the state to something else.
 		if ( this->getState() == State::DISABLED ) {
 			this->setState( Hardware::State::INIT );
 		}
+
 		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
@@ -163,7 +171,6 @@ namespace micasa {
 				deviceIt.second->stop();
 			}
 		}
-		this->m_devices.clear();
 		devicesLock.unlock();
 
 		if ( this->m_settings->isDirty() ) {
@@ -179,9 +186,12 @@ namespace micasa {
 		return this->m_settings->get( "name", this->getLabel() );
 	};
 
-	void Hardware::setState( const State& state_ ) {
-		if ( this->m_state != state_ ) {
-			this->m_state = state_;
+	void Hardware::setState( const State& state_, bool children_ ) {
+		this->m_state = state_;
+		if ( children_ ) {
+			for ( auto& child : g_controller->getChildrenOfHardware( *this ) ) {
+				child->setState( state_ );
+			}
 		}
 	};
 
