@@ -351,12 +351,14 @@ namespace micasa {
 	};
 	
 	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_queryMutex );
+
 		if ( ! this->m_connection ) {
 			Logger::logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;
 		}
 		
-		char *query = sqlite3_vmprintf( query_.c_str(), arguments_ );
+		char* query = sqlite3_vmprintf( query_.c_str(), arguments_ );
 		if ( ! query ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
 			return;
@@ -365,27 +367,23 @@ namespace micasa {
 #ifdef _DEBUG
 		Logger::log( Logger::LogLevel::DEBUG, this, std::string( query ) );
 #endif // _DEBUG
-		
-		std::lock_guard<std::mutex> lock( this->m_queryMutex );
-		
-		auto fExecute = [this,query,process_]() {
-			sqlite3_stmt *statement;
-			if ( SQLITE_OK == sqlite3_prepare_v2( this->m_connection, query, -1, &statement, NULL ) ) {
-				try {
-					process_( statement );
-				} catch( ... ) {
-					sqlite3_finalize( statement );
-					throw; // re-throw exception
-				}
-				sqlite3_finalize( statement );
-			} else {
-				const char *error = sqlite3_errmsg( this->m_connection );
-				Logger::logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
-			}
-			sqlite3_free( query );
-		};
 
-		fExecute();
+		sqlite3_stmt *statement;
+		if ( SQLITE_OK == sqlite3_prepare_v2( this->m_connection, query, -1, &statement, NULL ) ) {
+			try {
+				process_( statement );
+			} catch( ... ) {
+				sqlite3_finalize( statement );
+				sqlite3_free( query );
+				throw; // re-throw exception
+			}
+			sqlite3_finalize( statement );
+		} else {
+			const char* error = sqlite3_errmsg( this->m_connection );
+			Logger::logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );
+		}
+
+		sqlite3_free( query );
 	};
 	
 } // namespace micasa

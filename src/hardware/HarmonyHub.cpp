@@ -38,21 +38,21 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->join();
+				this->m_connection->wait();
 			}
 
 			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
 			this->m_connectionState = ConnectionState::IDLE;
-			this->m_connection = Network::connect( uri, [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+			this->m_connection = Network::connect( uri, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
 
-						// Upon connecting we're immediately requesting the currently active activity.
+						// Once we're connected the currently active activity is requested.
 						std::stringstream response;
 						response << "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
 						response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?getCurrentActivity\"></oa></iq>";
-						connection_.send( response.str() );
+						connection_->send( response.str() );
 						
 						this->m_connectionState = ConnectionState::WAIT_FOR_CURRENT_ACTIVITY;
 						break;
@@ -64,7 +64,7 @@ namespace micasa {
 						break;
 					}
 					case Network::Connection::Event::DATA: {
-						this->m_received.append( data_ );
+						this->m_received.append( connection_->getData() );
 						if ( this->_process() ) {
 							this->m_received.clear();
 						}
@@ -80,6 +80,7 @@ namespace micasa {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 						break;
 					}
+					default: { break; }
 				}
 			} );
 		} );
@@ -100,8 +101,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->close();
-			this->m_connection->join();
+			this->m_connection->close( true );
 		}
 		Hardware::stop();
 	};

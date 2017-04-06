@@ -37,12 +37,12 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->join();
+				this->m_connection->wait();
 			}
 
 			std::stringstream url;
 			url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
-			this->m_connection = Network::connect( url.str(), [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+			this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
@@ -53,8 +53,8 @@ namespace micasa {
 						this->setState( Hardware::State::FAILED );
 						break;
 					}
-					case Network::Connection::Event::DATA: {
-						this->_process( data_ );
+					case Network::Connection::Event::HTTP_RESPONSE: {
+						this->_process( connection_->getResponse() );
 						break;
 					}
 					case Network::Connection::Event::DROPPED:
@@ -62,6 +62,7 @@ namespace micasa {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 						break;
 					}
+					default: { break; }
 				}
 			} );
 		} );
@@ -73,7 +74,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->join();
+			this->m_connection->wait();
 		}
 		Hardware::stop();
 	};

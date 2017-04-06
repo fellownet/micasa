@@ -46,15 +46,15 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->join();
+				this->m_connection->wait();
 			}
 
 			std::stringstream url;
 			url << "https://api.telegram.org/bot" << this->m_settings->get( "token" );
-			if ( this->m_username.size() == 0 ) {
+			if ( this->m_username.empty() ) {
 
 				url << "/getMe";
-				this->m_connection = Network::connect( url.str(), [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+				this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 					switch( event_ ) {
 						case Network::Connection::Event::CONNECT: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
@@ -66,16 +66,14 @@ namespace micasa {
 							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							break;
 						}
-						case Network::Connection::Event::DATA: {
-							if ( ! this->_process( data_ ) ) {
+						case Network::Connection::Event::HTTP_RESPONSE: {
+							if ( ! this->_process( connection_->getResponse() ) ) {
 								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							} else {
 								this->m_scheduler.schedule( 0, 1, this->m_task );
 							}
-							connection_.close();
 							break;
 						}
-						case Network::Connection::Event::DROPPED:
 						case Network::Connection::Event::CLOSE: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 							if ( this->getState() != Hardware::State::FAILED ) {
@@ -83,6 +81,7 @@ namespace micasa {
 							}
 							break;
 						}
+						default: { break; }
 					}
 				} );
 
@@ -95,7 +94,7 @@ namespace micasa {
 				if ( this->m_lastUpdateId > -1 ) {
 					params["offset"] = this->m_lastUpdateId + 1;
 				}
-				this->m_connection = Network::connect( url.str(), params.dump(), [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) {
+				this->m_connection = Network::connect( url.str(), params, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 					switch( event_ ) {
 						case Network::Connection::Event::CONNECT: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
@@ -108,15 +107,14 @@ namespace micasa {
 							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							break;
 						}
-						case Network::Connection::Event::DATA: {
-							if ( ! this->_process( data_ ) ) {
+						case Network::Connection::Event::HTTP_RESPONSE: {
+							if ( ! this->_process( connection_->getResponse() ) ) {
 								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							} else {
 								this->m_scheduler.schedule( 0, 1, this->m_task );
 							}
 							break;
 						}
-						case Network::Connection::Event::DROPPED:
 						case Network::Connection::Event::CLOSE: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 							if ( this->getState() != Hardware::State::FAILED ) {
@@ -124,11 +122,12 @@ namespace micasa {
 							}
 							break;
 						}
+						default: { break; }
 					}
 				} );
-
 			}
 		} );
+
 	};
 	
 	void Telegram::stop() {
@@ -137,8 +136,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->close();
-			this->m_connection->join();
+			this->m_connection->close( true );
 		}
 		Hardware::stop();
 	};
@@ -212,7 +210,23 @@ namespace micasa {
 					{ "text", sourceDevice->getValue() },
 					{ "parse_mode", "Markdown" }
 				};
-				Network::connect( url.str(), params.dump() )->join();
+				Network::connect( url.str(), params, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+					switch( event_ ) {
+						case Network::Connection::Event::CONNECT: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
+							break;
+						}
+						case Network::Connection::Event::FAILURE: {
+							Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+							break;
+						}
+						case Network::Connection::Event::CLOSE: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
+							break;
+						}
+						default: { break; }
+					}
+				} )->wait();
 			}
 
 			return true;

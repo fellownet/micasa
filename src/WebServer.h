@@ -77,10 +77,7 @@ namespace micasa {
 		
 		void start();
 		void stop();
-		
-	//protected:
-		//std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
-		
+
 	private:
 		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
@@ -97,7 +94,7 @@ namespace micasa {
 #endif
 		std::string _hash( const std::string& data_ ) const;
 
-		void _processRequest( Network::Connection& connection_, const std::string& data_ );
+		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
 		
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();

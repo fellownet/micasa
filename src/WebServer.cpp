@@ -168,27 +168,23 @@ namespace micasa {
 		}
 #endif
 
-		this->m_bind = Network::bind( "80", [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) -> void {
-			if ( event_ == Network::Connection::Event::FAILURE ) {
-				Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 80." );
-			}
-			if ( event_ == Network::Connection::Event::DATA ) {
-				this->m_scheduler.schedule( 0, 1, this, "webserver response 80", [this,&connection_]( Scheduler::Task<>& ) {
-					this->_processRequest( connection_ );
-				} );
+		this->m_bind = Network::bind( "80", [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
+			if ( event_ == Network::Connection::Event::HTTP_REQUEST ) {
+				this->_processRequest( connection_ );
 			}
 		} );
+		if ( ! this->m_bind ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 80." );
+		}
 #ifdef _WITH_OPENSSL
-		this->m_bindSecure = Network::bind( "443", CERT_FILE, KEY_FILE, [this]( Network::Connection& connection_, Network::Connection::Event event_, const std::string& data_ ) -> void {
-			if ( event_ == Network::Connection::Event::FAILURE ) {
-				Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 443." );
-			}
-			if ( event_ == Network::Connection::Event::DATA ) {
-				this->m_scheduler.schedule( 0, 1, this, "webserver response 443", [this,&connection_]( Scheduler::Task<>& ) {
-					this->_processRequest( connection_ );
-				} );
+		this->m_bindSecure = Network::bind( "443", CERT_FILE, KEY_FILE, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
+			if ( event_ == Network::Connection::Event::HTTP_REQUEST ) {
+				this->_processRequest( connection_ );
 			}
 		} );
+		if ( ! this->m_bindSecure ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 443." );
+		}
 #endif
 
 		// If there are no users defined in the database, a default administrator is created.
@@ -214,15 +210,20 @@ namespace micasa {
 	void WebServer::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
-		this->m_bind->close();
-		this->m_bind->join();
+		if ( this->m_bind ) {
+			this->m_bind->close( true );
+		}
 #ifdef _WITH_OPENSSL
-		this->m_bindSecure->close();
-		this->m_bindSecure->join();
-
+		if ( this->m_bindSecure ) {
+			this->m_bindSecure->close( true );
+		}
 		EVP_PKEY_free( this->m_key );
 		X509_free( this->m_certificate );
 #endif
+
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 
 		std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
 		this->m_resources.clear();
@@ -330,22 +331,18 @@ namespace micasa {
 	};
 #endif
 
-	void WebServer::_processRequest( Network::Connection& connection_ ) {
-
-		// Determine wether or not the request is an API request or a request for static files. Static files
-		// are handled by Mongoose internally.
-		auto uri = connection_.getUri();
-		if ( uri.substr( 0, 3 ) != "api" ) {
-
-			connection_.serve( "www" );
-
+	void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
+		auto uri = connection_->getUri();
+		if ( uri.substr( 0, 4 ) != "/api" ) {
+			connection_->serve( "www" );
 		} else {
 
-			// All data from the request is gathered here before we spawn a new thread to take care of fetching the
-			// results. This is necessary because after the callback returns the request data is lost.
-			auto method = WebServer::resolveTextMethod( connection_.getMethod() );
-			auto params = connection_.getParams();
-			auto headers = connection_.getHeaders();
+			// All the data we need from the request is gathered here before we spawn a new thread to take care of
+			// fetching the results. This is necessary because after the callback returns the request data is lost.
+			auto method = WebServer::resolveTextMethod( connection_->getMethod() );
+			auto params = connection_->getParams();
+			auto headers = connection_->getHeaders();
+			auto data = connection_->getRequest();
 
 			// Some query paramters might override other request characteristics.
 			try {
@@ -355,136 +352,139 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
-			// string).
-			json input = json::object();
-			if (
-				WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
-				&& data_.length() > 2
-			) {
-				try {
-					input = json::parse( data_ );
-				} catch( json::exception ex_ ) {
-					Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
-				}
-			}
-			for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
-				input[(*paramsIt).first] = (*paramsIt).second;
-			}
+			this->m_scheduler.schedule( 0, 1, this, "webserver api reply", [=]( Scheduler::Task<>& ) {
 
-			// Determine the access rights of the current client. If a valid token was provided, details of
-			// the token are added to the input aswell.
-			std::shared_ptr<User> user = nullptr;
-			if (
-				input.find( "username" ) != input.end()
-				&& input.find( "password" ) != input.end()
-			) {
-				try {
-					auto userData = g_database->getQueryRow(
-						"SELECT `id`, `name`, `rights` "
-						"FROM `users` "
-						"WHERE `username`='%s' "
-						"AND `password`='%s' "
-						"AND `enabled`=1",
-						input["username"].get<std::string>().c_str(),
-						this->_hash( input["password"].get<std::string>() ).c_str()
-					);
-					user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-				} catch( ... ) { }
+				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
+				// string).
+				json input = json::object();
+				if (
+					WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
+					&& data.length() > 2
+				) {
+					try {
+						input = json::parse( data );
+					} catch( json::exception ex_ ) {
+						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
+					}
+				}
+				for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
+					input[(*paramsIt).first] = (*paramsIt).second;
+				}
+
+				// Determine the access rights of the current client. If a valid token was provided, details of
+				// the token are added to the input aswell.
+				std::shared_ptr<User> user = nullptr;
+				if (
+					input.find( "username" ) != input.end()
+					&& input.find( "password" ) != input.end()
+				) {
+					try {
+						auto userData = g_database->getQueryRow(
+							"SELECT `id`, `name`, `rights` "
+							"FROM `users` "
+							"WHERE `username`='%s' "
+							"AND `password`='%s' "
+							"AND `enabled`=1",
+							input["username"].get<std::string>().c_str(),
+							this->_hash( input["password"].get<std::string>() ).c_str()
+						);
+						user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
+					} catch( ... ) { }
 #ifdef _WITH_OPENSSL
-			} else if ( headers.find( "Authorization" ) != headers.end() ) {
-				try {
-					json token = json::parse( this->_decrypt64( headers.at( "Authorization" ) ) );
-					unsigned int userId = token["user_id"].get<unsigned int>();
-					auto userData = g_database->getQueryRow(
-						"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
-						"FROM `users` u "
-						"WHERE `id`=%d ",
-						userId
-					);
-					if ( token["valid"].get<int>() >= std::stoi( userData["now"] ) ) {
-						user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-					}
-				} catch( ... ) { }
-#endif
-			}
-
-			// Prepare the output json object that is eventually send back to the client.
-			json output = {
-				{ "result", "OK" },
-				{ "code", 204 }, // no content
-			};
-
-			try {
-				std::vector<std::shared_ptr<ResourceCallback> > callbacks;
-				std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
-				for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-					std::regex pattern( (*resourceIt)->uri );
-					std::smatch match;
-					if (
-						std::regex_search( uri, match, pattern )
-						&& ( (*resourceIt)->methods & method ) == method
-					) {
-						
-						// Add each matched paramter to the input for the callback to determine which individual
-						// resource was accessed.
-						for ( unsigned int i = 1; i < match.size(); i++ ) {
-							if ( match.str( i ).size() > 0 ) {
-								input["$" + std::to_string( i )] = match.str( i );
-							}
+				} else if ( headers.find( "Authorization" ) != headers.end() ) {
+					try {
+						json token = json::parse( this->_decrypt64( headers.at( "Authorization" ) ) );
+						unsigned int userId = token["user_id"].get<unsigned int>();
+						auto userData = g_database->getQueryRow(
+							"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
+							"FROM `users` u "
+							"WHERE `id`=%d ",
+							userId
+						);
+						if ( token["valid"].get<int>() >= std::stoi( userData["now"] ) ) {
+							user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
 						}
+					} catch( ... ) { }
+#endif
+				}
 
-						callbacks.push_back( *resourceIt );
+				// Prepare the output json object that is eventually send back to the client.
+				json output = {
+					{ "result", "OK" },
+					{ "code", 204 }, // no content
+				};
+
+				try {
+					std::vector<std::shared_ptr<ResourceCallback> > callbacks;
+					std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
+					for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
+						std::regex pattern( (*resourceIt)->uri );
+						std::smatch match;
+						if (
+							std::regex_search( uri, match, pattern )
+							&& ( (*resourceIt)->methods & method ) == method
+						) {
+							
+							// Add each matched paramter to the input for the callback to determine which individual
+							// resource was accessed.
+							for ( unsigned int i = 1; i < match.size(); i++ ) {
+								if ( match.str( i ).size() > 0 ) {
+									input["$" + std::to_string( i )] = match.str( i );
+								}
+							}
+
+							callbacks.push_back( *resourceIt );
+						}
 					}
-				}
-				resourcesLock.unlock();
+					resourcesLock.unlock();
 
-				for ( auto callbacksIt = callbacks.begin(); callbacksIt != callbacks.end(); callbacksIt++ ) {
-					(*callbacksIt)->callback( user, input, method, output );
-				}
+					for ( auto callbacksIt = callbacks.begin(); callbacksIt != callbacks.end(); callbacksIt++ ) {
+						(*callbacksIt)->callback( user, input, method, output );
+					}
 
-				// If no callbacks we're called the code should still be 204 and should be replaced with a 404
-				// indicating a resource not found error.
-				if ( output["code"].get<unsigned int>() == 204 ) {
+					// If no callbacks we're called the code should still be 204 and should be replaced with a 404
+					// indicating a resource not found error.
+					if ( output["code"].get<unsigned int>() == 204 ) {
+						output["result"] = "ERROR";
+						output["code"] = 404;
+						output["error"] = "Resource.Not.Found";
+						output["message"] = "The requested resource was not found.";
+					}
+				
+				} catch( const ResourceException& exception_ ) {
 					output["result"] = "ERROR";
-					output["code"] = 404;
-					output["error"] = "Resource.Not.Found";
-					output["message"] = "The requested resource was not found.";
-				}
-			
-			} catch( const ResourceException& exception_ ) {
-				output["result"] = "ERROR";
-				output["code"] = exception_.code;
-				output["error"] = exception_.error;
-				output["message"] = exception_.message;
-			} catch( std::exception& exception_ ) { // also catches json::exception
-				output["result"] = "ERROR";
-				output["code"] = 500;
-				output["error"] = "Resource.Failure";
-				output["message"] = "The requested resource failed to load.";
-				Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+					output["code"] = exception_.code;
+					output["error"] = exception_.error;
+					output["message"] = exception_.message;
+				} catch( std::exception& exception_ ) { // also catches json::exception
+					output["result"] = "ERROR";
+					output["code"] = 500;
+					output["error"] = "Resource.Failure";
+					output["message"] = "The requested resource failed to load.";
+					Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 #ifndef _DEBUG
-			} catch( ... ) {
-				output["result"] = "ERROR";
-				output["code"] = 500;
-				output["error"] = "Resource.Failure";
-				output["message"] = "The requested resource failed to load.";
+				} catch( ... ) {
+					output["result"] = "ERROR";
+					output["code"] = 500;
+					output["error"] = "Resource.Failure";
+					output["message"] = "The requested resource failed to load.";
 #endif // _DEBUG
-			}
+				}
 
 #ifdef _DEBUG
-			assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
-			assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
-			const std::string content = output.dump( 4 );
+				assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
+				assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
+				const std::string content = output.dump( 4 );
 #else
-			const std::string content = output.dump();
+				const std::string content = output.dump();
 #endif // _DEBUG
 
-			unsigned int code = output["code"].get<unsigned int>();
-			connection_.reply( content, code, {
-				{ "Content-Type", "Content-type: application/json" },
-				{ "Access-Control-Allow-Origin", "*" },
-				{ "Cache-Control", "no-cache, no-store, must-revalidate" }
+				unsigned int code = output["code"].get<unsigned int>();
+				connection_->reply( content, code, {
+					{ "Content-Type", "Content-type: application/json" },
+					{ "Access-Control-Allow-Origin", "*" },
+					{ "Cache-Control", "no-cache, no-store, must-revalidate" }
+				} );
 			} );
 		}
 	};
@@ -493,7 +493,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/hardware(/([0-9]+|settings))?$",
+			"^/api/hardware(/([0-9]+|settings))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -731,7 +731,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/devices(/([0-9]+))?$",
+			"^/api/devices(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
@@ -947,7 +947,7 @@ namespace micasa {
 
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/devices/([0-9]+)/data$",
+			"^/api/devices/([0-9]+)/data$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
@@ -993,7 +993,7 @@ namespace micasa {
 		
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/devices/([0-9]+)/links(/([0-9]+|settings))?$",
+			"^/api/devices/([0-9]+)/links(/([0-9]+|settings))?$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::POST | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -1271,7 +1271,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/scripts(/([0-9]+))?$",
+			"^/api/scripts(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -1418,7 +1418,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/timers(/([0-9]+))?$",
+			"^/api/timers(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
@@ -1683,7 +1683,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/user/(login|refresh)$",
+			"^/api/user/(login|refresh)$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 
@@ -1749,7 +1749,7 @@ namespace micasa {
 
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/users(/([0-9]+))?$",
+			"^/api/users(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::ADMIN ) {
@@ -1923,7 +1923,7 @@ namespace micasa {
 		
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^api/user/state/([0-9a-z_]+)$",
+			"^/api/user/state/([0-9a-z_]+)$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
