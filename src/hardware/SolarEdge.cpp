@@ -1,4 +1,5 @@
 #include <ctime>
+#include <sstream>
 
 #include "SolarEdge.h"
 
@@ -130,7 +131,7 @@ namespace micasa {
 						true
 					)->start();
 				}
-				this->m_scheduler.schedule( 1000 * 10, 1, NULL, "solaredge retry", [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, this, "solaredge sleep", [this]( Scheduler::Task<>& ) -> void {
 					this->setState( Hardware::State::SLEEPING );
 				} );
 				return true;

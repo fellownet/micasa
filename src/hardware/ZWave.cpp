@@ -4,6 +4,8 @@
 // pipes to store and retrieve the log and config?
 // http://stackoverflow.com/questions/2784500/how-to-send-a-simple-string-between-two-programs-using-pipes
 
+#include <sstream>
+
 #include "ZWave.h"
 #include "ZWaveNode.h"
 

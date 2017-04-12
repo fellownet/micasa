@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "PiFace.h"
 #include "PiFaceBoard.h"
 #include "PiFace/MCP23x17.h"

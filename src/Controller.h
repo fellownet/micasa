@@ -22,6 +22,8 @@
 	#include <libudev.h>
 #endif // _WITH_LIBUDEV
 
+#define CONTROLLER_SETTING_USERDATA "_userdata"
+
 extern "C" {
 	#include "v7.h"
 	

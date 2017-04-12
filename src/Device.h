@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <ostream>
+
 #include <memory>
 #include <map>
 #include <chrono>

@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "HarmonyHub.h"
 
 #include "json.hpp"

@@ -1,4 +1,5 @@
 #include <ctime>
+#include <sstream>
 
 #include "SolarEdgeInverter.h"
 
@@ -132,7 +133,7 @@ namespace micasa {
 					} );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<double>() );
 				}
-				this->m_scheduler.schedule( 1000 * 10, 1, NULL, "solaredge sleep", [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, this, "solaredge sleep", [this]( Scheduler::Task<>& ) -> void {
 					this->setState( Hardware::State::SLEEPING );
 				} );
 			}

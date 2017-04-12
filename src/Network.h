@@ -3,6 +3,8 @@
 #include <thread>
 #include <map>
 #include <atomic>
+#include <queue>
+#include <mutex>
 
 #include "Utils.h"
 
@@ -86,6 +88,8 @@ namespace micasa {
 			std::atomic<int> m_event;
 			std::atomic<unsigned int> m_flags;
 			t_eventFunc m_func;
+			std::queue<std::function<void(void)> > m_tasks;
+			mutable std::mutex m_tasksMutex;
 
 		}; // class Connection
 

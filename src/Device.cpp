@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "Device.h"
 
 #include "Logger.h"

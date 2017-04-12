@@ -1,4 +1,5 @@
 #include <regex>
+#include <sstream>
 
 #include "Network.h"
 #include "Logger.h"
@@ -54,7 +55,7 @@ namespace micasa {
 		assert(
 			std::this_thread::get_id() == Network::get().m_worker.get_id()
 			&& ( this->m_event & MG_EV_HTTP_REQUEST ) == MG_EV_HTTP_REQUEST
-			&& "Sending data to a connection should be done from the REQUEST event."
+			&& "Serving static content should be done from the REQUEST event."
 		);
 #endif // _DEBUG
 		mg_serve_http_opts options;
@@ -66,33 +67,51 @@ namespace micasa {
 	};
 
 	void Network::Connection::reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_ ) {
-#ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Sending data to a connection should be done from within a callback." );
-#endif // _DEBUG
-		std::stringstream headers;
-		for ( auto headersIt = headers_.begin(); headersIt != headers_.end(); ) {
-			headers << headersIt->first << ": " << headersIt->second;
-			if ( ++headersIt != headers_.end() ) {
-				headers << "\r\n";
+		auto task = [this,data_,code_,headers_]() {
+			std::stringstream headers;
+			for ( auto headersIt = headers_.begin(); headersIt != headers_.end(); ) {
+				headers << headersIt->first << ": " << headersIt->second;
+				if ( ++headersIt != headers_.end() ) {
+					headers << "\r\n";
+				}
 			}
+			mg_send_head( this->m_mg_conn, code_, data_.length(), headers.str().c_str() );
+			if ( code_ != 304 ) { // not modified
+				mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+			}
+			this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+		};
+		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
+			task();
+		} else {
+			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+			this->m_tasks.push( task );
+			tasksLock.unlock();
+			mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 		}
-		mg_send_head( this->m_mg_conn, code_, data_.length(), headers.str().c_str() );
-		if ( code_ != 304 ) { // not modified
-			mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
-		}
-		this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 	};
 
 	void Network::Connection::send( const std::string& data_ ) {
-#ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Sending data to a connection should be done from within a callback." );
-#endif // _DEBUG
-		mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+		auto task = [this,data_]() {
+			mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+		};
+		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
+			task();
+		} else {
+			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+			this->m_tasks.push( task );
+			tasksLock.unlock();
+			mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
+		}
 	};
 
 	std::string Network::Connection::popData() {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & MG_EV_RECV ) == MG_EV_RECV
+			&& "Popping data from the connection should be done from the DATA callback."
+		);
 #endif // _DEBUG
 		std::string data( this->m_mg_conn->recv_mbuf.buf, this->m_mg_conn->recv_mbuf.len );
 		mbuf_remove( &this->m_mg_conn->recv_mbuf, this->m_mg_conn->recv_mbuf.len );
@@ -101,7 +120,11 @@ namespace micasa {
 
 	std::string Network::Connection::getBody() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		return std::string( http->body.p, http->body.len );
@@ -109,7 +132,11 @@ namespace micasa {
 
 	std::string Network::Connection::getUri() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		return std::string( http->uri.p, http->uri.len );
@@ -117,7 +144,11 @@ namespace micasa {
 
 	std::string Network::Connection::getQuery() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		return std::string( http->query_string.p, http->query_string.len );
@@ -125,7 +156,11 @@ namespace micasa {
 
 	std::string Network::Connection::getMethod() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		return std::string( http->method.p, http->method.len );
@@ -133,7 +168,11 @@ namespace micasa {
 
 	std::map<std::string, std::string> Network::Connection::getHeaders() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		std::map<std::string, std::string> headers;
@@ -152,7 +191,11 @@ namespace micasa {
 
 	std::map<std::string, std::string> Network::Connection::getParams() const {
 #ifdef _DEBUG
-		assert( std::this_thread::get_id() == Network::get().m_worker.get_id() && "Getting data from a connection should be done from within a callback." );
+		assert(
+			std::this_thread::get_id() == Network::get().m_worker.get_id()
+			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
+			&& "Getting data from a connection should be done from within a callback."
+		);
 #endif // _DEBUG
 		std::string query = this->getQuery();
 		std::map<std::string, std::string> params;
@@ -309,6 +352,19 @@ namespace micasa {
 		connection->m_event = event_;
 		connection->m_data = data_;
 		switch( event_ ) {
+
+			// The broadcast method will trigger this event for all open connections. Any pending sending of data
+			// needs to be done within this event.
+			case MG_EV_POLL: {
+				std::unique_lock<std::mutex> tasksLock( connection->m_tasksMutex );
+				while( ! connection->m_tasks.empty() ) {
+					auto task = connection->m_tasks.front();
+					connection->m_tasks.pop();
+					task();
+				}
+				tasksLock.unlock();
+				break;
+			}
 
 			// An ACCEPT event is fired as CONNECT.
 			case MG_EV_ACCEPT: {

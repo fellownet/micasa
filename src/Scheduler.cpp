@@ -53,14 +53,6 @@ namespace micasa {
 			thread.join();
 		}
 #ifdef _DEBUG
-		if ( this->m_start != nullptr ) {
-			auto position = this->m_start;
-			do {
-				std::cout << position->reference << "\n";
-				position = position->m_next;
-			} while( position != this->m_start );
-		}
-
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 		assert( this->m_start == nullptr && "All tasks should be purged when ThreadPool is destructed." );
 		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed." );
@@ -70,9 +62,6 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::schedule( std::shared_ptr<BaseTask> task_ ) {
 #ifdef _DEBUG
-		if ( this->m_shutdown != false ) {
-			std::cout << task_->reference << "\n";
-		}
 		assert( this->m_shutdown == false && "Tasks should only be scheduled when scheduler is running." );
 #endif // _DEBUG
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
@@ -149,23 +138,6 @@ namespace micasa {
 			) {
 				auto task = this->m_start;
 				this->_erase( task );
-
-#ifdef _DEBUG
-				std::string debug = "";
-				for ( auto& stask : this->m_activeTasks ) {
-					if ( stask->reference.empty() ) {
-						debug.append( "?, " );
-					} else {
-						debug.append( stask->reference + ", " );
-					}
-				}
-				std::string ref = task->reference;
-				if ( ref.empty() ) {
-					ref = "?";
-				}
-				std::cout << "SCHEDULER PRE COUNT " << this->m_activeTasks.size() << ", " << debug << ref << "\n";
-#endif // _DEBUG
-
 				this->m_activeTasks.push_back( task );
 				tasksLock.unlock();
 				

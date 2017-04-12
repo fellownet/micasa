@@ -164,7 +164,7 @@ namespace micasa {
 		v7_set_user_data( this->m_v7_js, root, this );
 
 		v7_val_t userDataObj;
-		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( "userdata", "{}" ).c_str(), &userDataObj ) ) {
+		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( CONTROLLER_SETTING_USERDATA, "{}" ).c_str(), &userDataObj ) ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
 			if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
@@ -755,7 +755,7 @@ namespace micasa {
 			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
-			g_settings->put( "userdata", std::string( p ) );
+			g_settings->put( CONTROLLER_SETTING_USERDATA, std::string( p ) );
 			if ( p != buffer ) {
 				free( p );
 			}
