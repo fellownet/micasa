@@ -233,7 +233,7 @@ namespace micasa {
 				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
 			) {
-				this->m_scheduler.schedule( 0, 1, this, "hardware start", [hardware]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( 0, 1, this, [hardware]( Scheduler::Task<>& ) {
 					hardware->start();
 				} );
 			}
@@ -244,7 +244,7 @@ namespace micasa {
 		// to make sure the whole minute has passed.
 		auto now = system_clock::now();
 		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, "run timers", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			if ( this->m_running ) {
 				this->_runTimers();
 			}
@@ -299,6 +299,7 @@ namespace micasa {
 		}
 #endif // _WITH_LIBUDEV
 
+/*
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
 		for ( auto const &hardwareIt : this->m_hardware ) {
 			auto hardware = hardwareIt.second;
@@ -308,12 +309,10 @@ namespace micasa {
 		}
 		this->m_hardware.clear();
 		hardwareLock.unlock();
+*/
 
-
-/*
-		// TODO why is this segfaulting on exit? it did work. Some other memory corruption is going on.
-		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a
-		// separate thread.
+		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a separate
+		// separate thread...
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
 		std::map<std::string, std::future<void> > futures;
 		for ( auto const &hardwareIt : this->m_hardware ) {
@@ -326,7 +325,7 @@ namespace micasa {
 		}
 		this->m_hardware.clear();
 
-		// Then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
+		// ... then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
 		for ( auto const &futuresIt : futures ) {
 			std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
 			if ( status == std::future_status::timeout ) {
@@ -337,7 +336,7 @@ namespace micasa {
 #endif // _DEBUG
 		}
 		hardwareLock.unlock();
-*/
+
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
@@ -611,7 +610,7 @@ namespace micasa {
 		typename D::t_value currentValue = device_->getValue();
 		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
 			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,value_]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
 				auto targetDevice = device.lock();
 				if ( targetDevice ) {
 					targetDevice->updateValue( source, value_ );
@@ -626,7 +625,7 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,currentValue]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, currentValue );
@@ -663,7 +662,7 @@ namespace micasa {
 		Switch::t_value oppositeValue = Switch::getOppositeValue( value_ );
 		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
 			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,value_]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
 				auto targetDevice = device.lock();
 				if ( targetDevice ) {
 					targetDevice->updateValue( source, value_ );
@@ -678,7 +677,7 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,oppositeValue]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,oppositeValue]( Scheduler::Task<>& ) {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, oppositeValue );
@@ -689,7 +688,7 @@ namespace micasa {
 	};
 	
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
-		this->m_scheduler.schedule( 0, 1, this, "controller run scripts", [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
 			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 
 			// Configure the v7 javascript environment with context data.

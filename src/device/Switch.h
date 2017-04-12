@@ -41,7 +41,7 @@ namespace micasa {
 		typedef std::string t_value;
 		static const Device::Type type;
 		
-		Switch( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+		Switch( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		void updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ = false );
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );

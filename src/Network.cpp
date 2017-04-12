@@ -37,17 +37,23 @@ namespace micasa {
 	};
 
 	Network::Connection::~Connection() {
-		this->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+		if ( this->m_mg_conn != nullptr ) {
+			this->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+		}
 	};
 
 	void Network::Connection::close() {
-		this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+		if ( this->m_mg_conn != nullptr ) {
+			this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+		}
 		this->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
 	};
 
 	void Network::Connection::terminate() {
 		this->m_func = nullptr;
-		this->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+		if ( this->m_mg_conn != nullptr ) {
+			this->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+		}
 	};
 
 	void Network::Connection::serve( const std::string& root_, const std::string& index_ ) {
@@ -75,11 +81,13 @@ namespace micasa {
 					headers << "\r\n";
 				}
 			}
-			mg_send_head( this->m_mg_conn, code_, data_.length(), headers.str().c_str() );
-			if ( code_ != 304 ) { // not modified
-				mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+			if ( this->m_mg_conn != nullptr ) {
+				mg_send_head( this->m_mg_conn, code_, data_.length(), headers.str().c_str() );
+				if ( code_ != 304 ) { // not modified
+					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+				}
+				this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 			}
-			this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 		};
 		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
 			task();
@@ -93,7 +101,9 @@ namespace micasa {
 
 	void Network::Connection::send( const std::string& data_ ) {
 		auto task = [this,data_]() {
-			mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+			if ( this->m_mg_conn != nullptr ) {
+				mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+			}
 		};
 		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
 			task();
@@ -437,6 +447,7 @@ namespace micasa {
 					}
 				}
 				network.m_connections.erase( mg_conn_ );
+				connection->m_mg_conn = nullptr;
 			}
 		}
 	};

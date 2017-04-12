@@ -21,7 +21,7 @@ namespace micasa {
 		{ Text::SubType::NOTIFICATION, "notification" }
 	};
 
-	Text::Text( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+	Text::Text( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( "" ),
 		m_previousValue( "" ),
@@ -48,7 +48,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "device purge", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 
@@ -105,7 +105,7 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, this, "text ratelimiter", [this]( Scheduler::Task<>& task_ ) {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, this, [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 					} );
 				}
@@ -269,7 +269,7 @@ namespace micasa {
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
-			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
+			success = this->getHardware()->updateDevice( source_, this->shared_from_this(), apply );
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {

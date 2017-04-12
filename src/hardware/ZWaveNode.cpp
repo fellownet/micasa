@@ -533,7 +533,7 @@ namespace micasa {
 				) {
 					// NOTE the data variable is guaranteed to be set when the _releasePendingUpdate call returns true.
 					// The data variable contains the value we should revert to.
-					this->m_scheduler.schedule( 0, 1, this, "zwave node prevent race condition", [=]( Scheduler::Task<>& ) {
+					this->m_scheduler.schedule( 0, 1, this, [=]( Scheduler::Task<>& ) {
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 							if ( this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {

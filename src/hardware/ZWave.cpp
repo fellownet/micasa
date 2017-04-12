@@ -254,7 +254,7 @@ namespace micasa {
 
 					if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
 						Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave inclusion mode off", [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );
@@ -268,7 +268,7 @@ namespace micasa {
 
 					if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
 						Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
-						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, "zwave exclusion mode off", [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, 1, this, [this]( Scheduler::Task<>& ) {
 							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
 								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 								Manager::Get()->CancelControllerCommand( this->m_homeId );
@@ -321,7 +321,7 @@ namespace micasa {
 					} else {
 						this->setState( Hardware::State::FAILED, true );
 						Logger::log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
-						this->m_scheduler.schedule( 0, 1, this, "remove wrong driver", [this]( Scheduler::Task<>& ) {
+						this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
 							Manager::Get()->RemoveDriver( this->m_port );
 							this->m_port.clear();
 						} );
@@ -334,7 +334,7 @@ namespace micasa {
 					if ( this->m_port == this->m_settings->get( "port" ) ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Driver failed." );
 					}
-					this->m_scheduler.schedule( 0, 1, this, "remove wrong driver", [this]( Scheduler::Task<>& ) {
+					this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
 						Manager::Get()->RemoveDriver( this->m_port );
 						this->m_port.clear();
 					} );

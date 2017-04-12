@@ -29,7 +29,7 @@ namespace micasa {
 		typedef double t_value;
 		static const Device::Type type;
 
-		Counter( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+		Counter( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 	
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
 		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );

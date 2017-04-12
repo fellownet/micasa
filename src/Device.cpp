@@ -28,7 +28,7 @@ namespace micasa {
 		{ Device::Type::TEXT, "text" },
 	};
 
-	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+	Device::Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		m_hardware( hardware_ ),
 		m_id( id_ ),
 		m_reference( reference_ ),
@@ -50,7 +50,7 @@ namespace micasa {
 	};
 
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
-		out_ << device_->m_hardware->getName() << " / " << device_->getName(); return out_;
+		out_ << device_->getHardware()->getName() << " / " << device_->getName(); return out_;
 	};
 	
 	std::string Device::getName() const {
@@ -67,6 +67,14 @@ namespace micasa {
 				, label_.c_str(), this->m_id
 			);
 		}
+	};
+
+	std::shared_ptr<Hardware> Device::getHardware() const {
+		auto hardware = this->m_hardware.lock();
+#ifdef _DEBUG
+		assert( !!hardware && "Hardware should not be destroyed before device." );
+#endif // _DEBUG
+		return hardware;
 	};
 
 	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ ) {
@@ -93,7 +101,7 @@ namespace micasa {
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
 	
-	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
+	std::shared_ptr<Device> Device::factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:
 				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
@@ -112,13 +120,15 @@ namespace micasa {
 	};
 
 	json Device::getJson( bool full_ ) const {
-		json result = this->m_hardware->getDeviceJson( this->shared_from_this() );
+		auto hardware = this->getHardware();
+
+		json result = hardware->getDeviceJson( this->shared_from_this() );
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
 		result["enabled"] = this->isEnabled();
-		result["hardware"] = this->m_hardware->getName();
-		result["hardware_id"] = this->m_hardware->getId();
+		result["hardware"] = hardware->getName();
+		result["hardware_id"] = hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
 		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
 
@@ -158,8 +168,9 @@ namespace micasa {
 	};
 
 	json Device::getSettingsJson() const {
-		json result = this->m_hardware->getDeviceSettingsJson( this->shared_from_this() );
+		auto hardware = this->getHardware();
 
+		json result = hardware->getDeviceSettingsJson( this->shared_from_this() );
 		json setting = {
 			{ "name", "name" },
 			{ "label", "Name" },
@@ -195,7 +206,7 @@ namespace micasa {
 	};
 
 	void Device::putSettingsJson( const json& settings_ ) {
-		this->m_hardware->putDeviceSettingsJson( this->shared_from_this(), settings_ );
+		this->getHardware()->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
 	void Device::setEnabled( bool enabled_ ) {

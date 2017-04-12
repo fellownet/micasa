@@ -260,7 +260,7 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			this->m_scheduler.schedule( 0, 1, this, "webserver api request", [this,connection_,uri,method,headers,data,params]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( 0, 1, this, [this,connection_,uri,method,headers,data,params]( Scheduler::Task<>& ) {
 
 				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
 				// string).
@@ -592,7 +592,7 @@ namespace micasa {
 								}
 							}
 
-							this->m_scheduler.schedule( 0, 1, this, "webserver hardware restart", [hardware,enabled,restart]( Scheduler::Task<>& ) {
+							this->m_scheduler.schedule( 0, 1, this, [hardware,enabled,restart]( Scheduler::Task<>& ) {
 								auto hardwareList = g_controller->getAllHardware();
 								if (
 									! enabled
@@ -614,17 +614,6 @@ namespace micasa {
 									if ( hardware->getState() == Hardware::State::DISABLED ) {
 										hardware->start();
 									}
-									/*
-									DISABLED > hardware should take care of starting it's children > remove this
-									for ( auto hardwareIt = hardwareList.begin(); hardwareIt != hardwareList.end(); hardwareIt++ ) {
-										if (
-											(*hardwareIt)->getParent() == hardware
-											&& (*hardwareIt)->getState() == Hardware::State::DISABLED
-										) {
-											(*hardwareIt)->start();
-										}
-									}
-									*/
 								}
 							} );
 							output_["code"] = 200;

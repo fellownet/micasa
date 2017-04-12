@@ -40,7 +40,7 @@ namespace micasa {
 		} );
 
 		this->m_username = "";
-		this->m_task = this->m_scheduler.schedule( 0, 1, this, "telegram", [this]( Scheduler::Task<>& task_ ) {
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& task_ ) {
 			if ( ! this->m_settings->contains( { "token" } ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -173,7 +173,7 @@ namespace micasa {
 				} else {
 					Logger::log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
 					this->m_acceptMode = true;
-					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, "telegram accept mode off", [this]( Scheduler::Task<>& ) {
+					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this]( Scheduler::Task<>& ) {
 						this->m_acceptMode = false;
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
 					} );
