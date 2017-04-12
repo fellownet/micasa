@@ -7,6 +7,7 @@
 
 #include "Settings.h"
 #include "Utils.h"
+#include "Scheduler.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
@@ -83,14 +84,15 @@ namespace micasa {
 		virtual Type getType() const =0;
 	
 	protected:
-		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
-
 		std::shared_ptr<Hardware> m_hardware;
 		const unsigned int m_id;
 		const std::string m_reference;
 		bool m_enabled;
 		std::string m_label;
+		Scheduler m_scheduler;
 		std::shared_ptr<Settings<Device> > m_settings;
+
+		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 	}; // class Device
 

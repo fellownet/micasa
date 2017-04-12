@@ -223,26 +223,22 @@ namespace micasa {
 							}
 						} else {
 							if ( value == Switch::Option::ON ) {
-								if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
-									this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
+								this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
+									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+									{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+									{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+								} )->incrementValue( Device::UpdateSource::HARDWARE );
+								if ( iteration_ > 2 ) {
+									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
+									this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
 										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-									} )->incrementValue( Device::UpdateSource::HARDWARE );
-									if ( iteration_ >= 2 ) {
-										unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
-											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
-									}
-									this->m_lastPulse[i] = system_clock::now();
-								} else {
-									Logger::log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
+									} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
 								}
+								this->m_lastPulse[i] = system_clock::now();
 							}
 						}
 

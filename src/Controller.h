@@ -84,7 +84,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 
 	private:
-		bool m_running;
+		volatile bool m_running;
 		std::unordered_map<std::string, std::shared_ptr<Hardware> > m_hardware;
 		mutable std::mutex m_hardwareMutex;
 		Scheduler m_scheduler;
@@ -96,6 +96,7 @@ namespace micasa {
 		mutable std::mutex m_serialPortCallbacksMutex;
 		udev* m_udev;
 		udev_monitor* m_udevMonitor;
+		std::thread m_udevWorker;
 #endif // _WITH_LIBUDEV
 		
 		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );

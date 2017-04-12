@@ -68,10 +68,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
-		static std::atomic<unsigned int> offset( 0 );
-		offset += ( 1000 * 11 ); // 11 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "switch purge", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "device purge", [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 	};
@@ -91,6 +88,7 @@ namespace micasa {
 			! force_
 			&& subType != Switch::SubType::ACTION
 			&& ! this->m_enabled
+			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
 			return;
 		}
@@ -121,7 +119,7 @@ namespace micasa {
 				this->m_rateLimiter.value = value_;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, "switch ratelimiter", [this]( Scheduler::Task<>& task_ ) {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, this, "switch ratelimiter", [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value );
 					} );
 				}
@@ -259,15 +257,20 @@ namespace micasa {
 			success = this->m_hardware->updateDevice( source_, this->shared_from_this(), apply );
 		}
 		if ( success && apply ) {
-			g_database->putQuery(
-				"INSERT INTO `device_switch_history` (`device_id`, `value`) "
-				"VALUES (%d, %Q)",
-				this->m_id,
-				Switch::resolveTextOption( this->m_value ).c_str()
-			);
+			if ( this->m_enabled ) {
+				g_database->putQuery(
+					"INSERT INTO `device_switch_history` (`device_id`, `value`) "
+					"VALUES (%d, %Q)",
+					this->m_id,
+					Switch::resolveTextOption( this->m_value ).c_str()
+				);
+			}
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			this->m_updated = system_clock::now();
-			if ( this->getHardware()->getState() >= Hardware::State::READY ) {
+			if (
+				this->m_enabled
+				&& this->getHardware()->getState() >= Hardware::State::READY
+			) {
 				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {

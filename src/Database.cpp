@@ -11,7 +11,7 @@ namespace micasa {
 	using namespace nlohmann;
 
 	Database::Database( std::string filename_ ) : m_filename( filename_ ) {
-		int result = sqlite3_open_v2( filename_.c_str(), &this->m_connection, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_WAL, NULL );
+		int result = sqlite3_open_v2( filename_.c_str(), &this->m_connection, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_WAL | SQLITE_OPEN_FULLMUTEX, NULL );
 		if ( result == SQLITE_OK ) {
 			Logger::logr( Logger::LogLevel::VERBOSE, this, "Database %s opened.", filename_.c_str() );
 			this->_init();
@@ -350,9 +350,7 @@ namespace micasa {
 		}
 	};
 	
-	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_queryMutex );
-
+	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>&& process_ ) const {
 		if ( ! this->m_connection ) {
 			Logger::logr( Logger::LogLevel::ERROR, this, "Database %s not open.", this->m_filename.c_str() );
 			return;

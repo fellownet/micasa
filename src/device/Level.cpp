@@ -70,13 +70,10 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		// To avoid all devices from crunching data at the same time, the tasks are started with a small time offset.
-		static std::atomic<unsigned int> offset( 0 );
-		offset += ( 1000 * 11 ); // 11 seconds interval
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN + ( offset % SCHEDULER_INTERVAL_5MIN ), SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, "level trends", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, "device trends", [this]( Scheduler::Task<>& ) {
 			this->_processTrends();
 		} );
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR + ( offset % SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "level purge", [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, "device purge", [this]( Scheduler::Task<>& ) {
 			this->_purgeHistory();
 		} );
 	};
@@ -94,6 +91,7 @@ namespace micasa {
 		if (
 			! force_
 			&& ! this->m_enabled
+			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
 			return;
 		}
@@ -145,7 +143,7 @@ namespace micasa {
 				this->m_rateLimiter.count++;
 				auto task = this->m_rateLimiter.task.lock();
 				if ( ! task ) {
-					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, NULL, "level ratelimiter", [this]( Scheduler::Task<>& task_ ) {
+					this->m_rateLimiter.task = this->m_scheduler.schedule( next, 0, 1, this, "level ratelimiter", [this]( Scheduler::Task<>& task_ ) {
 						this->_processValue( this->m_rateLimiter.source, this->m_rateLimiter.value / this->m_rateLimiter.count );
 						this->m_rateLimiter.count = 0;
 					} );
@@ -356,15 +354,20 @@ namespace micasa {
 		}
 
 		if ( success && apply ) {
-			g_database->putQuery(
-				"INSERT INTO `device_level_history` (`device_id`, `value`) "
-				"VALUES (%d, %.6lf)",
-				this->m_id,
-				this->m_value
-			);
+			if ( this->m_enabled ) {
+				g_database->putQuery(
+					"INSERT INTO `device_level_history` (`device_id`, `value`) "
+					"VALUES (%d, %.6lf)",
+					this->m_id,
+					this->m_value
+				);
+			}
 			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			this->m_updated = system_clock::now();
-			if ( this->getHardware()->getState() >= Hardware::State::READY ) {
+			if (
+				this->m_enabled
+				&& this->getHardware()->getState() >= Hardware::State::READY
+			) {
 				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( this->shared_from_this() ), source_ );
 			}
 			Logger::logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", this->m_value );

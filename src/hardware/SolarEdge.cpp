@@ -28,7 +28,7 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->wait();
+				this->m_connection->terminate();
 			}
 
 			std::stringstream url;
@@ -45,8 +45,8 @@ namespace micasa {
 						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 						break;
 					}
-					case Network::Connection::Event::HTTP_RESPONSE: {
-						if ( ! this->_process( connection_->getResponse() ) ) {
+					case Network::Connection::Event::HTTP: {
+						if ( ! this->_process( connection_->getBody() ) ) {
 							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 						}
 						break;
@@ -67,7 +67,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->wait();
+			this->m_connection->terminate();
 		}
 		Hardware::stop();
 	};

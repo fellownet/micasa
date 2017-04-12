@@ -38,7 +38,7 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->wait();
+				this->m_connection->terminate();
 			}
 
 			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
@@ -64,8 +64,13 @@ namespace micasa {
 						break;
 					}
 					case Network::Connection::Event::DATA: {
-						this->m_received.append( connection_->getData() );
-						if ( this->_process() ) {
+						const std::string& data = connection_->popData();
+						this->m_received.append( data );
+						if (
+							! data.empty()
+							&& data.at( data.size() - 1 ) == '>'
+						) {
+							this->_process();
 							this->m_received.clear();
 						}
 						break;
@@ -101,7 +106,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->close( true );
+			this->m_connection->terminate();
 		}
 		Hardware::stop();
 	};
@@ -193,15 +198,9 @@ namespace micasa {
 		return true;
 	};
 
-	bool HarmonyHub::_process() {
-		if (
-			this->m_received.size() > 0
-			&& this->m_received.at( this->m_received.size() - 1 ) != '>'
-		) {
-			return false;
-		}
+	void HarmonyHub::_process() {
 		if ( this->m_received == "<iq/>" ) {
-			return false;
+			return;
 		}
 
 		switch( this->m_connectionState ) {
@@ -330,8 +329,6 @@ namespace micasa {
 				break;
 			}
 		}
-
-		return true;
 	};
 	
 }; // namespace micasa

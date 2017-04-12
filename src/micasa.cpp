@@ -86,26 +86,31 @@ int main( int argc_, char* argv_[] ) {
 	}
 
 	g_database = std::make_shared<Database>( database );
-	g_settings = std::make_shared<Settings<> >();
-	g_controller = std::make_shared<Controller>();
-	g_webServer = std::make_shared<WebServer>();
 
-	g_controller->start();
-	g_webServer->start();
+	// The database might take some time to initialize (due to the VACUUM call). An additional shutdown check is done.
+	if ( ! g_shutdown ) {
+		g_settings = std::make_shared<Settings<> >();
+		g_controller = std::make_shared<Controller>();
+		g_webServer = std::make_shared<WebServer>();
 
-	while ( ! g_shutdown ) {
-		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
+		g_controller->start();
+		g_webServer->start();
+
+		while ( ! g_shutdown ) {
+			std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
+		}
+
+		g_webServer->stop();
+		g_controller->stop();
+
+		g_webServer = NULL;
+		g_controller = NULL;
+		if ( g_settings->isDirty() ) {
+			g_settings->commit();
+		}
+		g_settings = NULL;
 	}
 
-	g_webServer->stop();
-	g_controller->stop();
-
-	g_webServer = NULL;
-	g_controller = NULL;
-	if ( g_settings->isDirty() ) {
-		g_settings->commit();
-	}
-	g_settings = NULL;
 	g_database = NULL;
 
 	return EXIT_SUCCESS;

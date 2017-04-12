@@ -158,6 +158,7 @@ namespace micasa {
 #endif // _DEBUG
 
 		// Initialize the v7 javascript environment.
+		std::unique_lock<std::mutex> jsLock( this->m_jsMutex );
 		this->m_v7_js = v7_create();
 		v7_val_t root = v7_get_global( this->m_v7_js );
 		v7_set_user_data( this->m_v7_js, root, this );
@@ -175,6 +176,7 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
+		jsLock.unlock();
 	};
 
 	Controller::~Controller() {
@@ -231,51 +233,56 @@ namespace micasa {
 				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
 			) {
-				std::thread( [hardware]() {
+				this->m_scheduler.schedule( 0, 1, this, "hardware start", [hardware]( Scheduler::Task<>& ) {
 					hardware->start();
-				} ).detach();
+				} );
 			}
 		}
 		hardwareLock.unlock();
 
+		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
+		// to make sure the whole minute has passed.
+		auto now = system_clock::now();
+		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, "run timers", [this]( Scheduler::Task<>& ) {
+			if ( this->m_running ) {
+				this->_runTimers();
+			}
+		} );
+
+		this->m_running = true;
+
 #ifdef _WITH_LIBUDEV
-		// libudev for detecting add- or remove usb device?
-		// http://www.signal11.us/oss/udev/
-		// If libudev is available we can use it to monitor disconenct and reconnect of the z-wave device. For
-		// instance, the Aeon labs z-wave stick can be disconnected to bring it closer to the node when including.
+		// If libudev is available we can use it to monitor disconenct and reconnect of the z-wave device. For instance
+		// the Aeon labs z-wave stick can be disconnected to bring it closer to the node when including. NOTE that udev
+		// is using it's own thread because the scheduler would cause way too much overhead.
 		this->m_udev = udev_new();
 		if ( this->m_udev ) {
 			this->m_udevMonitor = udev_monitor_new_from_netlink( this->m_udev, "udev" );
 			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
 			udev_monitor_enable_receiving( this->m_udevMonitor );
 
-			this->m_scheduler.schedule( 250, SCHEDULER_INFINITE, this, "udev", [this]( Scheduler::Task<>& ) {
-				udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
-				if ( dev ) {
-					std::string port = std::string( udev_device_get_devnode( dev ) );
-					std::string action = std::string( udev_device_get_action( dev ) );
-					std::lock_guard<std::mutex> lock( this->m_serialPortCallbacksMutex );
-					for ( auto callbackIt = this->m_serialPortCallbacks.begin(); callbackIt != this->m_serialPortCallbacks.end(); callbackIt++ ) {
-						callbackIt->second( port, action );
+			this->m_udevWorker = std::thread( [this]() {
+				do {
+					std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
+					udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
+					if ( dev ) {
+						std::string port = std::string( udev_device_get_devnode( dev ) );
+						std::string action = std::string( udev_device_get_action( dev ) );
+						std::lock_guard<std::mutex> lock( this->m_serialPortCallbacksMutex );
+						for ( auto callbackIt = this->m_serialPortCallbacks.begin(); callbackIt != this->m_serialPortCallbacks.end(); callbackIt++ ) {
+							callbackIt->second( port, action );
+						}
+						Logger::logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
+						udev_device_unref( dev );
 					}
-					Logger::logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
-					udev_device_unref( dev );
-				}
+				} while( this->m_running );
 			} );
 		} else {
 			Logger::log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
 		}
 #endif // _WITH_LIBUDEV
 
-		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
-		// to make sure the whole minute has passed.
-		auto now = system_clock::now();
-		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, "timers", [this]( Scheduler::Task<>& ) {
-			this->_runTimers();
-		} );
-
-		this->m_running = true;
 		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
@@ -286,38 +293,51 @@ namespace micasa {
 
 #ifdef _WITH_LIBUDEV
 		if ( this->m_udev ) {
+			this->m_udevWorker.join();
 			udev_monitor_unref( this->m_udevMonitor );
 			udev_unref( this->m_udev );
 		}
 #endif // _WITH_LIBUDEV
 
-		{
-			// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a
-			// separate thread.
-			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-			std::map<std::string, std::future<void> > futures;
-			for ( auto const &hardwareIt : this->m_hardware ) {
-				auto hardware = hardwareIt.second;
-				if ( hardware->getState() != Hardware::State::DISABLED ) {
-					futures[hardware->getName()] = std::async( std::launch::async, [hardware] {
-						hardware->stop();
-					} );
-				}
-			}
-			this->m_hardware.clear();
-
-			// Then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
-			for ( auto const &futuresIt : futures ) {
-				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
-				if ( status == std::future_status::timeout ) {
-					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
-				}
-#ifdef _DEBUG
-				assert( status == std::future_status::ready && "Hardware should stop properly." );
-#endif // _DEBUG
+		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto hardware = hardwareIt.second;
+			if ( hardware->getState() != Hardware::State::DISABLED ) {
+				hardware->stop();
 			}
 		}
+		this->m_hardware.clear();
+		hardwareLock.unlock();
 
+
+/*
+		// TODO why is this segfaulting on exit? it did work. Some other memory corruption is going on.
+		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a
+		// separate thread.
+		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
+		std::map<std::string, std::future<void> > futures;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto hardware = hardwareIt.second;
+			if ( hardware->getState() != Hardware::State::DISABLED ) {
+				futures[hardware->getName()] = std::async( std::launch::async, [hardware] {
+					hardware->stop();
+				} );
+			}
+		}
+		this->m_hardware.clear();
+
+		// Then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
+		for ( auto const &futuresIt : futures ) {
+			std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+			if ( status == std::future_status::timeout ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
+			}
+#ifdef _DEBUG
+			assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
+		}
+		hardwareLock.unlock();
+*/
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
@@ -606,7 +626,7 @@ namespace micasa {
 				)
 			) {
 				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), "event for", [device,source,currentValue]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,currentValue]( Scheduler::Task<>& ) {
 					auto targetDevice = device.lock();
 					if ( targetDevice ) {
 						targetDevice->updateValue( source, currentValue );
@@ -618,15 +638,62 @@ namespace micasa {
 	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 	template void Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	// The switch variant of the method is specialized separately because it uses the opposite value instead of the
+	// previous value for the "for"-option.
+	template<> void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+		if ( options_.clear ) {
+			this->m_scheduler.erase(
+				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
+					return task_.data == device_.get();
+				}
+			);
+		}
+
+		// If the recur option was set, no script or timer source is send along with the update. This way updating the
+		// device will cause additional scripts to be executed.
+		Device::UpdateSource source = source_;
+		if ( options_.recur ) {
+			source = Device::resolveUpdateSource( 0 );
+		}
+
+		// The scheduler should not prevent devices from being destroyed, hence we're capturing a weak pointer into the
+		// update task. This also prevents a shared_ptr cycle (!).
+		std::weak_ptr<Switch> device = device_;
+
+		Switch::t_value oppositeValue = Switch::getOppositeValue( value_ );
+		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
+			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
+			this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,value_]( Scheduler::Task<>& ) {
+				auto targetDevice = device.lock();
+				if ( targetDevice ) {
+					targetDevice->updateValue( source, value_ );
+				}
+			} );
+
+			if (
+				options_.forSec > 0.05
+				&& (
+					options_.repeat > 0
+					|| i < abs( options_.repeat ) - 1
+				)
+			) {
+				delay += ( 1000 * options_.forSec );
+				this->m_scheduler.schedule( delay, 1, device_.get(), "event", [device,source,oppositeValue]( Scheduler::Task<>& ) {
+					auto targetDevice = device.lock();
+					if ( targetDevice ) {
+						targetDevice->updateValue( source, oppositeValue );
+					}
+				} );
+			}
+		}
+	};
 	
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
-		auto thread = std::thread( [this,key_,data_,scripts_]{
-			std::lock_guard<std::mutex> lock( this->m_jsMutex );
-
-			v7_val_t root = v7_get_global( this->m_v7_js );
+		this->m_scheduler.schedule( 0, 1, this, "controller run scripts", [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
+			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 
 			// Configure the v7 javascript environment with context data.
+			v7_val_t root = v7_get_global( this->m_v7_js );
 			v7_val_t dataObj;
 			if ( V7_OK != v7_parse_json( this->m_v7_js, data_.dump().c_str(), &dataObj ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
@@ -694,171 +761,168 @@ namespace micasa {
 			}
 			g_settings->commit();
 		} );
-		thread.detach();
 	};
 
 	void Controller::_runTimers() {
-		if ( this->m_running ) {
-			auto timers = g_database->getQuery(
-				"SELECT DISTINCT `id`, `cron`, `name` "
-				"FROM `timers` "
-				"WHERE `enabled`=1 "
-				"ORDER BY `id` ASC"
-			);
-			for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
-				try {
-					bool run = true;
+		auto timers = g_database->getQuery(
+			"SELECT DISTINCT `id`, `cron`, `name` "
+			"FROM `timers` "
+			"WHERE `enabled`=1 "
+			"ORDER BY `id` ASC"
+		);
+		for ( auto timerIt = timers.begin(); timerIt != timers.end(); timerIt++ ) {
+			try {
+				bool run = true;
 
-					// Split the cron string into exactly 5 fields; m h dom mon dow.
-					std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
-					auto fields = stringSplit( (*timerIt)["cron"], ' ' );
-					if ( fields.size() != 5 ) {
-						throw std::runtime_error( "invalid number of cron fields" );
+				// Split the cron string into exactly 5 fields; m h dom mon dow.
+				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
+				auto fields = stringSplit( (*timerIt)["cron"], ' ' );
+				if ( fields.size() != 5 ) {
+					throw std::runtime_error( "invalid number of cron fields" );
+				}
+				for ( unsigned int field = 0; field <= 4; field++ ) {
+
+					// Determine the values that are valid for each field by parsing the field and
+					// filling an array with valid values.
+					std::vector<std::string> subexpressions;
+					if ( fields[field].find( "," ) != std::string::npos ) {
+						subexpressions = stringSplit( fields[field], ',' );
+					} else {
+						subexpressions.push_back( fields[field] );
 					}
-					for ( unsigned int field = 0; field <= 4; field++ ) {
 
-						// Determine the values that are valid for each field by parsing the field and
-						// filling an array with valid values.
-						std::vector<std::string> subexpressions;
-						if ( fields[field].find( "," ) != std::string::npos ) {
-							subexpressions = stringSplit( fields[field], ',' );
-						} else {
-							subexpressions.push_back( fields[field] );
+					std::vector<unsigned int> rangeitems;
+
+					for ( auto& subexpression : subexpressions ) {
+						unsigned int start = extremes[field].first;
+						unsigned int end = extremes[field].second;
+						unsigned int modulo = 0;
+
+						if ( subexpression.find( "/" ) != std::string::npos ) {
+							auto parts = stringSplit( subexpression, '/' );
+							if ( parts.size() != 2 ) {
+								throw std::runtime_error( "invalid cron field devider" );
+							}
+							modulo = std::stoi( parts[1] );
+							subexpression = parts[0];
 						}
 
-						std::vector<unsigned int> rangeitems;
-
-						for ( auto& subexpression : subexpressions ) {
-							unsigned int start = extremes[field].first;
-							unsigned int end = extremes[field].second;
-							unsigned int modulo = 0;
-
-							if ( subexpression.find( "/" ) != std::string::npos ) {
-								auto parts = stringSplit( subexpression, '/' );
-								if ( parts.size() != 2 ) {
-									throw std::runtime_error( "invalid cron field devider" );
-								}
-								modulo = std::stoi( parts[1] );
-								subexpression = parts[0];
+						if ( subexpression.find( "-" ) != std::string::npos ) {
+							auto parts = stringSplit( subexpression, '-' );
+							if ( parts.size() != 2 ) {
+								throw std::runtime_error( "invalid cron field range" );
 							}
+							start = std::stoi( parts[0] );
+							end = std::stoi( parts[1] );
+						} else if (
+							subexpression != "*"
+							&& modulo == 0
+						) {
+							start = std::stoi( subexpression );
+							end = start;
+						}
 
-							if ( subexpression.find( "-" ) != std::string::npos ) {
-								auto parts = stringSplit( subexpression, '-' );
-								if ( parts.size() != 2 ) {
-									throw std::runtime_error( "invalid cron field range" );
-								}
-								start = std::stoi( parts[0] );
-								end = std::stoi( parts[1] );
-							} else if (
-								subexpression != "*"
-								&& modulo == 0
-							) {
-								start = std::stoi( subexpression );
-								end = start;
-							}
-
-							for ( unsigned int index = start; index <= end; index++ ) {
-								if ( modulo > 0 ) {
-									int remainder = index % modulo;
-									if ( subexpression == "*" ) {
-										if ( 0 == remainder ) {
-											rangeitems.push_back( index );
-										}
-									} else if ( remainder == std::stoi( subexpression ) ) {
+						for ( unsigned int index = start; index <= end; index++ ) {
+							if ( modulo > 0 ) {
+								int remainder = index % modulo;
+								if ( subexpression == "*" ) {
+									if ( 0 == remainder ) {
 										rangeitems.push_back( index );
 									}
-								} else {
+								} else if ( remainder == std::stoi( subexpression ) ) {
 									rangeitems.push_back( index );
 								}
+							} else {
+								rangeitems.push_back( index );
 							}
-						}
-
-						time_t rawtime;
-						time( &rawtime );
-						struct tm* timeinfo;
-						timeinfo = localtime( &rawtime );
-
-						unsigned int current;
-						switch( field ) {
-							case 0: current = timeinfo->tm_min; break;
-							case 1: current = timeinfo->tm_hour; break;
-							case 2: current = timeinfo->tm_mday; break;
-							case 3: current = timeinfo->tm_mon + 1; break;
-							case 4: current = timeinfo->tm_wday == 0 ? 7 : timeinfo->tm_wday; break;
-						}
-
-						if ( std::find( rangeitems.begin(), rangeitems.end(), current ) == rangeitems.end() ) {
-							run = false;
-						}
-
-						// If this field didn't match there's no need to investigate the other fields.
-						if ( ! run ) {
-							break;
 						}
 					}
 
-					if ( run ) {
-						
-						// First run the scripts that are associated with this timer.
-						json data = (*timerIt);
-						auto scripts = g_database->getQuery(
-							"SELECT s.`id`, s.`name`, s.`code` "
-							"FROM `x_timer_scripts` x, `scripts` s "
-							"WHERE x.`script_id`=s.`id` "
-							"AND x.`timer_id`=%q "
-							"AND s.`enabled`=1 "
-							"ORDER BY s.`id` ASC",
-							(*timerIt)["id"].c_str()
-						);
-						if ( scripts.size() > 0 ) {
-							this->_runScripts( "timer", data, scripts );
-						}
-						
-						// Then update the devices that are associated with this timer.
-						auto devices = g_database->getQuery(
-							"SELECT x.`device_id`, x.`value` "
-							"FROM `x_timer_devices` x, `devices` d "
-							"WHERE x.`device_id`=d.`id` "
-							"AND x.`timer_id`=%q "
-							"AND d.`enabled`=1 "
-							"ORDER BY d.`id` ASC",
-							(*timerIt)["id"].c_str()
-						);
-						if ( devices.size() > 0 ) {
-							for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
-								auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
-								if ( device ) {
-									TaskOptions options = { 0, 0, 1, 0, false, false };
-									switch( device->getType() ) {
-										case Device::Type::COUNTER:
-											this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-											break;
-										case Device::Type::LEVEL:
-											this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-											break;
-										case Device::Type::SWITCH:
-											this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-											break;
-										case Device::Type::TEXT:
-											this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-											break;
-									}
+					time_t rawtime;
+					time( &rawtime );
+					struct tm* timeinfo;
+					timeinfo = localtime( &rawtime );
+
+					unsigned int current;
+					switch( field ) {
+						case 0: current = timeinfo->tm_min; break;
+						case 1: current = timeinfo->tm_hour; break;
+						case 2: current = timeinfo->tm_mday; break;
+						case 3: current = timeinfo->tm_mon + 1; break;
+						case 4: current = timeinfo->tm_wday == 0 ? 7 : timeinfo->tm_wday; break;
+					}
+
+					if ( std::find( rangeitems.begin(), rangeitems.end(), current ) == rangeitems.end() ) {
+						run = false;
+					}
+
+					// If this field didn't match there's no need to investigate the other fields.
+					if ( ! run ) {
+						break;
+					}
+				}
+
+				if ( run ) {
+					
+					// First run the scripts that are associated with this timer.
+					json data = (*timerIt);
+					auto scripts = g_database->getQuery(
+						"SELECT s.`id`, s.`name`, s.`code` "
+						"FROM `x_timer_scripts` x, `scripts` s "
+						"WHERE x.`script_id`=s.`id` "
+						"AND x.`timer_id`=%q "
+						"AND s.`enabled`=1 "
+						"ORDER BY s.`id` ASC",
+						(*timerIt)["id"].c_str()
+					);
+					if ( scripts.size() > 0 ) {
+						this->_runScripts( "timer", data, scripts );
+					}
+					
+					// Then update the devices that are associated with this timer.
+					auto devices = g_database->getQuery(
+						"SELECT x.`device_id`, x.`value` "
+						"FROM `x_timer_devices` x, `devices` d "
+						"WHERE x.`device_id`=d.`id` "
+						"AND x.`timer_id`=%q "
+						"AND d.`enabled`=1 "
+						"ORDER BY d.`id` ASC",
+						(*timerIt)["id"].c_str()
+					);
+					if ( devices.size() > 0 ) {
+						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
+							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
+							if ( device ) {
+								TaskOptions options = { 0, 0, 1, 0, false, false };
+								switch( device->getType() ) {
+									case Device::Type::COUNTER:
+										this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::LEVEL:
+										this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::SWITCH:
+										this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::TEXT:
+										this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
 								}
 							}
 						}
 					}
-
-				} catch( std::exception ex_ ) {
-
-					// Something went wrong while parsing the cron string. The timer is marked as disabled.
-					Logger::logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
-					g_database->putQuery(
-						"UPDATE `timers` "
-						"SET `enabled`=0 "
-						"WHERE `id`=%q",
-						(*timerIt).at( "id" ).c_str()
-					);
 				}
+
+			} catch( std::exception ex_ ) {
+
+				// Something went wrong while parsing the cron string. The timer is marked as disabled.
+				Logger::logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
+				g_database->putQuery(
+					"UPDATE `timers` "
+					"SET `enabled`=0 "
+					"WHERE `id`=%q",
+					(*timerIt).at( "id" ).c_str()
+				);
 			}
 		}
 	};

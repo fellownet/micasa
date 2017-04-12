@@ -50,8 +50,11 @@ namespace micasa {
 
 	void ZWave::start() {
 		Logger::log( Logger::LogLevel::NORMAL, this, "Starting..." );
-		this->setState( Hardware::State::INIT, true );
+		this->setState( Hardware::State::INIT );
 		Hardware::start();
+		for ( auto& child : g_controller->getChildrenOfHardware( *this ) ) {
+			child->start();
+		}
 
 		if ( ! this->m_settings->contains( { "port" } ) ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
@@ -229,16 +232,15 @@ namespace micasa {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
-				if ( this->getState() != Hardware::State::READY ) {
-					Logger::log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+				if ( this->getState() < Hardware::State::READY ) {
+					Logger::log( Logger::LogLevel::WARNING, this, "Controller not ready." );
 					return false;
 				}
 
 				if ( ! ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
-					Logger::log( Logger::LogLevel::ERROR, this, "Controller busy." );
+					Logger::log( Logger::LogLevel::WARNING, this, "Controller busy." );
 					return false;
 				}
-
 				std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 				
 				if ( device->getReference() == "heal" ) {
@@ -298,10 +300,7 @@ namespace micasa {
 			std::stringstream reference;
 			reference << homeId << "/" << (unsigned int)nodeId;
 			auto node = std::static_pointer_cast<ZWaveNode>( g_controller->getHardware( reference.str() ) );
-			if (
-				node != nullptr
-				&& node->getState() != Hardware::State::DISABLED
-			) {
+			if ( node != nullptr ) {
 				node->_handleNotification( notification_ );
 			}
 
@@ -355,7 +354,7 @@ namespace micasa {
 					}
 
 					// At this point we're going to instruct all nodes to report their configuration parameters.
-					Logger::logr( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
+					Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
 					auto nodes = g_controller->getChildrenOfHardware( *this );
 					for ( auto nodeIt = nodes.begin(); nodeIt != nodes.end(); nodeIt++ ) {
 						auto node = std::static_pointer_cast<ZWaveNode>( *nodeIt );
@@ -437,7 +436,7 @@ namespace micasa {
 			ZWave::g_managerMutex.unlock();
 
 		} else {
-			Logger::logr( Logger::LogLevel::VERBOSE, this, "OpenZWave notification \"%s\" missed.", notification_->GetAsString().c_str() );
+			Logger::logr( Logger::LogLevel::WARNING, this, "OpenZWave notification \"%s\" missed.", notification_->GetAsString().c_str() );
 		}
 	};
 

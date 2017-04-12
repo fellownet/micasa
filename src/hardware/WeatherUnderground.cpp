@@ -37,7 +37,7 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->wait();
+				this->m_connection->terminate();
 			}
 
 			std::stringstream url;
@@ -53,8 +53,8 @@ namespace micasa {
 						this->setState( Hardware::State::FAILED );
 						break;
 					}
-					case Network::Connection::Event::HTTP_RESPONSE: {
-						this->_process( connection_->getResponse() );
+					case Network::Connection::Event::HTTP: {
+						this->_process( connection_->getBody() );
 						break;
 					}
 					case Network::Connection::Event::DROPPED:
@@ -74,7 +74,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->wait();
+			this->m_connection->terminate();
 		}
 		Hardware::stop();
 	};
@@ -218,7 +218,7 @@ namespace micasa {
 						} )->updateValue( Device::UpdateSource::HARDWARE, sunset );
 					}
 
-					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground", [this]( Scheduler::Task<>& ) -> void {
+					this->m_scheduler.schedule( 1000 * 10, 1, NULL, "weatherunderground sleep", [this]( Scheduler::Task<>& ) -> void {
 						this->setState( Hardware::State::SLEEPING );
 					} );
 				} else {

@@ -39,13 +39,13 @@ namespace micasa {
 	private:
 		t_value m_value;
 		t_value m_previousValue;
-		Scheduler m_scheduler;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			t_value value;
 			Device::UpdateSource source;
 			std::weak_ptr<Scheduler::Task<> > task;
 		} m_rateLimiter;
+		std::string m_lastLog;
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void _purgeHistory() const;

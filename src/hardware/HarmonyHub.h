@@ -41,7 +41,7 @@ namespace micasa {
 		std::string m_currentActivityId;
 		std::string m_received;
 	
-		bool _process();
+		void _process();
 		
 	}; // class HarmonyHub
 

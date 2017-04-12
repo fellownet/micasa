@@ -164,7 +164,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-add_definitions( -DMG_ENABLE_IPV6 )
+add_definitions( -DMG_ENABLE_IPV6 -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_DISABLE_HTTP_KEEP_ALIVE -DMG_ENABLE_BROADCAST )
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
@@ -180,6 +180,10 @@ add_definitions( -DV7_ENABLE_FILE=ON )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11" )
 if( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
 	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
+endif()
+if( DEBUG )
+#	AddressSanitizer has__interceptor_pthread_create problems.
+#	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer" )
 endif()
 
 #

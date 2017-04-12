@@ -42,10 +42,9 @@ namespace micasa {
 	private:
 		const std::string m_filename;
 		sqlite3 *m_connection;
-		mutable std::mutex m_queryMutex;
 
 		void _init() const;
-		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>& process_ ) const;
+		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>&& process_ ) const;
 
 	}; // class Database
 

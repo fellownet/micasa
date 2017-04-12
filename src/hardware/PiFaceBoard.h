@@ -8,7 +8,6 @@
 #define PIFACEBOARD_BUSY_WAIT_MSEC         1000 // how long to wait for result
 #define PIFACEBOARD_BUSY_BLOCK_MSEC        500  // how long to block activies while waiting for result
 #define PIFACEBOARD_TOGGLE_WAIT_MSEC       1500 // how long between toggles
-#define PIFACEBOARD_MIN_COUNTER_PULSE_MSEC 100 // the minimum duration of a counter pulse
 #define PIFACEBOARD_PROCESS_INTERVAL_MSEC  20
 #define PIFACEBOARD_PORT_INPUT             0
 #define PIFACEBOARD_PORT_OUTPUT            1

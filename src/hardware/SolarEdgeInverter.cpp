@@ -44,7 +44,7 @@ namespace micasa {
 			);
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->wait();
+				this->m_connection->terminate();
 			}
 
 			std::stringstream url;
@@ -60,8 +60,8 @@ namespace micasa {
 						this->setState( Hardware::State::FAILED );
 						break;
 					}
-					case Network::Connection::Event::HTTP_RESPONSE: {
-						this->_process( connection_->getResponse() );
+					case Network::Connection::Event::HTTP: {
+						this->_process( connection_->getBody() );
 						break;
 					}
 					case Network::Connection::Event::CLOSE: {
@@ -80,7 +80,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->wait();
+			this->m_connection->terminate();
 		}
 		Hardware::stop();
 	};
@@ -132,7 +132,7 @@ namespace micasa {
 					} );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<double>() );
 				}
-				this->m_scheduler.schedule( 1000 * 10, 1, NULL, "solaredge inverter retry", [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, NULL, "solaredge sleep", [this]( Scheduler::Task<>& ) -> void {
 					this->setState( Hardware::State::SLEEPING );
 				} );
 			}

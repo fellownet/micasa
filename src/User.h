@@ -31,6 +31,7 @@ namespace micasa {
 
 		unsigned int getId() const throw() { return this->m_id; };
 		Rights getRights() const throw() { return this->m_rights; };
+		std::string getName() const throw() { return this->m_name; };
 		std::shared_ptr<Settings<User> > getSettings() const throw() { return this->m_settings; };
 
 	private:

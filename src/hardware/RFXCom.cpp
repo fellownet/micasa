@@ -52,7 +52,7 @@ namespace micasa {
 						this->m_packetPosition == 0
 						&& this->m_packet[0] == 0
 					) {
-						continue;
+						return;
 					}
 
 					this->m_packetPosition++;

@@ -81,6 +81,8 @@ namespace micasa {
 		assert( g_database && "Global Database instance should be destroyed after Hardware instances." );
 		assert( this->m_state == Hardware::State::DISABLED && "Hardware should be stopped before being destructed." );
 #endif // _DEBUG
+		std::lock_guard<std::mutex> devicesLock( this->m_devicesMutex );
+		this->m_devices.clear();
 	};
 
 	std::shared_ptr<Hardware> Hardware::factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) {
@@ -161,7 +163,7 @@ namespace micasa {
 			this->setState( Hardware::State::INIT );
 		}
 
-		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
+		Logger::log( this->m_parent == nullptr ? Logger::LogLevel::NORMAL : Logger::LogLevel::VERBOSE, this, "Started." );
 	};
 
 	void Hardware::stop() {
@@ -179,7 +181,7 @@ namespace micasa {
 		if ( this->getState() != State::DISABLED ) {
 			this->setState( State::DISABLED );
 		}
-		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
+		Logger::log( this->m_parent == nullptr ? Logger::LogLevel::NORMAL : Logger::LogLevel::VERBOSE, this, "Stopped." );
 	};
 
 	std::string Hardware::getName() const {
@@ -313,6 +315,9 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( devicesIt->second == device_ ) {
+				if ( device_->isEnabled() ) {
+					device_->stop();
+				}
 				g_database->putQuery(
 					"DELETE FROM `devices` "
 					"WHERE `id`=%d",

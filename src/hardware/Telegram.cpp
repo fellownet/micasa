@@ -46,7 +46,7 @@ namespace micasa {
 			}
 
 			if ( this->m_connection != nullptr ) {
-				this->m_connection->wait();
+				this->m_connection->terminate();
 			}
 
 			std::stringstream url;
@@ -66,8 +66,8 @@ namespace micasa {
 							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							break;
 						}
-						case Network::Connection::Event::HTTP_RESPONSE: {
-							if ( ! this->_process( connection_->getResponse() ) ) {
+						case Network::Connection::Event::HTTP: {
+							if ( ! this->_process( connection_->getBody() ) ) {
 								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							} else {
 								this->m_scheduler.schedule( 0, 1, this->m_task );
@@ -107,8 +107,8 @@ namespace micasa {
 							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							break;
 						}
-						case Network::Connection::Event::HTTP_RESPONSE: {
-							if ( ! this->_process( connection_->getResponse() ) ) {
+						case Network::Connection::Event::HTTP: {
+							if ( ! this->_process( connection_->getBody() ) ) {
 								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							} else {
 								this->m_scheduler.schedule( 0, 1, this->m_task );
@@ -136,7 +136,7 @@ namespace micasa {
 			return task_.data == this;
 		} );
 		if ( this->m_connection != nullptr ) {
-			this->m_connection->close( true );
+			this->m_connection->terminate();
 		}
 		Hardware::stop();
 	};
@@ -210,23 +210,7 @@ namespace micasa {
 					{ "text", sourceDevice->getValue() },
 					{ "parse_mode", "Markdown" }
 				};
-				Network::connect( url.str(), params, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
-					switch( event_ ) {
-						case Network::Connection::Event::CONNECT: {
-							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
-							break;
-						}
-						case Network::Connection::Event::FAILURE: {
-							Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
-							break;
-						}
-						case Network::Connection::Event::CLOSE: {
-							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
-							break;
-						}
-						default: { break; }
-					}
-				} )->wait();
+				Network::connect( url.str(), params, nullptr );
 			}
 
 			return true;

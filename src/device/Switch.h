@@ -62,7 +62,6 @@ namespace micasa {
 	private:
 		Option m_value;
 		Option m_previousValue;
-		Scheduler m_scheduler;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			Option value;

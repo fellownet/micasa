@@ -17,8 +17,7 @@ namespace micasa {
 	// =========
 
 	Scheduler::~Scheduler() {
-		auto& pool = Scheduler::ThreadPool::get();
-		pool.erase( this );
+		Scheduler::ThreadPool::get().erase( this );
 	};
 
 	void Scheduler::erase( BaseTask::t_compareFunc&& func_ ) {
@@ -57,7 +56,7 @@ namespace micasa {
 		if ( this->m_start != nullptr ) {
 			auto position = this->m_start;
 			do {
-				std::cout << position->name << "\n";
+				std::cout << position->reference << "\n";
 				position = position->m_next;
 			} while( position != this->m_start );
 		}
@@ -71,6 +70,9 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::schedule( std::shared_ptr<BaseTask> task_ ) {
 #ifdef _DEBUG
+		if ( this->m_shutdown != false ) {
+			std::cout << task_->reference << "\n";
+		}
 		assert( this->m_shutdown == false && "Tasks should only be scheduled when scheduler is running." );
 #endif // _DEBUG
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
@@ -148,7 +150,22 @@ namespace micasa {
 				auto task = this->m_start;
 				this->_erase( task );
 
-				// Push the task into the active tasks list.
+#ifdef _DEBUG
+				std::string debug = "";
+				for ( auto& stask : this->m_activeTasks ) {
+					if ( stask->reference.empty() ) {
+						debug.append( "?, " );
+					} else {
+						debug.append( stask->reference + ", " );
+					}
+				}
+				std::string ref = task->reference;
+				if ( ref.empty() ) {
+					ref = "?";
+				}
+				std::cout << "SCHEDULER PRE COUNT " << this->m_activeTasks.size() << ", " << debug << ref << "\n";
+#endif // _DEBUG
+
 				this->m_activeTasks.push_back( task );
 				tasksLock.unlock();
 				

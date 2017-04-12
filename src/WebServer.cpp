@@ -14,6 +14,9 @@
 #include <cstdlib>
 #include <regex>
 
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+
 #ifdef _DEBUG
 	#include <cassert>
 #endif // _DEBUG
@@ -52,6 +55,7 @@ namespace micasa {
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Settings<> > g_settings;
 	
+	using namespace std::chrono;
 	using namespace nlohmann;
 	
 	const std::map<WebServer::Method, std::string> WebServer::MethodText = {
@@ -97,7 +101,7 @@ namespace micasa {
 		) {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Generating SSL key and certificate." );
 
-			this->m_key = EVP_PKEY_new();
+			EVP_PKEY* key = EVP_PKEY_new();
 			RSA* rsa = RSA_generate_key(
 				2048,   // number of bits for the key
 				RSA_F4, // exponent
@@ -107,30 +111,30 @@ namespace micasa {
 			if ( ! rsa ) {
 				throw std::runtime_error( "unable to generate 2048-bit RSA key" );
 			}
-			EVP_PKEY_assign_RSA( this->m_key, rsa ); // now rsa will be free'd alongside m_key
+			EVP_PKEY_assign_RSA( key, rsa ); // now rsa will be free'd alongside m_key
 
-			this->m_certificate = X509_new();
-			ASN1_INTEGER_set( X509_get_serialNumber( this->m_certificate ), 1 ); // some webservers reject serial number 0
-			X509_gmtime_adj( X509_get_notBefore( this->m_certificate ), 0 ); // not usable before 'now'
-			X509_gmtime_adj( X509_get_notAfter( this->m_certificate ), (long)( 60 * 60 * 24 * 365 ) ); // not usable after xx days
-			X509_set_pubkey( this->m_certificate, this->m_key );
+			X509* certificate = X509_new();
+			ASN1_INTEGER_set( X509_get_serialNumber( certificate ), 1 ); // some webservers reject serial number 0
+			X509_gmtime_adj( X509_get_notBefore( certificate ), 0 ); // not usable before 'now'
+			X509_gmtime_adj( X509_get_notAfter( certificate ), (long)( 60 * 60 * 24 * 365 ) ); // not usable after xx days
+			X509_set_pubkey( certificate, key );
 
-			X509_NAME* name = X509_get_subject_name( this->m_certificate );
+			X509_NAME* name = X509_get_subject_name( certificate );
 			X509_NAME_add_entry_by_txt( name, "C", MBSTRING_ASC, (unsigned char*)"NL", -1, -1, 0 );
 			X509_NAME_add_entry_by_txt( name, "CN", MBSTRING_ASC, (unsigned char*)"Micasa", -1, -1, 0 );
 			X509_NAME_add_entry_by_txt( name, "O", MBSTRING_ASC, (unsigned char*)"Fellownet", -1, -1, 0 );
-			X509_set_issuer_name( this->m_certificate, name );
+			X509_set_issuer_name( certificate, name );
 
 			// Self-sign the certificate with the private key (NOTE: when using real certificates, a CA should sign the
 			// certificate). So the certificate contains the public key and is signed with the private key. This makes
 			// sense for self-signed certificates.
-			X509_sign( this->m_certificate, this->m_key, EVP_sha1() );
+			X509_sign( certificate, key, EVP_sha1() );
 
 			// The private key and the certificate are written to disk in PEM format.
 			FILE* f = fopen( KEY_FILE, "wb");
 			PEM_write_PrivateKey(
 				f,            // write the key to the file we've opened
-				this->m_key,  // our key from earlier
+				key,          // our key from earlier
 				NULL,         // default cipher for encrypting the key on disk (EVP_des_ede3_cbc())
 				NULL,         // passphrase required for decrypting the key on disk ("replace_me")
 				0,            // length of the passphrase string (10)
@@ -141,47 +145,33 @@ namespace micasa {
 
 			f = fopen( CERT_FILE, "wb" );
 			PEM_write_X509(
-				f,                  // write the certificate to the file we've opened
-				this->m_certificate // our certificate
+				f,            // write the certificate to the file we've opened
+				certificate   // our certificate
 			);
 			fclose( f );
-
-		} else {
-
-			Logger::log( Logger::LogLevel::NORMAL, this, "Reading SSL key and certificate." );
-
-			// The certificate contains the public key we need to encrypt data. The private key is read from the key
-			// file and is also assigned to the EVP object.
-			FILE* f = fopen( CERT_FILE, "r" );
-			this->m_certificate = PEM_read_X509( f, NULL, NULL, NULL );
-			if ( ! this->m_certificate ) {
-				throw std::runtime_error( "unable to read certificate file" );
-			}
-			fclose( f );
-
-			f = fopen( KEY_FILE, "r" );
-			this->m_key = PEM_read_PrivateKey( f, NULL, NULL, NULL );
-			if ( ! this->m_key ) {
-				throw std::runtime_error( "unable to read key file" );
-			}
-			fclose( f );
+			X509_free( certificate );
+			EVP_PKEY_free( key );
 		}
 #endif
 
-		this->m_bind = Network::bind( "80", [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
-			if ( event_ == Network::Connection::Event::HTTP_REQUEST ) {
+		this->_installHardwareResourceHandler();
+		this->_installDeviceResourceHandler();
+		this->_installScriptResourceHandler();
+		this->_installTimerResourceHandler();
+		this->_installUserResourceHandler();
+
+		auto handler = [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
+			if ( event_ == Network::Connection::Event::HTTP ) {
 				this->_processRequest( connection_ );
 			}
-		} );
+		};
+
+		this->m_bind = Network::bind( "80", handler );
 		if ( ! this->m_bind ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 80." );
 		}
 #ifdef _WITH_OPENSSL
-		this->m_bindSecure = Network::bind( "443", CERT_FILE, KEY_FILE, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
-			if ( event_ == Network::Connection::Event::HTTP_REQUEST ) {
-				this->_processRequest( connection_ );
-			}
-		} );
+		this->m_bindSecure = Network::bind( "443", CERT_FILE, KEY_FILE, handler );
 		if ( ! this->m_bindSecure ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 443." );
 		}
@@ -198,12 +188,6 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
-		this->_installHardwareResourceHandler();
-		this->_installDeviceResourceHandler();
-		this->_installScriptResourceHandler();
-		this->_installTimerResourceHandler();
-		this->_installUserResourceHandler();
-		
 		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -211,138 +195,40 @@ namespace micasa {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 
 		if ( this->m_bind ) {
-			this->m_bind->close( true );
+			this->m_bind->terminate();
 		}
 #ifdef _WITH_OPENSSL
 		if ( this->m_bindSecure ) {
-			this->m_bindSecure->close( true );
+			this->m_bindSecure->terminate();
 		}
-		EVP_PKEY_free( this->m_key );
-		X509_free( this->m_certificate );
 #endif
 
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );
 
-		std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
 		this->m_resources.clear();
-		resourcesLock.unlock();
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-#ifdef _WITH_OPENSSL
-	std::string WebServer::_encrypt64( const std::string& data_ ) const {
-#ifdef _DEBUG
-		// The maximum length of the data to be encrypted depends on the key length of the RSA key. If more data needs
-		// to be encrypted, AES-like solutions should be implemented.
-		assert( data_.size() < 245 && "Maximum length of string to encrypt using RSA is ~245 bytes." );
-#endif // _DEBUG
-
-		EVP_PKEY* key = X509_get_pubkey( this->m_certificate );
-		if ( ! key ) {
-			throw std::runtime_error( "unable to extract public key from certificate" );
-		}
-		int size = EVP_PKEY_size( key );
-		char encrypted[size];
-		if ( -1 == RSA_public_encrypt( data_.size(), (unsigned char*)data_.c_str(), (unsigned char*)encrypted, EVP_PKEY_get1_RSA( key ), RSA_PKCS1_PADDING ) ) {
-			throw std::runtime_error( "unable to encrypt string" );
-		}
-		EVP_PKEY_free( key );
-
-		// Then the data is base64 encoded.
-		BIO *buff, *b64f;
-		b64f = BIO_new( BIO_f_base64() );
-		buff = BIO_new( BIO_s_mem() );
-		buff = BIO_push( b64f, buff );
-
-		BIO_set_flags(buff, BIO_FLAGS_BASE64_NO_NL);
-		if ( ! BIO_set_close( buff, BIO_CLOSE ) ) {
-			throw std::runtime_error( "bio set close failure" );
-		}
-		BIO_write(buff, encrypted, size );
-		if ( ! BIO_flush( buff ) ) {
-			throw std::runtime_error( "bio flush failure" );
-		}
-
-		BUF_MEM *ptr;
-		BIO_get_mem_ptr( buff, &ptr );
-		std::string result;
-		result.assign( ptr->data, ptr->length );
-
-		BIO_free_all( buff );
-
-		return result;
-	};
-	
-	std::string WebServer::_decrypt64( const std::string& data_ ) const {
-
-		// First the data is base64 decoded.
-		char decoded[data_.size()];
-		BIO *buff, *b64f;
-		b64f = BIO_new( BIO_f_base64() );
-		buff = BIO_new_mem_buf( (void *)data_.c_str(), data_.size() );
-		buff = BIO_push( b64f, buff );
-		
-		BIO_set_flags( buff, BIO_FLAGS_BASE64_NO_NL );
-		if ( ! BIO_set_close( buff, BIO_CLOSE ) ) {
-			throw std::runtime_error( "bio set close failure" );
-		}
-		int size1 = BIO_read( buff, decoded, data_.size() );
-		BIO_free_all( buff );
-
-		// Then the data is decrypted.
-		int size2 = EVP_PKEY_size( this->m_key );
-		char decrypted[size2];
-		size2 = RSA_private_decrypt( size1, (unsigned char*)decoded, (unsigned char*)decrypted, EVP_PKEY_get1_RSA( this->m_key ), RSA_PKCS1_PADDING );
-		if ( -1 == size2 ) {
-			throw std::runtime_error( "rsa decrypt failure" );
-		}
-
-		std::string result( decrypted, size2 );
-		return result;
-	};
-
-	std::string WebServer::_hash( const std::string& data_ ) const {
-		SHA256_CTX context;
-		if ( ! SHA256_Init( &context ) ) {
-			throw std::runtime_error( "sha256 init failure" );
-		}
-		unsigned char hash[SHA256_DIGEST_LENGTH];
-		if (
-			! SHA256_Update( &context, data_.c_str(), data_.size() )
-			|| ! SHA256_Final( hash, &context )
-		) {
-			throw std::runtime_error( "sha256 failure" );
-		}
-		std::stringstream ss;
-		for ( int i = 0; i < SHA256_DIGEST_LENGTH; i++ ) {
-			ss << std::hex << std::setw( 2 ) << std::setfill( '0' ) << (int)hash[i];
-		}
-		return ss.str();
-	};
-#endif
-
-#ifndef _WITH_OPENSSL
 	std::string WebServer::_hash( const std::string& data_ ) const {
 		// TODO use something like http://www.zedwood.com/article/cpp-sha256-function
 		return "_DEBUGHASH_" + data_ + "_ENDOFDEBUGHASH";
 	};
-#endif
 
 	void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
 		auto uri = connection_->getUri();
 		if ( uri.substr( 0, 4 ) != "/api" ) {
+
 			connection_->serve( "www" );
+
 		} else {
 
-			// All the data we need from the request is gathered here before we spawn a new thread to take care of
-			// fetching the results. This is necessary because after the callback returns the request data is lost.
 			auto method = WebServer::resolveTextMethod( connection_->getMethod() );
-			auto params = connection_->getParams();
 			auto headers = connection_->getHeaders();
-			auto data = connection_->getRequest();
+			auto data = connection_->getBody();
+			auto params = connection_->getParams();
 
 			// Some query paramters might override other request characteristics.
 			try {
@@ -352,145 +238,139 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			this->m_scheduler.schedule( 0, 1, this, "webserver api reply", [=]( Scheduler::Task<>& ) {
-
-				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
-				// string).
-				json input = json::object();
-				if (
-					WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
-					&& data.length() > 2
-				) {
-					try {
-						input = json::parse( data );
-					} catch( json::exception ex_ ) {
-						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
-					}
-				}
-				for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
-					input[(*paramsIt).first] = (*paramsIt).second;
-				}
-
-				// Determine the access rights of the current client. If a valid token was provided, details of
-				// the token are added to the input aswell.
-				std::shared_ptr<User> user = nullptr;
-				if (
-					input.find( "username" ) != input.end()
-					&& input.find( "password" ) != input.end()
-				) {
-					try {
-						auto userData = g_database->getQueryRow(
-							"SELECT `id`, `name`, `rights` "
-							"FROM `users` "
-							"WHERE `username`='%s' "
-							"AND `password`='%s' "
-							"AND `enabled`=1",
-							input["username"].get<std::string>().c_str(),
-							this->_hash( input["password"].get<std::string>() ).c_str()
-						);
-						user = std::make_shared<User>( std::stoi( userData["id"] ), userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-					} catch( ... ) { }
-#ifdef _WITH_OPENSSL
-				} else if ( headers.find( "Authorization" ) != headers.end() ) {
-					try {
-						json token = json::parse( this->_decrypt64( headers.at( "Authorization" ) ) );
-						unsigned int userId = token["user_id"].get<unsigned int>();
-						auto userData = g_database->getQueryRow(
-							"SELECT u.`rights`, u.`name`, strftime('%%s') AS now "
-							"FROM `users` u "
-							"WHERE `id`=%d ",
-							userId
-						);
-						if ( token["valid"].get<int>() >= std::stoi( userData["now"] ) ) {
-							user = std::make_shared<User>( userId, userData["name"], User::resolveRights( std::stoi( userData["rights"] ) ) );
-						}
-					} catch( ... ) { }
-#endif
-				}
-
-				// Prepare the output json object that is eventually send back to the client.
-				json output = {
-					{ "result", "OK" },
-					{ "code", 204 }, // no content
-				};
-
+			// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
+			// string).
+			json input = json::object();
+			if (
+				WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
+				&& data.length() > 2
+			) {
 				try {
-					std::vector<std::shared_ptr<ResourceCallback> > callbacks;
-					std::unique_lock<std::mutex> resourcesLock( this->m_resourcesMutex );
-					for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
-						std::regex pattern( (*resourceIt)->uri );
-						std::smatch match;
-						if (
-							std::regex_search( uri, match, pattern )
-							&& ( (*resourceIt)->methods & method ) == method
-						) {
-							
-							// Add each matched paramter to the input for the callback to determine which individual
-							// resource was accessed.
-							for ( unsigned int i = 1; i < match.size(); i++ ) {
-								if ( match.str( i ).size() > 0 ) {
-									input["$" + std::to_string( i )] = match.str( i );
-								}
-							}
-
-							callbacks.push_back( *resourceIt );
-						}
-					}
-					resourcesLock.unlock();
-
-					for ( auto callbacksIt = callbacks.begin(); callbacksIt != callbacks.end(); callbacksIt++ ) {
-						(*callbacksIt)->callback( user, input, method, output );
-					}
-
-					// If no callbacks we're called the code should still be 204 and should be replaced with a 404
-					// indicating a resource not found error.
-					if ( output["code"].get<unsigned int>() == 204 ) {
-						output["result"] = "ERROR";
-						output["code"] = 404;
-						output["error"] = "Resource.Not.Found";
-						output["message"] = "The requested resource was not found.";
-					}
-				
-				} catch( const ResourceException& exception_ ) {
-					output["result"] = "ERROR";
-					output["code"] = exception_.code;
-					output["error"] = exception_.error;
-					output["message"] = exception_.message;
-				} catch( std::exception& exception_ ) { // also catches json::exception
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-					Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
-#ifndef _DEBUG
-				} catch( ... ) {
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-#endif // _DEBUG
+					input = json::parse( data );
+				} catch( json::exception ex_ ) {
+					Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
 				}
+			}
+			for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
+				input[(*paramsIt).first] = (*paramsIt).second;
+			}
+
+			// If a username/password combination, or an authorization token was provided, match it with a user or
+			// an existing login. The user is stored in the login table in the login/refresh resource.
+			std::shared_ptr<User> user = nullptr;
+			if (
+				input.find( "username" ) != input.end()
+				&& input.find( "password" ) != input.end()
+			) {
+				try {
+					auto userData = g_database->getQueryRow(
+						"SELECT `id`, `name`, `rights` "
+						"FROM `users` "
+						"WHERE `username`='%s' "
+						"AND `password`='%s' "
+						"AND `enabled`=1",
+						input["username"].get<std::string>().c_str(),
+						this->_hash( input["password"].get<std::string>() ).c_str()
+					);
+					user = std::make_shared<User>(
+						std::stoi( userData["id"] ),
+						userData["name"],
+						User::resolveRights( std::stoi( userData["rights"] ) )
+					);
+				} catch( Database::NoResultsException ex_ ) {
+					// Do not log this error (yet), a new user might be created.
+				}
+			}
+			if (
+				user == nullptr
+				&& headers.find( "Authorization" ) != headers.end()
+			) {
+				try {
+					std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
+					std::string token = headers.at( "Authorization" );
+					auto login = this->m_logins.at( token );
+					if ( login.first > system_clock::now() ) {
+						user = login.second;
+						input["_token"] = token;
+					}
+					loginsLock.unlock();
+				} catch( std::out_of_range ex_ ) {
+					Logger::log( Logger::LogLevel::WARNING, this, "Invalid authorization token supplied." );
+				}
+			}
+
+			// Prepare the output json object that is eventually send back to the client.
+			json output = {
+				{ "result", "OK" },
+				{ "code", 204 }, // no content
+			};
+
+			try {
+				for ( auto resourceIt = this->m_resources.begin(); resourceIt != this->m_resources.end(); resourceIt++ ) {
+					std::regex pattern( (*resourceIt)->uri );
+					std::smatch match;
+					if (
+						std::regex_search( uri, match, pattern )
+						&& ( (*resourceIt)->methods & method ) == method
+					) {
+						// Add each matched paramter to the input for the callback to determine which individual
+						// resource was accessed.
+						for ( unsigned int i = 1; i < match.size(); i++ ) {
+							if ( match.str( i ).size() > 0 ) {
+								input["$" + std::to_string( i )] = match.str( i );
+							}
+						}
+						(*resourceIt)->callback( user, input, method, output );
+					}
+				}
+
+				// If no callbacks we're called the code should still be 204 and should be replaced with a 404
+				// indicating a resource not found error.
+				if ( output["code"].get<unsigned int>() == 204 ) {
+					output["result"] = "ERROR";
+					output["code"] = 404;
+					output["error"] = "Resource.Not.Found";
+					output["message"] = "The requested resource was not found.";
+				}
+			
+			} catch( const ResourceException& exception_ ) {
+				output["result"] = "ERROR";
+				output["code"] = exception_.code;
+				output["error"] = exception_.error;
+				output["message"] = exception_.message;
+			} catch( std::exception& exception_ ) { // also catches json::exception
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+				Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+#ifndef _DEBUG
+			} catch( ... ) {
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+#endif // _DEBUG
+			}
 
 #ifdef _DEBUG
-				assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
-				assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
-				const std::string content = output.dump( 4 );
+			assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
+			assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
+			const std::string content = output.dump( 4 );
 #else
-				const std::string content = output.dump();
+			const std::string content = output.dump();
 #endif // _DEBUG
 
-				unsigned int code = output["code"].get<unsigned int>();
-				connection_->reply( content, code, {
-					{ "Content-Type", "Content-type: application/json" },
-					{ "Access-Control-Allow-Origin", "*" },
-					{ "Cache-Control", "no-cache, no-store, must-revalidate" }
-				} );
+			unsigned int code = output["code"].get<unsigned int>();
+			connection_->reply( content, code, {
+				{ "Content-Type", "Content-type: application/json" },
+				{ "Access-Control-Allow-Origin", "*" },
+				{ "Cache-Control", "no-cache, no-store, must-revalidate" }
 			} );
 		}
 	};
 
 	void WebServer::_installHardwareResourceHandler() {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^/api/hardware(/([0-9]+|settings))?$",
@@ -678,10 +558,14 @@ namespace micasa {
 							bool restart = false;
 							if ( hardware->getSettings()->isDirty() ) {
 								hardware->getSettings()->commit();
-								restart = true;
+								// Only parent hardware is restarted. Child hardware needs to be restarted after an
+								// update it should listen for putSettingsJon.
+								if ( hardware->getParent() == nullptr ) {
+									restart = true;
+								}
 							}
 
-							std::thread( [hardware,enabled,restart]{
+							this->m_scheduler.schedule( 0, 1, this, "webserver hardware restart", [hardware,enabled,restart]( Scheduler::Task<>& ) {
 								auto hardwareList = g_controller->getAllHardware();
 								if (
 									! enabled
@@ -715,7 +599,7 @@ namespace micasa {
 									}
 									*/
 								}
-							} ).detach();
+							} );
 							output_["code"] = 200;
 						}
 						break;
@@ -728,7 +612,6 @@ namespace micasa {
 	};
 
 	void WebServer::_installDeviceResourceHandler() {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^/api/devices(/([0-9]+))?$",
@@ -1268,7 +1151,6 @@ namespace micasa {
 	};
 
 	void WebServer::_installScriptResourceHandler() {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^/api/scripts(/([0-9]+))?$",
@@ -1415,7 +1297,6 @@ namespace micasa {
 	};
 
 	void WebServer::_installTimerResourceHandler() {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^/api/timers(/([0-9]+))?$",
@@ -1680,70 +1561,60 @@ namespace micasa {
 
 
 	void WebServer::_installUserResourceHandler() {
-		std::lock_guard<std::mutex> lock( this->m_resourcesMutex );
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
 			"^/api/user/(login|refresh)$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
+				std::lock_guard<std::mutex> loginsLock( this->m_loginsMutex );
 
-				json user;
-			
+				auto now = system_clock::now();
+				for ( auto loginsIt = this->m_logins.begin(); loginsIt != this->m_logins.end(); ) {
+					if ( (*loginsIt).second.first < now ) {
+						loginsIt = this->m_logins.erase( loginsIt );
+					} else {
+						loginsIt++;
+					}
+				}
+
 				if (
 					method_ == WebServer::Method::POST
 					&& input_["$1"].get<std::string>() == "login"
 				) {
-				
-					// The _processHttpRequest has already checked the username and password, so if no user pas passed to
-					// this callback it means that either the username or password was invalid.
+					// The _processHttpRequest has already checked the username and password, so if no user pas passed
+					// to this callback it means that either the username or password was invalid.
 					if ( user_ == nullptr ) {
+						Logger::log( Logger::LogLevel::WARNING, this, "Invalid username and/or password supplied." );
 						throw WebServer::ResourceException( 400, "Login.Failure", "The username and/or password is invalid." );
 					}
-					
-					// Get the rest of the user details necessary to provide a proper webtoken to the client.
-					user = g_database->getQueryRow<json>(
-						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid`, CAST(strftime('%%s','now') AS INTEGER) AS `created` "
-						"FROM `users` "
-						"WHERE `id`=%d ",
-						WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES,
-						user_->getId()
-					);
 					output_["code"] = 201; // Created
+					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s logged in.", user_->getName().c_str() );
 				} else if (
 					method_ == WebServer::Method::GET
 					&& input_["$1"].get<std::string>() == "refresh"
 					&& user_ != nullptr
 				) {
-					user = g_database->getQueryRow<json>(
-						"SELECT `id`, `name`, `username`, `rights`, `enabled`, CAST(strftime('%%s','now','+%d minute') AS INTEGER) AS `valid`, CAST(strftime('%%s','now') AS INTEGER) AS `created` "
-						"FROM `users` "
-						"WHERE `id`=%d "
-						"AND `enabled`=1",
-						WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES,
-						user_->getId()
-					);
-					output_["code"] = 200;
+					this->m_logins.erase( jsonGet<std::string>( input_, "_token" ) );
+					output_["code"] = 200; // Refreshed
+					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s prolonged login.", user_->getName().c_str() );
 				} else {
 					return;
 				}
 
-#ifdef _WITH_OPENSSL
-				json token = {
-					{ "user_id", user["id"].get<unsigned int>() },
-					{ "rights", user["rights"].get<unsigned int>() },
-					{ "valid", user["valid"].get<unsigned int>() }
-				};
-				auto valid = user["valid"].get<unsigned int>();
-				auto created = user["created"].get<unsigned int>();
-				user.erase( "valid" );
-				user.erase( "created" );
+				std::string token = randomString( 32 );
+				system_clock::time_point valid = system_clock::now() + minutes( WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES );
+				this->m_logins[token] = { valid, user_ };
+
 				output_["data"] = {
-					{ "user", user },
-					{ "valid", valid },
-					{ "created", created },
-					{ "token", this->_encrypt64( token.dump() ) }
+					{ "user", {
+						{ "id", user_->getId() },
+						{ "name", user_->getName() },
+						{ "rights", user_->getRights() }
+					} },
+					{ "valid", duration_cast<seconds>( valid.time_since_epoch() ).count() },
+					{ "created", duration_cast<seconds>( system_clock::now().time_since_epoch() ).count() },
+					{ "token", token }
 				};
-#endif
 			} )
 		) );
 
@@ -1939,6 +1810,7 @@ namespace micasa {
 						) {
 							output_["data"] = json::parse( user_->getSettings()->get( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() ) );
 							output_["code"] = 200;
+
 						}
 						break;
 					}

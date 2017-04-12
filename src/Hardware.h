@@ -36,12 +36,12 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 
 		enum class State: unsigned short {
-			DISABLED = 1,
-			INIT,
-			FAILED,
-			DISCONNECTED,
-			READY    = 99,
-			SLEEPING
+			DISABLED     = 1,
+			INIT         = 2,
+			FAILED       = 3,
+			DISCONNECTED = 4,
+			READY        = 100,
+			SLEEPING     = 101
 		}; // enum State
 		static const std::map<State, std::string> StateText;
 		ENUM_UTIL_W_TEXT( State, StateText );

@@ -46,7 +46,6 @@ namespace micasa {
 	private:
 		t_value m_value;
 		t_value m_previousValue;
-		Scheduler m_scheduler;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			t_value value;

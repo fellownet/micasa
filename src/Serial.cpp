@@ -63,15 +63,14 @@ namespace micasa {
 			throw Serial::SerialException( "Open port failed." );
 		}
 
-		// Add ourselves to the list of serial instances that receive io signals. Install the signal handler
-		// if we're the first.
-		{
-			std::lock_guard<std::mutex> lock( g_serialInstancesMutex );
-			g_serialInstances.push_back( this );
-			if ( g_serialInstances.size() == 1 ) {
-				signal( SIGIO, micasa_serial_signal_handler );
-			}
+		// Add ourselves to the list of serial instances that receive io signals. Install the signal handler if we're
+		// the first.'
+		std::unique_lock<std::mutex> serialInstanceLock( g_serialInstancesMutex );
+		g_serialInstances.push_back( this );
+		if ( g_serialInstances.size() == 1 ) {
+			signal( SIGIO, micasa_serial_signal_handler );
 		}
+		serialInstanceLock.unlock();
 	
 		// Direct all SIGIO and SIGURG signals for the port to the current process and enable
 		// asynchronous I/O with the serial port.
@@ -194,19 +193,18 @@ namespace micasa {
 
 		// Remove ourselves from the list of serial instances that receive io signals. Remove the signal
 		// handler if this was the last.
-		{
-			std::lock_guard<std::mutex> lock( g_serialInstancesMutex );
-			auto serialIt = g_serialInstances.begin();
-			for ( ; serialIt != g_serialInstances.end(); serialIt++ ) {
-				if ( *serialIt == this ) {
-					g_serialInstances.erase( serialIt );
-					break;
-				}
-			}
-			if ( g_serialInstances.size() == 0 ) {
-				signal( SIGIO, SIG_DFL );
+		std::unique_lock<std::mutex> serialInstanceLock( g_serialInstancesMutex );
+		auto serialIt = g_serialInstances.begin();
+		for ( ; serialIt != g_serialInstances.end(); serialIt++ ) {
+			if ( *serialIt == this ) {
+				g_serialInstances.erase( serialIt );
+				break;
 			}
 		}
+		if ( g_serialInstances.size() == 0 ) {
+			signal( SIGIO, SIG_DFL );
+		}
+		serialInstanceLock.unlock();
 
 		// Restore old settings on the port.
 		tcsetattr( this->m_fd, TCSANOW, &this->m_oldSettings );
@@ -273,9 +271,10 @@ namespace micasa {
 	};
 
 	void Serial::_signalReceived() {
-		// Read all the data into the buffer. This is done in a separate thread to prevent stalling
-		// other serial ports which also might have data available.
-		std::thread( [this]{
+
+		// Read all the data into the buffer. This is done in a separate thread to prevent stalling other serial ports
+		// which also might have data available.
+		//std::thread( [this]{
 			std::lock_guard<std::mutex> fdLock( this->m_fdMutex );
 
 			// Determine if it was our serial port that received data.
@@ -300,7 +299,7 @@ namespace micasa {
 				(*this->m_callback)( data, length );
 			}
 
-		} ).detach();
+		//} ).detach();
 	};
 
 } // namespace micasa

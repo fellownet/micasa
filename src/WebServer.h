@@ -11,16 +11,8 @@
 
 #include "json.hpp"
 
-#include <openssl/bio.h>
-#include <openssl/x509.h>
-#include <openssl/pem.h>
-
-extern "C" {
-	#include "mongoose.h"
-} // extern "C"
-
 #define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
-#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX        "_web_"
+#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX "_web_"
 
 namespace micasa {
 
@@ -81,21 +73,17 @@ namespace micasa {
 	private:
 		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
-		mutable std::mutex m_resourcesMutex;
+		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User> > > m_logins;
+		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
-
 #ifdef _WITH_OPENSSL
 		std::shared_ptr<Network::Connection> m_bindSecure;
-		X509* m_certificate;
-		EVP_PKEY* m_key; // private key
-
-		std::string _encrypt64( const std::string& data_ ) const;
-		std::string _decrypt64( const std::string& data_ ) const;
 #endif
+
 		std::string _hash( const std::string& data_ ) const;
 
 		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
-		
+
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();
 		void _installScriptResourceHandler();
