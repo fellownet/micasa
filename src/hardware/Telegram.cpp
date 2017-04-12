@@ -109,9 +109,7 @@ namespace micasa {
 						}
 						case Network::Connection::Event::HTTP: {
 							if ( ! this->_process( connection_->getBody() ) ) {
-								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
-							} else {
-								this->m_scheduler.schedule( 0, 1, this->m_task );
+								this->setState( Hardware::State::FAILED );
 							}
 							break;
 						}
@@ -119,6 +117,9 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 							if ( this->getState() != Hardware::State::FAILED ) {
 								this->setState( Hardware::State::DISCONNECTED );
+								this->m_scheduler.schedule( 50, 1, this->m_task );
+							} else {
+								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
 							}
 							break;
 						}
