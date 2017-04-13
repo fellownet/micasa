@@ -85,6 +85,7 @@ int main( int argc_, char* argv_[] ) {
 		signal( SIGTERM, signal_handler );
 	}
 
+/*
 	g_database = std::make_shared<Database>( database );
 
 	// The database might take some time to initialize (due to the VACUUM call). An additional shutdown check is done.
@@ -112,6 +113,6 @@ int main( int argc_, char* argv_[] ) {
 	}
 
 	g_database = NULL;
-
+*/
 	return EXIT_SUCCESS;
 };
