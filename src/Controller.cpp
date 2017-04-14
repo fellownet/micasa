@@ -20,7 +20,7 @@
 #endif // _DEBUG
 
 v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
 
@@ -48,18 +48,18 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 	if ( v7_is_number( arg1 ) ) {
 		double value = v7_get_double( js_, arg1 );
 		if ( device->getType() == micasa::Device::Type::COUNTER ) {
-			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Counter>( device ), value, options ) );
+			controller->_js_updateDevice( std::static_pointer_cast<micasa::Counter>( device ), value, options );
 		} else if ( device->getType() == micasa::Device::Type::LEVEL ) {
-			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Level>( device ), value, options ) );
+			controller->_js_updateDevice( std::static_pointer_cast<micasa::Level>( device ), value, options );
 		} else {
 			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
 	} else if ( v7_is_string( arg1 ) ) {
 		std::string value = v7_get_string( js_, &arg1, NULL );
 		if ( device->getType() == micasa::Device::Type::SWITCH ) {
-			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Switch>( device ), value, options ) );
+			controller->_js_updateDevice( std::static_pointer_cast<micasa::Switch>( device ), value, options );
 		} else if ( device->getType() == micasa::Device::Type::TEXT ) {
-			*res_ = v7_mk_boolean( js_, controller->_js_updateDevice( std::static_pointer_cast<micasa::Text>( device ), value, options ) );
+			controller->_js_updateDevice( std::static_pointer_cast<micasa::Text>( device ), value, options );
 		} else {
 			return v7_throwf( js_, "Error", "Invalid parameter for device." );
 		}
@@ -71,7 +71,7 @@ v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
 
@@ -112,7 +112,7 @@ v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
 };
 
 v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	std::string script;
@@ -128,7 +128,7 @@ v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
 }
 
 v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = reinterpret_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
 	
 	v7_val_t arg0 = v7_arg( js_, 0 );
 	std::string log;
@@ -148,30 +148,26 @@ namespace micasa {
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Settings<> > g_settings;
+	extern std::shared_ptr<Settings<>> g_settings;
 
-	template<> void Controller::Task::setValue<Level>( const typename Level::t_value& value_ ) { this->levelValue = value_; };
-	template<> void Controller::Task::setValue<Counter>( const typename Counter::t_value& value_ ) { this->counterValue = value_; };
-	template<> void Controller::Task::setValue<Switch>( const typename Switch::t_value& value_ ) { this->switchValue = value_; };
-	template<> void Controller::Task::setValue<Text>( const typename Text::t_value& value_ ) { this->textValue = value_; };
-
-	Controller::Controller(): Worker() {
+	Controller::Controller() :
+		m_running( false )
+	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
-		assert( g_logger && "Global Logger instance should be created before global Controller instance." );
 #endif // _DEBUG
 
 		// Initialize the v7 javascript environment.
+		std::unique_lock<std::mutex> jsLock( this->m_jsMutex );
 		this->m_v7_js = v7_create();
 		v7_val_t root = v7_get_global( this->m_v7_js );
 		v7_set_user_data( this->m_v7_js, root, this );
 
 		v7_val_t userDataObj;
-		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( "userdata", "{}" ).c_str(), &userDataObj ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
+		if ( V7_OK != v7_parse_json( this->m_v7_js, g_settings->get( CONTROLLER_SETTING_USERDATA, "{}" ).c_str(), &userDataObj ) ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in userdata." );
 			if ( V7_OK != v7_parse_json( this->m_v7_js, "{}", &userDataObj ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
 			}
 		}
 		v7_set( this->m_v7_js, root, "userdata", ~0, userDataObj );
@@ -180,12 +176,12 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
+		jsLock.unlock();
 	};
 
 	Controller::~Controller() {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be destroyed after global Controller instance." );
-		assert( g_logger && "Global Logger instance should be destroyed after global Controller instance." );
 #ifdef _WITH_LIBUDEV
 		assert( this->m_serialPortCallbacks.size() == 0 && "All serialport callbacks should be removed before the global Controller instance is destroyed." );
 #endif // _WITH_LIBUDEV
@@ -193,70 +189,82 @@ namespace micasa {
 
 		// Release the v7 javascript environment.
 		v7_destroy( this->m_v7_js );
-
-#ifdef _WITH_LIBUDEV
-		this->m_udevMonitorThread.join();
-#endif // _WITH_LIBUDEV
-
 	};
 
 	void Controller::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
+		// Fetch all the hardware from the database to initialize our local map of hardware instances. NOTE parents
+		// always have a higher id than clients, so the query order should make sure parents are created first and are
+		// present when childs are created.
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-
-		// Fetch all the hardware from the database to initialize our local map of hardware instances.
-		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
+		std::vector<std::map<std::string, std::string>> hardwareData = g_database->getQuery(
 			"SELECT `id`, `hardware_id`, `reference`, `type`, `enabled` "
 			"FROM `hardware` "
 			"ORDER BY `id` ASC"
 		);
-		for ( auto hardwareIt = hardwareData.begin(); hardwareIt != hardwareData.end(); hardwareIt++ ) {
-			unsigned int parentId = atoi( (*hardwareIt)["hardware_id"].c_str() );
+		for ( auto const &hardwareDataIt : hardwareData ) {
+			unsigned int parentId = atoi( hardwareDataIt.at( "hardware_id" ).c_str() );
 			std::shared_ptr<Hardware> parent = nullptr;
 			if ( parentId > 0 ) {
-				for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-					if ( (*hardwareIt)->getId() == parentId ) {
-						parent = (*hardwareIt);
+				for ( auto const &hardwareIt : this->m_hardware ) {
+					if ( hardwareIt.second->getId() == parentId ) {
+						parent = hardwareIt.second;
 						break;
 					}
 				}
 			}
 
-			Hardware::Type type = Hardware::resolveType( (*hardwareIt)["type"] );
-			std::shared_ptr<Hardware> hardware = Hardware::factory( type, std::stoi( (*hardwareIt)["id"] ), (*hardwareIt)["reference"], parent );
-
-			// Only parent hardware is started automatically. The hardware itself should take care of
-			// starting their children (for instance, right after declareHardware). Starting the hardware
-			// is done in a separate thread to work around the hardwareMutex being locked and hardware
-			// might want to declare hardware in their startup code.
+			// The hardware is then created and immeidately initialized. NOTE the init method is necessary because the
+			// hardware cannot initialize it's devices if it's not already wrapped in a shared pointer.
+			std::shared_ptr<Hardware> hardware = Hardware::factory(
+				Hardware::resolveTextType( hardwareDataIt.at( "type" ) ),
+				std::stoi( hardwareDataIt.at( "id" ) ),
+				hardwareDataIt.at( "reference" ),
+				parent
+			);
+			hardware->init();
+			this->m_hardware[hardwareDataIt.at( "reference" )] = hardware;
+			
+			// Only parent hardware is started automatically. The hardware itself should take care of starting it's
+			// children (for instance, right after declareHardware). Starting the hardware is done in a separate thread
+			// to work around the hardwareMutex being locked.
 			if (
-				(*hardwareIt)["enabled"] == "1"
+				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
 			) {
-				std::thread( [hardware]() {
+				this->m_scheduler.schedule( 0, 1, this, [hardware]( Scheduler::Task<>& ) {
 					hardware->start();
-				} ).detach();
+				} );
 			}
-
-			this->m_hardware.push_back( hardware );
 		}
 		hardwareLock.unlock();
 
+		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
+		// to make sure the whole minute has passed.
+		auto now = system_clock::now();
+		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+			if ( this->m_running ) {
+				this->_runTimers();
+			}
+		} );
+
+		this->m_running = true;
+
 #ifdef _WITH_LIBUDEV
-		// libudev for detecting add- or remove usb device?
-		// http://www.signal11.us/oss/udev/
-		// If libudev is available we can use it to monitor disconenct and reconnect of the z-wave device. For
-		// instance, the Aeon labs z-wave stick can be disconnected to bring it closer to the node when including.
+		// If libudev is available we can use it to monitor disconenct and reconnect of the z-wave device. For instance
+		// the Aeon labs z-wave stick can be disconnected to bring it closer to the node when including. NOTE that udev
+		// is using it's own thread because the scheduler would cause way too much overhead.
 		this->m_udev = udev_new();
 		if ( this->m_udev ) {
 			this->m_udevMonitor = udev_monitor_new_from_netlink( this->m_udev, "udev" );
 			udev_monitor_filter_add_match_subsystem_devtype( this->m_udevMonitor, "tty", NULL );
 			udev_monitor_enable_receiving( this->m_udevMonitor );
 
-			// Start a new separate thread for the monitor.
-			this->m_udevMonitorThread = std::thread( [this]() {
-				while( ! this->m_shutdown ) {
+			this->m_udevWorker = std::thread( [this]() {
+				do {
+					std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
 					udev_device* dev = udev_monitor_receive_device( this->m_udevMonitor );
 					if ( dev ) {
 						std::string port = std::string( udev_device_get_devnode( dev ) );
@@ -265,110 +273,113 @@ namespace micasa {
 						for ( auto callbackIt = this->m_serialPortCallbacks.begin(); callbackIt != this->m_serialPortCallbacks.end(); callbackIt++ ) {
 							callbackIt->second( port, action );
 						}
-						g_logger->logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
+						Logger::logr( Logger::LogLevel::VERBOSE, this, "Detected %s %s.", port.c_str(), action.c_str() );
 						udev_device_unref( dev );
 					}
-					std::this_thread::sleep_for( milliseconds( 250 ) );
-				}
-				udev_monitor_unref( this->m_udevMonitor );
-				udev_unref( this->m_udev );
-				
+				} while( this->m_running );
 			} );
 		} else {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
+			Logger::log( Logger::LogLevel::WARNING, this, "Unable to setup device monitoring." );
 		}
 #endif // _WITH_LIBUDEV
 
-		Worker::start();
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Started." );
+		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 
 	void Controller::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase();
+		this->m_running = false;
 
-		Worker::stop();
-
-		{
-			std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-			for( auto hardwareIt = this->m_hardware.begin(); hardwareIt < this->m_hardware.end(); hardwareIt++ ) {
-				auto hardware = (*hardwareIt);
-				if ( hardware->isRunning() ) {
-
-					// Stop the hardware in a separate thread which is monitored. This way we can detect problems in the
-					// hardware implementation more easily.
-					std::future<void> controlledStop( std::async( std::launch::async, [hardware] {
-						hardware->stop();
-					} ) );
-					std::future_status status = controlledStop.wait_for( seconds( 15 ) );
-					if ( status == std::future_status::timeout ) {
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", hardware->getName().c_str() );
-					}
-#ifdef _DEBUG
-					assert( status == std::future_status::ready && "Hardware should stop properly." );
-#endif // _DEBUG
-				}
-			}
-			this->m_hardware.clear();
+#ifdef _WITH_LIBUDEV
+		if ( this->m_udev ) {
+			this->m_udevWorker.join();
+			udev_monitor_unref( this->m_udevMonitor );
+			udev_unref( this->m_udev );
 		}
+#endif // _WITH_LIBUDEV
 
-		g_logger->log( Logger::LogLevel::NORMAL, this, "Stopped." );
+		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a separate
+		// separate thread...
+		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
+		std::map<std::string, std::future<void>> futures;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto hardware = hardwareIt.second;
+			if ( hardware->getState() != Hardware::State::DISABLED ) {
+				futures[hardware->getName()] = std::async( std::launch::async, [hardware] {
+					hardware->stop();
+				} );
+			}
+		}
+		this->m_hardware.clear();
+
+		// ... then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
+		for ( auto const &futuresIt : futures ) {
+			std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+			if ( status == std::future_status::timeout ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
+			}
+#ifdef _DEBUG
+			assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
+		}
+		hardwareLock.unlock();
+
+		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
 	std::shared_ptr<Hardware> Controller::getHardware( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getReference() == reference_ ) {
-				return *hardwareIt;
-			}
+		try {
+			return this->m_hardware.at( reference_ );
+		} catch( std::out_of_range ex_ ) {
+			return nullptr;
 		}
-		return nullptr;
 	};
 
 	std::shared_ptr<Hardware> Controller::getHardwareById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getId() == id_ ) {
-				return *hardwareIt;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			if ( hardwareIt.second->getId() == id_ ) {
+				return hardwareIt.second;
 			}
 		}
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Hardware> > Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
+	std::vector<std::shared_ptr<Hardware>> Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Hardware> > children;
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto parent = (*hardwareIt)->getParent();
+		std::vector<std::shared_ptr<Hardware>> children;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto parent = hardwareIt.second->getParent();
 			if (
 				parent != nullptr
 				&& parent.get() == &hardware_
 			) {
-				children.push_back( *hardwareIt );
+				children.push_back( hardwareIt.second );
 			}
 		}
 		return children;
-
 	};
 	
-	std::vector<std::shared_ptr<Hardware> > Controller::getAllHardware() const {
+	std::vector<std::shared_ptr<Hardware>> Controller::getAllHardware() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		return std::vector<std::shared_ptr<Hardware> >( this->m_hardware );
+		std::vector<std::shared_ptr<Hardware>> all;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			all.push_back( hardwareIt.second );
+		}
+		return all;
 	};
 	
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, const bool& start_ ) {
-		return this->declareHardware( type_, reference_, nullptr, settings_, start_ );
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ ) {
+		return this->declareHardware( type_, reference_, nullptr, settings_, enabled_ );
 	};
 
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, const bool& start_ ) {
+	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ ) {
 		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			if ( (*hardwareIt)->getReference() == reference_ ) {
-				if ( start_ ) {
-					(*hardwareIt)->start();
-				}
-				return *hardwareIt;
-			}
-		}
+		try {
+			return this->m_hardware.at( reference_ );
+		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id;
 		if ( parent_ ) {
@@ -377,16 +388,16 @@ namespace micasa {
 				"VALUES ( %d, %Q, %Q, %d )",
 				parent_->getId(),
 				reference_.c_str(),
-				Hardware::resolveType( type_ ).c_str(),
-				start_ ? 1 : 0
+				Hardware::resolveTextType( type_ ).c_str(),
+				enabled_ ? 1 : 0
 			);
 		} else {
 			id = g_database->putQuery(
 				"INSERT INTO `hardware` ( `reference`, `type`, `enabled` ) "
 				"VALUES ( %Q, %Q, %d )",
 				reference_.c_str(),
-				Hardware::resolveType( type_ ).c_str(),
-				start_ ? 1 : 0
+				Hardware::resolveTextType( type_ ).c_str(),
+				enabled_ ? 1 : 0
 			);
 		}
 
@@ -402,13 +413,9 @@ namespace micasa {
 			settings->commit();
 		}
 
-		if ( start_ ) {
-			hardware->start();
-		}
-
 		// Reacquire lock when adding to the map to make it thread safe.
 		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
-		this->m_hardware.push_back( hardware );
+		this->m_hardware[reference_] = hardware;
 		lock.unlock();
 
 		return hardware;
@@ -417,42 +424,65 @@ namespace micasa {
 	void Controller::removeHardware( const std::shared_ptr<Hardware> hardware_ ) {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
-		// First all the childs are stopped and removed from the system. The database record is not yet
-		// removed because that is done when the parent is removed by foreign key constraints.
+		// First all the children of this hardware are stopped and removed from the list. NOTE the futures which we're
+		// using to watch the proper stopping of hardware, are created on the heap to allow them to be passed into the
+		// scheduler by pointer.
+		auto* futures = new std::map<std::string, std::future<void>>();
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( (*hardwareIt)->getParent() == hardware_ ) {
-				if ( (*hardwareIt)->isRunning() ) {
-					(*hardwareIt)->stop();
+			auto hardware = hardwareIt->second;
+			if ( hardware->getParent() == hardware_ ) {
+				if ( hardware->getState() != Hardware::State::DISABLED ) {
+					(*futures)[hardware->getName()] = std::async( std::launch::async, [hardware] {
+						hardware->stop();
+					} );
 				}
 				hardwareIt = this->m_hardware.erase( hardwareIt );
 			} else {
 				hardwareIt++;
 			}
 		}
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( (*hardwareIt) == hardware_ ) {
-				if ( hardware_->isRunning() ) {
-					hardware_->stop();
-				}
 
+		// Then the hardware itself is stopped and removed. NOTE all the children records in the database will be
+		// removed automatically due to foreign key constraints.
+		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
+			if ( hardwareIt->second == hardware_ ) {
+				if ( hardware_->getState() != Hardware::State::DISABLED ) {
+					(*futures)[hardware_->getName()] = std::async( std::launch::async, [hardware_] {
+						hardware_->stop();
+					} );
+				}
 				g_database->putQuery(
 					"DELETE FROM `hardware` "
 					"WHERE `id`=%d",
 					hardware_->getId()
 				);
-
 				this->m_hardware.erase( hardwareIt );
 				break;
 			} else {
 				hardwareIt++;
 			}
 		}
+
+		// Waiting for the proper stopping of the hardware is done in a separate thread to allow the webserver to return
+		// the removal results immediately.
+		this->m_scheduler.schedule( 0, 1, this, [this,futures]( Scheduler::Task<>& ) {
+			for ( auto const &futuresIt : *futures ) {
+				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+				if ( status == std::future_status::timeout ) {
+					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
+				}
+#ifdef _DEBUG
+				assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
+			}
+			delete futures;
+		} );
 	};
 
 	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDevice( reference_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDevice( reference_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -462,8 +492,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceById( const unsigned int& id_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceById( id_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceById( id_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -473,8 +503,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceByName( const std::string& name_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceByName( name_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceByName( name_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -484,8 +514,8 @@ namespace micasa {
 
 	std::shared_ptr<Device> Controller::getDeviceByLabel( const std::string& label_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto device = (*hardwareIt)->getDeviceByLabel( label_ );
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto device = hardwareIt.second->getDeviceByLabel( label_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -493,39 +523,32 @@ namespace micasa {
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Device> > Controller::getAllDevices() const {
+	std::vector<std::shared_ptr<Device>> Controller::getAllDevices() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Device> > result;
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); hardwareIt++ ) {
-			auto devices = (*hardwareIt)->getAllDevices();
+		std::vector<std::shared_ptr<Device>> result;
+		for ( auto const &hardwareIt : this->m_hardware ) {
+			auto devices = hardwareIt.second->getAllDevices();
 			result.insert( result.end(), devices.begin(), devices.end() );
 		}
 		return result;
 	};
 
 	bool Controller::isScheduled( std::shared_ptr<const Device> device_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
-		for ( auto taskIt = this->m_taskQueue.begin(); taskIt != this->m_taskQueue.end(); taskIt++ ) {
-			if ( (*taskIt)->device == device_ ) {
-				return true;
+		return this->m_scheduler.first(
+			[device_]( const Scheduler::BaseTask& task_ ) -> bool {
+				return task_.data == device_.get();
 			}
-		}
-		return false;
+		) != nullptr;
 	};
 
 	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
-		if ( ( source_ & Device::UpdateSource::INIT ) != Device::UpdateSource::INIT ) {
+		if ( this->m_running ) {
 
 			if ( ( source_ & Device::UpdateSource::LINK ) != Device::UpdateSource::LINK ) {
 				this->_runLinks( device_ );
 			}
 
 			if ( ( source_ & Device::UpdateSource::SCRIPT ) != Device::UpdateSource::SCRIPT ) {
-				json event;
-				event["value"] = device_->getValue();
-				event["previous_value"] = device_->getPreviousValue();
-				event["source"] = Device::resolveUpdateSource( source_ );
-				event["device"] = device_->getJson( false );
 
 				// NOTE The processing of the event is deliberatly done in a separate method because this method is
 				// templated and is essentially copied for each specialization.
@@ -539,6 +562,11 @@ namespace micasa {
 					device_->getId()
 				);
 				if ( scripts.size() > 0 ) {
+					json event;
+					event["value"] = device_->getValue();
+					event["previous_value"] = device_->getPreviousValue();
+					event["source"] = Device::resolveUpdateSource( source_ );
+					event["device"] = device_->getJson( false );
 					this->_runScripts( "event", event, scripts );
 				}
 			}
@@ -568,85 +596,35 @@ namespace micasa {
 	};
 #endif // _WITH_LIBUDEV
 
-	milliseconds Controller::_work( const unsigned long int& iteration_ ) {
-		auto now = system_clock::now();
-
-		// See if we need to run the timers (every round minute).
-		static unsigned int lastMinuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
-		unsigned int minuteSinceEpoch = duration_cast<minutes>( now.time_since_epoch() ).count();
-		if ( lastMinuteSinceEpoch < minuteSinceEpoch ) {
-			lastMinuteSinceEpoch = minuteSinceEpoch;
-			this->_runTimers();
-		}
-
-		// Investigate the front of the queue for tasks that are due. If the next task is not due we're done due to
-		// the fact that _scheduleTask keeps the list sorted on scheduled time. All tasks that are due are gathered in
-		// a separate vector so the task queue mutex can be released before updating devices.
-		std::vector<std::shared_ptr<Task> > tasks;
-		{
-			std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
-			auto taskQueueIt = this->m_taskQueue.begin();
-			while(
-				taskQueueIt != this->m_taskQueue.end()
-				&& (*taskQueueIt)->scheduled <= now + milliseconds( 5 )
-			) {
-				tasks.push_back( *taskQueueIt );
-				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
-			}
-		}
-		for ( auto tasksIt = tasks.begin(); tasksIt != tasks.end(); tasksIt++ ) {
-			std::shared_ptr<Task> task = (*tasksIt);
-			switch( task->device->getType() ) {
-				case Device::Type::COUNTER:
-					std::static_pointer_cast<Counter>( task->device )->updateValue( task->source, task->counterValue );
-					break;
-				case Device::Type::LEVEL:
-					std::static_pointer_cast<Level>( task->device )->updateValue( task->source, task->levelValue );
-					break;
-				case Device::Type::SWITCH: {
-					std::static_pointer_cast<Switch>( task->device )->updateValue( task->source, task->switchValue );
-					break;
-				}
-				case Device::Type::TEXT:
-					std::static_pointer_cast<Text>( task->device )->updateValue( task->source, task->textValue );
-					break;
-			}
-		}
-
-		// This method should run a least every minute for timer jobs to run. The 5ms is a safe margin to make sure
-		// the whole minute has passed.
-		auto wait = milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 );
-
-		// If there's nothing in the queue anymore we can wait the default duration before investigating the queue
-		// again. This is because the _scheduleTask method will wake us up if there's work to do anyway.
-		{
-			std::lock_guard<std::mutex> lock( this->m_taskQueueMutex );
-			auto taskQueueIt = this->m_taskQueue.begin();
-			if ( taskQueueIt != this->m_taskQueue.end() ) {
-				auto delay = duration_cast<milliseconds>( (*taskQueueIt)->scheduled - now );
-				if ( delay < wait ) {
-					wait = delay;
-				}
-			}
-		}
-
-		return wait;
-	};
-
-	template<class D> bool Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+	template<class D> void Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
 		if ( options_.clear ) {
-			this->_clearTaskQueue( device_ );
+			this->m_scheduler.erase(
+				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
+					return task_.data == device_.get();
+				}
+			);
 		}
 
-		typename D::t_value previousValue = device_->getValue();
-		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
-			double delaySec = options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec );
+		// If the recur option was set, no script or timer source is send along with the update. This way updating the
+		// device will cause additional scripts to be executed.
+		Device::UpdateSource source = source_;
+		if ( options_.recur ) {
+			source = Device::resolveUpdateSource( 0 );
+		}
 
-			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
-			// the event handler will execute scripts even when the update comes from a script.
-			Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-			task.setValue<D>( value_ );
-			this->_scheduleTask( std::make_shared<Task>( task ) );
+		// The scheduler should not prevent devices from being destroyed, hence we're capturing a weak pointer into the
+		// update task. This also prevents a shared_ptr cycle (!).
+		std::weak_ptr<D> device = device_;
+
+		typename D::t_value currentValue = device_->getValue();
+		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
+			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
+				auto targetDevice = device.lock();
+				if ( targetDevice ) {
+					targetDevice->updateValue( source, value_ );
+				}
+			} );
 
 			if (
 				options_.forSec > 0.05
@@ -655,34 +633,50 @@ namespace micasa {
 					|| i < abs( options_.repeat ) - 1
 				)
 			) {
-				delaySec += options_.forSec;
-				Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-				task.setValue<D>( previousValue );
-				this->_scheduleTask( std::make_shared<Task>( task ) );
+				delay += ( 1000 * options_.forSec );
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) {
+					auto targetDevice = device.lock();
+					if ( targetDevice ) {
+						targetDevice->updateValue( source, currentValue );
+					}
+				} );
 			}
 		}
-
-		return true;
 	};
-	template bool Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template bool Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template bool Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	
+	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	template void Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 	// The switch variant of the method is specialized separately because it uses the opposite value instead of the
 	// previous value for the "for"-option.
-	template<> bool Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+	template<> void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
 		if ( options_.clear ) {
-			this->_clearTaskQueue( device_ );
+			this->m_scheduler.erase(
+				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
+					return task_.data == device_.get();
+				}
+			);
 		}
 
-		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
-			double delaySec = options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec );
+		// If the recur option was set, no script or timer source is send along with the update. This way updating the
+		// device will cause additional scripts to be executed.
+		Device::UpdateSource source = source_;
+		if ( options_.recur ) {
+			source = Device::resolveUpdateSource( 0 );
+		}
 
-			// NOTE if the recur option was set we're not providing SCRIPT as the source of the update. This way
-			// the event handler will execute scripts even when the update comes from a script.
-			Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-			task.setValue<Switch>( value_ );
-			this->_scheduleTask( std::make_shared<Task>( task ) );
+		// The scheduler should not prevent devices from being destroyed, hence we're capturing a weak pointer into the
+		// update task. This also prevents a shared_ptr cycle (!).
+		std::weak_ptr<Switch> device = device_;
+
+		Switch::t_value oppositeValue = Switch::getOppositeValue( value_ );
+		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
+			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
+			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
+				auto targetDevice = device.lock();
+				if ( targetDevice ) {
+					targetDevice->updateValue( source, value_ );
+				}
+			} );
 
 			if (
 				options_.forSec > 0.05
@@ -691,28 +685,28 @@ namespace micasa {
 					|| i < abs( options_.repeat ) - 1
 				)
 			) {
-				delaySec += options_.forSec;
-				Task task = { device_, options_.recur ? Device::resolveUpdateSource( 0 ) : source_, system_clock::now() + milliseconds( (int)( delaySec * 1000 ) ) };
-				task.setValue<Switch>( Switch::getOppositeValue( value_ ) );
-				this->_scheduleTask( std::make_shared<Task>( task ) );
+				delay += ( 1000 * options_.forSec );
+				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,oppositeValue]( Scheduler::Task<>& ) {
+					auto targetDevice = device.lock();
+					if ( targetDevice ) {
+						targetDevice->updateValue( source, oppositeValue );
+					}
+				} );
 			}
 		}
-
-		return true;
 	};
-
-	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
-		auto thread = std::thread( [this,key_,data_,scripts_]{
-			std::lock_guard<std::mutex> lock( this->m_jsMutex );
-
-			v7_val_t root = v7_get_global( this->m_v7_js );
+	
+	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ ) {
+		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
+			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 
 			// Configure the v7 javascript environment with context data.
+			v7_val_t root = v7_get_global( this->m_v7_js );
 			v7_val_t dataObj;
 			if ( V7_OK != v7_parse_json( this->m_v7_js, data_.dump().c_str(), &dataObj ) ) {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in scriptdata." );
 #ifdef _DEBUG
-				g_logger->log( Logger::LogLevel::VERBOSE, this, data_.dump().c_str() );
+				Logger::log( Logger::LogLevel::VERBOSE, this, data_.dump().c_str() );
 #endif // _DEBUG
 				return;
 			}
@@ -727,27 +721,27 @@ namespace micasa {
 
 				switch( js_error ) {
 					case V7_SYNTAX_ERROR:
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Syntax error in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Syntax error in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
 						success = false;
 						break;
 					case V7_EXEC_EXCEPTION:
-						// Extract error message from result. Note that if the buffer is too small, v7 allocates it's
-						// own memory chucnk which we need to free manually.
+						// Extract error message from result. NOTE 1 that if the buffer is too small, v7 allocates it's
+						// own memory chunk which we need to free manually. NOTE 2 these exceptions will not result in
+						// the script getting disabled, so the success flag is still true.
 						char buffer[100], *p;
 						p = v7_stringify( this->m_v7_js, js_result, buffer, sizeof( buffer ), V7_STRINGIFY_DEFAULT );
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\" (%s).", (*scriptsIt).at( "name" ).c_str(), p );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Exception in in \"%s\" (%s).", (*scriptsIt).at( "name" ).c_str(), p );
 						if ( p != buffer ) {
 							free(p);
 						}
-						success = false;
 						break;
 					case V7_AST_TOO_LARGE:
 					case V7_INTERNAL_ERROR:
-						g_logger->logr( Logger::LogLevel::ERROR, this, "Internal error in in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::ERROR, this, "Internal error in in \"%s\".", (*scriptsIt).at( "name" ).c_str() );
 						success = false;
 						break;
 					case V7_OK:
-						g_logger->logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
+						Logger::logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
 						break;
 				}
 				
@@ -769,13 +763,12 @@ namespace micasa {
 			v7_val_t userDataObj = v7_get( this->m_v7_js, root, "userdata", ~0 );
 			char buffer[1024], *p;
 			p = v7_stringify( this->m_v7_js, userDataObj, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
-			g_settings->put( "userdata", std::string( p ) );
+			g_settings->put( CONTROLLER_SETTING_USERDATA, std::string( p ) );
 			if ( p != buffer ) {
 				free( p );
 			}
 			g_settings->commit();
 		} );
-		thread.detach();
 	};
 
 	void Controller::_runTimers() {
@@ -790,7 +783,7 @@ namespace micasa {
 				bool run = true;
 
 				// Split the cron string into exactly 5 fields; m h dom mon dow.
-				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
+				std::vector<std::pair<unsigned int, unsigned int>> extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
 				auto fields = stringSplit( (*timerIt)["cron"], ' ' );
 				if ( fields.size() != 5 ) {
 					throw std::runtime_error( "invalid number of cron fields" );
@@ -907,20 +900,22 @@ namespace micasa {
 					if ( devices.size() > 0 ) {
 						for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 							auto device = this->getDeviceById( std::stoi( (*devicesIt)["device_id"] ) );
-							TaskOptions options = { 0, 0, 1, 0, false, false };
-							switch( device->getType() ) {
-								case Device::Type::COUNTER:
-									this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::LEVEL:
-									this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::SWITCH:
-									this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-									break;
-								case Device::Type::TEXT:
-									this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
-									break;
+							if ( device ) {
+								TaskOptions options = { 0, 0, 1, 0, false, false };
+								switch( device->getType() ) {
+									case Device::Type::COUNTER:
+										this->_processTask<Counter>( std::static_pointer_cast<Counter>( device ), std::stoi( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::LEVEL:
+										this->_processTask<Level>( std::static_pointer_cast<Level>( device ), std::stod( (*devicesIt)["value"] ), Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::SWITCH:
+										this->_processTask<Switch>( std::static_pointer_cast<Switch>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
+									case Device::Type::TEXT:
+										this->_processTask<Text>( std::static_pointer_cast<Text>( device ), (*devicesIt)["value"], Device::UpdateSource::TIMER, options );
+										break;
+								}
 							}
 						}
 					}
@@ -929,7 +924,7 @@ namespace micasa {
 			} catch( std::exception ex_ ) {
 
 				// Something went wrong while parsing the cron string. The timer is marked as disabled.
-				g_logger->logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
+				Logger::logr( Logger::LogLevel::ERROR, this, "Invalid cron for timer %s (%s).", (*timerIt).at( "name" ).c_str(), ex_.what() );
 				g_database->putQuery(
 					"UPDATE `timers` "
 					"SET `enabled`=0 "
@@ -963,47 +958,19 @@ namespace micasa {
 
 			for ( auto linksIt = links.begin(); linksIt != links.end(); linksIt++ ) {
 				auto targetDevice = std::static_pointer_cast<Switch>( this->getDeviceById( std::stoi( (*linksIt)["target_device_id"] ) ) );
-				TaskOptions options = { 0, 0, 1, 0, false, false };
-				if ( (*linksIt)["after"].size() > 0 ) {
-					options.afterSec = std::stoi( (*linksIt)["after"] );
+				if ( targetDevice ) {
+					TaskOptions options = { 0, 0, 1, 0, false, false };
+					if ( (*linksIt)["after"].size() > 0 ) {
+						options.afterSec = std::stod( (*linksIt)["after"] );
+					}
+					if ( (*linksIt)["for"].size() > 0 ) {
+						options.forSec = std::stod( (*linksIt)["for"] );
+					}
+					if ( (*linksIt)["clear"].size() > 0 ) {
+						options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
+					}
+					this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
 				}
-				if ( (*linksIt)["for"].size() > 0 ) {
-					options.forSec = std::stoi( (*linksIt)["for"] );
-				}
-				if ( (*linksIt)["clear"].size() > 0 ) {
-					options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
-				}
-				this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
-			}
-		}
-	};
-
-	void Controller::_scheduleTask( const std::shared_ptr<Task> task_ ) {
-		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
-
-		// The task is inserted in the list in order of scheduled time. This way the worker method only needs to
-		// investigate the front of the queue.
-		auto taskIt = this->m_taskQueue.begin();
-		while(
-			  taskIt != this->m_taskQueue.end()
-			  && task_->scheduled > (*taskIt)->scheduled
-		) {
-			taskIt++;
-		}
-		this->m_taskQueue.insert( taskIt, task_ );
-		lock.unlock();
-
-		// Immediately wake up the worker to have it start processing scheduled items.
-		this->wakeUp();
-	};
-
-	void Controller::_clearTaskQueue( const std::shared_ptr<Device> device_ ) {
-		std::unique_lock<std::mutex> lock( this->m_taskQueueMutex );
-		for ( auto taskQueueIt = this->m_taskQueue.begin(); taskQueueIt != this->m_taskQueue.end(); ) {
-			if ( (*taskQueueIt)->device == device_ ) {
-				taskQueueIt = this->m_taskQueue.erase( taskQueueIt );
-			} else {
-				taskQueueIt++;
 			}
 		}
 	};
@@ -1069,14 +1036,14 @@ namespace micasa {
 		return result;
 	};
 
-	template<class D> bool Controller::_js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
+	template<class D> void Controller::_js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ ) {
 		TaskOptions options = this->_parseTaskOptions( options_ );
-		return this->_processTask( device_, value_, Device::UpdateSource::SCRIPT, options );
+		this->_processTask( device_, value_, Device::UpdateSource::SCRIPT, options );
 	};
-	template bool Controller::_js_updateDevice( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
-	template bool Controller::_js_updateDevice( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
-	template bool Controller::_js_updateDevice( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
-	template bool Controller::_js_updateDevice( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
+	template void Controller::_js_updateDevice( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const std::string& options_ );
+	template void Controller::_js_updateDevice( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const std::string& options_ );
+	template void Controller::_js_updateDevice( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const std::string& options_ );
+	template void Controller::_js_updateDevice( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const std::string& options_ );
 
 	bool Controller::_js_include( const std::string& name_, std::string& script_ ) {
 		// This is done without a lock because it is called from a script that is executed while holding the lock.
@@ -1095,7 +1062,7 @@ namespace micasa {
 	};
 
 	void Controller::_js_log( const std::string& log_ ) {
-		g_logger->log( Logger::LogLevel::SCRIPT, log_ );
+		Logger::log( Logger::LogLevel::SCRIPT, this, log_ );
 	};
 
 }; // namespace micasa

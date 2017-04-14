@@ -3,55 +3,93 @@
 
 #include "Logger.h"
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 
-	void Logger::_doLog( const LogLevel logLevel_, std::string message_, bool hasArguments_, va_list arguments_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_logMutex );
-		if ( logLevel_ <= this->m_logLevel ) {
-			char buffer[MAX_LOG_LINE_LENGTH];
-			if ( ! hasArguments_ ) {
-				strncpy( buffer, message_.c_str(), sizeof( buffer ) );
+	// ======
+	// Logger
+	// ======
+
+	void Logger::addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ ) {
+		Logger& logger = Logger::get();
+		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
+		logger.m_receivers.push_back( { receiver_, level_ } );
+	};
+	
+	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
+		Logger& logger = Logger::get();
+		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
+		for ( auto receiversIt = logger.m_receivers.begin(); receiversIt != logger.m_receivers.end(); ) {
+			if ( (*receiversIt).receiver.lock() == receiver_ ) {
+				receiversIt = logger.m_receivers.erase( receiversIt );
 			} else {
-				vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
-			}
-
-			time_t now = time( 0 );
-			struct tm tstruct;
-			char timebuf[80];
-			tstruct = *localtime(&now);
-			strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S ", &tstruct);
-
-			switch( logLevel_ ) {
-				case LogLevel::WARNING:
-					std::cout << "\033[0;36m" << timebuf << buffer << "\033[0m\n";
-					break;
-				case LogLevel::ERROR:
-					std::cout << "\033[0;31m" << timebuf << buffer << "\033[0m\n";
-					break;
-				case LogLevel::VERBOSE:
-				case LogLevel::DEBUG:
-					std::cout << "\033[0;37m" << timebuf << buffer << "\033[0m\n";
-					break;
-				case LogLevel::SCRIPT:
-					std::cout << "\033[0;33m" << timebuf << buffer << "\033[0m\n";
-					break;
-				default:
-					std::cout << timebuf << buffer << "\n";
-					break;
+				receiversIt++;	
 			}
 		}
 	};
 
-	void Logger::logr( const LogLevel logLevel_, std::string message_, ... ) const {
-		va_list arguments;
-		va_start( arguments, message_ );
-		this->_doLog( logLevel_, message_.c_str(), true, arguments );
-		va_end( arguments );
+	void Logger::_doLog( const LogLevel& logLevel_, const std::string& message_, bool hasArguments_, va_list arguments_ ) {
+		char buffer[MAX_LOG_LINE_LENGTH];
+		if ( ! hasArguments_ ) {
+			strncpy( buffer, message_.c_str(), sizeof( buffer ) );
+		} else {
+			vsnprintf( buffer, sizeof( buffer ), message_.c_str(), arguments_ );
+		}
+		std::string message( buffer );
+
+		std::vector<std::shared_ptr<Receiver>> receivers;
+		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
+		for ( const auto& receiverIt : this->m_receivers ) {
+			std::shared_ptr<Receiver> receiver = receiverIt.receiver.lock();
+#ifdef _DEBUG
+			assert( receiver && "Log receivers should be removed from the logger before being destroyed." );
+#endif // _DEBUG
+			if (
+				receiver
+				&& logLevel_ <= receiverIt.level
+			) {
+				receivers.push_back( receiver );
+			}
+		}
+		receiversLock.unlock();
+
+		for ( const auto& receiver : receivers ) {
+			receiver->log( logLevel_, message );
+		}
 	};
 
-	void Logger::log( const LogLevel logLevel_, std::string message_ ) const {
-		va_list empty;
-		this->_doLog( logLevel_, message_.c_str(), false, empty );
+	// =============
+	// ConsoleLogger
+	// =============
+
+	void ConsoleLogger::log( const Logger::LogLevel& logLevel_, const std::string& message_ ) {
+		time_t now = time( 0 );
+		struct tm tstruct;
+		char timebuf[80];
+		tstruct = *localtime(&now);
+		strftime( timebuf, sizeof( timebuf ), "%Y-%m-%d %H:%M:%S ", &tstruct );
+
+		switch( logLevel_ ) {
+			case Logger::LogLevel::WARNING:
+				std::cerr << "\033[0;36m" << timebuf << message_ << "\033[0m\n";
+				break;
+			case Logger::LogLevel::ERROR:
+				std::cerr << "\033[0;31m" << timebuf << message_ << "\033[0m\n";
+				break;
+			case Logger::LogLevel::VERBOSE:
+			case Logger::LogLevel::DEBUG:
+				std::cout << "\033[0;37m" << timebuf << message_ << "\033[0m\n";
+				break;
+			case Logger::LogLevel::SCRIPT:
+				std::cout << "\033[0;33m" << timebuf << message_ << "\033[0m\n";
+				break;
+			default:
+				std::cout << timebuf << message_ << "\n";
+				break;
+		}
 	};
 
 } // namespace micasa

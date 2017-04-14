@@ -19,7 +19,7 @@ set( SRC
 	src/micasa.cpp
 	src/Utils.cpp
 	src/Arguments.cpp
-	src/Worker.cpp
+	src/Scheduler.cpp
 	src/Controller.cpp
 	src/Logger.cpp
 	src/Network.cpp
@@ -33,7 +33,6 @@ set( SRC
 
 	# hardware
 	src/hardware/RFXCom.cpp
-	src/hardware/P1Meter.cpp
 	src/hardware/SolarEdge.cpp
 	src/hardware/SolarEdgeInverter.cpp
 	src/hardware/WeatherUnderground.cpp
@@ -165,7 +164,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-add_definitions( -DMG_ENABLE_IPV6 -DMG_ENABLE_SSL )
+add_definitions( -DMG_ENABLE_IPV6 -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_DISABLE_HTTP_KEEP_ALIVE -DMG_ENABLE_BROADCAST )
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
@@ -181,6 +180,10 @@ add_definitions( -DV7_ENABLE_FILE=ON )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11" )
 if( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
 	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
+endif()
+if( DEBUG )
+#	AddressSanitizer has__interceptor_pthread_create problems.
+#	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer" )
 endif()
 
 #
@@ -245,13 +248,20 @@ endif()
 #
 # Check for OpenSSL
 #
-find_package( OpenSSL REQUIRED )
-if( OPENSSL_FOUND )
-	include_directories( ${OPENSSL_INCLUDE_DIRS} )
-	target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
+option( WITH_OPENSSL "Build with OpenSSL libraries" YES )
+if( WITH_OPENSSL )
+	message( STATUS "Build with OpenSSL libraries" )
+	find_package( OpenSSL )
+	if( OPENSSL_FOUND )
+		include_directories( ${OPENSSL_INCLUDE_DIRS} )
+		target_link_libraries( micasa ${OPENSSL_LIBRARIES} )
+		add_definitions( -D_WITH_OPENSSL -DMG_ENABLE_SSL )
+	else()
+		message( FATAL_ERROR "OpenSSL not found on your system." )
+	endif( OPENSSL_FOUND )
 else()
-	message( FATAL_ERROR "OpenSSL not found on your system." )
-endif( OPENSSL_FOUND )
+	message( STATUS "WARNING: Building without OpenSSL is for debugging purposes only." )
+endif()
 
 #
 # Check for SQLite3

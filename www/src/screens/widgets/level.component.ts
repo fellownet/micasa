@@ -2,20 +2,22 @@ import {
 	Component,
 	Input,
 	OnInit,
-	AfterViewInit
-}                  from '@angular/core';
+	AfterViewInit,
+	OnDestroy
+}                       from '@angular/core';
 
 import {
 	Screen,
 	Widget
-}                  from '../screens.service';
+}                       from '../screens.service';
 import {
 	Device,
 	DevicesService
-}                  from '../../devices/devices.service';
+}                       from '../../devices/devices.service';
 import {
 	Router,
-}                  from '@angular/router';
+}                       from '@angular/router';
+import { Subscription } from 'rxjs/Subscription';
 
 declare var Highcharts: any;
 
@@ -24,11 +26,12 @@ declare var Highcharts: any;
 	templateUrl: 'tpl/widgets/level.html'
 } )
 
-export class WidgetLevelComponent implements OnInit, AfterViewInit {
+export class WidgetLevelComponent implements OnInit, AfterViewInit, OnDestroy {
 
 	private static _elementId = 0;
 
 	private _chart: any;
+	private _subscription: Subscription;
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
@@ -36,62 +39,49 @@ export class WidgetLevelComponent implements OnInit, AfterViewInit {
 
 	public error: string;
 	public elementId: number;
-	public editMode: boolean = false;
+	public loading: boolean = true;
+	public editing: boolean = false;
 
 	constructor(
 		private _router: Router,
 		private _devicesService: DevicesService
 	) {
+	};
+
+	ngOnInit() {
 		++WidgetLevelComponent._elementId;
 		this.elementId = WidgetLevelComponent._elementId;
 	};
 
-	ngOnInit() {
+	public ngOnDestroy() {
+		if ( this._subscription ) {
+			this._subscription.unsubscribe();
+		}
 	};
 
 	public ngAfterViewInit() {
 		var me = this;
-		me._devicesService.getData( this.device.id, { group: 'none', range: 1, interval: 'day' } )
-			.subscribe(
-				function( data_: any[] ) {
-					var data: Array<Array<any>> = [];
-					for ( var i = 0; i < data_.length; i++ ) {
-						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
+		me._chart = Highcharts.chart( 'level_chart_target_' + me.elementId, {
+			chart: {
+				type: 'spline',
+				events: {
+					click: function() {
+						me._router.navigate( [ '/screens', me.screen.id, 'device', me.device.id ] );
 					}
-
-					me._chart = Highcharts.chart( 'level_chart_target_' + me.elementId, {
-						chart: {
-							type: 'spline',
-							events: {
-								click: function() {
-									me._router.navigate( [ '/screens', me.screen.id, 'device', me.device.id ] );
-								}
-							}
-						},
-						xAxis: {
-							title: {
-								text: null
-							}
-						},
-						yAxis: {
-							title: {
-								text: null
-							}
-						},
-						series: [ {
-							name: me.device.name,
-							data: data,
-							tooltip: {
-								valueSuffix: ' ' + me.device.unit
-							}
-						} ]
-					} );
-				},
-				function( error_: string ) {
-					me.error = error_;
 				}
-			)
-		;
+			},
+			xAxis: {
+				title: {
+					text: null
+				}
+			},
+			yAxis: {
+				title: {
+					text: null
+				}
+			}
+		} );
+		me._loadData();
 	};
 
 	public setClasses() {
@@ -104,7 +94,7 @@ export class WidgetLevelComponent implements OnInit, AfterViewInit {
 	};
 
 	public reload() {
-		alert( 'reload' );
+		this._loadData();
 	};
 
 	public delete() {
@@ -112,7 +102,41 @@ export class WidgetLevelComponent implements OnInit, AfterViewInit {
 	};
 
 	public edit() {
-		this.editMode = true;
+		this.editing = true;
+	};
+
+	private _loadData(): void {
+		var me = this;
+		me.loading = true;
+		me._subscription = me._devicesService.getData( this.device.id, { group: '5min', range: 1, interval: 'day' } )
+			.subscribe(
+				function( data_: any[] ) {
+					me.loading = false;
+					var data: Array<Array<any>> = [];
+					for ( var i = 0; i < data_.length; i++ ) {
+						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
+					}
+
+					// First remove previes series if there is one.
+					if ( me._chart.series.length > 0 ) {
+						me._chart.series[0].remove( true );
+						me._chart.zoomOut();
+					}
+
+					// Then add the refreshed series.
+					me._chart.addSeries( {
+						name: me.device.name,
+						data: data,
+						tooltip: {
+							valueSuffix: ' ' + me.device.unit
+						}
+					} );
+				},
+				function( error_: string ) {
+					me.error = error_;
+				}
+			)
+		;
 	};
 
 }

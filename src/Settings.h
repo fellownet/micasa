@@ -34,14 +34,14 @@ namespace micasa {
 		void commit();
 
 	protected:
-		void _populateOnce() const;
-
 		const T& m_target;
 		// NOTE is marked mutable to allow the populate method to be called as late as possible.
 		mutable std::map<std::string, std::string> m_settings;
-		mutable bool m_populated = false;
+		mutable bool m_populated;
 		std::vector<std::string> m_dirty;
 		mutable std::mutex m_settingsMutex;
+
+		void _populateOnce() const;
 	
 	}; // class SettingsHelper
 
@@ -54,13 +54,13 @@ namespace micasa {
 		void commit();
 
 	protected:
-		void _populateOnce() const;
-
 		// NOTE is marked mutable to allow the populate method to be called as late as possible.
 		mutable std::map<std::string, std::string> m_settings;
-		mutable bool m_populated = false;
+		mutable bool m_populated;
 		std::vector<std::string> m_dirty;
 		mutable std::mutex m_settingsMutex;
+
+		void _populateOnce() const;
 
 	}; // class SettingsHelper<void>
 

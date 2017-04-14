@@ -22,11 +22,13 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
 	extern std::shared_ptr<Controller> g_controller;
 	
+	const char* PiFace::label = "PiFace";
+
 	void PiFace::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
 
 		// First the SPI device is openend.
 		if ( ( this->m_fd = open( "/dev/spidev0.0", O_RDWR ) ) >= 0 ) {
@@ -39,11 +41,11 @@ namespace micasa {
 				&& ioctl( this->m_fd, SPI_IOC_WR_BITS_PER_WORD, &spiBPW ) >= 0
 				&& ioctl( this->m_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed ) >= 0
 			) {
-				g_logger->log( Logger::LogLevel::VERBOSE, this, "SPI device opened successfully." );
+				Logger::log( Logger::LogLevel::VERBOSE, this, "SPI device opened successfully." );
 				int detected = 0;
 
-				// Once the SPI device is opened we need to detect the number of boards present. This is done
-				// by writing to all possible addresses and read them back to determine if they're present.
+				// Once the SPI device is opened we need to detect the number of boards present. This is done by writing
+				// to all possible addresses and read them back to determine if they're present.
 				int devId;
 				for ( devId = 0; devId < 4; devId++ ) {
 					this->_Write_MCP23S17_Register( devId, MCP23x17_IOCON, IOCON_INIT | IOCON_HAEN );
@@ -56,7 +58,13 @@ namespace micasa {
 						read_iocon == ( IOCON_INIT | IOCON_HAEN )
 						&& read_ioconb == ( IOCON_INIT | IOCON_HAEN )
 					) {
-						g_controller->declareHardware( Hardware::Type::PIFACE_BOARD, std::to_string( devId ), this->shared_from_this(), { }, true );
+						g_controller->declareHardware(
+							Hardware::Type::PIFACE_BOARD,
+							std::to_string( devId ),
+							this->shared_from_this(),
+							{ },
+							true
+						)->start();
 						detected++;
 					}
 				}
@@ -64,35 +72,27 @@ namespace micasa {
 				if ( detected > 0 ) {
 					this->setState( Hardware::State::READY );
 				} else {
-					g_logger->log( Logger::LogLevel::ERROR, this, "No PiFaces were found." );
+					Logger::log( Logger::LogLevel::ERROR, this, "No PiFaces were found." );
 					this->setState( Hardware::State::FAILED );
 					close( this->m_fd );
 				}
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "SPI device configuration failure." );
+				Logger::log( Logger::LogLevel::ERROR, this, "SPI device configuration failure." );
 				this->setState( Hardware::State::FAILED );
 				close( this->m_fd );
 			}
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Unable to open SPI device." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to open SPI device." );
 			this->setState( Hardware::State::FAILED );
 		}
-
-		Hardware::start();
 	};
 	
 	void PiFace::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-		
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		if ( this->getState() == Hardware::State::READY ) {
 			close( this->m_fd );
 		}
-		
 		Hardware::stop();
-	};
-
-	std::chrono::milliseconds PiFace::_work( const unsigned long int& iteration_ ) {
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
 	};
 
 	int PiFace::_Read_Write_SPI_Byte( unsigned char *data, int len ) {

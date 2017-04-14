@@ -2,8 +2,9 @@
 
 #include <list>
 
-#include "../Hardware.h"
 #include "ZWave.h"
+
+#include "../Hardware.h"
 
 #include "Notification.h"
 
@@ -19,30 +20,25 @@ namespace micasa {
 		friend class ZWave;
 
 	public:
-		static const constexpr char* label = "Z-Wave Node";
+		static const char* label;
 
-		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : Hardware( id_, type_, reference_, parent_ ) { };
+		ZWaveNode( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
 		~ZWaveNode() { };
 
 		void start() override;
 		void stop() override;
-
 		std::string getLabel() const override;
 		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
-		void putSettingsJson( nlohmann::json& settings_ ) override;
+		void putSettingsJson( const nlohmann::json& settings_ ) override;
 		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
 		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
-		void putDeviceSettingsJson( std::shared_ptr<Device> device_, nlohmann::json& settings_ ) override;
-
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) override;
 
 	private:
-		unsigned int m_homeId = 0;
-		unsigned int m_nodeId = 0;
-		nlohmann::json m_configuration = nlohmann::json::object();
+		unsigned int m_homeId;
+		unsigned int m_nodeId;
+		nlohmann::json m_configuration;
 		mutable std::mutex m_configurationMutex;
 
 		void _handleNotification( const OpenZWave::Notification* notification_ );

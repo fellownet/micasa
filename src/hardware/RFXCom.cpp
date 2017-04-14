@@ -14,18 +14,25 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-
 	using namespace nlohmann;
 
+	const char* RFXCom::label = "RFXCom";
+
+	RFXCom::RFXCom( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_packetPosition( 0 )
+	{
+	};
+
 	void RFXCom::start() {
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
+
 		if ( ! this->m_settings->contains( { "port" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 			this->setState( Hardware::State::FAILED );
 			return;
 		}
-
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
 		this->m_serial = std::make_shared<Serial>(
 			this->m_settings->get( "port" ),
@@ -45,20 +52,20 @@ namespace micasa {
 						this->m_packetPosition == 0
 						&& this->m_packet[0] == 0
 					) {
-						continue;
+						return;
 					}
 
 					this->m_packetPosition++;
 
 					if ( this->m_packetPosition >= sizeof( this->m_packet ) - 1 ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
+						Logger::log( Logger::LogLevel::ERROR, this, "Packet out of sync." );
 						this->m_packetPosition = 0;
 					}
 
 					// The first (accepted) byte should contain the length of the packet.
 					if ( this->m_packetPosition > this->m_packet[0] ) {
 						if ( false == this->_processPacket() ) {
-							g_logger->logr( Logger::LogLevel::ERROR, this, "Error while processing packet." );
+							Logger::logr( Logger::LogLevel::ERROR, this, "Error while processing packet." );
 						}
 						this->m_packetPosition = 0;
 					}
@@ -72,32 +79,25 @@ namespace micasa {
 			this->m_serial->open();
 			this->setState( Hardware::State::READY );
 		} catch( Serial::SerialException exception_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
+			Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 			this->setState( Hardware::State::FAILED );
 		}
 
-		Hardware::start();
-
-		// Add the devices that allow the user to create new devices. NOTE this has to be done *after* the
-		// parent hardware instance is started to make sure previously created devices get picked up by the
-		// declareDevice method.
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 	};
 
 	void RFXCom::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
-
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		try {
 			this->m_serial->close();
 		} catch( Serial::SerialException exception_ ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, exception_.what() );
+			Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 		}
 		this->m_serial = nullptr;
-
 		Hardware::stop();
 	};
 
@@ -116,7 +116,7 @@ namespace micasa {
 			{ "name", "port" },
 			{ "label", "Port" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "port" ) ? "advanced" : "normal" },
+			{ "class", this->getState() == Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
@@ -148,6 +148,12 @@ namespace micasa {
 				result["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
 				result["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
 				result["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+				result["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+			} else if ( device_->getSettings()->get( "rfx_type", "" ) == "ac" ) {
+				result["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+				result["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+				result["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+				result["rfx_id4"] = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
 				result["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
 			}
 		}
@@ -209,12 +215,50 @@ namespace micasa {
 						 } }
 					},
 					{
-						 { "value", "x10" },
-						 { "label", "X10" }
-					},
-					{
-						 { "value", "arc" },
-						 { "label", "ARC" }
+						 { "value", "ac" },
+						 { "label", "AC" },
+						 { "settings", {
+							{
+								{ "name", "rfx_id1" },
+								{ "label", "ID 1" },
+								{ "type", "byte" },
+								{ "minimum", 0 },
+								{ "maximum", 255 },
+								{ "mandatory", true }
+							},
+							{
+								{ "name", "rfx_id2" },
+								{ "label", "ID 2" },
+								{ "type", "byte" },
+								{ "minimum", 0 },
+								{ "maximum", 255 },
+								{ "mandatory", true }
+							},
+							{
+								{ "name", "rfx_id3" },
+								{ "label", "ID 3" },
+								{ "type", "byte" },
+								{ "minimum", 0 },
+								{ "maximum", 255 },
+								{ "mandatory", true }
+							},
+							{
+								{ "name", "rfx_id4" },
+								{ "label", "ID 4" },
+								{ "type", "byte" },
+								{ "minimum", 0 },
+								{ "maximum", 255 },
+								{ "mandatory", true }
+							},
+							{
+								{ "name", "rfx_unitcode" },
+								{ "label", "Unit Code" },
+								{ "type", "byte" },
+								{ "minimum", 1 },
+								{ "maximum", 16 },
+								{ "mandatory", true }
+							}
+						 } }
 					}
 				} }
 			};
@@ -226,24 +270,24 @@ namespace micasa {
 
 	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		if ( this->getState() != Hardware::State::READY ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
+			Logger::log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
 			return false;
 		}
 
+#ifdef _DEBUG
+		assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
+#endif // _DEBUG
+
 		// First actions on the built-in device that can be used to create custom rfxcom switches are handled.
-		if (
-			device_->getType() == Device::Type::SWITCH
-			&& device_->getReference() == "create_switch_device"
-		) {
+		if ( device_->getReference() == "create_switch_device" ) {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 				this->declareDevice<Switch>( randomString( 16 ), "Switch", {
 					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 					{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-				}, true )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
-				this->wakeUpAfter( std::chrono::milliseconds( 1000 * 5 ) );
+				} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 				return true;
 			}
 		}
@@ -251,11 +295,9 @@ namespace micasa {
 		// Each device created by rfxcom (both manually and automatically) should have an rfx_type setting that
 		// determines how to handle updates.
 		std::string rfxType = device_->getSettings()->get( "rfx_type", "" );
-		if (
-			"rfy" == rfxType
-			&& device_->getType() == Device::Type::SWITCH
-		) {
 
+		// RFY devices are currently only supprted as manually added devices.
+		if ( "rfy" == rfxType ) {
 			if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
 				auto device = std::static_pointer_cast<Switch>( device_ );
 
@@ -285,57 +327,41 @@ namespace micasa {
 
 				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
 				return true;
-				
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Hardware busy." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Hardware busy." );
 				return false;
 			}
-			
+
+		// Manually added AC devices are actually lighting2 devices with subtype AC.
 		} else if (
 			"lighting2" == rfxType
-			&& device_->getType() == Device::Type::SWITCH
+			|| "ac" == rfxType
 		) {
-
 			if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
 				auto device = std::static_pointer_cast<Switch>( device_ );
-				auto parts = stringSplit( device->getReference(), '|' );
-				unsigned long prefix = std::stoul( parts[0] );
-
+				
 				tRBUF packet;
 				packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
 				packet.LIGHTING2.packettype = pTypeLighting2;
-				packet.LIGHTING2.subtype = std::stoi( parts[2] );
+				packet.LIGHTING2.subtype = device_->getSettings()->get<unsigned int>( "rfx_subtype", sTypeAC );
 
-				packet.LIGHTING2.id1 = ( prefix >> 24 ) & 0xff;
-				packet.LIGHTING2.id2 = ( prefix >> 16 ) & 0xff;
-				packet.LIGHTING2.id3 = ( prefix >> 8 ) & 0xff;
-				packet.LIGHTING2.id4 = prefix & 0xff;
-				packet.LIGHTING2.unitcode = std::stoi( parts[1] );
-
+				packet.LIGHTING2.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+				packet.LIGHTING2.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+				packet.LIGHTING2.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+				packet.LIGHTING2.id4 = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
+				packet.LIGHTING2.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+				
 				packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
 
 				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
 				return true;
-
 			} else {
-				g_logger->log( Logger::LogLevel::ERROR, this, "Hardware busy." );
+				Logger::log( Logger::LogLevel::ERROR, this, "Hardware busy." );
 				return false;
 			}
 		}
 
 		return false;
-	};
-
-	std::chrono::milliseconds RFXCom::_work( const unsigned long int& iteration_ ) {
-		// Because the action devices needed to be created after the hardware was started, they might not exist in
-		// the first iteration.
-		if ( iteration_ > 1 ) {
-			auto device = std::static_pointer_cast<Switch>( this->getDevice( "create_switch_device" ) );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-			}
-		}
-		return std::chrono::milliseconds( 1000 * 60 * 15 );
 	};
 
 	bool RFXCom::_processPacket() {
@@ -347,7 +373,7 @@ namespace micasa {
 		BYTE type = ((BYTE*)&this->m_packet)[1];
 		BYTE subtype = ((BYTE*)&this->m_packet)[2];
 		if ( length < 1 ) {
-			g_logger->log( Logger::LogLevel::WARNING, this, "Invalid packet received." );
+			Logger::log( Logger::LogLevel::WARNING, this, "Invalid packet received." );
 			return false;
 		}
 
@@ -417,7 +443,7 @@ namespace micasa {
 				break;
 		}
 
-		g_logger->logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
+		Logger::logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
 		return true;
 	};
 
@@ -438,9 +464,9 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(T)", "Temperature", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::TEMPERATURE ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::CELSIUS ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::CELSIUS ) },
 			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
 			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
@@ -452,9 +478,9 @@ namespace micasa {
 		}
 
 		this->declareDevice<Level>( reference + "(H)", "Humidity", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveSubType( Level::SubType::HUMIDITY ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveUnit( Level::Unit::PERCENT ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::HUMIDITY ) },
+			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) },
 			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
 			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 			{ "rfx_type", "temphum" }
@@ -464,7 +490,6 @@ namespace micasa {
 	};
 
 	bool RFXCom::_handleLightning2Packet( const tRBUF* packet_ ) {
-
 		unsigned long prefix = 0;
 		prefix |= ( packet_->LIGHTING2.id1 << 24 );
 		prefix |= ( packet_->LIGHTING2.id2 << 16 );
@@ -482,9 +507,15 @@ namespace micasa {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
 			this->declareDevice<Switch>( reference, "Switch", {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
-				{ "rfx_type", "lighting2" }
+				{ "rfx_type", "lighting2" },
+				{ "rfx_subtype", (unsigned int)packet_->LIGHTING2.subtype },
+				{ "rfx_id1", (unsigned int)packet_->LIGHTING2.id1 },
+				{ "rfx_id2", (unsigned int)packet_->LIGHTING2.id1 },
+				{ "rfx_id3", (unsigned int)packet_->LIGHTING2.id1 },
+				{ "rfx_id4", (unsigned int)packet_->LIGHTING2.id1 },
+				{ "rfx_unitcode", (unsigned int)packet_->LIGHTING2.unitcode }
 			} )->updateValue( Device::UpdateSource::HARDWARE, value );
 		}
 

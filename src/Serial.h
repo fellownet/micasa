@@ -84,7 +84,7 @@ namespace micasa {
 		const FlowControl m_flowControl;
 		const std::shared_ptr<t_callback> m_callback;
 		
-		int m_fd = -1;
+		int m_fd;
 		mutable std::mutex m_fdMutex;
 		termios m_oldSettings;
 

@@ -4,24 +4,23 @@
 #include <chrono>
 #include <map>
 #include <vector>
+#include <ostream>
 
 #include "Utils.h"
-#include "Worker.h"
+#include "Network.h"
+#include "Scheduler.h"
 
 #include "json.hpp"
 
-extern "C" {
-	#include "mongoose.h"
-} // extern "C"
-
 #define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
-#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX        "_web_"
+#define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX "_web_"
+#define WEBSERVER_SETTING_HASH_PEPPER "_hash_pepper"
 
 namespace micasa {
 
 	class User;
 
-	class WebServer final : public Worker {
+	class WebServer final {
 
 	public:
 		enum class Method: unsigned short {
@@ -42,7 +41,8 @@ namespace micasa {
 			// v Return available methods for resource or collection
 			OPTIONS = 64
 		}; // enum class Method
-		ENUM_UTIL( Method );
+		static const std::map<Method, std::string> MethodText;
+		ENUM_UTIL_W_TEXT( Method, MethodText );
 		
 		typedef std::function<void( std::shared_ptr<User> user_, const nlohmann::json& input_, const Method& method_, nlohmann::json& output_ )> t_callback;
 		
@@ -67,27 +67,31 @@ namespace micasa {
 
 		WebServer();
 		~WebServer();
+
+		WebServer( const WebServer& ) = delete; // Do not copy!
+		WebServer& operator=( const WebServer& ) = delete; // Do not copy-assign!
+		WebServer( const WebServer&& ) = delete; // do not move
+		WebServer& operator=( WebServer&& ) = delete; // do not move-assign
+
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
 		void start();
 		void stop();
-		
-	protected:
-		std::chrono::milliseconds _work( const unsigned long int& iteration_ ) { return std::chrono::milliseconds( 1000 * 60 * 15 ); };
-		
+
 	private:
-		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
-		mutable std::mutex m_resourcesMutex;
+		Scheduler m_scheduler;
+		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
+		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User>>> m_logins;
+		mutable std::mutex m_loginsMutex;
+		std::shared_ptr<Network::Connection> m_bind;
+#ifdef _WITH_OPENSSL
+		std::shared_ptr<Network::Connection> m_bindSecure;
+#endif
 
-		X509* m_certificate;
-		EVP_PKEY* m_key; // private key
-
-		std::string _encrypt64( const std::string& data_ ) const;
-		std::string _decrypt64( const std::string& data_ ) const;
 		std::string _hash( const std::string& data_ ) const;
 
-		void _processHttpRequest( mg_connection* connection_, http_message* message_ );
-		
+		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
+
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();
 		void _installScriptResourceHandler();

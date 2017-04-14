@@ -1,5 +1,7 @@
 // https://core.telegram.org/bots/api#making-requests
 
+#include <sstream>
+
 #include "../Logger.h"
 #include "../Network.h"
 #include "../User.h"
@@ -10,33 +12,140 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-	extern std::shared_ptr<Network> g_network;
-
 	using namespace nlohmann;
 
+	const char* Telegram::label = "Telegram Bot";
+
+	Telegram::Telegram( const unsigned int id_, const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) :
+		Hardware( id_, type_, reference_, parent_ ),
+		m_username( "" ),
+		m_lastUpdateId( -1 ),
+		m_acceptMode( false )
+	{
+	};
+
 	void Telegram::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
 		// Add the devices that will initiate controller actions and the broadcast device.
 		this->declareDevice<Switch>( "accept", "Enable Accept Mode", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER | Device::UpdateSource::API ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
-		} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 		this->declareDevice<Text>( "broadcast", "Broadcast", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::NOTIFICATION ) }
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveTextSubType( Text::SubType::NOTIFICATION ) }
 		} );
+
+		this->m_username = "";
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& task_ ) {
+			if ( ! this->m_settings->contains( { "token" } ) ) {
+				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
+				this->setState( Hardware::State::FAILED );
+				return;
+			}
+
+			if ( this->m_connection != nullptr ) {
+				this->m_connection->terminate();
+			}
+
+			std::stringstream url;
+			url << "https://api.telegram.org/bot" << this->m_settings->get( "token" );
+			if ( this->m_username.empty() ) {
+
+				url << "/getMe";
+				this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+					switch( event_ ) {
+						case Network::Connection::Event::CONNECT: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
+							break;
+						}
+						case Network::Connection::Event::FAILURE: {
+							Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+							this->setState( Hardware::State::FAILED );
+							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
+							break;
+						}
+						case Network::Connection::Event::HTTP: {
+							if ( ! this->_process( connection_->getBody() ) ) {
+								this->setState( Hardware::State::FAILED );
+							}
+							break;
+						}
+						case Network::Connection::Event::CLOSE: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
+							if ( this->getState() != Hardware::State::FAILED ) {
+								this->setState( Hardware::State::DISCONNECTED );
+								this->m_scheduler.schedule( 50, 1, this->m_task );
+							} else {
+								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
+							}
+							break;
+						}
+						default: { break; }
+					}
+				} );
+
+			} else {
+
+				url << "/getUpdates";
+				json params = {
+					{ "timeout", 60 }
+				};
+				if ( this->m_lastUpdateId > -1 ) {
+					params["offset"] = this->m_lastUpdateId + 1;
+				}
+				this->m_connection = Network::connect( url.str(), params, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+					switch( event_ ) {
+						case Network::Connection::Event::CONNECT: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
+							this->setState( Hardware::State::READY );
+							break;
+						}
+						case Network::Connection::Event::FAILURE: {
+							Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+							this->setState( Hardware::State::FAILED );
+							this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
+							break;
+						}
+						case Network::Connection::Event::HTTP: {
+							if ( ! this->_process( connection_->getBody() ) ) {
+								this->setState( Hardware::State::FAILED );
+							}
+							break;
+						}
+						case Network::Connection::Event::CLOSE: {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
+							if ( this->getState() != Hardware::State::FAILED ) {
+								this->setState( Hardware::State::DISCONNECTED );
+								this->m_scheduler.schedule( 50, 1, this->m_task );
+							} else {
+								this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this->m_task );
+							}
+							break;
+						}
+						default: { break; }
+					}
+				} );
+			}
+		} );
+
 	};
 	
 	void Telegram::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
+		if ( this->m_connection != nullptr ) {
+			this->m_connection->terminate();
+		}
 		Hardware::stop();
 	};
 
-	std::string Telegram::getLabel() const throw() {
+	std::string Telegram::getLabel() const {
 		if ( this->m_username.size() ) {
 			std::stringstream label;
 			label << Telegram::label << " (" << this->m_username << ")";
@@ -46,203 +155,71 @@ namespace micasa {
 		}
 	};
 
-	std::chrono::milliseconds Telegram::_work( const unsigned long int& iteration_ ) {
-		if ( ! this->m_settings->contains( { "token" } ) ) {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Missing settings." );
-			this->setState( Hardware::State::FAILED );
-			return std::chrono::milliseconds( 60 * 1000 );
-		}
-
-		std::stringstream url;
-		url << "https://api.telegram.org/bot" << this->m_settings->get( "token" );
-
-		if (
-			iteration_ == 1
-			|| this->getState() != Hardware::State::READY
-		) {
-			url << "/getMe";
-
-			g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					std::string body;
-					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-					try {
-						json data = json::parse( body );
-						bool success = data["ok"].get<bool>();
-						if ( ! success ) {
-							throw std::runtime_error( "Telegram API reported a failure" );
-						}
-
-						this->m_username = data["result"]["username"].get<std::string>();
-						this->setState( Hardware::State::READY );
-
-					} catch( std::invalid_argument ex_ ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
-						this->setState( Hardware::State::FAILED );
-					} catch( std::runtime_error ex_ ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
-						this->setState( Hardware::State::FAILED );
-					}
-
-					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-
-				}  else if ( event_ == MG_EV_CLOSE ) {
-
-					// If a successfull response was received, a new connection needs to be made immediately (long poll),
-					// if not, try the Telegram API again after the default of 5 minutes.
-					if ( this->getState() == Hardware::State::READY ) {
-						this->wakeUp();
-					}
-				}
-			} ) );
-
-		} else {
-			url << "/getUpdates";
-
-			json params = {
-				{ "timeout", 60 }
-			};
-			if ( this->m_lastUpdateId > -1 ) {
-				params["offset"] = this->m_lastUpdateId + 1;
-			}
-
-			g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					std::string body;
-					body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-					try {
-						json data = json::parse( body );
-						bool success = data["ok"].get<bool>();
-						if ( ! success ) {
-							throw std::runtime_error( "Telegram API reported a failure" );
-						}
-
-						auto find = data.find( "result" );
-						if (
-							find != data.end()
-							&& (*find).is_array()
-						) {
-							for ( auto updateIt = (*find).begin(); updateIt != (*find).end(); updateIt++ ) {
-								int lastUpdateId = jsonGet<int>( *updateIt, "update_id" );
-								if ( lastUpdateId > this->m_lastUpdateId ) {
-									this->m_lastUpdateId = lastUpdateId;
-								}
-
-								if ( (*updateIt).find( "message" ) != (*updateIt).end() ) {
-									this->_processIncomingMessage( (*updateIt)["message"] );
-								}
-							}
-						}
-
-					} catch( std::invalid_argument ex_ ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
-						this->setState( Hardware::State::FAILED );
-					} catch( std::runtime_error ex_ ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
-						this->setState( Hardware::State::FAILED );
-					}
-
-					connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-
-				}  else if ( event_ == MG_EV_CLOSE ) {
-
-					// If a successfull response was received, a new connection needs to be made immediately (long poll),
-					// if not, try the Telegram API again after the default of 5 minutes.
-					if ( this->getState() == Hardware::State::READY ) {
-						this->wakeUp();
-					}
-				}
-			} ), params );
-		}
-
-		return std::chrono::milliseconds( 1000 * 60 * 5 );
-	};
-
 	bool Telegram::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() == Hardware::State::READY ) {
-			if ( device_->getType() == Device::Type::SWITCH ) {
+		if ( this->getState() != Hardware::State::READY ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Telegram not ready (yet)." );
+			return false;
+		}
 
-				// This part takes care of temprarely enabling the accept new chats mode.
-				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-				if (
-					device->getReference() == "accept"
-					&& device->getValueOption() == Switch::Option::ACTIVATE
-				) {
-					if ( this->m_acceptMode ) {
-						g_logger->log( Logger::LogLevel::ERROR, this, "Accept Mode already enabled." );
-					} else {
-						g_logger->log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
-						this->m_acceptMode = true;
-						std::thread( [this, device]{
-							std::this_thread::sleep_for( std::chrono::minutes( 60 * 5 ) );
-							this->m_acceptMode = false;
-							device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
-							g_logger->log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
-						} ).detach();
-					}
-					return true;
-				}
+		if ( device_->getType() == Device::Type::SWITCH ) {
 
-			} else if ( device_->getType() == Device::Type::TEXT ) {
-
-				// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
-				// to all chat devices.
-				auto sourceDevice = std::static_pointer_cast<Text>( device_ );
-				std::vector<std::shared_ptr<Text> > targetDevices;
-				if ( sourceDevice->getReference() == "broadcast" ) {
-					auto allDevices = this->getAllDevices();
-					for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
-						if (
-							(*deviceIt)->getType() == Device::Type::TEXT
-							&& (*deviceIt)->getReference() != "broadcast"
-							&& (*deviceIt)->isRunning()
-						) {
-							targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
-						}
-					}
+			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+			if (
+				device->getReference() == "accept"
+				&& device->getValueOption() == Switch::Option::ACTIVATE
+			) {
+				if ( this->m_acceptMode ) {
+					Logger::log( Logger::LogLevel::ERROR, this, "Accept Mode already enabled." );
 				} else {
-					targetDevices.push_back( sourceDevice );
-				}
-				for ( auto deviceIt = targetDevices.begin(); deviceIt != targetDevices.end(); deviceIt++ ) {
-					auto targetDevice = *deviceIt;
-					if ( targetDevice->getValue() != sourceDevice->getValue() ) {
-						targetDevice->updateValue( Device::UpdateSource::HARDWARE, sourceDevice->getValue() );
-					}
-					
-					std::stringstream url;
-					url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
-
-					json params = {
-						{ "chat_id", std::stoi( targetDevice->getReference() ) },
-						{ "text", sourceDevice->getValue() },
-						{ "parse_mode", "Markdown" }
-					};
-					g_network->connect( url.str(), Network::t_callback( [this]( mg_connection* connection_, int event_, void* data_ ) {
-						if ( event_ == MG_EV_HTTP_REPLY ) {
-							std::string body;
-							body.assign( ((http_message*)data_)->body.p, ((http_message*)data_)->body.len );
-							try {
-								json data = json::parse( body );
-								bool success = data["ok"].get<bool>();
-								if ( ! success ) {
-									throw std::runtime_error( "Telegram API reported a failure" );
-								}
-							} catch( std::invalid_argument ex_ ) {
-								g_logger->log( Logger::LogLevel::ERROR, this, "Invalid data received from the Telegram API." );
-							} catch( std::runtime_error ex_ ) {
-								g_logger->log( Logger::LogLevel::ERROR, this, ex_.what() );
-							}
-
-							connection_->flags |= MG_F_CLOSE_IMMEDIATELY;
-						}
-					} ), params );
+					Logger::log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
+					this->m_acceptMode = true;
+					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this]( Scheduler::Task<>& ) {
+						this->m_acceptMode = false;
+						Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
+					} );
 				}
 				return true;
 			}
-		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "Hardware not ready." );
+
+		} else if ( device_->getType() == Device::Type::TEXT ) {
+
+			// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
+			// to all chat devices.
+			auto sourceDevice = std::static_pointer_cast<Text>( device_ );
+			std::vector<std::shared_ptr<Text>> targetDevices;
+			if ( sourceDevice->getReference() == "broadcast" ) {
+				auto allDevices = this->getAllDevices();
+				for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
+					if (
+						(*deviceIt)->getType() == Device::Type::TEXT
+						&& (*deviceIt)->getReference() != "broadcast"
+						&& (*deviceIt)->isEnabled()
+					) {
+						targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
+					}
+				}
+			} else {
+				targetDevices.push_back( sourceDevice );
+			}
+			for ( auto deviceIt = targetDevices.begin(); deviceIt != targetDevices.end(); deviceIt++ ) {
+				auto targetDevice = *deviceIt;
+				if ( targetDevice->getValue() != sourceDevice->getValue() ) {
+					targetDevice->updateValue( Device::UpdateSource::HARDWARE, sourceDevice->getValue() );
+				}
+
+				std::stringstream url;
+				url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
+				json params = {
+					{ "chat_id", std::stoi( targetDevice->getReference() ) },
+					{ "text", sourceDevice->getValue() },
+					{ "parse_mode", "Markdown" }
+				};
+				Network::connect( url.str(), params, nullptr );
+			}
+
+			return true;
 		}
-		
+
 		return false;
 	};
 
@@ -261,53 +238,84 @@ namespace micasa {
 			{ "name", "token" },
 			{ "label", "Token" },
 			{ "type", "string" },
-			{ "class", this->m_settings->contains( "token" ) ? "advanced" : "normal" },
+			{ "class", this->getState() >= Hardware::State::READY ? "advanced" : "normal" },
 			{ "mandatory", true },
 			{ "sort", 99 }
 		};
 		return result;
 	};
-	
-	void Telegram::_processIncomingMessage( const json& message_ ) {
-		auto find = message_.find( "chat" );
-		if ( find != message_.end() ) {
-			std::string reference = jsonGet<std::string>( *find, "id" );
-			auto device = std::static_pointer_cast<Text>( this->getDevice( reference ) );
-			if (
-				device == nullptr
-				&& this->m_acceptMode
-			) {
-				std::stringstream label;
-				if ( (*find).find( "first_name" ) != (*find).end() ) {
-					label << (*find)["first_name"].get<std::string>();
-				}
-				if ( (*find).find( "last_name" ) != (*find).end() ) {
-					if ( label.str().size() > 0 ) {
-						label << " ";
-					}
-					label << (*find)["last_name"].get<std::string>();
-				}
-				if ( (*find).find( "username" ) != (*find).end() ) {
-					if ( label.str().size() > 0 ) {
-						label << " (" << (*find)["username"].get<std::string>() << ")";
-					} else {
-						label << (*find)["username"].get<std::string>();
-					}
-				}
-				if ( label.str().size() == 0 ) {
-					label << reference;
-				}
-				device = this->declareDevice<Text>( reference, label.str(), {
-					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveSubType( Text::SubType::NOTIFICATION ) }
-				} );
+
+	bool Telegram::_process( const std::string& data_ ) {
+		try {
+			json data = json::parse( data_ );
+			bool success = jsonGet<bool>( data, "ok" );
+			if ( ! success ) {
+				this->setState( Hardware::State::FAILED );
+				Logger::log( Logger::LogLevel::ERROR, this, jsonGet<std::string>( data, "description" ) + "." );
+				return false;
 			}
-			if (
-				device != nullptr
-				&& message_.find( "text" ) != message_.end()
-			) {
-				device->updateValue( Device::UpdateSource::HARDWARE, message_["text"].get<std::string>() );
+
+			json result = jsonGet<json>( data, "result" );
+			if ( result.is_object() ) {
+				auto find = result.find( "username" );
+				if ( find != result.end() ) {
+					this->m_username = jsonGet<std::string>( *find );
+				}
 			}
+
+			if ( result.is_array() ) {
+				for ( auto updatesIt = result.begin(); updatesIt != result.end(); updatesIt++ ) {
+
+					int lastUpdateId = jsonGet<int>( *updatesIt, "update_id" );
+					if ( lastUpdateId > this->m_lastUpdateId ) {
+						this->m_lastUpdateId = lastUpdateId;
+					}
+
+					json message = jsonGet<json>( *updatesIt, "message" );
+					json chat = jsonGet<json>( message, "chat" );
+					std::string reference = jsonGet<std::string>( chat, "id" );
+
+					auto device = std::static_pointer_cast<Text>( this->getDevice( reference ) );
+					if (
+						device == nullptr
+						&& this->m_acceptMode
+					) {
+						std::stringstream label;
+						if ( chat.find( "first_name" ) != chat.end() ) {
+							label << jsonGet<std::string>( chat, "first_name" );
+						}
+						if ( chat.find( "last_name" ) != chat.end() ) {
+							if ( label.str().size() > 0 ) {
+								label << " ";
+							}
+							label << jsonGet<std::string>( chat, "last_name" );
+						}
+						if ( chat.find( "username" ) != chat.end() ) {
+							if ( label.str().size() > 0 ) {
+								label << " (" << jsonGet<std::string>( chat, "username" ) << ")";
+							} else {
+								label << jsonGet<std::string>( chat, "username" );
+							}
+						}
+						if ( label.str().size() == 0 ) {
+							label << reference;
+						}
+						device = this->declareDevice<Text>( reference, label.str(), {
+							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveTextSubType( Text::SubType::NOTIFICATION ) }
+						} );
+					}
+					if ( device != nullptr ) {
+						device->updateValue( Device::UpdateSource::HARDWARE, jsonGet<std::string>( message, "text" ) );
+					}
+				}
+			}
+
+			return true;
+		} catch( json::exception ex_ ) {
+			this->setState( Hardware::State::FAILED );
+			Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
+			return false;
 		}
 	};
 

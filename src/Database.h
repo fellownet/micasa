@@ -26,9 +26,15 @@ namespace micasa {
 
 		Database( std::string filename_ );
 		~Database();
+
+		Database( const Database& ) = delete; // do not copy
+		Database& operator=( const Database& ) = delete; // do not copy-assign
+		Database( const Database&& ) = delete; // do not move
+		Database& operator=( Database&& ) = delete; // do not move-assign
+
 		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }
 
-		std::vector<std::map<std::string, std::string> > getQuery( const std::string query_, ... ) const;
+		std::vector<std::map<std::string, std::string>> getQuery( const std::string query_, ... ) const;
 		template<typename T> T getQuery( const std::string query_, ... ) const;
 		std::map<std::string, std::string> getQueryRow( const std::string query_, ... ) const;
 		template<typename T> T getQueryRow( const std::string query_, ... ) const;
@@ -39,12 +45,11 @@ namespace micasa {
 		int getLastErrorCode() const;
 
 	private:
-		void _init() const;
-		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)> process_ ) const;
-
 		const std::string m_filename;
 		sqlite3 *m_connection;
-		mutable std::mutex m_queryMutex;
+
+		void _init() const;
+		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>&& process_ ) const;
 
 	}; // class Database
 

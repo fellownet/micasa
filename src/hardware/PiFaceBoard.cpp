@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "PiFace.h"
 #include "PiFaceBoard.h"
 #include "PiFace/MCP23x17.h"
@@ -9,13 +11,14 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Logger> g_logger;
-	
 	using namespace std::chrono;
 	using namespace nlohmann;
 	
+	const char* PiFaceBoard::label = "PiFace Board";
+
 	void PiFaceBoard::start() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
+		Hardware::start();
 
 		// The parent has an open file descriptor to the SPI device which we need easy access to.
 		this->m_parent = std::static_pointer_cast<PiFace>( this->getParent() );
@@ -47,19 +50,17 @@ namespace micasa {
 
 		this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, 0x00 ); // Set all pins on Port A as output, and deactivate
 
-		Hardware::start();
-
 		for ( unsigned short i = 0; i < 8; i++ ) {
 			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_OUTPUT ), "Output " + std::to_string( i ), {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+			} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 			this->declareDevice<Switch>( this->_createReference( i, PIFACEBOARD_PORT_INPUT ), "Input " + std::to_string( i ), {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
-			} )->updateValue( Device::UpdateSource::INIT | Device::UpdateSource::HARDWARE, Switch::Option::OFF );
+			} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::OFF );
 
 			this->m_inputs[i] = false;
 			this->m_outputs[i] = false;
@@ -68,10 +69,23 @@ namespace micasa {
 		this->m_portState[0] = this->m_portState[1] = 0;
 
 		this->setState( Hardware::State::READY );
+
+		this->m_shutdown = false;
+		this->m_worker = std::thread( [this]() -> void {
+			unsigned long iteration = 0;
+			while ( ! this->m_shutdown ) {
+				this->_process( ++iteration );
+				std::this_thread::sleep_for( std::chrono::milliseconds( PIFACEBOARD_PROCESS_INTERVAL_MSEC ) );
+			}
+		} );
 	};
 	
 	void PiFaceBoard::stop() {
-		g_logger->log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_shutdown = true;
+		if ( this->m_worker.joinable() ) {
+			this->m_worker.join();
+		}
 		Hardware::stop();
 	};
 
@@ -103,7 +117,7 @@ namespace micasa {
 			return true;
 
 		} else {
-			g_logger->log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
+			Logger::log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
 			return false;
 		}
 	};
@@ -161,12 +175,7 @@ namespace micasa {
 		return result;
 	};
 
-	std::chrono::milliseconds PiFaceBoard::_work( const unsigned long int& iteration_ ) {
-
-		// Only read pin states when the hardware is ready and the devices have been created.
-		if ( this->getState() != Hardware::State::READY ) {
-			return std::chrono::milliseconds( 1000 );
-		}
+	inline void PiFaceBoard::_process( unsigned long iteration_ ) {
 
 		// Read and process output pin states.
 		unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA );
@@ -205,49 +214,38 @@ namespace micasa {
 					auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
 					Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
 					std::string portType = device->getSettings()->get( "port_type", "pulse" );
-					if ( portType == "pulse" ) {
-						if ( device->getValueOption() != value ) {
-							device->updateValue( Device::UpdateSource::HARDWARE, value );
-						}
 
-						if (
-							device->getSettings()->get<bool>( "count_pulses", false )
-							&& value == Switch::Option::ON
-						) {
-							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_MIN_COUNTER_PULSE_MSEC ) ) {
+					// Pulse ports can be set to "count", in which case separate counter/level devices are created that
+					// report on how often a pulse is counted. If set to pulse a switch is created that remains in the
+					// On position while the pulse is active (such as a doorbel).
+					if ( portType == "pulse" ) {
+						if ( ! device->getSettings()->get<bool>( "count_pulses", false ) ) {
+							if ( device->getValueOption() != value ) {
+								device->updateValue( Device::UpdateSource::HARDWARE, value );
+							}
+						} else {
+							if ( value == Switch::Option::ON ) {
 								this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
-									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
+									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 									{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 									{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
 								} )->incrementValue( Device::UpdateSource::HARDWARE );
-								if ( iteration_ >= 2 ) {
+								if ( iteration_ > 2 ) {
 									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-									unsigned long duration = 0;
-									this->m_intervals[i].push_back( interval );
-									std::vector<unsigned long>::reverse_iterator intervalsIt;
-									for ( intervalsIt = this->m_intervals[i].rbegin(); intervalsIt != this->m_intervals[i].rend(); intervalsIt++ ) {
-										if ( duration < interval * 10 ) {
-											duration += *intervalsIt;
-										} else {
-											break;
-										}
-									}
-									this->m_intervals[i].erase( this->m_intervals[i].begin(), intervalsIt.base() );
-									if ( this->m_intervals[i].size() >= 5 ) {
-										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
-											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::CONTROLLER ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveSubType( Switch::SubType::GENERIC ) },
-											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / ( duration / (float)this->m_intervals[i].size() ) );
-									}
+									this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+									} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
 								}
 								this->m_lastPulse[i] = system_clock::now();
-							} else {
-								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring pulse." );
 							}
 						}
+
+					// If the port is set to toggle a switch device is created. Each registered pulse on the port flips
+					// the switch into the opposite position.
 					} else if ( portType == "toggle" ) {
 						if ( value == Switch::Option::ON ) {
 							if ( this->_queuePendingUpdate( device->getReference(), 0, PIFACEBOARD_TOGGLE_WAIT_MSEC ) ) {
@@ -258,7 +256,7 @@ namespace micasa {
 									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ON );
 								}
 							} else {
-								g_logger->log( Logger::LogLevel::WARNING, this, "Ignoring toggle." );
+								Logger::log( Logger::LogLevel::WARNING, this, "Ignoring toggle." );
 							}
 						}
 					}
@@ -266,17 +264,15 @@ namespace micasa {
 				mask<<=1;
 			}
 		}
-
-		return std::chrono::milliseconds( PIFACEBOARD_WORK_WAIT_MSEC );
 	};
 
-	std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {
+	inline std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {
 		std::stringstream reference;
 		reference << this->m_reference << "_" << position_ << "_" << io_;
 		return reference.str();
 	};
 
-	std::pair<unsigned short, unsigned short> PiFaceBoard::_parseReference( const std::string& reference_ ) const {
+	inline std::pair<unsigned short, unsigned short> PiFaceBoard::_parseReference( const std::string& reference_ ) const {
 		auto parts = stringSplit( reference_, '_' );
 		return { std::stoi( parts[1] ), std::stoi( parts[2] ) };
 	};

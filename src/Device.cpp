@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "Device.h"
 
 #include "Logger.h"
@@ -14,9 +16,10 @@ namespace micasa {
 
 	extern std::shared_ptr<Controller> g_controller;
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Logger> g_logger;
 
 	using namespace nlohmann;
+
+	const char* Device::settingsName = "device";
 
 	const std::map<Device::Type, std::string> Device::TypeText = {
 		{ Device::Type::COUNTER, "counter" },
@@ -25,25 +28,29 @@ namespace micasa {
 		{ Device::Type::TEXT, "text" },
 	};
 
-	Device::Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ ) : m_hardware( hardware_ ), m_id( id_ ), m_reference( reference_ ), m_label( label_ ) {
+	Device::Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		m_hardware( hardware_ ),
+		m_id( id_ ),
+		m_reference( reference_ ),
+		m_enabled( enabled_ ),
+		m_label( label_ )
+	{
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be created before Device instances." );
 		assert( g_database && "Global Database instance should be created before Device instances." );
-		assert( g_logger && "Global Logger instance should be created before Device instances." );
 #endif // _DEBUG
-		this->m_settings = std::make_shared<Settings<Device> >( *this );
+		this->m_settings = std::make_shared<Settings<Device>>( *this );
 	};
 	
 	Device::~Device() {
 #ifdef _DEBUG
-		assert( g_database && "Global Controller instance should be destroyed after Device instances." );
+		assert( g_controller && "Global Controller instance should be destroyed after Device instances." );
 		assert( g_database && "Global Database instance should be destroyed after Device instances." );
-		assert( g_logger && "Global Logger instance should be destroyed after Device instances." );
 #endif // _DEBUG
 	};
 
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
-		out_ << device_->m_hardware->getName() << " / " << device_->getName(); return out_;
+		out_ << device_->getHardware()->getName() << " / " << device_->getName(); return out_;
 	};
 	
 	std::string Device::getName() const {
@@ -62,17 +69,25 @@ namespace micasa {
 		}
 	};
 
-	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
+	std::shared_ptr<Hardware> Device::getHardware() const {
+		auto hardware = this->m_hardware.lock();
+#ifdef _DEBUG
+		assert( !!hardware && "Hardware should not be destroyed before device." );
+#endif // _DEBUG
+		return hardware;
+	};
+
+	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ ) {
 		auto target = dynamic_cast<T*>( this );
 #ifdef _DEBUG
 		assert( target && "Invalid device template specifier." );
 #endif // _DEBUG
-		target->updateValue( source_, value_ );
+		target->updateValue( source_, value_, force_ );
 	};
-	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
-	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
-	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
-	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
+	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_, bool force_ );
+	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_, bool force_ );
+	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_, bool force_ );
+	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_, bool force_ );
 	
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
@@ -86,33 +101,34 @@ namespace micasa {
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
 	
-	std::shared_ptr<Device> Device::factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ ) {
+	std::shared_ptr<Device> Device::factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:
-				return std::make_shared<Counter>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::LEVEL:
-				return std::make_shared<Level>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::SWITCH:
-				return std::make_shared<Switch>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::TEXT:
-				return std::make_shared<Text>( hardware_, id_, reference_, label_ );
+				return std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
 				break;
 		}
 		return nullptr;
 	};
 
 	json Device::getJson( bool full_ ) const {
-		json result = this->m_hardware->getDeviceJson( this->shared_from_this() );
+		auto hardware = this->getHardware();
+
+		json result = hardware->getDeviceJson( this->shared_from_this() );
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
-		result["enabled"] = this->isRunning();
-		//result["hardware"] = this->m_hardware->getJson( false );
-		result["hardware"] = this->m_hardware->getName();
-		result["hardware_id"] = this->m_hardware->getId();
+		result["enabled"] = this->isEnabled();
+		result["hardware"] = hardware->getName();
+		result["hardware_id"] = hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
 		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
 
@@ -123,16 +139,7 @@ namespace micasa {
 			result["signal_strength"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_SIGNAL_STRENGTH );
 		}
 
-		// TODO the webserver should not call getJson but query the database directly.
-		json timeProperties = g_database->getQueryRow<json>(
-			"SELECT CAST(strftime('%%s',`updated`) AS INTEGER) AS `last_update`, CAST(strftime('%%s','now') AS INTEGER) - CAST(strftime('%%s',`updated`) AS INTEGER) AS `age` "
-			"FROM `devices` "
-			"WHERE `id`=%d ",
-			this->getId()
-		);
-		result["last_update"] = timeProperties["last_update"].get<unsigned long>();
-		result["age"] = timeProperties["age"].get<unsigned long>();
-			
+		// TODO when fetching a list of devices, the database gets flooded with queries, that need to be improved.
 		result["total_timers"] = g_database->getQueryValue<unsigned int>(
 			"SELECT COUNT(`timer_id`) "
 			"FROM `x_timer_devices` "
@@ -161,8 +168,9 @@ namespace micasa {
 	};
 
 	json Device::getSettingsJson() const {
-		json result = this->m_hardware->getDeviceSettingsJson( this->shared_from_this() );
+		auto hardware = this->getHardware();
 
+		json result = hardware->getDeviceSettingsJson( this->shared_from_this() );
 		json setting = {
 			{ "name", "name" },
 			{ "label", "Name" },
@@ -197,20 +205,14 @@ namespace micasa {
 		return result;
 	};
 
-	void Device::putSettingsJson( json& settings_ ) {
-		this->m_hardware->putDeviceSettingsJson( this->shared_from_this(), settings_ );
+	void Device::putSettingsJson( const json& settings_ ) {
+		this->getHardware()->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
-	void Device::touch() {
-		g_database->putQuery(
-			"UPDATE `devices` "
-			"SET `updated`=datetime('now') "
-			"WHERE `id`=%d ",
-			this->getId()
-		);
-		this->m_hardware->touch();
+	void Device::setEnabled( bool enabled_ ) {
+		this->m_enabled = enabled_;
 	};
-	
+
 	void Device::setScripts( std::vector<unsigned int>& scriptIds_ ) {
 		std::stringstream list;
 		unsigned int index = 0;

@@ -1,6 +1,6 @@
 #include "v7.h"
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/license.h"
+#line 1 "v7/src/license.h"
 #endif
 /*
  * Copyright (c) 2013-2014 Cesanta Software Limited
@@ -28,7 +28,7 @@
 #define V7_EXTERN static
 #endif /* CS_V7_SRC_LICENSE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platform.h"
+#line 1 "common/platform.h"
 #endif
 #ifndef CS_COMMON_PLATFORM_H_
 #define CS_COMMON_PLATFORM_H_
@@ -40,22 +40,52 @@
 #define CS_P_CUSTOM 0
 #define CS_P_UNIX 1
 #define CS_P_WINDOWS 2
-#define CS_P_ESP_LWIP 3
+#define CS_P_ESP32 15
+#define CS_P_ESP8266 3
 #define CS_P_CC3200 4
 #define CS_P_MSP432 5
+#define CS_P_CC3100 6
+#define CS_P_TM4C129 14
+#define CS_P_MBED 7
+#define CS_P_WINCE 8
+#define CS_P_NXP_LPC 13
+#define CS_P_NXP_KINETIS 9
+#define CS_P_NRF51 12
+#define CS_P_NRF52 10
+#define CS_P_PIC32 11
+#define CS_P_STM32 16
+/* Next id: 17 */
 
 /* If not specified explicitly, we guess platform by defines. */
 #ifndef CS_PLATFORM
 
 #if defined(TARGET_IS_MSP432P4XX) || defined(__MSP432P401R__)
-
 #define CS_PLATFORM CS_P_MSP432
 #elif defined(cc3200)
 #define CS_PLATFORM CS_P_CC3200
 #elif defined(__unix__) || defined(__APPLE__)
 #define CS_PLATFORM CS_P_UNIX
+#elif defined(WINCE)
+#define CS_PLATFORM CS_P_WINCE
 #elif defined(_WIN32)
 #define CS_PLATFORM CS_P_WINDOWS
+#elif defined(__MBED__)
+#define CS_PLATFORM CS_P_MBED
+#elif defined(__USE_LPCOPEN)
+#define CS_PLATFORM CS_P_NXP_LPC
+#elif defined(FRDM_K64F) || defined(FREEDOM)
+#define CS_PLATFORM CS_P_NXP_KINETIS
+#elif defined(PIC32)
+#define CS_PLATFORM CS_P_PIC32
+#elif defined(ESP_PLATFORM)
+#define CS_PLATFORM CS_P_ESP32
+#elif defined(ICACHE_FLASH)
+#define CS_PLATFORM CS_P_ESP8266
+#elif defined(TARGET_IS_TM4C129_RA0) || defined(TARGET_IS_TM4C129_RA1) || \
+    defined(TARGET_IS_TM4C129_RA2)
+#define CS_PLATFORM CS_P_TM4C129
+#elif defined(STM32)
+#define CS_PLATFORM CS_P_STM32
 #endif
 
 #ifndef CS_PLATFORM
@@ -64,23 +94,52 @@
 
 #endif /* !defined(CS_PLATFORM) */
 
+#define MG_NET_IF_SOCKET 1
+#define MG_NET_IF_SIMPLELINK 2
+#define MG_NET_IF_LWIP_LOW_LEVEL 3
+#define MG_NET_IF_PIC32 4
+
+#define MG_SSL_IF_OPENSSL 1
+#define MG_SSL_IF_MBEDTLS 2
+#define MG_SSL_IF_SIMPLELINK 3
+
 /* Amalgamated: #include "common/platforms/platform_unix.h" */
 /* Amalgamated: #include "common/platforms/platform_windows.h" */
-/* Amalgamated: #include "common/platforms/platform_esp_lwip.h" */
+/* Amalgamated: #include "common/platforms/platform_esp32.h" */
+/* Amalgamated: #include "common/platforms/platform_esp8266.h" */
 /* Amalgamated: #include "common/platforms/platform_cc3200.h" */
+/* Amalgamated: #include "common/platforms/platform_cc3100.h" */
+/* Amalgamated: #include "common/platforms/platform_mbed.h" */
+/* Amalgamated: #include "common/platforms/platform_nrf51.h" */
+/* Amalgamated: #include "common/platforms/platform_nrf52.h" */
+/* Amalgamated: #include "common/platforms/platform_wince.h" */
+/* Amalgamated: #include "common/platforms/platform_nxp_lpc.h" */
+/* Amalgamated: #include "common/platforms/platform_nxp_kinetis.h" */
+/* Amalgamated: #include "common/platforms/platform_pic32.h" */
+/* Amalgamated: #include "common/platforms/platform_stm32.h" */
 
 /* Common stuff */
+
+#if !defined(WEAK)
+#if (defined(__GNUC__) || defined(__TI_COMPILER_VERSION__)) && !defined(_WIN32)
+#define WEAK __attribute__((weak))
+#else
+#define WEAK
+#endif
+#endif
 
 #ifdef __GNUC__
 #define NORETURN __attribute__((noreturn))
 #define NOINLINE __attribute__((noinline))
 #define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 #define NOINSTR __attribute__((no_instrument_function))
+#define DO_NOT_WARN_UNUSED __attribute__((unused))
 #else
 #define NORETURN
 #define NOINLINE
 #define WARN_UNUSED_RESULT
 #define NOINSTR
+#define DO_NOT_WARN_UNUSED
 #endif /* __GNUC__ */
 
 #ifndef ARRAY_SIZE
@@ -89,7 +148,7 @@
 
 #endif /* CS_COMMON_PLATFORM_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platforms/platform_windows.h"
+#line 1 "common/platforms/platform_windows.h"
 #endif
 #ifndef CS_COMMON_PLATFORMS_PLATFORM_WINDOWS_H_
 #define CS_COMMON_PLATFORMS_PLATFORM_WINDOWS_H_
@@ -112,6 +171,14 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
+#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 1
+#endif
+
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <assert.h>
 #include <direct.h>
 #include <errno.h>
@@ -124,8 +191,8 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <ctype.h>
 
-#define random() rand()
 #ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib") /* Linking with winsock library */
 #endif
@@ -134,6 +201,10 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
+
+#if defined(_MSC_VER) && _MSC_VER >= 1800
+#define strdup _strdup
+#endif
 
 #ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
@@ -147,13 +218,13 @@
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
 #define snprintf _snprintf
-#define fileno _fileno
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) *1000)
 #define to64(x) _atoi64(x)
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
 #define popen(x, y) _popen((x), (y))
 #define pclose(x) _pclose(x)
+#define fileno _fileno
 #endif
 #define rmdir _rmdir
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -161,7 +232,10 @@
 #else
 #define fseeko(x, y, z) fseek((x), (y), (z))
 #endif
-#define random() rand()
+#if defined(_MSC_VER) && _MSC_VER <= 1200
+typedef unsigned long uintptr_t;
+typedef long intptr_t;
+#endif
 typedef int socklen_t;
 #if _MSC_VER >= 1700
 #include <stdint.h>
@@ -189,11 +263,7 @@ typedef uint32_t in_addr_t;
 #define INT64_FMT "I64d"
 #define INT64_X_FMT "I64x"
 #define SIZE_T_FMT "Iu"
-#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
-typedef struct stat cs_stat_t;
-#else
 typedef struct _stati64 cs_stat_t;
-#endif
 #ifndef S_ISDIR
 #define S_ISDIR(x) (((x) &_S_IFMT) == _S_IFDIR)
 #endif
@@ -201,6 +271,7 @@ typedef struct _stati64 cs_stat_t;
 #define S_ISREG(x) (((x) &_S_IFMT) == _S_IFREG)
 #endif
 #define DIRSEP '\\'
+#define CS_DEFINE_DIRENT
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -222,10 +293,34 @@ typedef struct _stati64 cs_stat_t;
 #define MG_MAX_HTTP_HEADERS 40
 #endif
 
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+#ifndef MG_ENABLE_BROADCAST
+#define MG_ENABLE_BROADCAST 1
+#endif
+
+#ifndef MG_ENABLE_DIRECTORY_LISTING
+#define MG_ENABLE_DIRECTORY_LISTING 1
+#endif
+
+#ifndef MG_ENABLE_FILESYSTEM
+#define MG_ENABLE_FILESYSTEM 1
+#endif
+
+#ifndef MG_ENABLE_HTTP_CGI
+#define MG_ENABLE_HTTP_CGI MG_ENABLE_FILESYSTEM
+#endif
+
+#ifndef MG_NET_IF
+#define MG_NET_IF MG_NET_IF_SOCKET
+#endif
+
 #endif /* CS_PLATFORM == CS_P_WINDOWS */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_WINDOWS_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platforms/platform_unix.h"
+#line 1 "common/platforms/platform_unix.h"
 #endif
 #ifndef CS_COMMON_PLATFORMS_PLATFORM_UNIX_H_
 #define CS_COMMON_PLATFORMS_PLATFORM_UNIX_H_
@@ -262,6 +357,7 @@ typedef struct _stati64 cs_stat_t;
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <limits.h>
 #include <math.h>
 #include <netdb.h>
@@ -272,6 +368,7 @@ typedef struct _stati64 cs_stat_t;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/stat.h>
@@ -279,12 +376,24 @@ typedef struct _stati64 cs_stat_t;
 #include <sys/types.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <machine/endian.h>
+#ifndef BYTE_ORDER
+#define LITTLE_ENDIAN __DARWIN_LITTLE_ENDIAN
+#define BIG_ENDIAN __DARWIN_BIG_ENDIAN
+#define PDP_ENDIAN __DARWIN_PDP_ENDIAN
+#define BYTE_ORDER __DARWIN_BYTE_ORDER
+#endif
+#endif
+
 /*
  * osx correctly avoids defining strtoll when compiling in strict ansi mode.
+ * c++ 11 standard defines strtoll as well.
  * We require strtoll, and if your embedded pre-c99 compiler lacks one, please
  * implement a shim.
  */
-#if !(defined(__DARWIN_C_LEVEL) && __DARWIN_C_LEVEL >= 200809L)
+#if !(defined(__cplusplus) && __cplusplus >= 201103L) && \
+    !(defined(__DARWIN_C_LEVEL) && __DARWIN_C_LEVEL >= 200809L)
 long long strtoll(const char *, char **, int);
 #endif
 
@@ -323,49 +432,55 @@ typedef struct stat cs_stat_t;
 #define MG_MAX_HTTP_HEADERS 40
 #endif
 
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+#ifndef MG_ENABLE_BROADCAST
+#define MG_ENABLE_BROADCAST 1
+#endif
+
+#ifndef MG_ENABLE_DIRECTORY_LISTING
+#define MG_ENABLE_DIRECTORY_LISTING 1
+#endif
+
+#ifndef MG_ENABLE_FILESYSTEM
+#define MG_ENABLE_FILESYSTEM 1
+#endif
+
+#ifndef MG_ENABLE_HTTP_CGI
+#define MG_ENABLE_HTTP_CGI MG_ENABLE_FILESYSTEM
+#endif
+
+#ifndef MG_NET_IF
+#define MG_NET_IF MG_NET_IF_SOCKET
+#endif
+
 #endif /* CS_PLATFORM == CS_P_UNIX */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_UNIX_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platforms/platform_esp_lwip.h"
+#line 1 "common/platforms/platform_esp32.h"
 #endif
-#ifndef CS_COMMON_PLATFORMS_PLATFORM_ESP_LWIP_H_
-#define CS_COMMON_PLATFORMS_PLATFORM_ESP_LWIP_H_
-#if CS_PLATFORM == CS_P_ESP_LWIP
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_ESP32_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_ESP32_H_
+#if CS_PLATFORM == CS_P_ESP32
 
 #include <assert.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <machine/endian.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include <lwip/err.h>
-#include <lwip/ip_addr.h>
-#include <lwip/inet.h>
-#include <lwip/netdb.h>
-#include <lwip/dns.h>
-
-#ifndef LWIP_PROVIDE_ERRNO
-#include <errno.h>
-#endif
-
-#define LWIP_TIMEVAL_PRIVATE 0
-
-#if LWIP_SOCKET
-#include <lwip/sockets.h>
-#define SOMAXCONN 10
-#else
-/* We really need the definitions from sockets.h. */
-#undef LWIP_SOCKET
-#define LWIP_SOCKET 1
-#include <lwip/sockets.h>
-#undef LWIP_SOCKET
-#define LWIP_SOCKET 0
-#endif
-
-typedef int sock_t;
-#define INVALID_SOCKET (-1)
 #define SIZE_T_FMT "u"
 typedef struct stat cs_stat_t;
 #define DIRSEP '/'
@@ -373,95 +488,78 @@ typedef struct stat cs_stat_t;
 #define INT64_FMT PRId64
 #define INT64_X_FMT PRIx64
 #define __cdecl
+#define _FILE_OFFSET_BITS 32
 
-unsigned long os_random(void);
-#define random os_random
+#define MG_LWIP 1
 
-#endif /* CS_PLATFORM == CS_P_ESP_LWIP */
-#endif /* CS_COMMON_PLATFORMS_PLATFORM_ESP_LWIP_H_ */
+#ifndef MG_NET_IF
+#define MG_NET_IF MG_NET_IF_SOCKET
+#endif
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+#endif /* CS_PLATFORM == CS_P_ESP32 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_ESP32_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/mbuf.h"
+#line 1 "common/platforms/platform_esp8266.h"
 #endif
 /*
- * Copyright (c) 2015 Cesanta Software Limited
+ * Copyright (c) 2014-2016 Cesanta Software Limited
  * All rights reserved
  */
 
-/*
- * === Memory Buffers
- *
- * Mbufs are mutable/growing memory buffers, like C++ strings.
- * Mbuf can append data to the end of a buffer, or insert data into arbitrary
- * position in the middle of a buffer. The buffer grows automatically when
- * needed.
- */
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_ESP8266_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_ESP8266_H_
+#if CS_PLATFORM == CS_P_ESP8266
 
-#ifndef CS_COMMON_MBUF_H_
-#define CS_COMMON_MBUF_H_
+#include <assert.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <machine/endian.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 
-#if defined(__cplusplus)
-extern "C" {
+#define SIZE_T_FMT "u"
+typedef struct stat cs_stat_t;
+#define DIRSEP '/'
+#define CS_DEFINE_DIRENT
+
+#define to64(x) strtoll(x, NULL, 10)
+#define INT64_FMT PRId64
+#define INT64_X_FMT PRIx64
+#define __cdecl
+#define _FILE_OFFSET_BITS 32
+
+#ifndef RTOS_SDK
+#define fileno(x) -1
 #endif
 
-#include <stdlib.h>
+#define MG_LWIP 1
 
-#ifndef MBUF_SIZE_MULTIPLIER
-#define MBUF_SIZE_MULTIPLIER 1.5
+/* struct timeval is defined in sys/time.h. */
+#define LWIP_TIMEVAL_PRIVATE 0
+
+#ifndef MG_NET_IF
+#include <lwip/opt.h>
+#if LWIP_SOCKET /* RTOS SDK has LWIP sockets */
+#  define MG_NET_IF MG_NET_IF_SOCKET
+#else
+#  define MG_NET_IF MG_NET_IF_LWIP_LOW_LEVEL
+#endif
 #endif
 
-/* Memory buffer descriptor */
-struct mbuf {
-  char *buf;   /* Buffer pointer */
-  size_t len;  /* Data length. Data is located between offset 0 and len. */
-  size_t size; /* Buffer size allocated by realloc(1). Must be >= len */
-};
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
 
-/*
- * Initialize an Mbuf.
- * `initial_capacity` specifies the initial capacity of the mbuf.
- */
-void mbuf_init(struct mbuf *, size_t initial_capacity);
-
-/* Free the space allocated for the mbuffer and resets the mbuf structure. */
-void mbuf_free(struct mbuf *);
-
-/*
- * Appends data to the Mbuf.
- *
- * Return the number of bytes appended, or 0 if out of memory.
- */
-size_t mbuf_append(struct mbuf *, const void *data, size_t data_size);
-
-/*
- * Insert data at a specified offset in the Mbuf.
- *
- * Existing data will be shifted forwards and the buffer will
- * be grown if necessary.
- * Return the number of bytes inserted.
- */
-size_t mbuf_insert(struct mbuf *, size_t, const void *, size_t);
-
-/* Remove `data_size` bytes from the beginning of the buffer. */
-void mbuf_remove(struct mbuf *, size_t data_size);
-
-/*
- * Resize an Mbuf.
- *
- * If `new_size` is smaller than buffer's `len`, the
- * resize is not performed.
- */
-void mbuf_resize(struct mbuf *, size_t new_size);
-
-/* Shrink an Mbuf by resizing its `size` to `len`. */
-void mbuf_trim(struct mbuf *);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_COMMON_MBUF_H_ */
+#endif /* CS_PLATFORM == CS_P_ESP8266 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_ESP8266_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platforms/simplelink/cs_simplelink.h"
+#line 1 "common/platforms/simplelink/cs_simplelink.h"
 #endif
 /*
  * Copyright (c) 2014-2016 Cesanta Software Limited
@@ -472,7 +570,8 @@ void mbuf_trim(struct mbuf *);
 #define CS_COMMON_PLATFORMS_SIMPLELINK_CS_SIMPLELINK_H_
 
 /* If simplelink.h is already included, all bets are off. */
-#if defined(MG_SOCKET_SIMPLELINK) && !defined(__SIMPLELINK_H__)
+#if defined(MG_NET_IF) && MG_NET_IF == MG_NET_IF_SIMPLELINK && \
+    !defined(__SIMPLELINK_H__)
 
 #include <stdbool.h>
 
@@ -494,6 +593,7 @@ void mbuf_trim(struct mbuf *);
 #undef SL_INC_STD_BSD_API_NAMING
 
 #include <simplelink/include/simplelink.h>
+#include <simplelink/include/netapp.h>
 
 /* Now define only the subset of the BSD API that we use.
  * Notably, close(), read() and write() are not defined. */
@@ -507,30 +607,10 @@ void mbuf_trim(struct mbuf *);
 #define SOCK_STREAM SL_SOCK_STREAM
 #define SOCK_DGRAM SL_SOCK_DGRAM
 
-#define FD_SET SL_FD_SET
-#define FD_CLR SL_FD_CLR
-#define FD_ISSET SL_FD_ISSET
-#define FD_ZERO SL_FD_ZERO
-#define fd_set SlFdSet_t
-
 #define htonl sl_Htonl
 #define ntohl sl_Ntohl
 #define htons sl_Htons
 #define ntohs sl_Ntohs
-
-#define accept sl_Accept
-#define closesocket sl_Close
-#define bind sl_Bind
-#define connect sl_Connect
-#define listen sl_Listen
-#define recv sl_Recv
-#define recvfrom sl_RecvFrom
-#define send sl_Send
-#define sendto sl_SendTo
-#define socket sl_Socket
-
-#define select(nfds, rfds, wfds, efds, tout) \
-  sl_Select((nfds), (rfds), (wfds), (efds), (struct SlTimeval_t *)(tout))
 
 #ifndef EACCES
 #define EACCES SL_EACCES
@@ -565,23 +645,28 @@ char *inet_ntoa(struct in_addr in);
 int inet_pton(int af, const char *src, void *dst);
 
 struct mg_mgr;
+struct mg_connection;
 
 typedef void (*mg_init_cb)(struct mg_mgr *mgr);
 bool mg_start_task(int priority, int stack_size, mg_init_cb mg_init);
 
 void mg_run_in_task(void (*cb)(struct mg_mgr *mgr, void *arg), void *cb_arg);
 
-int sl_fs_init();
+int sl_fs_init(void);
+
+void sl_restart_cb(struct mg_mgr *mgr);
+
+int sl_set_ssl_opts(struct mg_connection *nc);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* defined(MG_SOCKET_SIMPLELINK) && !defined(__SIMPLELINK_H__) */
+#endif /* MG_NET_IF == MG_NET_IF_SIMPLELINK && !defined(__SIMPLELINK_H__) */
 
 #endif /* CS_COMMON_PLATFORMS_SIMPLELINK_CS_SIMPLELINK_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/platforms/platform_cc3200.h"
+#line 1 "common/platforms/platform_cc3200.h"
 #endif
 /*
  * Copyright (c) 2014-2016 Cesanta Software Limited
@@ -605,15 +690,12 @@ int sl_fs_init();
 #include <sys/time.h>
 #endif
 
-#define MG_SOCKET_SIMPLELINK 1
-#define MG_DISABLE_SOCKETPAIR 1
-#define MG_DISABLE_SYNC_RESOLVER 1
-#define MG_DISABLE_POPEN 1
-#define MG_DISABLE_CGI 1
+#define MG_NET_IF MG_NET_IF_SIMPLELINK
+#define MG_SSL_IF MG_SSL_IF_SIMPLELINK
+
 /* Only SPIFFS supports directories, SLFS does not. */
-#ifndef CC3200_FS_SPIFFS
-#define MG_DISABLE_DAV 1
-#define MG_DISABLE_DIRECTORY_LISTING 1
+#if defined(CC3200_FS_SPIFFS) && !defined(MG_ENABLE_DIRECTORY_LISTING)
+#define MG_ENABLE_DIRECTORY_LISTING 1
 #endif
 
 /* Amalgamated: #include "common/platforms/simplelink/cs_simplelink.h" */
@@ -644,8 +726,6 @@ int gettimeofday(struct timeval *t, void *tz);
 int asprintf(char **strp, const char *fmt, ...);
 
 #endif
-
-long int random(void);
 
 /* TI's libc does not have stat & friends, add them. */
 #ifdef __TI_COMPILER_VERSION__
@@ -686,24 +766,18 @@ int _stat(const char *pathname, struct stat *st);
 
 #endif /* __TI_COMPILER_VERSION__ */
 
-#ifdef CC3200_FS_SPIFFS
-#include <common/spiffs/spiffs.h>
-
-typedef struct {
-  spiffs_DIR dh;
-  struct spiffs_dirent de;
-} DIR;
-
-#define d_name name
-#define dirent spiffs_dirent
-
-DIR *opendir(const char *dir_name);
-int closedir(DIR *dir);
-struct dirent *readdir(DIR *dir);
-#endif /* CC3200_FS_SPIFFS */
-
 #ifdef CC3200_FS_SLFS
 #define MG_FS_SLFS
+#endif
+
+#if (defined(CC3200_FS_SPIFFS) || defined(CC3200_FS_SLFS)) && \
+    !defined(MG_ENABLE_FILESYSTEM)
+#define MG_ENABLE_FILESYSTEM 1
+#define CS_DEFINE_DIRENT
+#endif
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
 #endif
 
 #ifdef __cplusplus
@@ -713,7 +787,716 @@ struct dirent *readdir(DIR *dir);
 #endif /* CS_PLATFORM == CS_P_CC3200 */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_CC3200_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/str_util.h"
+#line 1 "common/platforms/platform_cc3100.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_CC3100_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_CC3100_H_
+#if CS_PLATFORM == CS_P_CC3100
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+
+#define MG_NET_IF MG_NET_IF_SIMPLELINK
+#define MG_SSL_IF MG_SSL_IF_SIMPLELINK
+
+/*
+ * CC3100 SDK and STM32 SDK include headers w/out path, just like
+ * #include "simplelink.h". As result, we have to add all required directories
+ * into Makefile IPATH and do the same thing (include w/out path)
+ */
+
+#include <simplelink.h>
+#include <netapp.h>
+#undef timeval 
+
+typedef int sock_t;
+#define INVALID_SOCKET (-1)
+
+#define to64(x) strtoll(x, NULL, 10)
+#define INT64_FMT PRId64
+#define INT64_X_FMT PRIx64
+#define SIZE_T_FMT "u"
+
+#define SOMAXCONN 8
+
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+char *inet_ntoa(struct in_addr in);
+int inet_pton(int af, const char *src, void *dst);
+
+#endif /* CS_PLATFORM == CS_P_CC3100 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_CC3100_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_mbed.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_MBED_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_MBED_H_
+#if CS_PLATFORM == CS_P_MBED
+
+/*
+ * mbed.h contains C++ code (e.g. templates), thus, it should be processed
+ * only if included directly to startup file (ex: main.cpp)
+ */
+#ifdef __cplusplus
+/* Amalgamated: #include "mbed.h" */
+#endif /* __cplusplus */
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+typedef struct stat cs_stat_t;
+#define DIRSEP '/'
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+/*
+ * mbed can be compiled with the ARM compiler which
+ * just doesn't come with a gettimeofday shim
+ * because it's a BSD API and ARM targets embedded
+ * non-unix platforms.
+ */
+#if defined(__ARMCC_VERSION) || defined(__ICCARM__)
+#define _TIMEVAL_DEFINED
+#define gettimeofday _gettimeofday
+
+/* copied from GCC on ARM; for some reason useconds are signed */
+typedef long suseconds_t; /* microseconds (signed) */
+struct timeval {
+  time_t tv_sec;       /* seconds */
+  suseconds_t tv_usec; /* and microseconds */
+};
+
+#endif
+
+#if MG_NET_IF == MG_NET_IF_SIMPLELINK
+
+#define MG_SIMPLELINK_NO_OSI 1
+
+#include <simplelink.h>
+
+typedef int sock_t;
+#define INVALID_SOCKET (-1)
+
+#define to64(x) strtoll(x, NULL, 10)
+#define INT64_FMT PRId64
+#define INT64_X_FMT PRIx64
+#define SIZE_T_FMT "u"
+
+#define SOMAXCONN 8
+
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+char *inet_ntoa(struct in_addr in);
+int inet_pton(int af, const char *src, void *dst);
+int inet_aton(const char *cp, struct in_addr *inp);
+in_addr_t inet_addr(const char *cp);
+
+#endif /* MG_NET_IF == MG_NET_IF_SIMPLELINK */
+
+#endif /* CS_PLATFORM == CS_P_MBED */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_MBED_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_nrf51.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_NRF51_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_NRF51_H_
+#if CS_PLATFORM == CS_P_NRF51
+
+#include <assert.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+
+#define to64(x) strtoll(x, NULL, 10)
+
+#define MG_NET_IF             MG_NET_IF_LWIP_LOW_LEVEL
+#define MG_LWIP               1
+#define MG_ENABLE_IPV6        1
+
+/*
+ * For ARM C Compiler, make lwip to export `struct timeval`; for other
+ * compilers, suppress it.
+ */
+#if !defined(__ARMCC_VERSION)
+# define LWIP_TIMEVAL_PRIVATE  0
+#else
+struct timeval;
+int gettimeofday(struct timeval *tp, void *tzp);
+#endif
+
+#define INT64_FMT PRId64
+#define SIZE_T_FMT "u"
+
+/*
+ * ARM C Compiler doesn't have strdup, so we provide it
+ */
+#define CS_ENABLE_STRDUP defined(__ARMCC_VERSION)
+
+#endif /* CS_PLATFORM == CS_P_NRF51 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_NRF51_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_nrf52.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_NRF52_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_NRF52_H_
+#if CS_PLATFORM == CS_P_NRF52
+
+#include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
+
+#define to64(x) strtoll(x, NULL, 10)
+
+#define MG_NET_IF             MG_NET_IF_LWIP_LOW_LEVEL
+#define MG_LWIP               1
+#define MG_ENABLE_IPV6        1
+
+#if !defined(ENOSPC)
+# define ENOSPC 28  /* No space left on device */
+#endif
+
+/*
+ * For ARM C Compiler, make lwip to export `struct timeval`; for other
+ * compilers, suppress it.
+ */
+#if !defined(__ARMCC_VERSION)
+# define LWIP_TIMEVAL_PRIVATE  0
+#endif
+
+#define INT64_FMT PRId64
+#define SIZE_T_FMT "u"
+
+/*
+ * ARM C Compiler doesn't have strdup, so we provide it
+ */
+#define CS_ENABLE_STRDUP defined(__ARMCC_VERSION)
+
+#endif /* CS_PLATFORM == CS_P_NRF52 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_NRF52_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_wince.h"
+#endif
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_WINCE_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_WINCE_H_
+
+#if CS_PLATFORM == CS_P_WINCE
+
+/*
+ * MSVC++ 14.0 _MSC_VER == 1900 (Visual Studio 2015)
+ * MSVC++ 12.0 _MSC_VER == 1800 (Visual Studio 2013)
+ * MSVC++ 11.0 _MSC_VER == 1700 (Visual Studio 2012)
+ * MSVC++ 10.0 _MSC_VER == 1600 (Visual Studio 2010)
+ * MSVC++ 9.0  _MSC_VER == 1500 (Visual Studio 2008)
+ * MSVC++ 8.0  _MSC_VER == 1400 (Visual Studio 2005)
+ * MSVC++ 7.1  _MSC_VER == 1310 (Visual Studio 2003)
+ * MSVC++ 7.0  _MSC_VER == 1300
+ * MSVC++ 6.0  _MSC_VER == 1200
+ * MSVC++ 5.0  _MSC_VER == 1100
+ */
+#pragma warning(disable : 4127) /* FD_SET() emits warning, disable it */
+#pragma warning(disable : 4204) /* missing c99 support */
+
+#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 1
+#endif
+
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#include <assert.h>
+#include <limits.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#pragma comment(lib, "ws2.lib") /* Linking with WinCE winsock library */
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+
+#define strdup _strdup
+
+#ifndef EINPROGRESS
+#define EINPROGRESS WSAEINPROGRESS
+#endif
+
+#ifndef EWOULDBLOCK
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+
+#ifndef EAGAIN
+#define EAGAIN EWOULDBLOCK
+#endif
+
+#ifndef __func__
+#define STRX(x) #x
+#define STR(x) STRX(x)
+#define __func__ __FILE__ ":" STR(__LINE__)
+#endif
+
+#define snprintf _snprintf
+#define fileno _fileno
+#define vsnprintf _vsnprintf
+#define sleep(x) Sleep((x) *1000)
+#define to64(x) _atoi64(x)
+#define rmdir _rmdir
+
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+#define fseeko(x, y, z) _fseeki64((x), (y), (z))
+#else
+#define fseeko(x, y, z) fseek((x), (y), (z))
+#endif
+
+typedef int socklen_t;
+
+#if _MSC_VER >= 1700
+#include <stdint.h>
+#else
+typedef signed char int8_t;
+typedef unsigned char uint8_t;
+typedef int int32_t;
+typedef unsigned int uint32_t;
+typedef short int16_t;
+typedef unsigned short uint16_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+#endif
+
+typedef SOCKET sock_t;
+typedef uint32_t in_addr_t;
+
+#ifndef UINT16_MAX
+#define UINT16_MAX 65535
+#endif
+
+#ifndef UINT32_MAX
+#define UINT32_MAX 4294967295
+#endif
+
+#ifndef pid_t
+#define pid_t HANDLE
+#endif
+
+#define INT64_FMT "I64d"
+#define INT64_X_FMT "I64x"
+/* TODO(alashkin): check if this is correct */
+#define SIZE_T_FMT "u"
+
+#define DIRSEP '\\'
+#define CS_DEFINE_DIRENT
+
+#ifndef va_copy
+#ifdef __va_copy
+#define va_copy __va_copy
+#else
+#define va_copy(x, y) (x) = (y)
+#endif
+#endif
+
+#ifndef MG_MAX_HTTP_REQUEST_SIZE
+#define MG_MAX_HTTP_REQUEST_SIZE 8192
+#endif
+
+#ifndef MG_MAX_HTTP_SEND_MBUF
+#define MG_MAX_HTTP_SEND_MBUF 4096
+#endif
+
+#ifndef MG_MAX_HTTP_HEADERS
+#define MG_MAX_HTTP_HEADERS 40
+#endif
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+#define abort() DebugBreak();
+
+#ifndef BUFSIZ
+#define BUFSIZ 4096
+#endif
+/*
+ * Explicitly disabling MG_ENABLE_THREADS for WinCE
+ * because they are enabled for _WIN32 by default
+ */
+#ifndef MG_ENABLE_THREADS
+#define MG_ENABLE_THREADS 0
+#endif
+
+#ifndef MG_ENABLE_FILESYSTEM
+#define MG_ENABLE_FILESYSTEM 1
+#endif
+
+#ifndef MG_NET_IF
+#define MG_NET_IF MG_NET_IF_SOCKET
+#endif
+
+typedef struct _stati64 {
+  uint32_t st_mtime;
+  uint32_t st_size;
+  uint32_t st_mode;
+} cs_stat_t;
+
+/*
+ * WinCE 6.0 has a lot of useful definitions in ATL (not windows.h) headers
+ * use #ifdefs to avoid conflicts
+ */
+
+#ifndef ENOENT
+#define ENOENT ERROR_PATH_NOT_FOUND
+#endif
+
+#ifndef EACCES
+#define EACCES ERROR_ACCESS_DENIED
+#endif
+
+#ifndef ENOMEM
+#define ENOMEM ERROR_NOT_ENOUGH_MEMORY
+#endif
+
+#ifndef _UINTPTR_T_DEFINED
+typedef unsigned int* uintptr_t;
+#endif
+
+#define _S_IFREG 2
+#define _S_IFDIR 4
+
+#ifndef S_ISDIR
+#define S_ISDIR(x) (((x) & _S_IFDIR) != 0)
+#endif
+
+#ifndef S_ISREG
+#define S_ISREG(x) (((x) & _S_IFREG) != 0)
+#endif
+
+int open(const char *filename, int oflag, int pmode);
+int _wstati64(const wchar_t *path, cs_stat_t *st);
+const char *strerror();
+
+#endif /* CS_PLATFORM == CS_P_WINCE */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_WINCE_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_nxp_lpc.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_NXP_LPC_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_NXP_LPC_H_
+
+#if CS_PLATFORM == CS_P_NXP_LPC
+
+#include <ctype.h>
+#include <stdint.h>
+#include <string.h>
+
+#define SIZE_T_FMT "u"
+typedef struct stat cs_stat_t;
+#define INT64_FMT "lld"
+#define INT64_X_FMT "llx"
+#define __cdecl
+
+#define MG_LWIP 1
+
+#define MG_NET_IF MG_NET_IF_LWIP_LOW_LEVEL
+
+/*
+ * LPCXpress comes with 3 C library implementations: Newlib, NewlibNano and Redlib.
+ * See https://community.nxp.com/message/630860 for more details.
+ *
+ * Redlib is the default and lacks certain things, so we provide them.
+ */
+#ifdef __REDLIB_INTERFACE_VERSION__
+
+/* Let LWIP define timeval for us. */
+#define LWIP_TIMEVAL_PRIVATE 1
+
+#define va_copy(d, s) __builtin_va_copy(d, s)
+
+#define CS_ENABLE_TO64 1
+#define to64(x) cs_to64(x)
+
+#define CS_ENABLE_STRDUP 1
+
+#else
+
+#include <sys/time.h>
+#define LWIP_TIMEVAL_PRIVATE 0
+#define to64(x) strtoll(x, NULL, 10)
+
+#endif
+
+#endif /* CS_PLATFORM == CS_P_NXP_LPC */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_NXP_LPC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_nxp_kinetis.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_NXP_KINETIS_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_NXP_KINETIS_H_
+
+#if CS_PLATFORM == CS_P_NXP_KINETIS
+
+#include <ctype.h>
+#include <inttypes.h>
+#include <string.h>
+#include <sys/time.h>
+
+#define SIZE_T_FMT "u"
+typedef struct stat cs_stat_t;
+#define to64(x) strtoll(x, NULL, 10)
+#define INT64_FMT "lld"
+#define INT64_X_FMT "llx"
+#define __cdecl
+
+#define MG_LWIP 1
+
+#define MG_NET_IF MG_NET_IF_LWIP_LOW_LEVEL
+
+/* struct timeval is defined in sys/time.h. */
+#define LWIP_TIMEVAL_PRIVATE 0
+
+#endif /* CS_PLATFORM == CS_P_NXP_KINETIS */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_NXP_KINETIS_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_pic32.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_PIC32_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_PIC32_H_
+
+#if CS_PLATFORM == CS_P_PIC32
+
+#define MG_NET_IF MG_NET_IF_PIC32
+
+#include <stdint.h>
+#include <time.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#include <system_config.h>
+#include <system_definitions.h>
+
+#include <sys/types.h>
+
+typedef TCP_SOCKET sock_t;
+#define to64(x) strtoll(x, NULL, 10)
+
+#define SIZE_T_FMT "lu"
+#define INT64_FMT "lld"
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+char* inet_ntoa(struct in_addr in);
+
+#endif /* CS_PLATFORM == CS_P_PIC32 */
+
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_PIC32_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/platforms/platform_stm32.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_PLATFORMS_PLATFORM_STM32_H_
+#define CS_COMMON_PLATFORMS_PLATFORM_STM32_H_
+#if CS_PLATFORM == CS_P_STM32
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <errno.h>
+#include <memory.h>
+#include <fcntl.h>
+#include <stm32_sdk_hal.h>
+
+#define to64(x) strtoll(x, NULL, 10)
+#define INT64_FMT PRId64
+#define SIZE_T_FMT "u"
+typedef struct stat cs_stat_t;
+#define DIRSEP '/'
+
+#ifndef CS_ENABLE_STDIO
+#define CS_ENABLE_STDIO 1
+#endif
+
+#ifndef MG_ENABLE_FILESYSTEM
+#define MG_ENABLE_FILESYSTEM 1
+#endif
+
+#define CS_DEFINE_DIRENT
+
+#endif /* CS_PLATFORM == CS_P_STM32 */
+#endif /* CS_COMMON_PLATFORMS_PLATFORM_STM32_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/mbuf.h"
+#endif
+/*
+ * Copyright (c) 2015 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * === Memory Buffers
+ *
+ * Mbufs are mutable/growing memory buffers, like C++ strings.
+ * Mbuf can append data to the end of a buffer or insert data into arbitrary
+ * position in the middle of a buffer. The buffer grows automatically when
+ * needed.
+ */
+
+#ifndef CS_COMMON_MBUF_H_
+#define CS_COMMON_MBUF_H_
+
+#include <stdlib.h>
+/* Amalgamated: #include "common/platform.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#ifndef MBUF_SIZE_MULTIPLIER
+#define MBUF_SIZE_MULTIPLIER 1.5
+#endif
+
+/* Memory buffer descriptor */
+struct mbuf {
+  char *buf;   /* Buffer pointer */
+  size_t len;  /* Data length. Data is located between offset 0 and len. */
+  size_t size; /* Buffer size allocated by realloc(1). Must be >= len */
+};
+
+/*
+ * Initialises an Mbuf.
+ * `initial_capacity` specifies the initial capacity of the mbuf.
+ */
+void mbuf_init(struct mbuf *, size_t initial_capacity);
+
+/* Frees the space allocated for the mbuffer and resets the mbuf structure. */
+void mbuf_free(struct mbuf *);
+
+/*
+ * Appends data to the Mbuf.
+ *
+ * Returns the number of bytes appended or 0 if out of memory.
+ */
+size_t mbuf_append(struct mbuf *, const void *data, size_t data_size);
+
+/*
+ * Inserts data at a specified offset in the Mbuf.
+ *
+ * Existing data will be shifted forwards and the buffer will
+ * be grown if necessary.
+ * Returns the number of bytes inserted.
+ */
+size_t mbuf_insert(struct mbuf *, size_t, const void *, size_t);
+
+/* Removes `data_size` bytes from the beginning of the buffer. */
+void mbuf_remove(struct mbuf *, size_t data_size);
+
+/*
+ * Resizes an Mbuf.
+ *
+ * If `new_size` is smaller than buffer's `len`, the
+ * resize is not performed.
+ */
+void mbuf_resize(struct mbuf *, size_t new_size);
+
+/* Shrinks an Mbuf by resizing its `size` to `len`. */
+void mbuf_trim(struct mbuf *);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_COMMON_MBUF_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/mg_mem.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_MG_MEM_H_
+#define CS_COMMON_MG_MEM_H_
+
+#ifndef MG_MALLOC
+#define MG_MALLOC malloc
+#endif
+
+#ifndef MG_CALLOC
+#define MG_CALLOC calloc
+#endif
+
+#ifndef MG_REALLOC
+#define MG_REALLOC realloc
+#endif
+
+#ifndef MG_FREE
+#define MG_FREE free
+#endif
+
+#endif /* CS_COMMON_MG_MEM_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/str_util.h"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -725,6 +1508,33 @@ struct dirent *readdir(DIR *dir);
 
 #include <stdarg.h>
 #include <stdlib.h>
+
+/* Amalgamated: #include "common/platform.h" */
+
+#ifndef CS_ENABLE_STRDUP
+#define CS_ENABLE_STRDUP 0
+#endif
+
+#ifndef CS_ENABLE_TO64
+#define CS_ENABLE_TO64 0
+#endif
+
+/*
+ * Expands to a string representation of its argument: e.g.
+ * `CS_STRINGIFY_LIT(5) expands to "5"`
+ */
+#define CS_STRINGIFY_LIT(x) #x
+
+/*
+ * Expands to a string representation of its argument, which is allowed
+ * to be a macro: e.g.
+ *
+ * #define FOO 123
+ * CS_STRINGIFY_MACRO(FOO)
+ *
+ * expands to 123.
+ */
+#define CS_STRINGIFY_MACRO(x) CS_STRINGIFY_LIT(x)
 
 #ifdef __cplusplus
 extern "C" {
@@ -739,13 +1549,68 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *format, va_list ap);
  */
 const char *c_strnstr(const char *s, const char *find, size_t slen);
 
+/*
+ * Stringify binary data. Output buffer size must be 2 * size_of_input + 1
+ * because each byte of input takes 2 bytes in string representation
+ * plus 1 byte for the terminating \0 character.
+ */
+void cs_to_hex(char *to, const unsigned char *p, size_t len);
+
+/*
+ * Convert stringified binary data back to binary.
+ * Does the reverse of `cs_to_hex()`.
+ */
+void cs_from_hex(char *to, const char *p, size_t len);
+
+#if CS_ENABLE_STRDUP
+char *strdup(const char *src);
+#endif
+
+#if CS_ENABLE_TO64
+#include <stdint.h>
+/*
+ * Simple string -> int64 conversion routine.
+ */
+int64_t cs_to64(const char *s);
+#endif
+
+/*
+ * Cross-platform version of `strncasecmp()`.
+ */
+int mg_ncasecmp(const char *s1, const char *s2, size_t len);
+
+/*
+ * Cross-platform version of `strcasecmp()`.
+ */
+int mg_casecmp(const char *s1, const char *s2);
+
+/*
+ * Prints message to the buffer. If the buffer is large enough to hold the
+ * message, it returns buffer. If buffer is to small, it allocates a large
+ * enough buffer on heap and returns allocated buffer.
+ * This is a supposed use case:
+ *
+ *    char buf[5], *p = buf;
+ *    mg_avprintf(&p, sizeof(buf), "%s", "hi there");
+ *    use_p_somehow(p);
+ *    if (p != buf) {
+ *      free(p);
+ *    }
+ *
+ * The purpose of this is to avoid malloc-ing if generated strings are small.
+ */
+int mg_asprintf(char **buf, size_t size, const char *fmt, ...);
+
+/* Same as mg_asprintf, but takes varargs list. */
+int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* CS_COMMON_STR_UTIL_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/utf.h"
+#line 1 "common/utf.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -818,7 +1683,7 @@ char *utfutf(char *s1, char *s2);
 #endif /* __cplusplus */
 #endif /* CS_COMMON_UTF_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/base64.h"
+#line 1 "common/base64.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -829,6 +1694,10 @@ char *utfutf(char *s1, char *s2);
 #define CS_COMMON_BASE64_H_
 
 #ifndef DISABLE_BASE64
+#define DISABLE_BASE64 0
+#endif
+
+#if !DISABLE_BASE64
 
 #include <stdio.h>
 
@@ -853,7 +1722,7 @@ void cs_base64_finish(struct cs_base64_ctx *ctx);
 
 void cs_base64_encode(const unsigned char *src, int src_len, char *dst);
 void cs_fprint_base64(FILE *f, const unsigned char *src, int src_len);
-int cs_base64_decode(const unsigned char *s, int len, char *dst);
+int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len);
 
 #ifdef __cplusplus
 }
@@ -863,7 +1732,93 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst);
 
 #endif /* CS_COMMON_BASE64_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/md5.h"
+#line 1 "common/cs_dbg.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_CS_DBG_H_
+#define CS_COMMON_CS_DBG_H_
+
+/* Amalgamated: #include "common/platform.h" */
+
+#if CS_ENABLE_STDIO
+#include <stdio.h>
+#endif
+
+#ifndef CS_ENABLE_DEBUG
+#define CS_ENABLE_DEBUG 0
+#endif
+
+#ifndef CS_LOG_ENABLE_TS_DIFF
+#define CS_LOG_ENABLE_TS_DIFF 0
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+enum cs_log_level {
+  LL_NONE = -1,
+  LL_ERROR = 0,
+  LL_WARN = 1,
+  LL_INFO = 2,
+  LL_DEBUG = 3,
+  LL_VERBOSE_DEBUG = 4,
+
+  _LL_MIN = -2,
+  _LL_MAX = 5,
+};
+
+void cs_log_set_level(enum cs_log_level level);
+
+#if CS_ENABLE_STDIO
+
+void cs_log_set_file(FILE *file);
+extern enum cs_log_level cs_log_level;
+void cs_log_print_prefix(const char *func);
+void cs_log_printf(const char *fmt, ...);
+
+#define LOG(l, x)                    \
+  do {                               \
+    if (cs_log_level >= l) {         \
+      cs_log_print_prefix(__func__); \
+      cs_log_printf x;               \
+    }                                \
+  } while (0)
+
+#ifndef CS_NDEBUG
+
+#define DBG(x)                              \
+  do {                                      \
+    if (cs_log_level >= LL_VERBOSE_DEBUG) { \
+      cs_log_print_prefix(__func__);        \
+      cs_log_printf x;                      \
+    }                                       \
+  } while (0)
+
+#else /* NDEBUG */
+
+#define DBG(x)
+
+#endif
+
+#else /* CS_ENABLE_STDIO */
+
+#define LOG(l, x)
+#define DBG(x)
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* CS_COMMON_CS_DBG_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/cs_md5.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -875,36 +1830,23 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst);
 
 /* Amalgamated: #include "common/platform.h" */
 
+#ifndef CS_DISABLE_MD5
+#define CS_DISABLE_MD5 0
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-typedef struct MD5Context {
+typedef struct {
   uint32_t buf[4];
   uint32_t bits[2];
   unsigned char in[64];
-} MD5_CTX;
+} cs_md5_ctx;
 
-void MD5_Init(MD5_CTX *c);
-void MD5_Update(MD5_CTX *c, const unsigned char *data, size_t len);
-void MD5_Final(unsigned char *md, MD5_CTX *c);
-
-/*
- * Return stringified MD5 hash for NULL terminated list of pointer/length pairs.
- * A length should be specified as size_t variable.
- * Example:
- *
- *    char buf[33];
- *    cs_md5(buf, "foo", (size_t) 3, "bar", (size_t) 3, NULL);
- */
-char *cs_md5(char buf[33], ...);
-
-/*
- * Stringify binary data. Output buffer size must be 2 * size_of_input + 1
- * because each byte of input takes 2 bytes in string representation
- * plus 1 byte for the terminating \0 character.
- */
-void cs_to_hex(char *to, const unsigned char *p, size_t len);
+void cs_md5_init(cs_md5_ctx *c);
+void cs_md5_update(cs_md5_ctx *c, const unsigned char *data, size_t len);
+void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
 
 #ifdef __cplusplus
 }
@@ -912,7 +1854,34 @@ void cs_to_hex(char *to, const unsigned char *p, size_t len);
 
 #endif /* CS_COMMON_MD5_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/sha1.h"
+#line 1 "common/cs_endian.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_CS_ENDIAN_H_
+#define CS_COMMON_CS_ENDIAN_H_
+
+/*
+ * clang with std=-c99 uses __LITTLE_ENDIAN, by default
+ * while for ex, RTOS gcc - LITTLE_ENDIAN, by default
+ * it depends on __USE_BSD, but let's have everything
+ */
+#if !defined(BYTE_ORDER) && defined(__BYTE_ORDER)
+#define BYTE_ORDER __BYTE_ORDER
+#ifndef LITTLE_ENDIAN
+#define LITTLE_ENDIAN __LITTLE_ENDIAN
+#endif /* LITTLE_ENDIAN */
+#ifndef BIG_ENDIAN
+#define BIG_ENDIAN __LITTLE_ENDIAN
+#endif /* BIG_ENDIAN */
+#endif /* BYTE_ORDER */
+
+#endif /* CS_COMMON_CS_ENDIAN_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/cs_sha1.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -922,7 +1891,11 @@ void cs_to_hex(char *to, const unsigned char *p, size_t len);
 #ifndef CS_COMMON_SHA1_H_
 #define CS_COMMON_SHA1_H_
 
-#ifndef DISABLE_SHA1
+#ifndef CS_DISABLE_SHA1
+#define CS_DISABLE_SHA1 0
+#endif
+
+#if !CS_DISABLE_SHA1
 
 /* Amalgamated: #include "common/platform.h" */
 
@@ -946,11 +1919,11 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 }
 #endif /* __cplusplus */
 
-#endif /* DISABLE_SHA1 */
+#endif /* CS_DISABLE_SHA1 */
 
 #endif /* CS_COMMON_SHA1_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/cs_dirent.h"
+#line 1 "common/cs_dirent.h"
 #endif
 /*
  * Copyright (c) 2014-2016 Cesanta Software Limited
@@ -960,44 +1933,31 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 #ifndef CS_COMMON_CS_DIRENT_H_
 #define CS_COMMON_CS_DIRENT_H_
 
+#include <limits.h>
+
+/* Amalgamated: #include "common/platform.h" */
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-#ifdef CS_ENABLE_SPIFFS
+#ifdef CS_DEFINE_DIRENT
+typedef struct { int dummy; } DIR;
 
-#include <spiffs.h>
-
-typedef struct {
-  spiffs_DIR dh;
-  struct spiffs_dirent de;
-} DIR;
-
-#define d_name name
-#define dirent spiffs_dirent
-
-int rmdir(const char *path);
-int mkdir(const char *path, mode_t mode);
-
-#endif
-
-#if defined(_WIN32)
 struct dirent {
+  int d_ino;
+#ifdef _WIN32
   char d_name[MAX_PATH];
+#else
+  /* TODO(rojer): Use PATH_MAX but make sure it's sane on every platform */
+  char d_name[256];
+#endif
 };
 
-typedef struct DIR {
-  HANDLE handle;
-  WIN32_FIND_DATAW info;
-  struct dirent result;
-} DIR;
-#endif
-
-#if defined(_WIN32) || defined(CS_ENABLE_SPIFFS)
 DIR *opendir(const char *dir_name);
 int closedir(DIR *dir);
 struct dirent *readdir(DIR *dir);
-#endif
+#endif /* CS_DEFINE_DIRENT */
 
 #ifdef __cplusplus
 }
@@ -1005,54 +1965,7 @@ struct dirent *readdir(DIR *dir);
 
 #endif /* CS_COMMON_CS_DIRENT_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/ubjson.h"
-#endif
-/*
- * Copyright (c) 2015 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_COMMON_UBJSON_H_
-#define CS_COMMON_UBJSON_H_
-
-/* Amalgamated: #include "common/mbuf.h" */
-/* Amalgamated: #include "common/platform.h" */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-void cs_ubjson_emit_null(struct mbuf *buf);
-void cs_ubjson_emit_boolean(struct mbuf *buf, int v);
-
-void cs_ubjson_emit_int8(struct mbuf *buf, int8_t v);
-void cs_ubjson_emit_uint8(struct mbuf *buf, uint8_t v);
-void cs_ubjson_emit_int16(struct mbuf *buf, int16_t v);
-void cs_ubjson_emit_int32(struct mbuf *buf, int32_t v);
-void cs_ubjson_emit_int64(struct mbuf *buf, int64_t v);
-void cs_ubjson_emit_autoint(struct mbuf *buf, int64_t v);
-void cs_ubjson_emit_float32(struct mbuf *buf, float v);
-void cs_ubjson_emit_float64(struct mbuf *buf, double v);
-void cs_ubjson_emit_autonumber(struct mbuf *buf, double v);
-void cs_ubjson_emit_size(struct mbuf *buf, size_t v);
-void cs_ubjson_emit_string(struct mbuf *buf, const char *s, size_t len);
-void cs_ubjson_emit_bin_header(struct mbuf *buf, size_t len);
-void cs_ubjson_emit_bin(struct mbuf *buf, const char *s, size_t len);
-
-void cs_ubjson_open_object(struct mbuf *buf);
-void cs_ubjson_emit_object_key(struct mbuf *buf, const char *s, size_t len);
-void cs_ubjson_close_object(struct mbuf *buf);
-
-void cs_ubjson_open_array(struct mbuf *buf);
-void cs_ubjson_close_array(struct mbuf *buf);
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* CS_COMMON_UBJSON_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./common/cs_file.h"
+#line 1 "common/cs_file.h"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -1087,7 +2000,7 @@ char *cs_mmap_file(const char *path, size_t *size);
 
 #endif /* CS_COMMON_CS_FILE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./common/coroutine.h"
+#line 1 "common/coroutine.h"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -1674,7 +2587,7 @@ void cr_context_free(struct cr_ctx *p_ctx);
 
 #endif /* CS_COMMON_COROUTINE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/features_profiles.h"
+#line 1 "v7/src/features_profiles.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1694,7 +2607,7 @@ void cr_context_free(struct cr_ctx *p_ctx);
 
 #endif /* CS_V7_SRC_FEATURES_PROFILES_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/features_minimal.h"
+#line 1 "v7/src/features_minimal.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1709,7 +2622,7 @@ void cr_context_free(struct cr_ctx *p_ctx);
 
 #endif /* CS_V7_SRC_FEATURES_MINIMAL_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/features_medium.h"
+#line 1 "v7/src/features_medium.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1729,12 +2642,15 @@ void cr_context_free(struct cr_ctx *p_ctx);
 
 #endif /* CS_V7_SRC_FEATURES_MEDIUM_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/features_full.h"
+#line 1 "v7/src/features_full.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
+
+#ifndef CS_V7_SRC_FEATURES_FULL_H_
+#define CS_V7_SRC_FEATURES_FULL_H_
 
 /* Amalgamated: #include "v7/src/features_profiles.h" */
 
@@ -1743,7 +2659,7 @@ void cr_context_free(struct cr_ctx *p_ctx);
  * DO NOT EDIT.
  * This file is generated by scripts/gen-features-full.pl.
  */
-#ifndef CS_ENABLE_UTF8
+#ifndef CS_ENABLE_UTF8 /* ifdef-ok */
 #define CS_ENABLE_UTF8 1
 #endif
 
@@ -1798,6 +2714,7 @@ void cr_context_free(struct cr_ctx *p_ctx);
 #define V7_ENABLE__Object__keys 1
 #define V7_ENABLE__Object__preventExtensions 1
 #define V7_ENABLE__Object__propertyIsEnumerable 1
+#define V7_ENABLE__Proxy 1
 #define V7_ENABLE__RegExp 1
 #define V7_ENABLE__StackTrace 1
 #define V7_ENABLE__String__localeCompare 1
@@ -1805,8 +2722,255 @@ void cr_context_free(struct cr_ctx *p_ctx);
 #define V7_ENABLE__String__localeUpperCase 1
 
 #endif /* V7_BUILD_PROFILE == V7_BUILD_PROFILE_FULL */
+
+#endif /* CS_V7_SRC_FEATURES_FULL_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/v7_features.h"
+#line 1 "v7/src/features_all.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_FEATURES_ALL_H_
+#define CS_V7_SRC_FEATURES_ALL_H_
+
+/*
+ * DO NOT EDIT.
+ * This file is generated by scripts/gen-features-all.pl.
+ */
+
+#ifndef V7_ENABLE__Array__reduce
+#define V7_ENABLE__Array__reduce 0
+#endif
+
+#ifndef V7_ENABLE__Blob
+#define V7_ENABLE__Blob 0
+#endif
+
+#ifndef V7_ENABLE__Date
+#define V7_ENABLE__Date 0
+#endif
+
+#ifndef V7_ENABLE__Date__UTC
+#define V7_ENABLE__Date__UTC 0
+#endif
+
+#ifndef V7_ENABLE__Date__getters
+#define V7_ENABLE__Date__getters 0
+#endif
+
+#ifndef V7_ENABLE__Date__now
+#define V7_ENABLE__Date__now 0
+#endif
+
+#ifndef V7_ENABLE__Date__parse
+#define V7_ENABLE__Date__parse 0
+#endif
+
+#ifndef V7_ENABLE__Date__setters
+#define V7_ENABLE__Date__setters 0
+#endif
+
+#ifndef V7_ENABLE__Date__toJSON
+#define V7_ENABLE__Date__toJSON 0
+#endif
+
+#ifndef V7_ENABLE__Date__toLocaleString
+#define V7_ENABLE__Date__toLocaleString 0
+#endif
+
+#ifndef V7_ENABLE__Date__toString
+#define V7_ENABLE__Date__toString 0
+#endif
+
+#ifndef V7_ENABLE__File__list
+#define V7_ENABLE__File__list 0
+#endif
+
+#ifndef V7_ENABLE__File__require
+#define V7_ENABLE__File__require 0
+#endif
+
+#ifndef V7_ENABLE__Function__bind
+#define V7_ENABLE__Function__bind 0
+#endif
+
+#ifndef V7_ENABLE__Function__call
+#define V7_ENABLE__Function__call 0
+#endif
+
+#ifndef V7_ENABLE__Math
+#define V7_ENABLE__Math 0
+#endif
+
+#ifndef V7_ENABLE__Math__abs
+#define V7_ENABLE__Math__abs 0
+#endif
+
+#ifndef V7_ENABLE__Math__acos
+#define V7_ENABLE__Math__acos 0
+#endif
+
+#ifndef V7_ENABLE__Math__asin
+#define V7_ENABLE__Math__asin 0
+#endif
+
+#ifndef V7_ENABLE__Math__atan
+#define V7_ENABLE__Math__atan 0
+#endif
+
+#ifndef V7_ENABLE__Math__atan2
+#define V7_ENABLE__Math__atan2 0
+#endif
+
+#ifndef V7_ENABLE__Math__ceil
+#define V7_ENABLE__Math__ceil 0
+#endif
+
+#ifndef V7_ENABLE__Math__constants
+#define V7_ENABLE__Math__constants 0
+#endif
+
+#ifndef V7_ENABLE__Math__cos
+#define V7_ENABLE__Math__cos 0
+#endif
+
+#ifndef V7_ENABLE__Math__exp
+#define V7_ENABLE__Math__exp 0
+#endif
+
+#ifndef V7_ENABLE__Math__floor
+#define V7_ENABLE__Math__floor 0
+#endif
+
+#ifndef V7_ENABLE__Math__log
+#define V7_ENABLE__Math__log 0
+#endif
+
+#ifndef V7_ENABLE__Math__max
+#define V7_ENABLE__Math__max 0
+#endif
+
+#ifndef V7_ENABLE__Math__min
+#define V7_ENABLE__Math__min 0
+#endif
+
+#ifndef V7_ENABLE__Math__pow
+#define V7_ENABLE__Math__pow 0
+#endif
+
+#ifndef V7_ENABLE__Math__random
+#define V7_ENABLE__Math__random 0
+#endif
+
+#ifndef V7_ENABLE__Math__round
+#define V7_ENABLE__Math__round 0
+#endif
+
+#ifndef V7_ENABLE__Math__sin
+#define V7_ENABLE__Math__sin 0
+#endif
+
+#ifndef V7_ENABLE__Math__sqrt
+#define V7_ENABLE__Math__sqrt 0
+#endif
+
+#ifndef V7_ENABLE__Math__tan
+#define V7_ENABLE__Math__tan 0
+#endif
+
+#ifndef V7_ENABLE__Memory__stats
+#define V7_ENABLE__Memory__stats 0
+#endif
+
+#ifndef V7_ENABLE__NUMBER__NEGATIVE_INFINITY
+#define V7_ENABLE__NUMBER__NEGATIVE_INFINITY 0
+#endif
+
+#ifndef V7_ENABLE__NUMBER__POSITIVE_INFINITY
+#define V7_ENABLE__NUMBER__POSITIVE_INFINITY 0
+#endif
+
+#ifndef V7_ENABLE__Object__create
+#define V7_ENABLE__Object__create 0
+#endif
+
+#ifndef V7_ENABLE__Object__defineProperties
+#define V7_ENABLE__Object__defineProperties 0
+#endif
+
+#ifndef V7_ENABLE__Object__getOwnPropertyDescriptor
+#define V7_ENABLE__Object__getOwnPropertyDescriptor 0
+#endif
+
+#ifndef V7_ENABLE__Object__getOwnPropertyNames
+#define V7_ENABLE__Object__getOwnPropertyNames 0
+#endif
+
+#ifndef V7_ENABLE__Object__getPrototypeOf
+#define V7_ENABLE__Object__getPrototypeOf 0
+#endif
+
+#ifndef V7_ENABLE__Object__hasOwnProperty
+#define V7_ENABLE__Object__hasOwnProperty 0
+#endif
+
+#ifndef V7_ENABLE__Object__isExtensible
+#define V7_ENABLE__Object__isExtensible 0
+#endif
+
+#ifndef V7_ENABLE__Object__isFrozen
+#define V7_ENABLE__Object__isFrozen 0
+#endif
+
+#ifndef V7_ENABLE__Object__isPrototypeOf
+#define V7_ENABLE__Object__isPrototypeOf 0
+#endif
+
+#ifndef V7_ENABLE__Object__isSealed
+#define V7_ENABLE__Object__isSealed 0
+#endif
+
+#ifndef V7_ENABLE__Object__keys
+#define V7_ENABLE__Object__keys 0
+#endif
+
+#ifndef V7_ENABLE__Object__preventExtensions
+#define V7_ENABLE__Object__preventExtensions 0
+#endif
+
+#ifndef V7_ENABLE__Object__propertyIsEnumerable
+#define V7_ENABLE__Object__propertyIsEnumerable 0
+#endif
+
+#ifndef V7_ENABLE__Proxy
+#define V7_ENABLE__Proxy 0
+#endif
+
+#ifndef V7_ENABLE__RegExp
+#define V7_ENABLE__RegExp 0
+#endif
+
+#ifndef V7_ENABLE__StackTrace
+#define V7_ENABLE__StackTrace 0
+#endif
+
+#ifndef V7_ENABLE__String__localeCompare
+#define V7_ENABLE__String__localeCompare 0
+#endif
+
+#ifndef V7_ENABLE__String__localeLowerCase
+#define V7_ENABLE__String__localeLowerCase 0
+#endif
+
+#ifndef V7_ENABLE__String__localeUpperCase
+#define V7_ENABLE__String__localeUpperCase 0
+#endif
+
+#endif /* CS_V7_SRC_FEATURES_ALL_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/v7_features.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1820,10 +2984,105 @@ void cr_context_free(struct cr_ctx *p_ctx);
 /* Amalgamated: #include "v7/src/features_minimal.h" */
 /* Amalgamated: #include "v7/src/features_medium.h" */
 /* Amalgamated: #include "v7/src/features_full.h" */
+/* All the features will be default-defined to 0. */
+/* Amalgamated: #include "v7/src/features_all.h" */
+
+#ifndef V7_DISABLE_AST_TAG_NAMES
+#define V7_DISABLE_AST_TAG_NAMES 0
+#endif
+
+#ifndef V7_DISABLE_GC
+#define V7_DISABLE_GC 0
+#endif
+
+#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#define V7_DISABLE_CALL_ERROR_CONTEXT 0
+#endif
+
+#ifndef V7_DISABLE_FILENAMES
+#define V7_DISABLE_FILENAMES 0
+#endif
+
+#ifndef V7_DISABLE_LINE_NUMBERS
+#define V7_DISABLE_LINE_NUMBERS 0
+#endif
+
+#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#define V7_DISABLE_STR_ALLOC_SEQ 0
+#endif
+
+#ifndef V7_ENABLE_CALL_TRACE
+#define V7_ENABLE_CALL_TRACE 0
+#endif
+
+#ifndef V7_ENABLE_CRYPTO
+#define V7_ENABLE_CRYPTO 0
+#endif
+
+#ifndef V7_ENABLE_DENSE_ARRAYS
+#define V7_ENABLE_DENSE_ARRAYS 0
+#endif
+
+#ifndef V7_ENABLE_ENTITY_IDS
+#define V7_ENABLE_ENTITY_IDS 0
+#endif
+
+#ifndef V7_ENABLE_FILE
+#define V7_ENABLE_FILE 0
+#endif
+
+#ifndef V7_ENABLE_FOOTPRINT_REPORT
+#define V7_ENABLE_FOOTPRINT_REPORT 0
+#endif
+
+#ifndef V7_ENABLE_GC_CHECK
+#define V7_ENABLE_GC_CHECK 0
+#endif
+
+#ifndef V7_ENABLE_JS_GETTERS
+#define V7_ENABLE_JS_GETTERS 0
+#endif
+
+#ifndef V7_ENABLE_JS_SETTERS
+#define V7_ENABLE_JS_SETTERS 0
+#endif
+
+#ifndef V7_ENABLE_STACK_TRACKING
+#define V7_ENABLE_STACK_TRACKING 0
+#endif
+
+#ifndef V7_ENABLE_SOCKET
+#define V7_ENABLE_SOCKET 0
+#endif
+
+#ifndef V7_AST_FORCE_LINE_NUMBERS
+#define V7_AST_FORCE_LINE_NUMBERS 0
+#endif
+
+#ifndef V7_HEAPUSAGE_ENABLE
+#define V7_HEAPUSAGE_ENABLE 0
+#endif
 
 #endif /* CS_V7_SRC_V7_FEATURES_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/internal.h"
+#line 1 "v7/src/platform.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_PLATFORM_H_
+#define CS_V7_SRC_PLATFORM_H_
+
+#ifdef __arm
+#undef V7_ENABLE__Date
+#define V7_ENABLE__Date 0
+#endif
+
+#endif /* CS_V7_SRC_PLATFORM_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/internal.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1834,11 +3093,6 @@ void cr_context_free(struct cr_ctx *p_ctx);
 #define CS_V7_SRC_INTERNAL_H_
 
 /* Amalgamated: #include "v7/src/license.h" */
-
-/* Check whether we're compiling in an environment with no filesystem */
-#if defined(ARDUINO) && (ARDUINO == 106)
-#define V7_NO_FS
-#endif
 
 #ifndef FAST
 #define FAST
@@ -1912,6 +3166,7 @@ typedef unsigned long uintptr_t;
 #endif
 
 /* Amalgamated: #include "v7/src/v7_features.h" */
+/* Amalgamated: #include "v7/src/platform.h" */
 
 /* MSVC6 doesn't have standard C math constants defined */
 #ifndef M_E
@@ -1966,8 +3221,8 @@ extern double _v7_infinity;
 #define EXIT_FAILURE 1
 #endif
 
-#if defined(V7_ENABLE_GC_CHECK) || defined(V7_STACK_GUARD_MIN_SIZE) || \
-    defined(V7_ENABLE_STACK_TRACKING) || defined(V7_ENABLE_CALL_TRACE)
+#if V7_ENABLE_GC_CHECK || defined(V7_STACK_GUARD_MIN_SIZE) || \
+    V7_ENABLE_STACK_TRACKING || V7_ENABLE_CALL_TRACE
 /* Need to enable GCC/clang instrumentation */
 #define V7_CYG_PROFILE_ON
 #endif
@@ -1991,7 +3246,7 @@ extern void *v7_sp_limit;
 
 #endif /* CS_V7_SRC_INTERNAL_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/core_public.h"
+#line 1 "v7/src/core_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2011,9 +3266,14 @@ extern void *v7_sp_limit;
 
 /* Amalgamated: #include "v7/src/license.h" */
 /* Amalgamated: #include "v7/src/v7_features.h" */
+/* Amalgamated: #include "v7/src/platform.h" */
 
 #include <stddef.h> /* For size_t */
 #include <stdio.h>  /* For FILE */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
 
 /*
  * TODO(dfrank) : improve amalgamation, so that we'll be able to include
@@ -2182,7 +3442,7 @@ void v7_interrupt(struct v7 *v7);
 /* Returns last parser error message. TODO: rename it to `v7_get_error()` */
 const char *v7_get_parser_error(struct v7 *v7);
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
 /*
  * Available if only `V7_ENABLE_STACK_TRACKING` is defined.
  *
@@ -2213,9 +3473,13 @@ int v7_stack_stat(struct v7 *v7, enum v7_stack_stat_what what);
 void v7_stack_stat_clean(struct v7 *v7);
 #endif
 
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
 #endif /* CS_V7_SRC_CORE_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_error.h"
+#line 1 "v7/src/std_error.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2266,7 +3530,7 @@ V7_PRIVATE void init_error(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_ERROR_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/mm.h"
+#line 1 "v7/src/mm.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2306,7 +3570,7 @@ struct gc_arena {
 
 #endif /* CS_V7_SRC_MM_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/parser.h"
+#line 1 "v7/src/parser.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2319,6 +3583,8 @@ struct gc_arena {
 /* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/core_public.h" */
 
+#if !defined(V7_NO_COMPILER)
+
 struct v7;
 struct ast;
 
@@ -2329,26 +3595,29 @@ extern "C" {
 struct v7_pstate {
   const char *file_name;
   const char *source_code;
-  const char *pc;   /* Current parsing position */
-  int line_no;      /* Line number */
-  int prev_line_no; /* Line number of previous token */
-  int inhibit_in;   /* True while `in` expressions are inhibited */
-  int in_function;  /* True if in a function */
-  int in_loop;      /* True if in a loop */
-  int in_switch;    /* True if in a switch block */
-  int in_strict;    /* True if in strict mode */
+  const char *pc;      /* Current parsing position */
+  const char *src_end; /* End of source code */
+  int line_no;         /* Line number */
+  int prev_line_no;    /* Line number of previous token */
+  int inhibit_in;      /* True while `in` expressions are inhibited */
+  int in_function;     /* True if in a function */
+  int in_loop;         /* True if in a loop */
+  int in_switch;       /* True if in a switch block */
+  int in_strict;       /* True if in strict mode */
 };
 
 V7_PRIVATE enum v7_err parse(struct v7 *v7, struct ast *a, const char *src,
-                             int is_json);
+                             size_t src_len, int is_json);
 
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
+#endif /* V7_NO_COMPILER */
+
 #endif /* CS_V7_SRC_PARSER_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/object_public.h"
+#line 1 "v7/src/object_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2388,6 +3657,10 @@ typedef unsigned short v7_prop_attr_t;
  */
 #define _V7_DESC_PRESERVE_VALUE (1 << 8)
 
+#define V7_PROP_ATTR_IS_WRITABLE(a) (!(a & V7_PROPERTY_NON_WRITABLE))
+#define V7_PROP_ATTR_IS_ENUMERABLE(a) (!(a & V7_PROPERTY_NON_ENUMERABLE))
+#define V7_PROP_ATTR_IS_CONFIGURABLE(a) (!(a & V7_PROPERTY_NON_CONFIGURABLE))
+
 /*
  * Internal helpers for `V7_DESC_...` macros
  */
@@ -2420,7 +3693,7 @@ typedef unsigned long v7_prop_attr_desc_t;
 #define _V7_DESC_OFF_HEAP(v) _V7_MK_DESC(v, _V7_PROPERTY_OFF_HEAP)
 
 /* See `v7_set_destructor_cb` */
-typedef void(v7_destructor_cb_t)(void *ud);
+typedef void(v7_destructor_cb_t)(struct v7 *v7, void *ud);
 
 /* Make an empty object */
 v7_val_t v7_mk_object(struct v7 *v7);
@@ -2434,6 +3707,9 @@ int v7_is_object(v7_val_t v);
 
 /* Set object's prototype. Return old prototype or undefined on error. */
 v7_val_t v7_set_proto(struct v7 *v7, v7_val_t obj, v7_val_t proto);
+
+/* Get object's prototype. */
+v7_val_t v7_get_proto(struct v7 *v7, v7_val_t obj);
 
 /*
  * Lookup property `name` in object `obj`. If `obj` holds no such property,
@@ -2500,20 +3776,60 @@ int v7_set_method(struct v7 *, v7_val_t obj, const char *name,
  */
 int v7_del(struct v7 *v7, v7_val_t obj, const char *name, size_t name_len);
 
+#if V7_ENABLE__Proxy
+struct prop_iter_proxy_ctx;
+#endif
+
+/*
+ * Context for property iteration, see `v7_next_prop()`.
+ *
+ * Clients should not interpret contents of this structure, it's here merely to
+ * allow clients to allocate it not from the heap.
+ */
+struct prop_iter_ctx {
+#if V7_ENABLE__Proxy
+  struct prop_iter_proxy_ctx *proxy_ctx;
+#endif
+  struct v7_property *cur_prop;
+
+  unsigned init : 1;
+};
+
+/*
+ * Initialize the property iteration context `ctx`, see `v7_next_prop()` for
+ * usage example.
+ */
+enum v7_err v7_init_prop_iter_ctx(struct v7 *v7, v7_val_t obj,
+                                  struct prop_iter_ctx *ctx);
+
+/*
+ * Destruct the property iteration context `ctx`, see `v7_next_prop()` for
+ * usage example
+ */
+void v7_destruct_prop_iter_ctx(struct v7 *v7, struct prop_iter_ctx *ctx);
+
 /*
  * Iterate over the `obj`'s properties.
  *
- * Usage example:
+ * Usage example (here we assume we have some `v7_val_t obj`):
  *
- *     void *h = NULL;
+ *     struct prop_iter_ctx ctx;
  *     v7_val_t name, val;
  *     v7_prop_attr_t attrs;
- *     while ((h = v7_next_prop(h, obj, &name, &val, &attrs)) != NULL) {
+ *
+ *     v7_init_prop_iter_ctx(v7, obj, &ctx);
+ *     while (v7_next_prop(v7, &ctx, &name, &val, &attrs)) {
+ *       if (V7_PROP_ATTR_IS_ENUMERABLE(attrs)) continue;
  *       ...
  *     }
+ *     v7_destruct_prop_iter_ctx(v7, &ctx);
+ *
+ * As you see, v7_next_prop will iterate through all properties, including
+ * non-enumerable ones, and it's your responsibility to test the attributes
+ * with the provided `V7_PROP_ATTR_*` macros and proceed as you see fit.
  */
-void *v7_next_prop(void *handle, v7_val_t obj, v7_val_t *name, v7_val_t *value,
-                   v7_prop_attr_t *attrs);
+int v7_next_prop(struct v7 *v7, struct prop_iter_ctx *ctx, v7_val_t *name,
+                 v7_val_t *value, v7_prop_attr_t *attrs);
 
 /* Returns true if the object is an instance of a given constructor. */
 int v7_is_instanceof(struct v7 *v7, v7_val_t o, const char *c);
@@ -2552,8 +3868,10 @@ void *v7_get_user_data(struct v7 *v7, v7_val_t obj);
  *
  * The callback will be invoked while garbage collection is still in progress
  * and hence the internal state of the JS heap is in an undefined state.
- * The callback thus cannot perform any calls to the V7 API and will receive
- * only the user data associated with the destructed object.
+ *
+ * The only v7 API which is safe to use in this callback is `v7_disown()`,
+ * that's why `v7` pointer is given to it. *Calls to any other v7 functions are
+ * illegal here*.
  *
  * The intended use case is to reclaim resources allocated by C code.
  */
@@ -2565,7 +3883,7 @@ void v7_set_destructor_cb(struct v7 *v7, v7_val_t obj, v7_destructor_cb_t *d);
 
 #endif /* CS_V7_SRC_OBJECT_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/tokenizer.h"
+#line 1 "v7/src/tokenizer.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2576,6 +3894,8 @@ void v7_set_destructor_cb(struct v7 *v7, v7_val_t obj, v7_destructor_cb_t *d);
 #define CS_V7_SRC_TOKENIZER_H_
 
 /* Amalgamated: #include "v7/src/internal.h" */
+
+#if !defined(V7_NO_COMPILER)
 
 enum v7_tok {
   TOK_END_OF_INPUT,
@@ -2696,17 +4016,20 @@ enum v7_tok {
 extern "C" {
 #endif /* __cplusplus */
 
-V7_PRIVATE int skip_to_next_tok(const char **ptr);
-V7_PRIVATE enum v7_tok get_tok(const char **s, double *n, enum v7_tok prev_tok);
+V7_PRIVATE int skip_to_next_tok(const char **ptr, const char *src_end);
+V7_PRIVATE enum v7_tok get_tok(const char **s, const char *src_end, double *n,
+                               enum v7_tok prev_tok);
 V7_PRIVATE int is_reserved_word_token(enum v7_tok tok);
 
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
+#endif /* V7_NO_COMPILER */
+
 #endif /* CS_V7_SRC_TOKENIZER_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/opcodes.h"
+#line 1 "v7/src/opcodes.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -3014,6 +4337,16 @@ enum opcode {
   OP_CREATE_ARR,
 
   /*
+   * Allocates the iteration context (for `OP_NEXT_PROP`) from heap and pushes
+   * a foreign pointer to it on stack. The allocated data is stored as "user
+   * data" of the object, and it will be reclaimed automatically when the
+   * object gets garbage-collected.
+   *
+   * `( -- ctx )`
+   */
+  OP_PUSH_PROP_ITER_CTX,
+
+  /*
    * Yields the next property name.
    * Used in the for..in construct.
    *
@@ -3213,7 +4546,7 @@ enum opcode {
 
 #endif /* CS_V7_SRC_OPCODES_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/core.h"
+#line 1 "v7/src/core.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -3239,7 +4572,7 @@ extern "C" {
 
 typedef uint64_t val_t;
 
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
 
 typedef unsigned short entity_id_t;
 typedef unsigned char entity_id_part_t;
@@ -3328,6 +4661,7 @@ typedef unsigned char v7_obj_attr_t;
 #define V7_OBJ_FUNCTION (1 << 2)       /* function object */
 #define V7_OBJ_OFF_HEAP (1 << 3)       /* object not managed by V7 HEAP */
 #define V7_OBJ_HAS_DESTRUCTOR (1 << 4) /* has user data */
+#define V7_OBJ_PROXY (1 << 5)          /* it's a Proxy object */
 
 /*
  * JavaScript value is either a primitive, or an object.
@@ -3407,6 +4741,9 @@ struct v7_call_frame_base {
 
   /* Belongs to `struct v7_call_frame_bcode` */
   unsigned is_constructor : 1;
+
+  /* Belongs to `struct v7_call_frame_bcode` */
+  unsigned int is_thrown : 1;
 };
 
 /*
@@ -3442,6 +4779,7 @@ struct v7_call_frame_bcode {
   struct v7_call_frame_private base;
   struct {
     val_t this_obj;
+    val_t thrown_error;
   } vals;
   struct bcode *bcode;
   char *bcode_ops;
@@ -3479,6 +4817,7 @@ struct v7_vals {
   val_t number_prototype;
   val_t date_prototype;
   val_t function_prototype;
+  val_t proxy_prototype;
 
   /*
    * temporary register for `OP_STASH` and `OP_UNSTASH` instructions. Valid if
@@ -3571,7 +4910,8 @@ struct v7 {
 
   struct mbuf json_visited_stack; /* Detecting cycle in to_json */
 
-  /* Parser state */
+/* Parser state */
+#if !defined(V7_NO_COMPILER)
   struct v7_pstate pstate; /* Parsing state */
   enum v7_tok cur_tok;     /* Current token */
   const char *tok;         /* Parsed terminal token (ident, number, string) */
@@ -3588,6 +4928,7 @@ struct v7 {
    * - Compiler: it's the last line_no emitted to bcode
    */
   int line_no;
+#endif /* V7_NO_COMPILER */
 
   /* singleton, pointer because of amalgamation */
   struct v7_property *cur_dense_prop;
@@ -3602,7 +4943,7 @@ struct v7 {
   /* linked list of v7 contexts, needed by cyg_profile hooks */
   struct v7 *next_v7;
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   /* linked list of stack tracking contexts */
   struct stack_track_ctx *stack_track_ctx;
 
@@ -3619,7 +4960,7 @@ struct v7 {
  * TODO(imax): remove V7_DISABLE_STR_ALLOC_SEQ knob after 2015/12/01 if there
  * are no issues.
  */
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
   uint16_t gc_next_asn; /* Next sequence number to use. */
   uint16_t gc_min_asn;  /* Minimal sequence number currently in use. */
 #endif
@@ -3664,7 +5005,7 @@ struct v7_property {
   struct v7_property *
       next; /* Linkage in struct v7_generic_object::properties */
   v7_prop_attr_t attributes;
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   entity_id_t entity_id;
 #endif
   val_t name;  /* Property name (a string) */
@@ -3678,7 +5019,7 @@ struct v7_object {
   /* First HIDDEN property in a chain is an internal object value */
   struct v7_property *properties;
   v7_obj_attr_t attributes;
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   entity_id_part_t entity_id_base;
   entity_id_part_t entity_id_spec;
 #endif
@@ -3787,7 +5128,7 @@ V7_PRIVATE uint8_t is_strict_mode(struct v7 *v7);
 
 #endif /* CS_V7_SRC_CORE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/primitive_public.h"
+#line 1 "v7/src/primitive_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -3903,7 +5244,7 @@ int v7_is_foreign(v7_val_t v);
 
 #endif /* CS_V7_SRC_PRIMITIVE_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/primitive.h"
+#line 1 "v7/src/primitive.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -3925,7 +5266,7 @@ V7_PRIVATE void *get_ptr(val_t v);
 
 #endif /* CS_V7_SRC_PRIMITIVE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/string_public.h"
+#line 1 "v7/src/string_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4000,7 +5341,7 @@ const char *v7_get_cstring(struct v7 *v7, v7_val_t *v);
 
 #endif /* CS_V7_SRC_STRING_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/string.h"
+#line 1 "v7/src/string.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4065,7 +5406,7 @@ V7_PRIVATE size_t unescape(const char *s, size_t len, char *to);
 
 #endif /* CS_V7_SRC_STRING_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/exceptions_public.h"
+#line 1 "v7/src/exceptions_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4120,7 +5461,7 @@ void v7_clear_thrown_value(struct v7 *v7);
 
 #endif /* CS_V7_SRC_EXCEPTIONS_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/exceptions.h"
+#line 1 "v7/src/exceptions.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4217,7 +5558,7 @@ V7_PRIVATE enum v7_err create_exception(struct v7 *v7, const char *typ,
 
 #endif /* CS_V7_SRC_EXCEPTIONS_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/object.h"
+#line 1 "v7/src/object.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4343,6 +5684,64 @@ WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err v7_property_value(struct v7 *v7, val_t obj,
                                          struct v7_property *p, val_t *res);
 
+#if V7_ENABLE__Proxy
+/*
+ * Additional context for property iteration of a proxied object, see
+ * `v7_next_prop()`.
+ */
+struct prop_iter_proxy_ctx {
+  /* Proxy target object */
+  v7_val_t target_obj;
+  /* Proxy handler object */
+  v7_val_t handler_obj;
+
+  /*
+   * array returned by the `ownKeys` callback, valid if only `has_own_keys` is
+   * set
+   */
+  v7_val_t own_keys;
+  /*
+   * callback to get property descriptor, one of these:
+   *   - a JS or cfunction `getOwnPropertyDescriptor`
+   *     (if `has_get_own_prop_desc_C` is not set);
+   *   - a C callback `v7_get_own_prop_desc_cb_t`.
+   *     (if `has_get_own_prop_desc_C` is set);
+   */
+  v7_val_t get_own_prop_desc;
+
+  /*
+   * if `has_own_keys` is set, `own_key_idx` represents next index in the
+   * `own_keys` array
+   */
+  unsigned own_key_idx : 29;
+
+  /* if set, `own_keys` is valid */
+  unsigned has_own_keys : 1;
+  /* if set, `get_own_prop_desc` is valid */
+  unsigned has_get_own_prop_desc : 1;
+  /*
+   * if set, `get_own_prop_desc` is a C callback `has_get_own_prop_desc_C`, not
+   * a JS callback
+   */
+  unsigned has_get_own_prop_desc_C : 1;
+};
+#endif
+
+/*
+ * Like public function `v7_init_prop_iter_ctx()`, but it takes additional
+ * argument `proxy_transp`; if it is zero, and the given `obj` is a Proxy, it
+ * will iterate the properties of the proxy itself, not the Proxy's target.
+ */
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err init_prop_iter_ctx(struct v7 *v7, v7_val_t obj,
+                                          int proxy_transp,
+                                          struct prop_iter_ctx *ctx);
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err next_prop(struct v7 *v7, struct prop_iter_ctx *ctx,
+                                 v7_val_t *name, v7_val_t *value,
+                                 v7_prop_attr_t *attrs, int *ok);
+
 /*
  * Set new prototype `proto` for the given object `obj`. Returns `0` at
  * success, `-1` at failure (it may fail if given `obj` is a function object:
@@ -4359,8 +5758,6 @@ V7_PRIVATE int obj_prototype_set(struct v7 *v7, struct v7_object *obj,
 V7_PRIVATE struct v7_object *obj_prototype(struct v7 *v7,
                                            struct v7_object *obj);
 
-V7_PRIVATE val_t obj_prototype_v(struct v7 *v7, val_t obj);
-
 V7_PRIVATE int is_prototype_of(struct v7 *v7, val_t o, val_t p);
 
 /* Get the property holding user data and destructor, or NULL */
@@ -4368,7 +5765,7 @@ V7_PRIVATE struct v7_property *get_user_data_property(v7_val_t obj);
 
 #endif /* CS_V7_SRC_OBJECT_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/exec_public.h"
+#line 1 "v7/src/exec_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4384,9 +5781,14 @@ V7_PRIVATE struct v7_property *get_user_data_property(v7_val_t obj);
 
 /* Amalgamated: #include "v7/src/core_public.h" */
 
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
 /*
  * Execute JavaScript `js_code`. The result of evaluation is stored in
  * the `result` variable.
+ * The code can be either a JavaScript source or a precompiled bytecode.
  *
  * Return:
  *
@@ -4428,6 +5830,16 @@ enum v7_err v7_exec_opt(struct v7 *v7, const char *js_code,
                         const struct v7_exec_opts *opts, v7_val_t *res);
 
 /*
+ * Like v7_exec but it expects an explicit length instead of treating the code
+ * as a null terminated string.
+ *
+ * The code can be either a JS source or a precompiled bytecode.
+ */
+WARN_UNUSED_RESULT
+enum v7_err v7_exec_buf(struct v7 *v7, const char *js_code, size_t len,
+                        v7_val_t *result);
+
+/*
  * Same as `v7_exec()`, but loads source code from `path` file.
  */
 WARN_UNUSED_RESULT
@@ -4447,6 +5859,8 @@ enum v7_err v7_parse_json(struct v7 *v7, const char *str, v7_val_t *res);
 WARN_UNUSED_RESULT
 enum v7_err v7_parse_json_file(struct v7 *v7, const char *path, v7_val_t *res);
 
+#if !defined(V7_NO_COMPILER)
+
 /*
  * Compile JavaScript code `js_code` into the byte code and write generated
  * byte code into opened file stream `fp`. If `generate_binary_output` is 0,
@@ -4458,6 +5872,8 @@ WARN_UNUSED_RESULT
 enum v7_err v7_compile(const char *js_code, int generate_binary_output,
                        int use_bcode, FILE *fp);
 
+#endif /* V7_NO_COMPILER */
+
 /*
  * Call function `func` with arguments `args`, using `this_obj` as `this`.
  * `args` should be an array containing arguments or `undefined`.
@@ -4468,9 +5884,13 @@ WARN_UNUSED_RESULT
 enum v7_err v7_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
                      v7_val_t args, v7_val_t *res);
 
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
 #endif /* CS_V7_SRC_EXEC_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/exec.h"
+#line 1 "v7/src/exec.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4484,6 +5904,8 @@ enum v7_err v7_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
 
 /* Amalgamated: #include "v7/src/core.h" */
 
+#if !defined(V7_NO_COMPILER)
+
 #if defined(__cplusplus)
 extern "C" {
 #endif /* __cplusplus */
@@ -4493,13 +5915,19 @@ extern "C" {
  * `exec_public.h`
  */
 
+WARN_UNUSED_RESULT
+enum v7_err _v7_compile(const char *js_code, size_t js_code_size,
+                        int generate_binary_output, int use_bcode, FILE *fp);
+
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
+#endif /* V7_NO_COMPILER */
+
 #endif /* CS_V7_SRC_EXEC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/array_public.h"
+#line 1 "v7/src/array_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4571,7 +5999,7 @@ void v7_array_del(struct v7 *v7, v7_val_t arr, unsigned long index);
 
 #endif /* CS_V7_SRC_ARRAY_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/array.h"
+#line 1 "v7/src/array.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4599,7 +6027,7 @@ v7_array_get2(struct v7 *v7, v7_val_t arr, unsigned long index, int *has);
 
 #endif /* CS_V7_SRC_ARRAY_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/conversion_public.h"
+#line 1 "v7/src/conversion_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4687,7 +6115,7 @@ int v7_is_truthy(struct v7 *v7, v7_val_t v);
 
 #endif /* CS_V7_SRC_CONVERSION_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/conversion.h"
+#line 1 "v7/src/conversion.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -4931,7 +6359,1413 @@ V7_PRIVATE val_t to_boolean_v(struct v7 *v7, val_t v);
 
 #endif /* CS_V7_SRC_CONVERSION_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/builtin/builtin.h"
+#line 1 "v7/src/varint.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_VARINT_H_
+#define CS_V7_SRC_VARINT_H_
+
+/* Amalgamated: #include "v7/src/internal.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+V7_PRIVATE int encode_varint(size_t len, unsigned char *p);
+V7_PRIVATE size_t decode_varint(const unsigned char *p, int *llen);
+V7_PRIVATE int calc_llen(size_t len);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_VARINT_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "common/cs_strtod.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_CS_STRTOD_H_
+#define CS_COMMON_CS_STRTOD_H_
+
+double cs_strtod(const char *str, char **endptr);
+
+#endif /* CS_COMMON_CS_STRTOD_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/ast.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_AST_H_
+#define CS_V7_SRC_AST_H_
+
+#include <stdio.h>
+/* Amalgamated: #include "common/mbuf.h" */
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/core.h" */
+
+#if !defined(V7_NO_COMPILER)
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+#define BIN_AST_SIGNATURE "V\007ASTV10"
+
+enum ast_tag {
+  AST_NOP,
+  AST_SCRIPT,
+  AST_VAR,
+  AST_VAR_DECL,
+  AST_FUNC_DECL,
+  AST_IF,
+  AST_FUNC,
+
+  AST_ASSIGN,
+  AST_REM_ASSIGN,
+  AST_MUL_ASSIGN,
+  AST_DIV_ASSIGN,
+  AST_XOR_ASSIGN,
+  AST_PLUS_ASSIGN,
+  AST_MINUS_ASSIGN,
+  AST_OR_ASSIGN,
+  AST_AND_ASSIGN,
+  AST_LSHIFT_ASSIGN,
+  AST_RSHIFT_ASSIGN,
+  AST_URSHIFT_ASSIGN,
+
+  AST_NUM,
+  AST_IDENT,
+  AST_STRING,
+  AST_REGEX,
+  AST_LABEL,
+
+  AST_SEQ,
+  AST_WHILE,
+  AST_DOWHILE,
+  AST_FOR,
+  AST_FOR_IN,
+  AST_COND,
+
+  AST_DEBUGGER,
+  AST_BREAK,
+  AST_LABELED_BREAK,
+  AST_CONTINUE,
+  AST_LABELED_CONTINUE,
+  AST_RETURN,
+  AST_VALUE_RETURN,
+  AST_THROW,
+
+  AST_TRY,
+  AST_SWITCH,
+  AST_CASE,
+  AST_DEFAULT,
+  AST_WITH,
+
+  AST_LOGICAL_OR,
+  AST_LOGICAL_AND,
+  AST_OR,
+  AST_XOR,
+  AST_AND,
+
+  AST_EQ,
+  AST_EQ_EQ,
+  AST_NE,
+  AST_NE_NE,
+
+  AST_LE,
+  AST_LT,
+  AST_GE,
+  AST_GT,
+  AST_IN,
+  AST_INSTANCEOF,
+
+  AST_LSHIFT,
+  AST_RSHIFT,
+  AST_URSHIFT,
+
+  AST_ADD,
+  AST_SUB,
+
+  AST_REM,
+  AST_MUL,
+  AST_DIV,
+
+  AST_POSITIVE,
+  AST_NEGATIVE,
+  AST_NOT,
+  AST_LOGICAL_NOT,
+  AST_VOID,
+  AST_DELETE,
+  AST_TYPEOF,
+  AST_PREINC,
+  AST_PREDEC,
+
+  AST_POSTINC,
+  AST_POSTDEC,
+
+  AST_MEMBER,
+  AST_INDEX,
+  AST_CALL,
+
+  AST_NEW,
+
+  AST_ARRAY,
+  AST_OBJECT,
+  AST_PROP,
+  AST_GETTER,
+  AST_SETTER,
+
+  AST_THIS,
+  AST_TRUE,
+  AST_FALSE,
+  AST_NULL,
+  AST_UNDEFINED,
+
+  AST_USE_STRICT,
+
+  AST_MAX_TAG
+};
+
+struct ast {
+  struct mbuf mbuf;
+  int refcnt;
+  int has_overflow;
+};
+
+typedef unsigned long ast_off_t;
+
+#if __GNUC__ >= 4 && __GNUC_MINOR__ >= 8
+#define GCC_HAS_PRAGMA_DIAGNOSTIC
+#endif
+
+#ifdef GCC_HAS_PRAGMA_DIAGNOSTIC
+/*
+ * TODO(mkm): GCC complains that bitfields on char are not standard
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+struct ast_node_def {
+#if !V7_DISABLE_AST_TAG_NAMES
+  const char *name; /* tag name, for debugging and serialization */
+#endif
+  unsigned char has_varint : 1;   /* has a varint body */
+  unsigned char has_inlined : 1;  /* inlined data whose size is in varint fld */
+  unsigned char num_skips : 3;    /* number of skips */
+  unsigned char num_subtrees : 3; /* number of fixed subtrees */
+};
+extern const struct ast_node_def ast_node_defs[];
+#if V7_ENABLE_FOOTPRINT_REPORT
+extern const size_t ast_node_defs_size;
+extern const size_t ast_node_defs_count;
+#endif
+#ifdef GCC_HAS_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+
+enum ast_which_skip {
+  AST_END_SKIP = 0,
+  AST_VAR_NEXT_SKIP = 1,
+  AST_SCRIPT_FIRST_VAR_SKIP = AST_VAR_NEXT_SKIP,
+  AST_FOR_BODY_SKIP = 1,
+  AST_DO_WHILE_COND_SKIP = 1,
+  AST_END_IF_TRUE_SKIP = 1,
+  AST_TRY_CATCH_SKIP = 1,
+  AST_TRY_FINALLY_SKIP = 2,
+  AST_FUNC_FIRST_VAR_SKIP = AST_VAR_NEXT_SKIP,
+  AST_FUNC_BODY_SKIP = 2,
+  AST_SWITCH_DEFAULT_SKIP = 1
+};
+
+V7_PRIVATE void ast_init(struct ast *, size_t);
+V7_PRIVATE void ast_optimize(struct ast *);
+V7_PRIVATE void ast_free(struct ast *);
+
+/*
+ * Begins an AST node by inserting a tag to the AST at the given offset.
+ *
+ * It also allocates space for the fixed_size payload and the space for
+ * the skips.
+ *
+ * The caller is responsible for appending children.
+ *
+ * Returns the offset of the node payload (one byte after the tag).
+ * This offset can be passed to `ast_set_skip`.
+ */
+V7_PRIVATE ast_off_t
+ast_insert_node(struct ast *a, ast_off_t pos, enum ast_tag tag);
+
+/*
+ * Modify tag which is already added to buffer. Keeps `AST_TAG_LINENO_PRESENT`
+ * flag.
+ */
+V7_PRIVATE void ast_modify_tag(struct ast *a, ast_off_t tag_off,
+                               enum ast_tag tag);
+
+#if !V7_DISABLE_LINE_NUMBERS
+/*
+ * Add line_no varint after all skips of the tag at the offset `tag_off`, and
+ * marks the tag byte.
+ *
+ * Byte at the offset `tag_off` should be a valid tag.
+ */
+V7_PRIVATE void ast_add_line_no(struct ast *a, ast_off_t tag_off, int line_no);
+#endif
+
+/*
+ * Patches a given skip slot for an already emitted node with the
+ * current write cursor position (e.g. AST length).
+ *
+ * This is intended to be invoked when a node with a variable number
+ * of child subtrees is closed, or when the consumers need a shortcut
+ * to the next sibling.
+ *
+ * Each node type has a different number and semantic for skips,
+ * all of them defined in the `ast_which_skip` enum.
+ * All nodes having a variable number of child subtrees must define
+ * at least the `AST_END_SKIP` skip, which effectively skips a node
+ * boundary.
+ *
+ * Every tree reader can assume this and safely skip unknown nodes.
+ *
+ * `pos` should be an offset of the byte right after a tag.
+ */
+V7_PRIVATE ast_off_t
+ast_set_skip(struct ast *a, ast_off_t pos, enum ast_which_skip skip);
+
+/*
+ * Patches a given skip slot for an already emitted node with the value
+ * (stored as delta relative to the `pos` node) of the `where` argument.
+ */
+V7_PRIVATE ast_off_t ast_modify_skip(struct ast *a, ast_off_t pos,
+                                     ast_off_t where, enum ast_which_skip skip);
+
+/*
+ * Returns the offset in AST to which the given `skip` points.
+ *
+ * `pos` should be an offset of the byte right after a tag.
+ */
+V7_PRIVATE ast_off_t
+ast_get_skip(struct ast *a, ast_off_t pos, enum ast_which_skip skip);
+
+/*
+ * Returns the tag from the offset `ppos`, and shifts `ppos` by 1.
+ */
+V7_PRIVATE enum ast_tag ast_fetch_tag(struct ast *a, ast_off_t *ppos);
+
+/*
+ * Moves the cursor to the tag's varint and inlined data (if there are any, see
+ * `struct ast_node_def::has_varint` and `struct ast_node_def::has_inlined`).
+ *
+ * Technically, it skips node's "skips" and line number data, if either is
+ * present.
+ *
+ * Assumes a cursor (`ppos`) positioned right after a tag.
+ */
+V7_PRIVATE void ast_move_to_inlined_data(struct ast *a, ast_off_t *ppos);
+
+/*
+ * Moves the cursor to the tag's subtrees (if there are any,
+ * see `struct ast_node_def::num_subtrees`), or to the next node in case the
+ * current node has no subtrees.
+ *
+ * Technically, it skips node's "skips", line number data, and inlined data, if
+ * either is present.
+ *
+ * Assumes a cursor (`ppos`) positioned right after a tag.
+ */
+V7_PRIVATE void ast_move_to_children(struct ast *a, ast_off_t *ppos);
+
+/* Helper to add a node with inlined data. */
+V7_PRIVATE ast_off_t ast_insert_inlined_node(struct ast *a, ast_off_t pos,
+                                             enum ast_tag tag, const char *name,
+                                             size_t len);
+
+/*
+ * Returns the line number encoded in the node, or `0` in case of none is
+ * encoded.
+ *
+ * `pos` should be an offset of the byte right after a tag.
+ */
+V7_PRIVATE int ast_get_line_no(struct ast *a, ast_off_t pos);
+
+/*
+ * `pos` should be an offset of the byte right after a tag
+ */
+V7_PRIVATE char *ast_get_inlined_data(struct ast *a, ast_off_t pos, size_t *n);
+
+/*
+ * Returns the `double` number inlined in the node
+ */
+V7_PRIVATE double ast_get_num(struct ast *a, ast_off_t pos);
+
+/*
+ * Skips the node and all its subnodes.
+ *
+ * Cursor (`ppos`) should be at the tag byte
+ */
+V7_PRIVATE void ast_skip_tree(struct ast *a, ast_off_t *ppos);
+
+V7_PRIVATE void ast_dump_tree(FILE *fp, struct ast *a, ast_off_t *ppos,
+                              int depth);
+
+V7_PRIVATE void release_ast(struct v7 *v7, struct ast *a);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* V7_NO_COMPILER */
+
+#endif /* CS_V7_SRC_AST_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/bcode.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_BCODE_H_
+#define CS_V7_SRC_BCODE_H_
+
+#define BIN_BCODE_SIGNATURE "V\007BCODE:"
+
+#if !defined(V7_NAMES_CNT_WIDTH)
+#define V7_NAMES_CNT_WIDTH 10
+#endif
+
+#if !defined(V7_ARGS_CNT_WIDTH)
+#define V7_ARGS_CNT_WIDTH 8
+#endif
+
+#define V7_NAMES_CNT_MAX ((1 << V7_NAMES_CNT_WIDTH) - 1)
+#define V7_ARGS_CNT_MAX ((1 << V7_ARGS_CNT_WIDTH) - 1)
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/core.h" */
+/* Amalgamated: #include "v7/src/opcodes.h" */
+/* Amalgamated: #include "v7/src/string.h" */
+/* Amalgamated: #include "v7/src/object.h" */
+/* Amalgamated: #include "v7/src/primitive.h" */
+/* Amalgamated: #include "common/mbuf.h" */
+
+enum bcode_inline_lit_type_tag {
+  BCODE_INLINE_STRING_TYPE_TAG = 0,
+  BCODE_INLINE_NUMBER_TYPE_TAG,
+  BCODE_INLINE_FUNC_TYPE_TAG,
+  BCODE_INLINE_REGEXP_TYPE_TAG,
+
+  BCODE_MAX_INLINE_TYPE_TAG
+};
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+typedef uint32_t bcode_off_t;
+
+/*
+ * Each JS function will have one bcode structure
+ * containing the instruction stream, a literal table, and function
+ * metadata.
+ * Instructions contain references to literals (strings, constants, etc)
+ *
+ * The bcode struct can be shared between function instances
+ * and keeps a reference count used to free it in the function destructor.
+ */
+struct bcode {
+  /*
+   * Names + instruction opcode.
+   * Names are null-terminates strings. For function's bcode, there are:
+   *  - function name (for anonymous function, the name is still present: an
+   *    empty string);
+   *  - arg names (a number of args is determined by `args_cnt`, see below);
+   *  - local names (a number or locals can be calculated:
+   *    `(names_cnt - args_cnt - 1)`).
+   *
+   * For script's bcode, there are just local names.
+   */
+  struct v7_vec ops;
+
+  /* Literal table */
+  struct v7_vec lit;
+
+#if !V7_DISABLE_FILENAMES
+  /* Name of the file from which this bcode was generated (used for debug) */
+  void *filename;
+#endif
+
+  /* Reference count */
+  uint8_t refcnt;
+
+  /* Total number of null-terminated strings in the beginning of `ops` */
+  unsigned int names_cnt : V7_NAMES_CNT_WIDTH;
+
+  /* Number of args (should be <= `(names_cnt + 1)`) */
+  unsigned int args_cnt : V7_ARGS_CNT_WIDTH;
+
+  unsigned int strict_mode : 1;
+  /*
+   * If true this structure lives on read only memory, either
+   * mmapped or constant data section.
+   */
+  unsigned int frozen : 1;
+
+  /* If set, `ops.buf` points to ROM, so we shouldn't free it */
+  unsigned int ops_in_rom : 1;
+  /* Set for deserialized bcode. Used for metrics only */
+  unsigned int deserialized : 1;
+
+  /* Set when `ops` contains function name as the first `name` */
+  unsigned int func_name_present : 1;
+
+#if !V7_DISABLE_FILENAMES
+  /* If set, `filename` points to ROM, so we shouldn't free it */
+  unsigned int filename_in_rom : 1;
+#endif
+};
+
+/*
+ * Bcode builder context: it contains mutable mbufs for opcodes and literals,
+ * whereas the bcode itself contains just vectors (`struct v7_vec`).
+ */
+struct bcode_builder {
+  struct v7 *v7;
+  struct bcode *bcode;
+
+  struct mbuf ops; /* names + instruction opcode */
+  struct mbuf lit; /* literal table */
+};
+
+V7_PRIVATE void bcode_builder_init(struct v7 *v7,
+                                   struct bcode_builder *bbuilder,
+                                   struct bcode *bcode);
+V7_PRIVATE void bcode_builder_finalize(struct bcode_builder *bbuilder);
+
+/*
+ * Note: `filename` must be either:
+ *
+ * - `NULL`. In this case, `filename_in_rom` is ignored.
+ * - A pointer to ROM (or to any other unmanaged memory). `filename_in_rom`
+ *   must be set to 1.
+ * - A pointer returned by `shdata_create()`, i.e. a pointer to shared data.
+ *
+ * If you need to copy filename from another bcode, just pass NULL initially,
+ * and after bcode is initialized, call `bcode_copy_filename_from()`.
+ *
+ * To get later a proper null-terminated filename string from bcode, use
+ * `bcode_get_filename()`.
+ */
+V7_PRIVATE void bcode_init(struct bcode *bcode, uint8_t strict_mode,
+                           void *filename, uint8_t filename_in_rom);
+V7_PRIVATE void bcode_free(struct v7 *v7, struct bcode *bcode);
+V7_PRIVATE void release_bcode(struct v7 *v7, struct bcode *bcode);
+V7_PRIVATE void retain_bcode(struct v7 *v7, struct bcode *bcode);
+
+#if !V7_DISABLE_FILENAMES
+/*
+ * Return a pointer to null-terminated filename string
+ */
+V7_PRIVATE const char *bcode_get_filename(struct bcode *bcode);
+#endif
+
+/*
+ * Copy filename from `src` to `dst`. If source filename is a pointer to ROM,
+ * then just the pointer is copied; otherwise, appropriate shdata pointer is
+ * retained.
+ */
+V7_PRIVATE void bcode_copy_filename_from(struct bcode *dst, struct bcode *src);
+
+/*
+ * Serialize a bcode structure.
+ *
+ * All literals, including functions, are inlined into `ops` data; see
+ * the serialization logic in `bcode_op_lit()`.
+ *
+ * The root bcode looks just like a regular function.
+ *
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+/*V7_PRIVATE*/ void bcode_serialize(struct v7 *v7, struct bcode *bcode,
+                                    FILE *f);
+
+V7_PRIVATE void bcode_deserialize(struct v7 *v7, struct bcode *bcode,
+                                  const char *data);
+
+#ifdef V7_BCODE_DUMP
+V7_PRIVATE void dump_bcode(struct v7 *v7, FILE *, struct bcode *);
+#endif
+
+/* mode of literal storage: in literal table or inlined in `ops` */
+enum lit_mode {
+  /* literal stored in table, index is in `lit_t::lit_idx` */
+  LIT_MODE__TABLE,
+  /* literal should be inlined in `ops`, value is in `lit_t::inline_val` */
+  LIT_MODE__INLINED,
+};
+
+/*
+ * Result of the addition of literal value to bcode (see `bcode_add_lit()`).
+ * There are two possible cases:
+ *
+ * - Literal is added to the literal table. In this case, `mode ==
+ *   LIT_MODE__TABLE`, and the index of the literal is stored in `lit_idx`
+ * - Literal is not added anywhere, and should be inlined into `ops`. In this
+ *   case, `mode == LIT_MODE__INLINED`, and the value to inline is stored in
+ *   `inline_val`.
+ *
+ * It's `bcode_op_lit()` who handles both of these cases.
+ */
+typedef struct {
+  union {
+    /*
+     * index in literal table;
+     * NOTE: valid if only `mode == LIT_MODE__TABLE`
+     */
+    size_t lit_idx;
+
+    /*
+     * value to be inlined into `ops`;
+     * NOTE: valid if only `mode == LIT_MODE__INLINED`
+     */
+    v7_val_t inline_val;
+  } v; /* anonymous unions are a c11 feature */
+
+  /*
+   * mode of literal storage (see `enum lit_mode`)
+   * NOTE: we need one more bit, because enum can be signed
+   * on some compilers (e.g. msvc) and thus will get signextended
+   * when moved to a `enum lit_mode` variable basically corrupting
+   * the value. See https://github.com/cesanta/v7/issues/551
+   */
+  enum lit_mode mode : 2;
+} lit_t;
+
+V7_PRIVATE void bcode_op(struct bcode_builder *bbuilder, uint8_t op);
+
+#if !V7_DISABLE_LINE_NUMBERS
+V7_PRIVATE void bcode_append_lineno(struct bcode_builder *bbuilder,
+                                    int line_no);
+#endif
+
+/*
+ * Add a literal to the bcode literal table, or just decide that the literal
+ * should be inlined into `ops`. See `lit_t` for details.
+ */
+V7_PRIVATE
+lit_t bcode_add_lit(struct bcode_builder *bbuilder, v7_val_t val);
+
+/* disabled because of short lits */
+#if 0
+V7_PRIVATE v7_val_t bcode_get_lit(struct bcode *bcode, size_t idx);
+#endif
+
+/*
+ * Emit an opcode `op`, and handle the literal `lit` (see `bcode_add_lit()`,
+ * `lit_t`). Depending on the literal storage mode (see `enum lit_mode`), this
+ * function either emits literal table index or inlines the literal directly
+ * into `ops.`
+ */
+V7_PRIVATE void bcode_op_lit(struct bcode_builder *bbuilder, enum opcode op,
+                             lit_t lit);
+
+/* Helper function, equivalent of `bcode_op_lit(bbuilder, OP_PUSH_LIT, lit)` */
+V7_PRIVATE void bcode_push_lit(struct bcode_builder *bbuilder, lit_t lit);
+
+/*
+ * Add name to bcode. If `idx` is null, a name is appended to the end of the
+ * `bcode->ops.buf`. If `idx` is provided, it should point to the index at
+ * which new name should be inserted; and it is updated by the
+ * `bcode_add_name()` to point right after newly added name.
+ *
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+WARN_UNUSED_RESULT
+    /*V7_PRIVATE*/ enum v7_err
+    bcode_add_name(struct bcode_builder *bbuilder, const char *p, size_t len,
+                   size_t *idx);
+
+/*
+ * Takes a pointer to the beginning of `ops` buffer and names count, returns
+ * a pointer where actual opcodes begin (i.e. skips names).
+ *
+ * It takes two distinct arguments instead of just `struct bcode` pointer,
+ * because during bcode building `ops` is stored in builder.
+ *
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+/*V7_PRIVATE*/ char *bcode_end_names(char *ops, size_t names_cnt);
+
+/*
+ * Given a pointer to `ops` (which should be `bcode->ops` or a pointer returned
+ * from previous invocation of `bcode_next_name()`), yields a name string via
+ * arguments `pname`, `plen`.
+ *
+ * Returns a pointer that should be given to `bcode_next_name()` to get a next
+ * string (Whether there is a next string should be determined via the
+ * `names_cnt`; since if there are no more names, this function will return an
+ * invalid non-null pointer as next name pointer)
+ */
+V7_PRIVATE char *bcode_next_name(char *ops, char **pname, size_t *plen);
+
+/*
+ * Like `bcode_next_name()`, but instead of yielding a C string, it yields a
+ * `val_t` value (via `res`).
+ */
+V7_PRIVATE char *bcode_next_name_v(struct v7 *v7, struct bcode *bcode,
+                                   char *ops, val_t *res);
+
+V7_PRIVATE bcode_off_t bcode_pos(struct bcode_builder *bbuilder);
+
+V7_PRIVATE bcode_off_t bcode_add_target(struct bcode_builder *bbuilder);
+/*
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+/*V7_PRIVATE*/ bcode_off_t bcode_op_target(struct bcode_builder *bbuilder,
+                                           uint8_t op);
+/*V7_PRIVATE*/ void bcode_patch_target(struct bcode_builder *bbuilder,
+                                       bcode_off_t label, bcode_off_t target);
+
+V7_PRIVATE void bcode_add_varint(struct bcode_builder *bbuilder, size_t value);
+/*
+ * Reads varint-encoded integer from the provided pointer, and adjusts
+ * the pointer appropriately
+ */
+V7_PRIVATE size_t bcode_get_varint(char **ops);
+
+/*
+ * Decode a literal value from a string of opcodes and update the cursor to
+ * point past it
+ */
+V7_PRIVATE
+v7_val_t bcode_decode_lit(struct v7 *v7, struct bcode *bcode, char **ops);
+
+#if defined(V7_BCODE_DUMP) || defined(V7_BCODE_TRACE)
+V7_PRIVATE void dump_op(struct v7 *v7, FILE *f, struct bcode *bcode,
+                        char **ops);
+#endif
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_BCODE_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/gc_public.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * === Garbage Collector
+ */
+
+#ifndef CS_V7_SRC_GC_PUBLIC_H_
+#define CS_V7_SRC_GC_PUBLIC_H_
+
+/* Amalgamated: #include "v7/src/core_public.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+#if V7_ENABLE__Memory__stats
+
+/* Heap metric id, see `v7_heap_stat()` */
+enum v7_heap_stat_what {
+  V7_HEAP_STAT_HEAP_SIZE,
+  V7_HEAP_STAT_HEAP_USED,
+  V7_HEAP_STAT_STRING_HEAP_RESERVED,
+  V7_HEAP_STAT_STRING_HEAP_USED,
+  V7_HEAP_STAT_OBJ_HEAP_MAX,
+  V7_HEAP_STAT_OBJ_HEAP_FREE,
+  V7_HEAP_STAT_OBJ_HEAP_CELL_SIZE,
+  V7_HEAP_STAT_FUNC_HEAP_MAX,
+  V7_HEAP_STAT_FUNC_HEAP_FREE,
+  V7_HEAP_STAT_FUNC_HEAP_CELL_SIZE,
+  V7_HEAP_STAT_PROP_HEAP_MAX,
+  V7_HEAP_STAT_PROP_HEAP_FREE,
+  V7_HEAP_STAT_PROP_HEAP_CELL_SIZE,
+  V7_HEAP_STAT_FUNC_AST_SIZE,
+  V7_HEAP_STAT_BCODE_OPS_SIZE,
+  V7_HEAP_STAT_BCODE_LIT_TOTAL_SIZE,
+  V7_HEAP_STAT_BCODE_LIT_DESER_SIZE,
+  V7_HEAP_STAT_FUNC_OWNED,
+  V7_HEAP_STAT_FUNC_OWNED_MAX
+};
+
+/* Returns a given heap statistics */
+int v7_heap_stat(struct v7 *v7, enum v7_heap_stat_what what);
+#endif
+
+/*
+ * Perform garbage collection.
+ * Pass true to full in order to reclaim unused heap back to the OS.
+ */
+void v7_gc(struct v7 *v7, int full);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_GC_PUBLIC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/gc.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_GC_H_
+#define CS_V7_SRC_GC_H_
+
+/* Amalgamated: #include "v7/src/gc_public.h" */
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/core.h" */
+
+/*
+ * Macros for marking reachable things: use bit 0.
+ */
+#define MARK(p) (((struct gc_cell *) (p))->head.word |= 1)
+#define UNMARK(p) (((struct gc_cell *) (p))->head.word &= ~1)
+#define MARKED(p) (((struct gc_cell *) (p))->head.word & 1)
+
+/*
+ * Similar to `MARK()` / `UNMARK()` / `MARKED()`, but `.._FREE` counterparts
+ * are intended to mark free cells (as opposed to used ones), so they use
+ * bit 1.
+ */
+#define MARK_FREE(p) (((struct gc_cell *) (p))->head.word |= 2)
+#define UNMARK_FREE(p) (((struct gc_cell *) (p))->head.word &= ~2)
+#define MARKED_FREE(p) (((struct gc_cell *) (p))->head.word & 2)
+
+/*
+ * performs arithmetics on gc_cell pointers as if they were arena->cell_size
+ * bytes wide
+ */
+#define GC_CELL_OP(arena, cell, op, arg) \
+  ((struct gc_cell *) (((char *) (cell)) op((arg) * (arena)->cell_size)))
+
+struct gc_tmp_frame {
+  struct v7 *v7;
+  size_t pos;
+};
+
+struct gc_cell {
+  union {
+    struct gc_cell *link;
+    uintptr_t word;
+  } head;
+};
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+V7_PRIVATE struct v7_generic_object *new_generic_object(struct v7 *);
+V7_PRIVATE struct v7_property *new_property(struct v7 *);
+V7_PRIVATE struct v7_js_function *new_function(struct v7 *);
+
+V7_PRIVATE void gc_mark(struct v7 *, val_t);
+
+V7_PRIVATE void gc_arena_init(struct gc_arena *, size_t, size_t, size_t,
+                              const char *);
+V7_PRIVATE void gc_arena_destroy(struct v7 *, struct gc_arena *a);
+V7_PRIVATE void gc_sweep(struct v7 *, struct gc_arena *, size_t);
+V7_PRIVATE void *gc_alloc_cell(struct v7 *, struct gc_arena *);
+
+V7_PRIVATE struct gc_tmp_frame new_tmp_frame(struct v7 *);
+V7_PRIVATE void tmp_frame_cleanup(struct gc_tmp_frame *);
+V7_PRIVATE void tmp_stack_push(struct gc_tmp_frame *, val_t *);
+
+V7_PRIVATE void compute_need_gc(struct v7 *);
+/* perform gc if not inhibited */
+V7_PRIVATE int maybe_gc(struct v7 *);
+
+#if !V7_DISABLE_STR_ALLOC_SEQ
+V7_PRIVATE uint16_t
+gc_next_allocation_seqn(struct v7 *v7, const char *str, size_t len);
+V7_PRIVATE int gc_is_valid_allocation_seqn(struct v7 *v7, uint16_t n);
+V7_PRIVATE void gc_check_valid_allocation_seqn(struct v7 *v7, uint16_t n);
+#endif
+
+V7_PRIVATE uint64_t gc_string_val_to_offset(val_t v);
+
+/* return 0 if v is an object/function with a bad pointer */
+V7_PRIVATE int gc_check_val(struct v7 *v7, val_t v);
+
+/* checks whether a pointer is within the ranges of an arena */
+V7_PRIVATE int gc_check_ptr(const struct gc_arena *a, const void *p);
+
+#if V7_ENABLE__Memory__stats
+V7_PRIVATE size_t gc_arena_size(struct gc_arena *);
+#endif
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_GC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/regexp_public.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * === RegExp
+ */
+
+#ifndef CS_V7_SRC_REGEXP_PUBLIC_H_
+#define CS_V7_SRC_REGEXP_PUBLIC_H_
+
+/* Amalgamated: #include "v7/src/core_public.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+/*
+ * Make RegExp object.
+ * `regex`, `regex_len` specify a pattern, `flags` and `flags_len` specify
+ * flags. Both utf8 encoded. For example, `regex` is `(.+)`, `flags` is `gi`.
+ * If `regex_len` is ~0, `regex` is assumed to be NUL-terminated and
+ * `strlen(regex)` is used.
+ */
+WARN_UNUSED_RESULT
+enum v7_err v7_mk_regexp(struct v7 *v7, const char *regex, size_t regex_len,
+                         const char *flags, size_t flags_len, v7_val_t *res);
+
+/* Returns true if given value is a JavaScript RegExp object*/
+int v7_is_regexp(struct v7 *v7, v7_val_t v);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_REGEXP_PUBLIC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/regexp.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_REGEXP_H_
+#define CS_V7_SRC_REGEXP_H_
+
+/* Amalgamated: #include "v7/src/regexp_public.h" */
+
+/* Amalgamated: #include "v7/src/core.h" */
+
+#if V7_ENABLE__RegExp
+
+/*
+ * Maximum number of flags returned by get_regexp_flags_str().
+ * NOTE: does not include null-terminate byte.
+ */
+#define _V7_REGEXP_MAX_FLAGS_LEN 3
+
+struct v7_regexp;
+
+V7_PRIVATE struct v7_regexp *v7_get_regexp_struct(struct v7 *, v7_val_t);
+
+/*
+ * Generates a string containing regexp flags, e.g. "gi".
+ *
+ * `buf` should point to a buffer of minimum `_V7_REGEXP_MAX_FLAGS_LEN` bytes.
+ * Returns length of the resulted string (saved into `buf`)
+ */
+V7_PRIVATE size_t
+get_regexp_flags_str(struct v7 *v7, struct v7_regexp *rp, char *buf);
+#endif /* V7_ENABLE__RegExp */
+
+#endif /* CS_V7_SRC_REGEXP_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/function_public.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * === Functions
+ */
+
+#ifndef CS_V7_SRC_FUNCTION_PUBLIC_H_
+#define CS_V7_SRC_FUNCTION_PUBLIC_H_
+
+/* Amalgamated: #include "v7/src/core_public.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+/*
+ * Make a JS function object backed by a cfunction.
+ *
+ * `func` is a C callback.
+ *
+ * A function object is JS object having the Function prototype that holds a
+ * cfunction value in a hidden property.
+ *
+ * The function object will have a `prototype` property holding an object that
+ * will be used as the prototype of objects created when calling the function
+ * with the `new` operator.
+ */
+v7_val_t v7_mk_function(struct v7 *, v7_cfunction_t *func);
+
+/*
+ * Make f a JS function with specified prototype `proto`, so that the resulting
+ * function is better suited for the usage as a constructor.
+ */
+v7_val_t v7_mk_function_with_proto(struct v7 *v7, v7_cfunction_t *f,
+                                   v7_val_t proto);
+
+/*
+ * Make a JS value that holds C/C++ callback pointer.
+ *
+ * CAUTION: This is a low-level function value. It's not a real object and
+ * cannot hold user defined properties. You should use `v7_mk_function` unless
+ * you know what you're doing.
+ */
+v7_val_t v7_mk_cfunction(v7_cfunction_t *func);
+
+/*
+ * Returns true if given value is callable (i.e. it's either a JS function or
+ * cfunction)
+ */
+int v7_is_callable(struct v7 *v7, v7_val_t v);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_FUNCTION_PUBLIC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/function.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_FUNCTION_H_
+#define CS_V7_SRC_FUNCTION_H_
+
+/* Amalgamated: #include "v7/src/function_public.h" */
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/core.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+V7_PRIVATE struct v7_js_function *get_js_function_struct(val_t v);
+V7_PRIVATE val_t
+mk_js_function(struct v7 *v7, struct v7_generic_object *scope, val_t proto);
+V7_PRIVATE int is_js_function(val_t v);
+V7_PRIVATE v7_val_t mk_cfunction_lite(v7_cfunction_t *f);
+
+/* Returns true if given value holds a pointer to C callback */
+V7_PRIVATE int is_cfunction_lite(v7_val_t v);
+
+/* Returns true if given value holds an object which represents C callback */
+V7_PRIVATE int is_cfunction_obj(struct v7 *v7, v7_val_t v);
+
+/*
+ * Returns `v7_cfunction_t *` callback pointer stored in `v7_val_t`, or NULL
+ * if given value is neither cfunction pointer nor cfunction object.
+ */
+V7_PRIVATE v7_cfunction_t *get_cfunction_ptr(struct v7 *v7, v7_val_t v);
+
+/*
+ * Like v7_mk_function but also sets the function's `length` property.
+ *
+ * The `length` property is useful for introspection and the stdlib defines it
+ * for many core functions mostly because the ECMA test suite requires it and we
+ * don't want to skip otherwise useful tests just because the `length` property
+ * check fails early in the test. User defined functions don't need to specify
+ * the length and passing -1 is a safe choice, as it will also reduce the
+ * footprint.
+ *
+ * The subtle difference between set `length` explicitly to 0 rather than
+ * just defaulting the `0` value from the prototype is that in the former case
+ * the property cannot be change since it's read only. This again, is important
+ * only for ecma compliance and your user code might or might not find this
+ * relevant.
+ *
+ * NODO(lsm): please don't combine v7_mk_function_arg and v7_mk_function
+ * into one function. Currently `num_args` is useful only internally. External
+ * users can just use `v7_def` to set the length.
+ */
+V7_PRIVATE
+v7_val_t mk_cfunction_obj(struct v7 *v7, v7_cfunction_t *func, int num_args);
+
+/*
+ * Like v7_mk_function_with_proto but also sets the function's `length`
+ *property.
+ *
+ * NODO(lsm): please don't combine mk_cfunction_obj_with_proto and
+ * v7_mk_function_with_proto.
+ * into one function. Currently `num_args` is useful only internally. External
+ * users can just use `v7_def` to set the length.
+ */
+V7_PRIVATE
+v7_val_t mk_cfunction_obj_with_proto(struct v7 *v7, v7_cfunction_t *f,
+                                     int num_args, v7_val_t proto);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_FUNCTION_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/util_public.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * === Utility functions
+ */
+
+#ifndef CS_V7_SRC_UTIL_PUBLIC_H_
+#define CS_V7_SRC_UTIL_PUBLIC_H_
+
+/* Amalgamated: #include "v7/src/core_public.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+/* Output a string representation of the value to stdout.
+ * V7_STRINGIFY_DEBUG mode is used. */
+void v7_print(struct v7 *v7, v7_val_t v);
+
+/* Output a string representation of the value to stdout followed by a newline.
+ * V7_STRINGIFY_DEBUG mode is used. */
+void v7_println(struct v7 *v7, v7_val_t v);
+
+/* Output a string representation of the value to a file.
+ * V7_STRINGIFY_DEBUG mode is used. */
+void v7_fprint(FILE *f, struct v7 *v7, v7_val_t v);
+
+/* Output a string representation of the value to a file followed by a newline.
+ * V7_STRINGIFY_DEBUG mode is used. */
+void v7_fprintln(FILE *f, struct v7 *v7, v7_val_t v);
+
+/* Output stack trace recorded in the exception `e` to file `f` */
+void v7_fprint_stack_trace(FILE *f, struct v7 *v7, v7_val_t e);
+
+/* Output error object message and possibly stack trace to f */
+void v7_print_error(FILE *f, struct v7 *v7, const char *ctx, v7_val_t e);
+
+#if V7_ENABLE__Proxy
+
+struct v7_property;
+
+/*
+ * C callback, analogue of JS callback `getOwnPropertyDescriptor()`.
+ * Callbacks of this type are used for C API only, see `m7_mk_proxy()`.
+ *
+ * `name` is the name of the property, and the function should fill `attrs` and
+ * `value` with the property data. Before this callback is called, `attrs` is
+ * set to 0, and `value` is `V7_UNDEFINED`.
+ *
+ * It should return non-zero if the property should be considered existing, or
+ * zero otherwise.
+ *
+ * You can inspect the property attributes with the `V7_PROP_ATTR_IS_*` macros.
+ */
+typedef int(v7_get_own_prop_desc_cb_t)(struct v7 *v7, v7_val_t target,
+                                       v7_val_t name, v7_prop_attr_t *attrs,
+                                       v7_val_t *value);
+
+/* Handler for `v7_mk_proxy()`; each item is a cfunction */
+typedef struct {
+  v7_cfunction_t *get;
+  v7_cfunction_t *set;
+  v7_cfunction_t *own_keys;
+  v7_get_own_prop_desc_cb_t *get_own_prop_desc;
+} v7_proxy_hnd_t;
+
+/*
+ * Create a Proxy object, see:
+ * https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Proxy
+ *
+ * Only two traps are implemented so far: `get()` and `set()`. Note that
+ * `Object.defineProperty()` bypasses the `set()` trap.
+ *
+ * If `target` is not an object, the empty object will be used, so it's safe
+ * to pass `V7_UNDEFINED` as `target`.
+ */
+v7_val_t v7_mk_proxy(struct v7 *v7, v7_val_t target,
+                     const v7_proxy_hnd_t *handler);
+
+#endif /* V7_ENABLE__Proxy */
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_UTIL_PUBLIC_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/util.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_UTIL_H_
+#define CS_V7_SRC_UTIL_H_
+
+/* Amalgamated: #include "v7/src/core.h" */
+/* Amalgamated: #include "v7/src/util_public.h" */
+
+struct bcode;
+
+V7_PRIVATE enum v7_type val_type(struct v7 *v7, val_t v);
+
+#if !V7_DISABLE_LINE_NUMBERS
+V7_PRIVATE uint8_t msb_lsb_swap(uint8_t b);
+#endif
+
+/*
+ * At the moment, all other utility functions are public, and are declared in
+ * `util_public.h`
+ */
+
+#endif /* CS_V7_SRC_UTIL_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/shdata.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * shdata (stands for "shared data") is a simple module that allows to have
+ * reference count for an arbitrary payload data, which will be freed as
+ * necessary. A poor man's shared_ptr.
+ */
+
+#ifndef CS_V7_SRC_SHDATA_H_
+#define CS_V7_SRC_SHDATA_H_
+
+/* Amalgamated: #include "v7/src/internal.h" */
+
+#if !V7_DISABLE_FILENAMES && !V7_DISABLE_LINE_NUMBERS
+struct shdata {
+  /* Reference count */
+  uint8_t refcnt;
+
+  /*
+   * Note: we'd use `unsigned char payload[];` here, but we can't, since this
+   * feature was introduced in C99 only
+   */
+};
+
+/*
+ * Allocate memory chunk of appropriate size, copy given `payload` data there,
+ * retain (`shdata_retain()`), and return it.
+ */
+V7_PRIVATE struct shdata *shdata_create(const void *payload, size_t size);
+
+V7_PRIVATE struct shdata *shdata_create_from_string(const char *src);
+
+/*
+ * Increment reference count for the given shared data
+ */
+V7_PRIVATE void shdata_retain(struct shdata *p);
+
+/*
+ * Decrement reference count for the given shared data
+ */
+V7_PRIVATE void shdata_release(struct shdata *p);
+
+/*
+ * Get payload data
+ */
+V7_PRIVATE void *shdata_get_payload(struct shdata *p);
+
+#endif
+#endif /* CS_V7_SRC_SHDATA_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/eval.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_EVAL_H_
+#define CS_V7_SRC_EVAL_H_
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/bcode.h" */
+
+struct v7_call_frame_base;
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err eval_bcode(struct v7 *v7, struct bcode *bcode,
+                                  val_t this_object, uint8_t reset_line_no,
+                                  val_t *_res);
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err b_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
+                               v7_val_t args, uint8_t is_constructor,
+                               v7_val_t *res);
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
+                              const char *filename, val_t func, val_t args,
+                              val_t this_object, int is_json, int fr,
+                              uint8_t is_constructor, val_t *res);
+
+/*
+ * Try to find the call frame whose `type_mask` intersects with the given
+ * `type_mask`.
+ *
+ * Start from the top call frame, and go deeper until the matching frame is
+ * found, or there's no more call frames. If the needed frame was not found,
+ * returns `NULL`.
+ */
+V7_PRIVATE struct v7_call_frame_base *find_call_frame(struct v7 *v7,
+                                                      uint8_t type_mask);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* CS_V7_SRC_EVAL_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/compiler.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_COMPILER_H_
+#define CS_V7_SRC_COMPILER_H_
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/bcode.h" */
+/* Amalgamated: #include "v7/src/ast.h" */
+
+#if !defined(V7_NO_COMPILER)
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+V7_PRIVATE enum v7_err compile_script(struct v7 *v7, struct ast *a,
+                                      struct bcode *bcode);
+
+V7_PRIVATE enum v7_err compile_expr(struct v7 *v7, struct ast *a,
+                                    ast_off_t *ppos, struct bcode *bcode);
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+
+#endif /* V7_NO_COMPILER */
+
+#endif /* CS_V7_SRC_COMPILER_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/cyg_profile.h"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_V7_SRC_CYG_PROFILE_H_
+#define CS_V7_SRC_CYG_PROFILE_H_
+
+/*
+ * This file contains GCC/clang instrumentation callbacks, as well as
+ * accompanying code. The actual code in these callbacks depends on enabled
+ * features. See cyg_profile.c for some implementation details rationale.
+ */
+
+struct v7;
+
+#if V7_ENABLE_STACK_TRACKING
+
+/*
+ * Stack-tracking functionality:
+ *
+ * The idea is that the caller should allocate `struct stack_track_ctx`
+ * (typically on stack) in the function to track the stack usage of, and call
+ * `v7_stack_track_start()` in the beginning.
+ *
+ * Before quitting current stack frame (for example, before returning from
+ * function), call `v7_stack_track_end()`, which returns the maximum stack
+ * consumed size.
+ *
+ * These calls can be nested: for example, we may track the stack usage of the
+ * whole application by using these functions in `main()`, as well as track
+ * stack usage of any nested functions.
+ *
+ * Just to stress: both `v7_stack_track_start()` / `v7_stack_track_end()`
+ * should be called for the same instance of `struct stack_track_ctx` in the
+ * same stack frame.
+ */
+
+/* stack tracking context */
+struct stack_track_ctx {
+  struct stack_track_ctx *next;
+  void *start;
+  void *max;
+};
+
+/* see explanation above */
+void v7_stack_track_start(struct v7 *v7, struct stack_track_ctx *ctx);
+/* see explanation above */
+int v7_stack_track_end(struct v7 *v7, struct stack_track_ctx *ctx);
+
+void v7_stack_stat_clean(struct v7 *v7);
+
+#endif /* V7_ENABLE_STACK_TRACKING */
+
+#endif /* CS_V7_SRC_CYG_PROFILE_H_ */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/builtin/builtin.h"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -5077,1289 +7911,10 @@ struct v7;
 void init_file(struct v7 *);
 void init_socket(struct v7 *);
 void init_crypto(struct v7 *);
-void init_ubjson(struct v7 *);
-void init_ubjson(struct v7 *v7);
 
 #endif /* CS_V7_BUILTIN_BUILTIN_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/util_public.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-/*
- * === Utility functions
- */
-
-#ifndef CS_V7_SRC_UTIL_PUBLIC_H_
-#define CS_V7_SRC_UTIL_PUBLIC_H_
-
-/* Amalgamated: #include "v7/src/core_public.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-/* Output a string representation of the value to stdout.
- * V7_STRINGIFY_DEBUG mode is used. */
-void v7_print(struct v7 *v7, v7_val_t v);
-
-/* Output a string representation of the value to stdout followed by a newline.
- * V7_STRINGIFY_DEBUG mode is used. */
-void v7_println(struct v7 *v7, v7_val_t v);
-
-/* Output a string representation of the value to a file.
- * V7_STRINGIFY_DEBUG mode is used. */
-void v7_fprint(FILE *f, struct v7 *v7, v7_val_t v);
-
-/* Output a string representation of the value to a file followed by a newline.
- * V7_STRINGIFY_DEBUG mode is used. */
-void v7_fprintln(FILE *f, struct v7 *v7, v7_val_t v);
-
-/* Output stack trace recorded in the exception `e` to file `f` */
-void v7_fprint_stack_trace(FILE *f, struct v7 *v7, v7_val_t e);
-
-/* Output error object message and possibly stack trace to f */
-void v7_print_error(FILE *f, struct v7 *v7, const char *ctx, v7_val_t e);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_UTIL_PUBLIC_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/util.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_UTIL_H_
-#define CS_V7_SRC_UTIL_H_
-
-/* Amalgamated: #include "v7/src/core.h" */
-/* Amalgamated: #include "v7/src/util_public.h" */
-
-struct bcode;
-
-V7_PRIVATE enum v7_type val_type(struct v7 *v7, val_t v);
-
-#ifndef V7_DISABLE_LINE_NUMBERS
-V7_PRIVATE uint8_t msb_lsb_swap(uint8_t b);
-#endif
-
-/*
- * At the moment, all other utility functions are public, and are declared in
- * `util_public.h`
- */
-
-#endif /* CS_V7_SRC_UTIL_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/function_public.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-/*
- * === Functions
- */
-
-#ifndef CS_V7_SRC_FUNCTION_PUBLIC_H_
-#define CS_V7_SRC_FUNCTION_PUBLIC_H_
-
-/* Amalgamated: #include "v7/src/core_public.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-/*
- * Make a JS function object backed by a cfunction.
- *
- * `func` is a C callback.
- *
- * A function object is JS object having the Function prototype that holds a
- * cfunction value in a hidden property.
- *
- * The function object will have a `prototype` property holding an object that
- * will be used as the prototype of objects created when calling the function
- * with the `new` operator.
- */
-v7_val_t v7_mk_function(struct v7 *, v7_cfunction_t *func);
-
-/*
- * Make f a JS function with specified prototype `proto`, so that the resulting
- * function is better suited for the usage as a constructor.
- */
-v7_val_t v7_mk_function_with_proto(struct v7 *v7, v7_cfunction_t *f,
-                                   v7_val_t proto);
-
-/*
- * Make a JS value that holds C/C++ callback pointer.
- *
- * CAUTION: This is a low-level function value. It's not a real object and
- * cannot hold user defined properties. You should use `v7_mk_function` unless
- * you know what you're doing.
- */
-v7_val_t v7_mk_cfunction(v7_cfunction_t *func);
-
-/*
- * Returns true if given value is callable (i.e. it's either a JS function or
- * cfunction)
- */
-int v7_is_callable(struct v7 *v7, v7_val_t v);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_FUNCTION_PUBLIC_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/function.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_FUNCTION_H_
-#define CS_V7_SRC_FUNCTION_H_
-
-/* Amalgamated: #include "v7/src/function_public.h" */
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/core.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-V7_PRIVATE struct v7_js_function *get_js_function_struct(val_t v);
-V7_PRIVATE val_t
-mk_js_function(struct v7 *v7, struct v7_generic_object *scope, val_t proto);
-V7_PRIVATE int is_js_function(val_t v);
-V7_PRIVATE v7_val_t mk_cfunction_lite(v7_cfunction_t *f);
-
-/* Returns true if given value holds a pointer to C callback */
-V7_PRIVATE int is_cfunction_lite(v7_val_t v);
-
-/* Returns true if given value holds an object which represents C callback */
-V7_PRIVATE int is_cfunction_obj(struct v7 *v7, v7_val_t v);
-
-/*
- * Returns `v7_cfunction_t *` callback pointer stored in `v7_val_t`, or NULL
- * if given value is neither cfunction pointer nor cfunction object.
- */
-V7_PRIVATE v7_cfunction_t *get_cfunction_ptr(struct v7 *v7, v7_val_t v);
-
-/*
- * Like v7_mk_function but also sets the function's `length` property.
- *
- * The `length` property is useful for introspection and the stdlib defines it
- * for many core functions mostly because the ECMA test suite requires it and we
- * don't want to skip otherwise useful tests just because the `length` property
- * check fails early in the test. User defined functions don't need to specify
- * the length and passing -1 is a safe choice, as it will also reduce the
- * footprint.
- *
- * The subtle difference between set `length` explicitly to 0 rather than
- * just defaulting the `0` value from the prototype is that in the former case
- * the property cannot be change since it's read only. This again, is important
- * only for ecma compliance and your user code might or might not find this
- * relevant.
- *
- * NODO(lsm): please don't combine v7_mk_function_arg and v7_mk_function
- * into one function. Currently `num_args` is useful only internally. External
- * users can just use `v7_def` to set the length.
- */
-V7_PRIVATE
-v7_val_t mk_cfunction_obj(struct v7 *v7, v7_cfunction_t *func, int num_args);
-
-/*
- * Like v7_mk_function_with_proto but also sets the function's `length`
- *property.
- *
- * NODO(lsm): please don't combine mk_cfunction_obj_with_proto and
- * v7_mk_function_with_proto.
- * into one function. Currently `num_args` is useful only internally. External
- * users can just use `v7_def` to set the length.
- */
-V7_PRIVATE
-v7_val_t mk_cfunction_obj_with_proto(struct v7 *v7, v7_cfunction_t *f,
-                                     int num_args, v7_val_t proto);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_FUNCTION_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/varint.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_VARINT_H_
-#define CS_V7_SRC_VARINT_H_
-
-/* Amalgamated: #include "v7/src/internal.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-V7_PRIVATE int encode_varint(size_t len, unsigned char *p);
-V7_PRIVATE size_t decode_varint(const unsigned char *p, int *llen);
-V7_PRIVATE int calc_llen(size_t len);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_VARINT_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/ast.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_AST_H_
-#define CS_V7_SRC_AST_H_
-
-#include <stdio.h>
-/* Amalgamated: #include "common/mbuf.h" */
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/core.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-#define BIN_AST_SIGNATURE "V\007ASTV10"
-
-enum ast_tag {
-  AST_NOP,
-  AST_SCRIPT,
-  AST_VAR,
-  AST_VAR_DECL,
-  AST_FUNC_DECL,
-  AST_IF,
-  AST_FUNC,
-
-  AST_ASSIGN,
-  AST_REM_ASSIGN,
-  AST_MUL_ASSIGN,
-  AST_DIV_ASSIGN,
-  AST_XOR_ASSIGN,
-  AST_PLUS_ASSIGN,
-  AST_MINUS_ASSIGN,
-  AST_OR_ASSIGN,
-  AST_AND_ASSIGN,
-  AST_LSHIFT_ASSIGN,
-  AST_RSHIFT_ASSIGN,
-  AST_URSHIFT_ASSIGN,
-
-  AST_NUM,
-  AST_IDENT,
-  AST_STRING,
-  AST_REGEX,
-  AST_LABEL,
-
-  AST_SEQ,
-  AST_WHILE,
-  AST_DOWHILE,
-  AST_FOR,
-  AST_FOR_IN,
-  AST_COND,
-
-  AST_DEBUGGER,
-  AST_BREAK,
-  AST_LABELED_BREAK,
-  AST_CONTINUE,
-  AST_LABELED_CONTINUE,
-  AST_RETURN,
-  AST_VALUE_RETURN,
-  AST_THROW,
-
-  AST_TRY,
-  AST_SWITCH,
-  AST_CASE,
-  AST_DEFAULT,
-  AST_WITH,
-
-  AST_LOGICAL_OR,
-  AST_LOGICAL_AND,
-  AST_OR,
-  AST_XOR,
-  AST_AND,
-
-  AST_EQ,
-  AST_EQ_EQ,
-  AST_NE,
-  AST_NE_NE,
-
-  AST_LE,
-  AST_LT,
-  AST_GE,
-  AST_GT,
-  AST_IN,
-  AST_INSTANCEOF,
-
-  AST_LSHIFT,
-  AST_RSHIFT,
-  AST_URSHIFT,
-
-  AST_ADD,
-  AST_SUB,
-
-  AST_REM,
-  AST_MUL,
-  AST_DIV,
-
-  AST_POSITIVE,
-  AST_NEGATIVE,
-  AST_NOT,
-  AST_LOGICAL_NOT,
-  AST_VOID,
-  AST_DELETE,
-  AST_TYPEOF,
-  AST_PREINC,
-  AST_PREDEC,
-
-  AST_POSTINC,
-  AST_POSTDEC,
-
-  AST_MEMBER,
-  AST_INDEX,
-  AST_CALL,
-
-  AST_NEW,
-
-  AST_ARRAY,
-  AST_OBJECT,
-  AST_PROP,
-  AST_GETTER,
-  AST_SETTER,
-
-  AST_THIS,
-  AST_TRUE,
-  AST_FALSE,
-  AST_NULL,
-  AST_UNDEFINED,
-
-  AST_USE_STRICT,
-
-  AST_MAX_TAG
-};
-
-struct ast {
-  struct mbuf mbuf;
-  int refcnt;
-  int has_overflow;
-};
-
-typedef unsigned long ast_off_t;
-
-#if __GNUC__ >= 4 && __GNUC_MINOR__ >= 8
-#define GCC_HAS_PRAGMA_DIAGNOSTIC
-#endif
-
-#ifdef GCC_HAS_PRAGMA_DIAGNOSTIC
-/*
- * TODO(mkm): GCC complains that bitfields on char are not standard
- */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#endif
-struct ast_node_def {
-#ifndef V7_DISABLE_AST_TAG_NAMES
-  const char *name; /* tag name, for debugging and serialization */
-#endif
-  unsigned char has_varint : 1;   /* has a varint body */
-  unsigned char has_inlined : 1;  /* inlined data whose size is in varint fld */
-  unsigned char num_skips : 3;    /* number of skips */
-  unsigned char num_subtrees : 3; /* number of fixed subtrees */
-};
-extern const struct ast_node_def ast_node_defs[];
-#if V7_ENABLE_FOOTPRINT_REPORT
-extern const size_t ast_node_defs_size;
-extern const size_t ast_node_defs_count;
-#endif
-#ifdef GCC_HAS_PRAGMA_DIAGNOSTIC
-#pragma GCC diagnostic pop
-#endif
-
-enum ast_which_skip {
-  AST_END_SKIP = 0,
-  AST_VAR_NEXT_SKIP = 1,
-  AST_SCRIPT_FIRST_VAR_SKIP = AST_VAR_NEXT_SKIP,
-  AST_FOR_BODY_SKIP = 1,
-  AST_DO_WHILE_COND_SKIP = 1,
-  AST_END_IF_TRUE_SKIP = 1,
-  AST_TRY_CATCH_SKIP = 1,
-  AST_TRY_FINALLY_SKIP = 2,
-  AST_FUNC_FIRST_VAR_SKIP = AST_VAR_NEXT_SKIP,
-  AST_FUNC_BODY_SKIP = 2,
-  AST_SWITCH_DEFAULT_SKIP = 1
-};
-
-V7_PRIVATE void ast_init(struct ast *, size_t);
-V7_PRIVATE void ast_optimize(struct ast *);
-V7_PRIVATE void ast_free(struct ast *);
-
-/*
- * Begins an AST node by inserting a tag to the AST at the given offset.
- *
- * It also allocates space for the fixed_size payload and the space for
- * the skips.
- *
- * The caller is responsible for appending children.
- *
- * Returns the offset of the node payload (one byte after the tag).
- * This offset can be passed to `ast_set_skip`.
- */
-V7_PRIVATE ast_off_t
-ast_insert_node(struct ast *a, ast_off_t pos, enum ast_tag tag);
-
-/*
- * Modify tag which is already added to buffer. Keeps `AST_TAG_LINENO_PRESENT`
- * flag.
- */
-V7_PRIVATE void ast_modify_tag(struct ast *a, ast_off_t tag_off,
-                               enum ast_tag tag);
-
-#ifndef V7_DISABLE_LINE_NUMBERS
-/*
- * Add line_no varint after all skips of the tag at the offset `tag_off`, and
- * marks the tag byte.
- *
- * Byte at the offset `tag_off` should be a valid tag.
- */
-V7_PRIVATE void ast_add_line_no(struct ast *a, ast_off_t tag_off, int line_no);
-#endif
-
-/*
- * Patches a given skip slot for an already emitted node with the
- * current write cursor position (e.g. AST length).
- *
- * This is intended to be invoked when a node with a variable number
- * of child subtrees is closed, or when the consumers need a shortcut
- * to the next sibling.
- *
- * Each node type has a different number and semantic for skips,
- * all of them defined in the `ast_which_skip` enum.
- * All nodes having a variable number of child subtrees must define
- * at least the `AST_END_SKIP` skip, which effectively skips a node
- * boundary.
- *
- * Every tree reader can assume this and safely skip unknown nodes.
- *
- * `pos` should be an offset of the byte right after a tag.
- */
-V7_PRIVATE ast_off_t
-ast_set_skip(struct ast *a, ast_off_t pos, enum ast_which_skip skip);
-
-/*
- * Patches a given skip slot for an already emitted node with the value
- * (stored as delta relative to the `pos` node) of the `where` argument.
- */
-V7_PRIVATE ast_off_t ast_modify_skip(struct ast *a, ast_off_t pos,
-                                     ast_off_t where, enum ast_which_skip skip);
-
-/*
- * Returns the offset in AST to which the given `skip` points.
- *
- * `pos` should be an offset of the byte right after a tag.
- */
-V7_PRIVATE ast_off_t
-ast_get_skip(struct ast *a, ast_off_t pos, enum ast_which_skip skip);
-
-/*
- * Returns the tag from the offset `ppos`, and shifts `ppos` by 1.
- */
-V7_PRIVATE enum ast_tag ast_fetch_tag(struct ast *a, ast_off_t *ppos);
-
-/*
- * Moves the cursor to the tag's varint and inlined data (if there are any, see
- * `struct ast_node_def::has_varint` and `struct ast_node_def::has_inlined`).
- *
- * Technically, it skips node's "skips" and line number data, if either is
- * present.
- *
- * Assumes a cursor (`ppos`) positioned right after a tag.
- */
-V7_PRIVATE void ast_move_to_inlined_data(struct ast *a, ast_off_t *ppos);
-
-/*
- * Moves the cursor to the tag's subtrees (if there are any,
- * see `struct ast_node_def::num_subtrees`), or to the next node in case the
- * current node has no subtrees.
- *
- * Technically, it skips node's "skips", line number data, and inlined data, if
- * either is present.
- *
- * Assumes a cursor (`ppos`) positioned right after a tag.
- */
-V7_PRIVATE void ast_move_to_children(struct ast *a, ast_off_t *ppos);
-
-/* Helper to add a node with inlined data. */
-V7_PRIVATE ast_off_t ast_insert_inlined_node(struct ast *a, ast_off_t pos,
-                                             enum ast_tag tag, const char *name,
-                                             size_t len);
-
-/*
- * Returns the line number encoded in the node, or `0` in case of none is
- * encoded.
- *
- * `pos` should be an offset of the byte right after a tag.
- */
-V7_PRIVATE int ast_get_line_no(struct ast *a, ast_off_t pos);
-
-/*
- * `pos` should be an offset of the byte right after a tag
- */
-V7_PRIVATE char *ast_get_inlined_data(struct ast *a, ast_off_t pos, size_t *n);
-
-/*
- * Returns the `double` number inlined in the node
- */
-V7_PRIVATE double ast_get_num(struct ast *a, ast_off_t pos);
-
-/*
- * Skips the node and all its subnodes.
- *
- * Cursor (`ppos`) should be at the tag byte
- */
-V7_PRIVATE void ast_skip_tree(struct ast *a, ast_off_t *ppos);
-
-V7_PRIVATE void ast_dump_tree(FILE *fp, struct ast *a, ast_off_t *ppos,
-                              int depth);
-
-V7_PRIVATE void release_ast(struct v7 *v7, struct ast *a);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_AST_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/bcode.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_BCODE_H_
-#define CS_V7_SRC_BCODE_H_
-
-#define BIN_BCODE_SIGNATURE "V\007BCODE:"
-
-#if !defined(V7_NAMES_CNT_WIDTH)
-#define V7_NAMES_CNT_WIDTH 10
-#endif
-
-#if !defined(V7_ARGS_CNT_WIDTH)
-#define V7_ARGS_CNT_WIDTH 8
-#endif
-
-#define V7_NAMES_CNT_MAX ((1 << V7_NAMES_CNT_WIDTH) - 1)
-#define V7_ARGS_CNT_MAX ((1 << V7_ARGS_CNT_WIDTH) - 1)
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/core.h" */
-/* Amalgamated: #include "v7/src/opcodes.h" */
-/* Amalgamated: #include "v7/src/string.h" */
-/* Amalgamated: #include "v7/src/object.h" */
-/* Amalgamated: #include "v7/src/primitive.h" */
-/* Amalgamated: #include "common/mbuf.h" */
-
-enum bcode_inline_lit_type_tag {
-  BCODE_INLINE_STRING_TYPE_TAG = 0,
-  BCODE_INLINE_NUMBER_TYPE_TAG,
-  BCODE_INLINE_FUNC_TYPE_TAG,
-
-  BCODE_MAX_INLINE_TYPE_TAG
-};
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-typedef uint32_t bcode_off_t;
-
-/*
- * Each JS function will have one bcode structure
- * containing the instruction stream, a literal table, and function
- * metadata.
- * Instructions contain references to literals (strings, constants, etc)
- *
- * The bcode struct can be shared between function instances
- * and keeps a reference count used to free it in the function destructor.
- */
-struct bcode {
-  /*
-   * Names + instruction opcode.
-   * Names are null-terminates strings. For function's bcode, there are:
-   *  - function name (for anonymous function, the name is still present: an
-   *    empty string);
-   *  - arg names (a number of args is determined by `args_cnt`, see below);
-   *  - local names (a number or locals can be calculated:
-   *    `(names_cnt - args_cnt - 1)`).
-   *
-   * For script's bcode, there are just local names.
-   */
-  struct v7_vec ops;
-
-  /* Literal table */
-  struct v7_vec lit;
-
-#ifndef V7_DISABLE_FILENAMES
-  /* Name of the file from which this bcode was generated (used for debug) */
-  void *filename;
-#endif
-
-  /* Reference count */
-  uint8_t refcnt;
-
-  /* Total number of null-terminated strings in the beginning of `ops` */
-  unsigned int names_cnt : V7_NAMES_CNT_WIDTH;
-
-  /* Number of args (should be <= `(names_cnt + 1)`) */
-  unsigned int args_cnt : V7_ARGS_CNT_WIDTH;
-
-  unsigned int strict_mode : 1;
-  /*
-   * If true this structure lives on read only memory, either
-   * mmapped or constant data section.
-   */
-  unsigned int frozen : 1;
-
-  /* If set, `ops.buf` points to ROM, so we shouldn't free it */
-  unsigned int ops_in_rom : 1;
-  /* Set for deserialized bcode. Used for metrics only */
-  unsigned int deserialized : 1;
-
-  /* Set when `ops` contains function name as the first `name` */
-  unsigned int func_name_present : 1;
-
-#ifndef V7_DISABLE_FILENAMES
-  /* If set, `filename` points to ROM, so we shouldn't free it */
-  unsigned int filename_in_rom : 1;
-#endif
-};
-
-/*
- * Bcode builder context: it contains mutable mbufs for opcodes and literals,
- * whereas the bcode itself contains just vectors (`struct v7_vec`).
- */
-struct bcode_builder {
-  struct v7 *v7;
-  struct bcode *bcode;
-
-  struct mbuf ops; /* names + instruction opcode */
-  struct mbuf lit; /* literal table */
-};
-
-enum bcode_ser_lit_tag {
-  BCODE_SER_NUMBER,
-  BCODE_SER_STRING,
-  BCODE_SER_REGEX,
-  BCODE_SER_FUNCTION,
-};
-
-V7_PRIVATE void bcode_builder_init(struct v7 *v7,
-                                   struct bcode_builder *bbuilder,
-                                   struct bcode *bcode);
-V7_PRIVATE void bcode_builder_finalize(struct bcode_builder *bbuilder);
-
-/*
- * Note: `filename` must be either:
- *
- * - `NULL`. In this case, `filename_in_rom` is ignored.
- * - A pointer to ROM (or to any other unmanaged memory). `filename_in_rom`
- *   must be set to 1.
- * - A pointer returned by `shdata_create()`, i.e. a pointer to shared data.
- *
- * If you need to copy filename from another bcode, just pass NULL initially,
- * and after bcode is initialized, call `bcode_copy_filename_from()`.
- *
- * To get later a proper null-terminated filename string from bcode, use
- * `bcode_get_filename()`.
- */
-V7_PRIVATE void bcode_init(struct bcode *bcode, uint8_t strict_mode,
-                           void *filename, uint8_t filename_in_rom);
-V7_PRIVATE void bcode_free(struct v7 *v7, struct bcode *bcode);
-V7_PRIVATE void release_bcode(struct v7 *v7, struct bcode *bcode);
-V7_PRIVATE void retain_bcode(struct v7 *v7, struct bcode *bcode);
-
-#ifndef V7_DISABLE_FILENAMES
-/*
- * Return a pointer to null-terminated filename string
- */
-V7_PRIVATE const char *bcode_get_filename(struct bcode *bcode);
-#endif
-
-/*
- * Copy filename from `src` to `dst`. If source filename is a pointer to ROM,
- * then just the pointer is copied; otherwise, appropriate shdata pointer is
- * retained.
- */
-V7_PRIVATE void bcode_copy_filename_from(struct bcode *dst, struct bcode *src);
-
-#ifndef V7_NO_FS
-/*
- * Serialize a bcode structure.
- *
- * Serialization format:
- *
- * Top level:
- * <magic number>
- * <bcode> // root bcode
- *
- * Root bcode:
- * <varint>  // number of literals
- * <bcode_ser_literal>*
- * <varint>  // number of names
- * <string>* // names
- * <varint>  // number of args
- * <varint>  // opcode lenght
- * <bcode_op>*
- *
- * bcode literals are encoded as:
- *
- * <enum bcode_ser_literal_tag>
- * <type specific payload>
- *
- * BCODE_SER_NUMBER:
- * BCODE_SER_STRING:
- * BCODE_SER_REGEX:
- * <varint> // length
- * <stringdata> // like AST
- *
- * BCODE_SER_FUNCTION:
- * <bcode> // recursively
- *
- */
-V7_PRIVATE void bcode_serialize(struct v7 *v7, struct bcode *bcode, FILE *f);
-V7_PRIVATE void bcode_deserialize(struct v7 *v7, struct bcode *bcode,
-                                  const char *data);
-#endif
-
-#ifdef V7_BCODE_DUMP
-V7_PRIVATE void dump_bcode(struct v7 *v7, FILE *, struct bcode *);
-#endif
-
-/* mode of literal storage: in literal table or inlined in `ops` */
-enum lit_mode {
-  /* literal stored in table, index is in `lit_t::lit_idx` */
-  LIT_MODE__TABLE,
-  /* literal should be inlined in `ops`, value is in `lit_t::inline_val` */
-  LIT_MODE__INLINED,
-};
-
-/*
- * Result of the addition of literal value to bcode (see `bcode_add_lit()`).
- * There are two possible cases:
- *
- * - Literal is added to the literal table. In this case, `mode ==
- *   LIT_MODE__TABLE`, and the index of the literal is stored in `lit_idx`
- * - Literal is not added anywhere, and should be inlined into `ops`. In this
- *   case, `mode == LIT_MODE__INLINED`, and the value to inline is stored in
- *   `inline_val`.
- *
- * It's `bcode_op_lit()` who handles both of these cases.
- */
-typedef struct {
-  union {
-    /*
-     * index in literal table;
-     * NOTE: valid if only `mode == LIT_MODE__TABLE`
-     */
-    size_t lit_idx;
-
-    /*
-     * value to be inlined into `ops`;
-     * NOTE: valid if only `mode == LIT_MODE__INLINED`
-     */
-    v7_val_t inline_val;
-  } v; /* anonymous unions are a c11 feature */
-
-  /*
-   * mode of literal storage (see `enum lit_mode`)
-   * NOTE: we need one more bit, because enum can be signed
-   * on some compilers (e.g. msvc) and thus will get signextended
-   * when moved to a `enum lit_mode` variable basically corrupting
-   * the value. See https://github.com/cesanta/v7/issues/551
-   */
-  enum lit_mode mode : 2;
-} lit_t;
-
-V7_PRIVATE void bcode_op(struct bcode_builder *bbuilder, uint8_t op);
-
-#ifndef V7_DISABLE_LINE_NUMBERS
-V7_PRIVATE void bcode_append_lineno(struct bcode_builder *bbuilder,
-                                    int line_no);
-#endif
-
-/*
- * Add a literal to the bcode literal table, or just decide that the literal
- * should be inlined into `ops`. See `lit_t` for details.
- */
-V7_PRIVATE
-lit_t bcode_add_lit(struct bcode_builder *bbuilder, v7_val_t val);
-
-/* disabled because of short lits */
-#if 0
-V7_PRIVATE v7_val_t bcode_get_lit(struct bcode *bcode, size_t idx);
-#endif
-
-/*
- * Emit an opcode `op`, and handle the literal `lit` (see `bcode_add_lit()`,
- * `lit_t`). Depending on the literal storage mode (see `enum lit_mode`), this
- * function either emits literal table index or inlines the literal directly
- * into `ops.`
- */
-V7_PRIVATE void bcode_op_lit(struct bcode_builder *bbuilder, enum opcode op,
-                             lit_t lit);
-
-/* Helper function, equivalent of `bcode_op_lit(bbuilder, OP_PUSH_LIT, lit)` */
-V7_PRIVATE void bcode_push_lit(struct bcode_builder *bbuilder, lit_t lit);
-
-/*
- * Add name to bcode. If `idx` is null, a name is appended to the end of the
- * `bcode->ops.buf`. If `idx` is provided, it should point to the index at
- * which new name should be inserted; and it is updated by the
- * `bcode_add_name()` to point right after newly added name.
- */
-WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err bcode_add_name(struct bcode_builder *bbuilder,
-                                      const char *p, size_t len, size_t *idx);
-
-/*
- * Takes a pointer to the beginning of `ops` buffer and names count, returns
- * a pointer where actual opcodes begin (i.e. skips names).
- *
- * It takes two distinct arguments instead of just `struct bcode` pointer,
- * because during bcode building `ops` is stored in builder.
- */
-V7_PRIVATE char *bcode_end_names(char *ops, size_t names_cnt);
-
-/*
- * Given a pointer to `ops` (which should be `bcode->ops` or a pointer returned
- * from previous invocation of `bcode_next_name()`), yields a name string via
- * arguments `pname`, `plen`.
- *
- * Returns a pointer that should be given to `bcode_next_name()` to get a next
- * string (Whether there is a next string should be determined via the
- * `names_cnt`; since if there are no more names, this function will return an
- * invalid non-null pointer as next name pointer)
- */
-V7_PRIVATE char *bcode_next_name(char *ops, char **pname, size_t *plen);
-
-/*
- * Like `bcode_next_name()`, but instead of yielding a C string, it yields a
- * `val_t` value (via `res`).
- */
-V7_PRIVATE char *bcode_next_name_v(struct v7 *v7, struct bcode *bcode,
-                                   char *ops, val_t *res);
-V7_PRIVATE bcode_off_t bcode_pos(struct bcode_builder *bbuilder);
-V7_PRIVATE bcode_off_t bcode_add_target(struct bcode_builder *bbuilder);
-V7_PRIVATE bcode_off_t
-bcode_op_target(struct bcode_builder *bbuilder, uint8_t op);
-V7_PRIVATE void bcode_patch_target(struct bcode_builder *bbuilder,
-                                   bcode_off_t label, bcode_off_t target);
-
-V7_PRIVATE void bcode_add_varint(struct bcode_builder *bbuilder, size_t value);
-/*
- * Reads varint-encoded integer from the provided pointer, and adjusts
- * the pointer appropriately
- */
-V7_PRIVATE size_t bcode_get_varint(char **ops);
-
-/*
- * Decode a literal value from a string of opcodes and update the cursor to
- * point past it
- */
-V7_PRIVATE
-v7_val_t bcode_decode_lit(struct v7 *v7, struct bcode *bcode, char **ops);
-
-#if defined(V7_BCODE_DUMP) || defined(V7_BCODE_TRACE)
-V7_PRIVATE void dump_op(struct v7 *v7, FILE *f, struct bcode *bcode,
-                        char **ops);
-#endif
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_BCODE_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/gc_public.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-/*
- * === Garbage Collector
- */
-
-#ifndef CS_V7_SRC_GC_PUBLIC_H_
-#define CS_V7_SRC_GC_PUBLIC_H_
-
-/* Amalgamated: #include "v7/src/core_public.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-#if V7_ENABLE__Memory__stats
-
-/* Heap metric id, see `v7_heap_stat()` */
-enum v7_heap_stat_what {
-  V7_HEAP_STAT_HEAP_SIZE,
-  V7_HEAP_STAT_HEAP_USED,
-  V7_HEAP_STAT_STRING_HEAP_RESERVED,
-  V7_HEAP_STAT_STRING_HEAP_USED,
-  V7_HEAP_STAT_OBJ_HEAP_MAX,
-  V7_HEAP_STAT_OBJ_HEAP_FREE,
-  V7_HEAP_STAT_OBJ_HEAP_CELL_SIZE,
-  V7_HEAP_STAT_FUNC_HEAP_MAX,
-  V7_HEAP_STAT_FUNC_HEAP_FREE,
-  V7_HEAP_STAT_FUNC_HEAP_CELL_SIZE,
-  V7_HEAP_STAT_PROP_HEAP_MAX,
-  V7_HEAP_STAT_PROP_HEAP_FREE,
-  V7_HEAP_STAT_PROP_HEAP_CELL_SIZE,
-  V7_HEAP_STAT_FUNC_AST_SIZE,
-  V7_HEAP_STAT_BCODE_OPS_SIZE,
-  V7_HEAP_STAT_BCODE_LIT_TOTAL_SIZE,
-  V7_HEAP_STAT_BCODE_LIT_DESER_SIZE,
-  V7_HEAP_STAT_FUNC_OWNED,
-  V7_HEAP_STAT_FUNC_OWNED_MAX
-};
-
-/* Returns a given heap statistics */
-int v7_heap_stat(struct v7 *v7, enum v7_heap_stat_what what);
-#endif
-
-/*
- * Perform garbage collection.
- * Pass true to full in order to reclaim unused heap back to the OS.
- */
-void v7_gc(struct v7 *v7, int full);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_GC_PUBLIC_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/gc.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_GC_H_
-#define CS_V7_SRC_GC_H_
-
-/* Amalgamated: #include "v7/src/gc_public.h" */
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/core.h" */
-
-/*
- * Macros for marking reachable things: use bit 0.
- */
-#define MARK(p) (((struct gc_cell *) (p))->head.word |= 1)
-#define UNMARK(p) (((struct gc_cell *) (p))->head.word &= ~1)
-#define MARKED(p) (((struct gc_cell *) (p))->head.word & 1)
-
-/*
- * Similar to `MARK()` / `UNMARK()` / `MARKED()`, but `.._FREE` counterparts
- * are intended to mark free cells (as opposed to used ones), so they use
- * bit 1.
- */
-#define MARK_FREE(p) (((struct gc_cell *) (p))->head.word |= 2)
-#define UNMARK_FREE(p) (((struct gc_cell *) (p))->head.word &= ~2)
-#define MARKED_FREE(p) (((struct gc_cell *) (p))->head.word & 2)
-
-/*
- * performs arithmetics on gc_cell pointers as if they were arena->cell_size
- * bytes wide
- */
-#define GC_CELL_OP(arena, cell, op, arg) \
-  ((struct gc_cell *) (((char *) (cell)) op((arg) * (arena)->cell_size)))
-
-struct gc_tmp_frame {
-  struct v7 *v7;
-  size_t pos;
-};
-
-struct gc_cell {
-  union {
-    struct gc_cell *link;
-    uintptr_t word;
-  } head;
-};
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-V7_PRIVATE struct v7_generic_object *new_generic_object(struct v7 *);
-V7_PRIVATE struct v7_property *new_property(struct v7 *);
-V7_PRIVATE struct v7_js_function *new_function(struct v7 *);
-
-V7_PRIVATE void gc_mark(struct v7 *, val_t);
-
-V7_PRIVATE void gc_arena_init(struct gc_arena *, size_t, size_t, size_t,
-                              const char *);
-V7_PRIVATE void gc_arena_destroy(struct v7 *, struct gc_arena *a);
-V7_PRIVATE void gc_sweep(struct v7 *, struct gc_arena *, size_t);
-V7_PRIVATE void *gc_alloc_cell(struct v7 *, struct gc_arena *);
-
-V7_PRIVATE struct gc_tmp_frame new_tmp_frame(struct v7 *);
-V7_PRIVATE void tmp_frame_cleanup(struct gc_tmp_frame *);
-V7_PRIVATE void tmp_stack_push(struct gc_tmp_frame *, val_t *);
-
-V7_PRIVATE void compute_need_gc(struct v7 *);
-/* perform gc if not inhibited */
-V7_PRIVATE void maybe_gc(struct v7 *);
-
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
-V7_PRIVATE uint16_t
-gc_next_allocation_seqn(struct v7 *v7, const char *str, size_t len);
-V7_PRIVATE int gc_is_valid_allocation_seqn(struct v7 *v7, uint16_t n);
-V7_PRIVATE void gc_check_valid_allocation_seqn(struct v7 *v7, uint16_t n);
-#endif
-
-V7_PRIVATE uint64_t gc_string_val_to_offset(val_t v);
-
-/* return 0 if v is an object/function with a bad pointer */
-V7_PRIVATE int gc_check_val(struct v7 *v7, val_t v);
-
-/* checks whether a pointer is within the ranges of an arena */
-V7_PRIVATE int gc_check_ptr(const struct gc_arena *a, const void *p);
-
-#if V7_ENABLE__Memory__stats
-V7_PRIVATE size_t gc_arena_size(struct gc_arena *);
-#endif
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_GC_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/shdata.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-/*
- * shdata (stands for "shared data") is a simple module that allows to have
- * reference count for an arbitrary payload data, which will be freed as
- * necessary. A poor man's shared_ptr.
- */
-
-#ifndef CS_V7_SRC_SHDATA_H_
-#define CS_V7_SRC_SHDATA_H_
-
-/* Amalgamated: #include "v7/src/internal.h" */
-
-#if !defined(V7_DISABLE_FILENAMES) && !defined(V7_DISABLE_LINE_NUMBERS)
-struct shdata {
-  /* Reference count */
-  uint8_t refcnt;
-
-  /*
-   * Note: we'd use `unsigned char payload[];` here, but we can't, since this
-   * feature was introduced in C99 only
-   */
-};
-
-/*
- * Allocate memory chunk of appropriate size, copy given `payload` data there,
- * retain (`shdata_retain()`), and return it.
- */
-V7_PRIVATE struct shdata *shdata_create(const void *payload, size_t size);
-
-V7_PRIVATE struct shdata *shdata_create_from_string(const char *src);
-
-/*
- * Increment reference count for the given shared data
- */
-V7_PRIVATE void shdata_retain(struct shdata *p);
-
-/*
- * Decrement reference count for the given shared data
- */
-V7_PRIVATE void shdata_release(struct shdata *p);
-
-/*
- * Get payload data
- */
-V7_PRIVATE void *shdata_get_payload(struct shdata *p);
-
-#endif
-#endif /* CS_V7_SRC_SHDATA_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/eval.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_EVAL_H_
-#define CS_V7_SRC_EVAL_H_
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/bcode.h" */
-
-struct v7_call_frame_base;
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err eval_bcode(struct v7 *v7, struct bcode *bcode,
-                                  val_t this_object, uint8_t reset_line_no,
-                                  val_t *_res);
-
-WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err b_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
-                               v7_val_t args, uint8_t is_constructor,
-                               v7_val_t *res);
-
-WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
-                              const char *filename, val_t func, val_t args,
-                              val_t this_object, int is_json, int fr,
-                              uint8_t is_constructor, val_t *res);
-
-/*
- * Try to find the call frame whose `type_mask` intersects with the given
- * `type_mask`.
- *
- * Start from the top call frame, and go deeper until the matching frame is
- * found, or there's no more call frames. If the needed frame was not found,
- * returns `NULL`.
- */
-V7_PRIVATE struct v7_call_frame_base *find_call_frame(struct v7 *v7,
-                                                      uint8_t type_mask);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_EVAL_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/compiler.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_COMPILER_H_
-#define CS_V7_SRC_COMPILER_H_
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/bcode.h" */
-/* Amalgamated: #include "v7/src/ast.h" */
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-V7_PRIVATE enum v7_err compile_script(struct v7 *v7, struct ast *a,
-                                      struct bcode *bcode);
-
-V7_PRIVATE enum v7_err compile_expr(struct v7 *v7, struct ast *a,
-                                    ast_off_t *ppos, struct bcode *bcode);
-
-#if defined(__cplusplus)
-}
-#endif /* __cplusplus */
-
-#endif /* CS_V7_SRC_COMPILER_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/cyg_profile.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_CYG_PROFILE_H_
-#define CS_V7_SRC_CYG_PROFILE_H_
-
-/*
- * This file contains GCC/clang instrumentation callbacks, as well as
- * accompanying code. The actual code in these callbacks depends on enabled
- * features. See cyg_profile.c for some implementation details rationale.
- */
-
-struct v7;
-
-#if defined(V7_ENABLE_STACK_TRACKING)
-
-/*
- * Stack-tracking functionality:
- *
- * The idea is that the caller should allocate `struct stack_track_ctx`
- * (typically on stack) in the function to track the stack usage of, and call
- * `v7_stack_track_start()` in the beginning.
- *
- * Before quitting current stack frame (for example, before returning from
- * function), call `v7_stack_track_end()`, which returns the maximum stack
- * consumed size.
- *
- * These calls can be nested: for example, we may track the stack usage of the
- * whole application by using these functions in `main()`, as well as track
- * stack usage of any nested functions.
- *
- * Just to stress: both `v7_stack_track_start()` / `v7_stack_track_end()`
- * should be called for the same instance of `struct stack_track_ctx` in the
- * same stack frame.
- */
-
-/* stack tracking context */
-struct stack_track_ctx {
-  struct stack_track_ctx *next;
-  void *start;
-  void *max;
-};
-
-/* see explanation above */
-void v7_stack_track_start(struct v7 *v7, struct stack_track_ctx *ctx);
-/* see explanation above */
-int v7_stack_track_end(struct v7 *v7, struct stack_track_ctx *ctx);
-
-void v7_stack_stat_clean(struct v7 *v7);
-
-#endif /* V7_ENABLE_STACK_TRACKING */
-
-#endif /* CS_V7_SRC_CYG_PROFILE_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/slre.h"
+#line 1 "v7/src/slre.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6452,7 +8007,7 @@ int slre_get_flags(struct slre_prog *);
 
 #endif /* CS_V7_SRC_SLRE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/stdlib.h"
+#line 1 "v7/src/stdlib.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6469,7 +8024,7 @@ int slre_get_flags(struct slre_prog *);
 extern "C" {
 #endif /* __cplusplus */
 
-V7_PRIVATE void init_stdlib(struct v7 *v7);
+/*V7_PRIVATE*/ void init_stdlib(struct v7 *v7);
 
 WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err std_eval(struct v7 *v7, v7_val_t arg, v7_val_t this_obj,
@@ -6481,7 +8036,7 @@ V7_PRIVATE enum v7_err std_eval(struct v7 *v7, v7_val_t arg, v7_val_t this_obj,
 
 #endif /* CS_V7_SRC_STDLIB_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/heapusage.h"
+#line 1 "v7/src/heapusage.h"
 #endif
 /*
  * Copyright (c) 2014-2016 Cesanta Software Limited
@@ -6491,7 +8046,7 @@ V7_PRIVATE enum v7_err std_eval(struct v7 *v7, v7_val_t arg, v7_val_t this_obj,
 #ifndef CS_V7_SRC_HEAPUSAGE_H_
 #define CS_V7_SRC_HEAPUSAGE_H_
 
-#if defined(V7_HEAPUSAGE_ENABLE)
+#if V7_HEAPUSAGE_ENABLE
 
 extern volatile int heap_dont_count;
 
@@ -6526,67 +8081,51 @@ size_t heapusage_allocs_cnt(void);
 
 #endif /* CS_V7_SRC_HEAPUSAGE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/regexp_public.h"
+#line 1 "v7/src/std_proxy.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
-/*
- * === RegExp
- */
+#ifndef CS_V7_SRC_STD_PROXY_H_
+#define CS_V7_SRC_STD_PROXY_H_
 
-#ifndef CS_V7_SRC_REGEXP_PUBLIC_H_
-#define CS_V7_SRC_REGEXP_PUBLIC_H_
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/core.h" */
 
-/* Amalgamated: #include "v7/src/core_public.h" */
+#if V7_ENABLE__Proxy
+
+#define _V7_PROXY_TARGET_NAME "__tgt"
+#define _V7_PROXY_HANDLER_NAME "__hnd"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif /* __cplusplus */
 
-/*
- * Make RegExp object.
- * `regex`, `regex_len` specify a pattern, `flags` and `flags_len` specify
- * flags. Both utf8 encoded. For example, `regex` is `(.+)`, `flags` is `gi`.
- * If `regex_len` is ~0, `regex` is assumed to be NUL-terminated and
- * `strlen(regex)` is used.
- */
-WARN_UNUSED_RESULT
-enum v7_err v7_mk_regexp(struct v7 *v7, const char *regex, size_t regex_len,
-                         const char *flags, size_t flags_len, v7_val_t *res);
+#if V7_ENABLE__Proxy
 
-/* Returns true if given value is a JavaScript RegExp object*/
-int v7_is_regexp(struct v7 *v7, v7_val_t v);
+V7_PRIVATE enum v7_err Proxy_ctor(struct v7 *v7, v7_val_t *res);
+
+V7_PRIVATE void init_proxy(struct v7 *v7);
+
+/*
+ * Returns whether the given name is one of the special Proxy names
+ * (_V7_PROXY_TARGET_NAME or _V7_PROXY_HANDLER_NAME)
+ */
+V7_PRIVATE int is_special_proxy_name(const char *name, size_t name_len);
+
+#endif
 
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
-#endif /* CS_V7_SRC_REGEXP_PUBLIC_H_ */
+#endif /* V7_ENABLE__Proxy */
+
+#endif /* CS_V7_SRC_STD_PROXY_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/regexp.h"
-#endif
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_V7_SRC_REGEXP_H_
-#define CS_V7_SRC_REGEXP_H_
-
-/* Amalgamated: #include "v7/src/regexp_public.h" */
-
-/* Amalgamated: #include "v7/src/core.h" */
-
-#if V7_ENABLE__RegExp
-V7_PRIVATE struct v7_regexp *v7_to_regexp(struct v7 *, v7_val_t);
-#endif /* V7_ENABLE__RegExp */
-
-#endif /* CS_V7_SRC_REGEXP_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "./v7/src/freeze.h"
+#line 1 "v7/src/freeze.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6618,7 +8157,7 @@ V7_PRIVATE void freeze_prop(struct v7 *v7, FILE *f, struct v7_property *prop);
 
 #endif /* CS_V7_SRC_FREEZE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_array.h"
+#line 1 "v7/src/std_array.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6642,7 +8181,7 @@ V7_PRIVATE void init_array(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_ARRAY_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_boolean.h"
+#line 1 "v7/src/std_boolean.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6666,7 +8205,7 @@ V7_PRIVATE void init_boolean(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_BOOLEAN_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_date.h"
+#line 1 "v7/src/std_date.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6693,7 +8232,7 @@ V7_PRIVATE void init_date(struct v7 *v7);
 #endif /* V7_ENABLE__Date */
 #endif /* CS_V7_SRC_STD_DATE_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_function.h"
+#line 1 "v7/src/std_function.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6717,7 +8256,7 @@ V7_PRIVATE void init_function(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_FUNCTION_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_json.h"
+#line 1 "v7/src/std_json.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6741,7 +8280,7 @@ V7_PRIVATE void init_json(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_JSON_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_math.h"
+#line 1 "v7/src/std_math.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6768,7 +8307,7 @@ V7_PRIVATE void init_math(struct v7 *v7);
 #endif /* V7_ENABLE__Math */
 #endif /* CS_V7_SRC_STD_MATH_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_number.h"
+#line 1 "v7/src/std_number.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6792,7 +8331,7 @@ V7_PRIVATE void init_number(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_NUMBER_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_object.h"
+#line 1 "v7/src/std_object.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6822,7 +8361,7 @@ V7_PRIVATE enum v7_err Obj_valueOf(struct v7 *v7, v7_val_t *res);
 
 #endif /* CS_V7_SRC_STD_OBJECT_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_regex.h"
+#line 1 "v7/src/std_regex.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6855,7 +8394,7 @@ V7_PRIVATE void init_regex(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_REGEX_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/std_string.h"
+#line 1 "v7/src/std_string.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6883,7 +8422,7 @@ V7_PRIVATE void init_string(struct v7 *v7);
 
 #endif /* CS_V7_SRC_STD_STRING_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/js_stdlib.h"
+#line 1 "v7/src/js_stdlib.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6907,7 +8446,7 @@ V7_PRIVATE void init_js_stdlib(struct v7 *);
 
 #endif /* CS_V7_SRC_JS_STDLIB_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/main_public.h"
+#line 1 "v7/src/main_public.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6950,7 +8489,7 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
 
 #endif /* CS_V7_SRC_MAIN_PUBLIC_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "./v7/src/main.h"
+#line 1 "v7/src/main.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6965,7 +8504,7 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
 #endif /* CS_V7_SRC_MAIN_H_ */
 #ifndef V7_EXPORT_INTERNAL_HEADERS
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/mbuf.c"
+#line 1 "common/mbuf.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -6986,12 +8525,14 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
 #define MBUF_FREE free
 #endif
 
+void mbuf_init(struct mbuf *mbuf, size_t initial_size) WEAK;
 void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
   mbuf->len = mbuf->size = 0;
   mbuf->buf = NULL;
   mbuf_resize(mbuf, initial_size);
 }
 
+void mbuf_free(struct mbuf *mbuf) WEAK;
 void mbuf_free(struct mbuf *mbuf) {
   if (mbuf->buf != NULL) {
     MBUF_FREE(mbuf->buf);
@@ -6999,6 +8540,7 @@ void mbuf_free(struct mbuf *mbuf) {
   }
 }
 
+void mbuf_resize(struct mbuf *a, size_t new_size) WEAK;
 void mbuf_resize(struct mbuf *a, size_t new_size) {
   if (new_size > a->size || (new_size < a->size && new_size >= a->len)) {
     char *buf = (char *) MBUF_REALLOC(a->buf, new_size);
@@ -7013,10 +8555,12 @@ void mbuf_resize(struct mbuf *a, size_t new_size) {
   }
 }
 
+void mbuf_trim(struct mbuf *mbuf) WEAK;
 void mbuf_trim(struct mbuf *mbuf) {
   mbuf_resize(mbuf, mbuf->len);
 }
 
+size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t) WEAK;
 size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
@@ -7034,7 +8578,7 @@ size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
     }
     a->len += len;
   } else {
-    size_t new_size = (a->len + len) * MBUF_SIZE_MULTIPLIER;
+    size_t new_size = (size_t)((a->len + len) * MBUF_SIZE_MULTIPLIER);
     if ((p = (char *) MBUF_REALLOC(a->buf, new_size)) != NULL) {
       a->buf = p;
       memmove(a->buf + off + len, a->buf + off, a->len - off);
@@ -7049,10 +8593,12 @@ size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   return len;
 }
 
+size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) WEAK;
 size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
   return mbuf_insert(a, a->len, buf, len);
 }
 
+void mbuf_remove(struct mbuf *mb, size_t n) WEAK;
 void mbuf_remove(struct mbuf *mb, size_t n) {
   if (n > 0 && n <= mb->len) {
     memmove(mb->buf, mb->buf + n, mb->len - n);
@@ -7062,7 +8608,7 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/str_util.c"
+#line 1 "common/str_util.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -7071,9 +8617,17 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 
 #ifndef EXCLUDE_COMMON
 
+/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/platform.h" */
 /* Amalgamated: #include "common/str_util.h" */
 
+#ifndef C_DISABLE_BUILTIN_SNPRINTF
+#define C_DISABLE_BUILTIN_SNPRINTF 0
+#endif
+
+/* Amalgamated: #include "common/mg_mem.h" */
+
+size_t c_strnlen(const char *s, size_t maxlen) WEAK;
 size_t c_strnlen(const char *s, size_t maxlen) {
   size_t l = 0;
   for (; l < maxlen && s[l] != '\0'; l++) {
@@ -7089,7 +8643,8 @@ size_t c_strnlen(const char *s, size_t maxlen) {
 
 #define C_SNPRINTF_FLAG_ZERO 1
 
-#ifdef C_DISABLE_BUILTIN_SNPRINTF
+#if C_DISABLE_BUILTIN_SNPRINTF
+int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) WEAK;
 int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
   return vsnprintf(buf, buf_size, fmt, ap);
 }
@@ -7135,6 +8690,7 @@ static int c_itoa(char *buf, size_t buf_size, int64_t num, int base, int flags,
   return i;
 }
 
+int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) WEAK;
 int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
   int ch, i = 0, len_mod, flags, precision, field_width;
 
@@ -7247,7 +8803,7 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
         i += c_itoa(buf + i, buf_size - i, va_arg(ap, size_t),
                     ch == 'x' ? 16 : 10, flags, field_width);
       } else if (ch == 'p') {
-        unsigned long num = (unsigned long) va_arg(ap, void *);
+        unsigned long num = (unsigned long) (uintptr_t) va_arg(ap, void *);
         C_SNPRINTF_APPEND_CHAR('0');
         C_SNPRINTF_APPEND_CHAR('x');
         i += c_itoa(buf + i, buf_size - i, num, 16, flags, 0);
@@ -7272,6 +8828,7 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
 }
 #endif
 
+int c_snprintf(char *buf, size_t buf_size, const char *fmt, ...) WEAK;
 int c_snprintf(char *buf, size_t buf_size, const char *fmt, ...) {
   int result;
   va_list ap;
@@ -7312,6 +8869,7 @@ int to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 #endif /* _WIN32 */
 
 /* The simplest O(mn) algorithm. Better implementation are GPLed */
+const char *c_strnstr(const char *s, const char *find, size_t slen) WEAK;
 const char *c_strnstr(const char *s, const char *find, size_t slen) {
   size_t find_length = strlen(find);
   size_t i;
@@ -7329,9 +8887,139 @@ const char *c_strnstr(const char *s, const char *find, size_t slen) {
   return NULL;
 }
 
+#if CS_ENABLE_STRDUP
+char *strdup(const char *src) WEAK;
+char *strdup(const char *src) {
+  size_t len = strlen(src) + 1;
+  char *ret = MG_MALLOC(len);
+  if (ret != NULL) {
+    strcpy(ret, src);
+  }
+  return ret;
+}
+#endif
+
+void cs_to_hex(char *to, const unsigned char *p, size_t len) WEAK;
+void cs_to_hex(char *to, const unsigned char *p, size_t len) {
+  static const char *hex = "0123456789abcdef";
+
+  for (; len--; p++) {
+    *to++ = hex[p[0] >> 4];
+    *to++ = hex[p[0] & 0x0f];
+  }
+  *to = '\0';
+}
+
+static int fourbit(int ch) {
+  if (ch >= '0' && ch <= '9') {
+    return ch - '0';
+  } else if (ch >= 'a' && ch <= 'f') {
+    return ch - 'a' + 10;
+  } else if (ch >= 'A' && ch <= 'F') {
+    return ch - 'A' + 10;
+  }
+  return 0;
+}
+
+void cs_from_hex(char *to, const char *p, size_t len) WEAK;
+void cs_from_hex(char *to, const char *p, size_t len) {
+  size_t i;
+
+  for (i = 0; i < len; i += 2) {
+    *to++ = (fourbit(p[i]) << 4) + fourbit(p[i + 1]);
+  }
+  *to = '\0';
+}
+
+#if CS_ENABLE_TO64
+int64_t cs_to64(const char *s) WEAK;
+int64_t cs_to64(const char *s) {
+  int64_t result = 0;
+  int64_t neg = 1;
+  while (*s && isspace((unsigned char) *s)) s++;
+  if (*s == '-') {
+    neg = -1;
+    s++;
+  }
+  while (isdigit((unsigned char) *s)) {
+    result *= 10;
+    result += (*s - '0');
+    s++;
+  }
+  return result * neg;
+}
+#endif
+
+static int str_util_lowercase(const char *s) {
+  return tolower(*(const unsigned char *) s);
+}
+
+int mg_ncasecmp(const char *s1, const char *s2, size_t len) WEAK;
+int mg_ncasecmp(const char *s1, const char *s2, size_t len) {
+  int diff = 0;
+
+  if (len > 0) do {
+      diff = str_util_lowercase(s1++) - str_util_lowercase(s2++);
+    } while (diff == 0 && s1[-1] != '\0' && --len > 0);
+
+  return diff;
+}
+
+int mg_casecmp(const char *s1, const char *s2) WEAK;
+int mg_casecmp(const char *s1, const char *s2) {
+  return mg_ncasecmp(s1, s2, (size_t) ~0);
+}
+
+int mg_asprintf(char **buf, size_t size, const char *fmt, ...) WEAK;
+int mg_asprintf(char **buf, size_t size, const char *fmt, ...) {
+  int ret;
+  va_list ap;
+  va_start(ap, fmt);
+  ret = mg_avprintf(buf, size, fmt, ap);
+  va_end(ap);
+  return ret;
+}
+
+int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap) WEAK;
+int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
+  va_list ap_copy;
+  int len;
+
+  va_copy(ap_copy, ap);
+  len = vsnprintf(*buf, size, fmt, ap_copy);
+  va_end(ap_copy);
+
+  if (len < 0) {
+    /* eCos and Windows are not standard-compliant and return -1 when
+     * the buffer is too small. Keep allocating larger buffers until we
+     * succeed or out of memory. */
+    *buf = NULL; /* LCOV_EXCL_START */
+    while (len < 0) {
+      MG_FREE(*buf);
+      size *= 2;
+      if ((*buf = (char *) MG_MALLOC(size)) == NULL) break;
+      va_copy(ap_copy, ap);
+      len = vsnprintf(*buf, size, fmt, ap_copy);
+      va_end(ap_copy);
+    }
+    /* LCOV_EXCL_STOP */
+  } else if (len >= (int) size) {
+    /* Standard-compliant code path. Allocate a buffer that is large enough. */
+    if ((*buf = (char *) MG_MALLOC(len + 1)) == NULL) {
+      len = -1; /* LCOV_EXCL_LINE */
+    } else {    /* LCOV_EXCL_LINE */
+      va_copy(ap_copy, ap);
+      len = vsnprintf(*buf, len + 1, fmt, ap_copy);
+      va_end(ap_copy);
+    }
+  }
+
+  return len;
+}
+
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/utf.c"
+#line 1 "common/utf.c"
 #endif
 /*
  * The authors of this software are Rob Pike and Ken Thompson.
@@ -7354,7 +9042,12 @@ const char *c_strnstr(const char *s, const char *find, size_t slen) {
 #include <stdarg.h>
 #include <string.h>
 /* Amalgamated: #include "common/platform.h" */
+/* Amalgamated: #include "common/str_util.h" */
 /* Amalgamated: #include "common/utf.h" */
+
+#ifndef CS_ENABLE_UTF8
+#define CS_ENABLE_UTF8 0
+#endif
 
 #if CS_ENABLE_UTF8
 enum {
@@ -8696,7 +10389,7 @@ const char *utfnshift(const char *s, long m) {
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/base64.c"
+#line 1 "common/base64.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -8706,7 +10399,10 @@ const char *utfnshift(const char *s, long m) {
 #ifndef EXCLUDE_COMMON
 
 /* Amalgamated: #include "common/base64.h" */
+
 #include <string.h>
+
+/* Amalgamated: #include "common/cs_dbg.h" */
 
 /* ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/ */
 
@@ -8821,7 +10517,7 @@ void cs_base64_encode(const unsigned char *src, int src_len, char *dst) {
 #undef BASE64_OUT
 #undef BASE64_FLUSH
 
-#ifndef CS_DISABLE_STDIO
+#if CS_ENABLE_STDIO
 #define BASE64_OUT(ch)      \
   do {                      \
     fprintf(f, "%c", (ch)); \
@@ -8836,7 +10532,7 @@ void cs_fprint_base64(FILE *f, const unsigned char *src, int src_len) {
 
 #undef BASE64_OUT
 #undef BASE64_FLUSH
-#endif /* !CS_DISABLE_STDIO */
+#endif /* CS_ENABLE_STDIO */
 
 /* Convert one byte of encoded base64 input stream to 6-bit chunk */
 static unsigned char from_b64(unsigned char ch) {
@@ -8878,9 +10574,10 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-int cs_base64_decode(const unsigned char *s, int len, char *dst) {
+int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len) {
   unsigned char a, b, c, d;
   int orig_len = len;
+  char *orig_dst = dst;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
          (b = from_b64(s[1])) != 255 && (c = from_b64(s[2])) != 255 &&
          (d = from_b64(s[3])) != 255) {
@@ -8894,12 +10591,13 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
     *dst++ = c << 6 | d;
   }
   *dst = 0;
+  if (dec_len != NULL) *dec_len = (dst - orig_dst);
   return orig_len - len;
 }
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/md5.c"
+#line 1 "common/cs_md5.c"
 #endif
 /*
  * This code implements the MD5 message-digest algorithm.
@@ -8918,11 +10616,14 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
  * will fill a supplied 16-byte array with the digest.
  */
 
-#if !defined(DISABLE_MD5) && !defined(EXCLUDE_COMMON)
+/* Amalgamated: #include "common/cs_md5.h" */
+/* Amalgamated: #include "common/str_util.h" */
 
-/* Amalgamated: #include "common/md5.h" */
+#if !defined(EXCLUDE_COMMON)
+#if !CS_DISABLE_MD5
 
-#ifndef CS_ENABLE_NATIVE_MD5
+/* Amalgamated: #include "common/cs_endian.h" */
+
 static void byteReverse(unsigned char *buf, unsigned longs) {
 /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
 #if BYTE_ORDER == BIG_ENDIAN
@@ -8950,7 +10651,7 @@ static void byteReverse(unsigned char *buf, unsigned longs) {
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-void MD5_Init(MD5_CTX *ctx) {
+void cs_md5_init(cs_md5_ctx *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -8960,7 +10661,7 @@ void MD5_Init(MD5_CTX *ctx) {
   ctx->bits[1] = 0;
 }
 
-static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
+static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -9042,7 +10743,7 @@ static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
+void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
@@ -9061,7 +10762,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
     }
     memcpy(p, buf, t);
     byteReverse(ctx->in, 16);
-    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
+    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
     buf += t;
     len -= t;
   }
@@ -9069,7 +10770,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   while (len >= 64) {
     memcpy(ctx->in, buf, 64);
     byteReverse(ctx->in, 16);
-    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
+    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
     buf += 64;
     len -= 64;
   }
@@ -9077,7 +10778,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
+void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -9090,7 +10791,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   if (count < 8) {
     memset(p, 0, count);
     byteReverse(ctx->in, 16);
-    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
+    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
     memset(ctx->in, 0, 56);
   } else {
     memset(p, 0, count - 8);
@@ -9101,59 +10802,25 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   a[14] = ctx->bits[0];
   a[15] = ctx->bits[1];
 
-  MD5Transform(ctx->buf, (uint32_t *) ctx->in);
+  cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
   byteReverse((unsigned char *) ctx->buf, 4);
   memcpy(digest, ctx->buf, 16);
   memset((char *) ctx, 0, sizeof(*ctx));
 }
-#endif /* CS_ENABLE_NATIVE_MD5 */
 
-/*
- * Stringify binary data. Output buffer size must be 2 * size_of_input + 1
- * because each byte of input takes 2 bytes in string representation
- * plus 1 byte for the terminating \0 character.
- */
-void cs_to_hex(char *to, const unsigned char *p, size_t len) {
-  static const char *hex = "0123456789abcdef";
-
-  for (; len--; p++) {
-    *to++ = hex[p[0] >> 4];
-    *to++ = hex[p[0] & 0x0f];
-  }
-  *to = '\0';
-}
-
-char *cs_md5(char buf[33], ...) {
-  unsigned char hash[16];
-  const unsigned char *p;
-  va_list ap;
-  MD5_CTX ctx;
-
-  MD5_Init(&ctx);
-
-  va_start(ap, buf);
-  while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
-    size_t len = va_arg(ap, size_t);
-    MD5_Update(&ctx, p, len);
-  }
-  va_end(ap);
-
-  MD5_Final(hash, &ctx);
-  cs_to_hex(buf, hash, sizeof(hash));
-
-  return buf;
-}
-
+#endif /* CS_DISABLE_MD5 */
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/sha1.c"
+#line 1 "common/cs_sha1.c"
 #endif
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-#if !defined(DISABLE_SHA1) && !defined(EXCLUDE_COMMON)
+/* Amalgamated: #include "common/cs_sha1.h" */
 
-/* Amalgamated: #include "common/sha1.h" */
+#if !CS_DISABLE_SHA1 && !defined(EXCLUDE_COMMON)
+
+/* Amalgamated: #include "common/cs_endian.h" */
 
 #define SHA1HANDSOFF
 #if defined(__sun)
@@ -9400,7 +11067,7 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/cs_dirent.c"
+#line 1 "common/cs_dirent.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -9409,6 +11076,7 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
 
 #ifndef EXCLUDE_COMMON
 
+/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/cs_dirent.h" */
 
 /*
@@ -9416,23 +11084,22 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
  * for systems which do not natively support it (e.g. Windows).
  */
 
-#ifndef MG_FREE
-#define MG_FREE free
-#endif
-
-#ifndef MG_MALLOC
-#define MG_MALLOC malloc
-#endif
-
 #ifdef _WIN32
+struct win32_dir {
+  DIR d;
+  HANDLE handle;
+  WIN32_FIND_DATAW info;
+  struct dirent result;
+};
+
 DIR *opendir(const char *name) {
-  DIR *dir = NULL;
+  struct win32_dir *dir = NULL;
   wchar_t wpath[MAX_PATH];
   DWORD attrs;
 
   if (name == NULL) {
     SetLastError(ERROR_BAD_ARGUMENTS);
-  } else if ((dir = (DIR *) MG_MALLOC(sizeof(*dir))) == NULL) {
+  } else if ((dir = (struct win32_dir *) MG_MALLOC(sizeof(*dir))) == NULL) {
     SetLastError(ERROR_NOT_ENOUGH_MEMORY);
   } else {
     to_wchar(name, wpath, ARRAY_SIZE(wpath));
@@ -9447,10 +11114,11 @@ DIR *opendir(const char *name) {
     }
   }
 
-  return dir;
+  return (DIR *) dir;
 }
 
-int closedir(DIR *dir) {
+int closedir(DIR *d) {
+  struct win32_dir *dir = (struct win32_dir *) d;
   int result = 0;
 
   if (dir != NULL) {
@@ -9465,10 +11133,12 @@ int closedir(DIR *dir) {
   return result;
 }
 
-struct dirent *readdir(DIR *dir) {
+struct dirent *readdir(DIR *d) {
+  struct win32_dir *dir = (struct win32_dir *) d;
   struct dirent *result = NULL;
 
   if (dir) {
+    memset(&dir->result, 0, sizeof(dir->result));
     if (dir->handle != INVALID_HANDLE_VALUE) {
       result = &dir->result;
       (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
@@ -9491,222 +11161,12 @@ struct dirent *readdir(DIR *dir) {
 }
 #endif
 
-#ifdef CS_ENABLE_SPIFFS
-
-DIR *opendir(const char *dir_name) {
-  DIR *dir = NULL;
-  extern spiffs fs;
-
-  if (dir_name != NULL && (dir = (DIR *) malloc(sizeof(*dir))) != NULL &&
-      SPIFFS_opendir(&fs, (char *) dir_name, &dir->dh) == NULL) {
-    free(dir);
-    dir = NULL;
-  }
-
-  return dir;
-}
-
-int closedir(DIR *dir) {
-  if (dir != NULL) {
-    SPIFFS_closedir(&dir->dh);
-    free(dir);
-  }
-  return 0;
-}
-
-struct dirent *readdir(DIR *dir) {
-  return SPIFFS_readdir(&dir->dh, &dir->de);
-}
-
-/* SPIFFs doesn't support directory operations */
-int rmdir(const char *path) {
-  (void) path;
-  return ENOTDIR;
-}
-
-int mkdir(const char *path, mode_t mode) {
-  (void) path;
-  (void) mode;
-  /* for spiffs supports only root dir, which comes from mongoose as '.' */
-  return (strlen(path) == 1 && *path == '.') ? 0 : ENOTDIR;
-}
-
-#endif /* CS_ENABLE_SPIFFS */
-
 #endif /* EXCLUDE_COMMON */
 
 /* ISO C requires a translation unit to contain at least one declaration */
 typedef int cs_dirent_dummy;
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/ubjson.c"
-#endif
-/*
- * Copyright (c) 2014-2016 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifdef CS_ENABLE_UBJSON
-
-/* Amalgamated: #include "common/ubjson.h" */
-
-void cs_ubjson_emit_null(struct mbuf *buf) {
-  mbuf_append(buf, "Z", 1);
-}
-
-void cs_ubjson_emit_boolean(struct mbuf *buf, int v) {
-  mbuf_append(buf, v ? "T" : "F", 1);
-}
-
-void cs_ubjson_emit_int8(struct mbuf *buf, int8_t v) {
-  mbuf_append(buf, "i", 1);
-  mbuf_append(buf, &v, 1);
-}
-
-void cs_ubjson_emit_uint8(struct mbuf *buf, uint8_t v) {
-  mbuf_append(buf, "U", 1);
-  mbuf_append(buf, &v, 1);
-}
-
-void cs_ubjson_emit_int16(struct mbuf *buf, int16_t v) {
-  uint8_t b[1 + sizeof(uint16_t)];
-  b[0] = 'I';
-  b[1] = ((uint16_t) v) >> 8;
-  b[2] = ((uint16_t) v) & 0xff;
-  mbuf_append(buf, b, 1 + sizeof(uint16_t));
-}
-
-static void encode_uint32(uint8_t *b, uint32_t v) {
-  b[0] = (v >> 24) & 0xff;
-  b[1] = (v >> 16) & 0xff;
-  b[2] = (v >> 8) & 0xff;
-  b[3] = v & 0xff;
-}
-
-void cs_ubjson_emit_int32(struct mbuf *buf, int32_t v) {
-  uint8_t b[1 + sizeof(uint32_t)];
-  b[0] = 'l';
-  encode_uint32(&b[1], (uint32_t) v);
-  mbuf_append(buf, b, 1 + sizeof(uint32_t));
-}
-
-static void encode_uint64(uint8_t *b, uint64_t v) {
-  b[0] = (v >> 56) & 0xff;
-  b[1] = (v >> 48) & 0xff;
-  b[2] = (v >> 40) & 0xff;
-  b[3] = (v >> 32) & 0xff;
-  b[4] = (v >> 24) & 0xff;
-  b[5] = (v >> 16) & 0xff;
-  b[6] = (v >> 8) & 0xff;
-  b[7] = v & 0xff;
-}
-
-void cs_ubjson_emit_int64(struct mbuf *buf, int64_t v) {
-  uint8_t b[1 + sizeof(uint64_t)];
-  b[0] = 'L';
-  encode_uint64(&b[1], (uint64_t) v);
-  mbuf_append(buf, b, 1 + sizeof(uint64_t));
-}
-
-void cs_ubjson_emit_autoint(struct mbuf *buf, int64_t v) {
-  if (v >= INT8_MIN && v <= INT8_MAX) {
-    cs_ubjson_emit_int8(buf, (int8_t) v);
-  } else if (v >= 0 && v <= 255) {
-    cs_ubjson_emit_uint8(buf, (uint8_t) v);
-  } else if (v >= INT16_MIN && v <= INT16_MAX) {
-    cs_ubjson_emit_int16(buf, (int32_t) v);
-  } else if (v >= INT32_MIN && v <= INT32_MAX) {
-    cs_ubjson_emit_int32(buf, (int32_t) v);
-  } else if (v >= INT64_MIN && v <= INT64_MAX) {
-    cs_ubjson_emit_int64(buf, (int64_t) v);
-  } else {
-    /* TODO(mkm): use "high-precision" stringified type */
-    abort();
-  }
-}
-
-void cs_ubjson_emit_float32(struct mbuf *buf, float v) {
-  uint32_t n;
-  uint8_t b[1 + sizeof(uint32_t)];
-  b[0] = 'd';
-  memcpy(&n, &v, sizeof(v));
-  encode_uint32(&b[1], n);
-  mbuf_append(buf, b, 1 + sizeof(uint32_t));
-}
-
-void cs_ubjson_emit_float64(struct mbuf *buf, double v) {
-  uint64_t n;
-  uint8_t b[1 + sizeof(uint64_t)];
-  b[0] = 'D';
-  memcpy(&n, &v, sizeof(v));
-  encode_uint64(&b[1], n);
-  mbuf_append(buf, b, 1 + sizeof(uint64_t));
-}
-
-void cs_ubjson_emit_autonumber(struct mbuf *buf, double v) {
-  int64_t i = (int64_t) v;
-  if ((double) i == v) {
-    cs_ubjson_emit_autoint(buf, i);
-  } else {
-    cs_ubjson_emit_float64(buf, v);
-  }
-}
-
-void cs_ubjson_emit_size(struct mbuf *buf, size_t v) {
-/* TODO(mkm): use "high-precision" stringified type */
-
-#if defined(INTPTR_MAX) && defined(INT32_MAX) && (INTPTR_MAX != INT32_MAX)
-  /*
-   * This assert expression is always true on 32-bit system,
-   * shutting up compiler
-   */
-  assert((uint64_t) v < INT64_MAX);
-#endif
-
-  cs_ubjson_emit_autoint(buf, (int64_t) v);
-}
-
-void cs_ubjson_emit_string(struct mbuf *buf, const char *s, size_t len) {
-  mbuf_append(buf, "S", 1);
-  cs_ubjson_emit_size(buf, len);
-  mbuf_append(buf, s, len);
-}
-
-void cs_ubjson_emit_bin_header(struct mbuf *buf, size_t len) {
-  mbuf_append(buf, "[$U#", 4);
-  cs_ubjson_emit_size(buf, len);
-}
-
-void cs_ubjson_emit_bin(struct mbuf *buf, const char *s, size_t len) {
-  cs_ubjson_emit_bin_header(buf, len);
-  mbuf_append(buf, s, len);
-}
-
-void cs_ubjson_open_object(struct mbuf *buf) {
-  mbuf_append(buf, "{", 1);
-}
-
-void cs_ubjson_emit_object_key(struct mbuf *buf, const char *s, size_t len) {
-  cs_ubjson_emit_size(buf, len);
-  mbuf_append(buf, s, len);
-}
-
-void cs_ubjson_close_object(struct mbuf *buf) {
-  mbuf_append(buf, "}", 1);
-}
-
-void cs_ubjson_open_array(struct mbuf *buf) {
-  mbuf_append(buf, "[", 1);
-}
-
-void cs_ubjson_close_array(struct mbuf *buf) {
-  mbuf_append(buf, "]", 1);
-}
-
-#else
-void cs_ubjson_dummy();
-#endif
-#ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/cs_file.c"
+#line 1 "common/cs_file.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -9724,6 +11184,8 @@ void cs_ubjson_dummy();
 #include <sys/stat.h>
 #endif
 
+#ifndef EXCLUDE_COMMON
+char *cs_read_file(const char *path, size_t *size) WEAK;
 char *cs_read_file(const char *path, size_t *size) {
   FILE *fp;
   char *data = NULL;
@@ -9745,8 +11207,10 @@ char *cs_read_file(const char *path, size_t *size) {
   }
   return data;
 }
+#endif /* EXCLUDE_COMMON */
 
 #ifdef CS_MMAP
+char *cs_mmap_file(const char *path, size_t *size) WEAK;
 char *cs_mmap_file(const char *path, size_t *size) {
   char *r;
   int fd = open(path, O_RDONLY);
@@ -9760,7 +11224,298 @@ char *cs_mmap_file(const char *path, size_t *size) {
 }
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../../common/coroutine.c"
+#line 1 "common/cs_heap_trace.c"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#include <stdint.h>
+#include <stdio.h>
+
+#ifndef MGOS_ENABLE_CALL_TRACE
+#define MGOS_ENABLE_CALL_TRACE 0
+#endif
+
+#ifndef V7_ENABLE_CALL_TRACE
+#define V7_ENABLE_CALL_TRACE 0
+#endif
+
+#if MGOS_ENABLE_CALL_TRACE || V7_ENABLE_CALL_TRACE
+/*
+ * If we don't have V7's profiling functions, roll our own.
+ * This is copy-pasta from v7/src/cyg_profile.c
+ */
+
+#ifndef CALL_TRACE_SIZE
+#define CALL_TRACE_SIZE 32
+#endif
+
+typedef struct {
+  void *addresses[CALL_TRACE_SIZE];
+  uint16_t size;
+} call_trace_t;
+
+static call_trace_t call_trace;
+
+NOINSTR void print_call_trace() {
+  static void *prev_trace[CALL_TRACE_SIZE];
+  unsigned int size = call_trace.size;
+  if (size > CALL_TRACE_SIZE) size = CALL_TRACE_SIZE;
+  unsigned int i;
+  uintptr_t pa = 0;
+  for (i = 0; i < size; i++) {
+    if (call_trace.addresses[i] != prev_trace[i]) break;
+    pa = (uintptr_t) call_trace.addresses[i];
+  }
+  fprintf(stderr, "%u %u", size, i);
+  for (; i < size; i++) {
+    const uintptr_t a = (uintptr_t) call_trace.addresses[i];
+    /*
+     * Perform a rudimentary deduplication: an address is likely to have higher
+     * bits the same as previous, turn them off.
+     * Do it in 4-bit nibbles so they fall nicely on hex digit boundary.
+     */
+    uintptr_t mask = ~((uintptr_t) 0);
+    while (mask != 0 && (a & mask) != (pa & mask)) mask <<= 4;
+    fprintf(stderr, " %lx", (unsigned long) (a & ~mask));
+    prev_trace[i] = (void *) a;
+    pa = a;
+  }
+  fprintf(stderr, "\n");
+}
+
+#if MGOS_ENABLE_CALL_TRACE && !V7_ENABLE_CALL_TRACE
+IRAM NOINSTR void __cyg_profile_func_enter(void *this_fn, void *call_site) {
+  if (call_trace.size < CALL_TRACE_SIZE) {
+    call_trace.addresses[call_trace.size] = this_fn;
+  }
+  call_trace.size++;
+  (void) this_fn;
+  (void) call_site;
+}
+
+IRAM NOINSTR void __cyg_profile_func_exit(void *this_fn, void *call_site) {
+  if (call_trace.size > 0) call_trace.size--;
+  (void) this_fn;
+  (void) call_site;
+}
+#endif
+
+#endif /* MGOS_ENABLE_CALL_TRACE || V7_ENABLE_CALL_TRACE */
+#ifdef V7_MODULE_LINES
+#line 1 "common/cs_strtod.c"
+#endif
+#include <ctype.h>
+#include <math.h>
+
+#include <stdlib.h>
+
+int cs_strncasecmp(const char *s1, const char *s2, size_t n) {
+  if (n == 0) {
+    return 0;
+  }
+
+  while (n-- != 0 && tolower((int) *s1) == tolower((int) *s2)) {
+    if (n == 0 || *s1 == '\0' || *s2 == '\0') {
+      break;
+    }
+    s1++;
+    s2++;
+  }
+
+  return tolower(*(unsigned char *) s1) - tolower(*(unsigned char *) s2);
+}
+
+/*
+ * based on Source:
+ * https://github.com/anakod/Sming/blob/master/Sming/system/stringconversion.cpp#L93
+ */
+
+double cs_strtod(const char *str, char **endptr) {
+  double result = 0.0;
+  char c;
+  const char *str_start;
+  struct {
+    unsigned neg : 1;        /* result is negative */
+    unsigned decimals : 1;   /* parsing decimal part */
+    unsigned is_exp : 1;     /* parsing exponent like e+5 */
+    unsigned is_exp_neg : 1; /* exponent is negative */
+  } flags = {0, 0, 0, 0};
+
+  while (isspace((int) *str)) {
+    str++;
+  }
+
+  if (*str == 0) {
+    /* only space in str? */
+    if (endptr != 0) *endptr = (char *) str;
+    return result;
+  }
+
+  /* Handle leading plus/minus signs */
+  while (*str == '-' || *str == '+') {
+    if (*str == '-') {
+      flags.neg = !flags.neg;
+    }
+    str++;
+  }
+
+  if (cs_strncasecmp(str, "NaN", 3) == 0) {
+    if (endptr != 0) *endptr = (char *) str + 3;
+    return NAN;
+  }
+
+  if (cs_strncasecmp(str, "INF", 3) == 0) {
+    str += 3;
+    if (cs_strncasecmp(str, "INITY", 5) == 0) str += 5;
+    if (endptr != 0) *endptr = (char *) str;
+    return flags.neg ? -INFINITY : INFINITY;
+  }
+
+  str_start = str;
+
+  if (*str == '0' && (*(str + 1) == 'x' || *(str + 1) == 'X')) {
+    /* base 16 */
+    str += 2;
+    while ((c = tolower((int) *str))) {
+      int d;
+      if (c >= '0' && c <= '9') {
+        d = c - '0';
+      } else if (c >= 'a' && c <= 'f') {
+        d = 10 + (c - 'a');
+      } else {
+        break;
+      }
+      result = 16 * result + d;
+      str++;
+    }
+  } else if (*str == '0' && (*(str + 1) == 'b' || *(str + 1) == 'B')) {
+    /* base 2 */
+    str += 2;
+    while ((c = *str)) {
+      int d = c - '0';
+      if (c != '0' && c != '1') break;
+      result = 2 * result + d;
+      str++;
+    }
+  } else if (*str == '0' && *(str + 1) >= '0' && *(str + 1) <= '7') {
+    /* base 8 */
+    while ((c = *str)) {
+      int d = c - '0';
+      if (c < '0' || c > '7') {
+        /* fallback to base 10 */
+        str = str_start;
+        break;
+      }
+      result = 8 * result + d;
+      str++;
+    }
+  }
+
+  if (str == str_start) {
+    /* base 10 */
+
+    /* exponent specified explicitly, like in 3e-5, exponent is -5 */
+    int exp = 0;
+    /* exponent calculated from dot, like in 1.23, exponent is -2 */
+    int exp_dot = 0;
+
+    result = 0;
+
+    while ((c = *str)) {
+      int d;
+
+      if (c == '.') {
+        if (!flags.decimals) {
+          /* going to parse decimal part */
+          flags.decimals = 1;
+          str++;
+          continue;
+        } else {
+          /* non-expected dot: assume number data is over */
+          break;
+        }
+      } else if (c == 'e' || c == 'E') {
+        /* going to parse exponent part */
+        flags.is_exp = 1;
+        str++;
+        c = *str;
+
+        /* check sign of the exponent */
+        if (c == '-' || c == '+') {
+          if (c == '-') {
+            flags.is_exp_neg = 1;
+          }
+          str++;
+        }
+
+        continue;
+      }
+
+      d = c - '0';
+      if (d < 0 || d > 9) {
+        break;
+      }
+
+      if (!flags.is_exp) {
+        /* apply current digit to the result */
+        result = 10 * result + d;
+        if (flags.decimals) {
+          exp_dot--;
+        }
+      } else {
+        /* apply current digit to the exponent */
+        if (flags.is_exp_neg) {
+          if (exp > -1022) {
+            exp = 10 * exp - d;
+          }
+        } else {
+          if (exp < 1023) {
+            exp = 10 * exp + d;
+          }
+        }
+      }
+
+      str++;
+    }
+
+    exp += exp_dot;
+
+    /*
+     * TODO(dfrank): it probably makes sense not to adjust intermediate `double
+     * result`, but build double number accordingly to IEEE 754 from taken
+     * (integer) mantissa, exponent and sign. That would work faster, and we
+     * can avoid any possible round errors.
+     */
+
+    /* if exponent is non-zero, apply it */
+    if (exp != 0) {
+      if (exp < 0) {
+        while (exp++ != 0) {
+          result /= 10;
+        }
+      } else {
+        while (exp-- != 0) {
+          result *= 10;
+        }
+      }
+    }
+  }
+
+  if (flags.neg) {
+    result = -result;
+  }
+
+  if (endptr != 0) {
+    *endptr = (char *) str;
+  }
+
+  return result;
+}
+#ifdef V7_MODULE_LINES
+#line 1 "common/coroutine.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -9926,7 +11681,52 @@ void cr_context_free(struct cr_ctx *p_ctx) {
   mbuf_free(&p_ctx->stack_ret);
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../builtin/file.c"
+#line 1 "common/platforms/mbed/mbed_libc.c"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/* Amalgamated: #include "common/platform.h" */
+
+#if CS_PLATFORM == CS_P_MBED
+
+long timezone;
+
+/*
+ * The GCC ARM toolchain for implements a weak
+ * gettimeofday stub that should be implemented
+ * to hook the OS time source. But mbed OS doesn't do it;
+ * the mbed doc only talks about C date and time functions:
+ *
+ * https://docs.mbed.com/docs/mbed-os-api-reference/en/5.1/APIs/tasks/Time/
+ *
+ * gettimeof day is a BSD API.
+ */
+int _gettimeofday(struct timeval *tv, void *tzvp) {
+  tv->tv_sec = time(NULL);
+  tv->tv_usec = 0;
+  return 0;
+}
+
+int inet_aton(const char *cp, struct in_addr *inp) {
+  /* We don't have aton, but have pton in mbed */
+  return inet_pton(AF_INET, cp, inp);
+}
+
+in_addr_t inet_addr(const char *cp) {
+  in_addr_t ret;
+  if (inet_pton(AF_INET, cp, &ret) != 1) {
+    return 0;
+  }
+
+  return ret;
+}
+
+#endif /* CS_PLATFORM == CS_P_MBED */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/builtin/file.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -9946,7 +11746,7 @@ void cr_context_free(struct cr_ctx *p_ctx) {
 /* Amalgamated: #include "v7/src/v7_features.h" */
 /* Amalgamated: #include "common/cs_dirent.h" */
 
-#if defined(V7_ENABLE_FILE) && !defined(V7_NO_FS)
+#if V7_ENABLE_FILE && !defined(V7_NO_FS)
 
 static const char s_fd_prop[] = "__fd";
 
@@ -10127,45 +11927,6 @@ clean:
   return rcode;
 }
 
-V7_PRIVATE enum v7_err File_popen(struct v7 *v7, v7_val_t *res) {
-  enum v7_err rcode = V7_OK;
-  v7_val_t arg0 = v7_arg(v7, 0);
-  v7_val_t arg1 = v7_arg(v7, 1);
-  FILE *fp = NULL;
-
-  if (v7_is_string(arg0)) {
-    const char *s1 = v7_get_cstring(v7, &arg0);
-    const char *s2 = "r"; /* Open files in read mode by default */
-
-    if (v7_is_string(arg1)) {
-      s2 = v7_get_cstring(v7, &arg1);
-    }
-
-    if (s1 == NULL || s2 == NULL) {
-      *res = V7_NULL;
-      goto clean;
-    }
-
-    fp = popen(s1, s2);
-    if (fp != NULL) {
-      v7_val_t obj = v7_mk_object(v7);
-      v7_val_t file_proto = v7_get(
-          v7, v7_get(v7, v7_get_global(v7), "File", ~0), "prototype", ~0);
-      v7_set_proto(v7, obj, file_proto);
-      v7_def(v7, obj, s_fd_prop, sizeof(s_fd_prop) - 1, V7_DESC_ENUMERABLE(0),
-             v7_file_to_val(v7, fp));
-      *res = obj;
-      goto clean;
-    }
-  }
-
-  *res = V7_NULL;
-
-clean:
-  return rcode;
-}
-
-
 WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err File_read(struct v7 *v7, v7_val_t *res) {
   v7_val_t arg0 = v7_arg(v7, 0);
@@ -10324,7 +12085,6 @@ void init_file(struct v7 *v7) {
   v7_set_method(v7, file_obj, "remove", File_remove);
   v7_set_method(v7, file_obj, "rename", File_rename);
   v7_set_method(v7, file_obj, "open", File_open);
-  v7_set_method(v7, file_obj, "popen", File_popen);
   v7_set_method(v7, file_obj, "read", File_read);
   v7_set_method(v7, file_obj, "write", File_write);
   v7_set_method(v7, file_obj, "loadJSON", File_loadJSON);
@@ -10356,7 +12116,7 @@ void init_file(struct v7 *v7) {
 }
 #endif /* NO_LIBC */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../builtin/socket.c"
+#line 1 "v7/builtin/socket.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -10372,7 +12132,7 @@ void init_file(struct v7 *v7) {
 /* Amalgamated: #include "common/mbuf.h" */
 /* Amalgamated: #include "common/platform.h" */
 
-#ifdef V7_ENABLE_SOCKET
+#if V7_ENABLE_SOCKET
 
 #ifdef __WATCOM__
 #define SOMAXCONN 128
@@ -10631,7 +12391,7 @@ void init_socket(struct v7 *v7) {
 }
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../builtin/crypto.c"
+#line 1 "v7/builtin/crypto.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -10648,9 +12408,10 @@ void init_socket(struct v7 *v7) {
 /* Amalgamated: #include "v7/src/object.h" */
 /* Amalgamated: #include "common/md5.h" */
 /* Amalgamated: #include "common/sha1.h" */
+/* Amalgamated: #include "common/str_util.h" */
 /* Amalgamated: #include "common/base64.h" */
 
-#ifdef V7_ENABLE_CRYPTO
+#if V7_ENABLE_CRYPTO
 
 typedef void (*b64_func_t)(const unsigned char *, int, char *);
 
@@ -10686,10 +12447,10 @@ V7_PRIVATE enum v7_err Crypto_base64_encode(struct v7 *v7, v7_val_t *res) {
 }
 
 static void v7_md5(const char *data, size_t len, char buf[16]) {
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
-  MD5_Update(&ctx, (unsigned char *) data, len);
-  MD5_Final((unsigned char *) buf, &ctx);
+  cs_md5_ctx ctx;
+  cs_md5_init(&ctx);
+  cs_md5_update(&ctx, (unsigned char *) data, len);
+  cs_md5_final((unsigned char *) buf, &ctx);
 }
 
 static void v7_sha1(const char *data, size_t len, char buf[20]) {
@@ -10780,7 +12541,7 @@ clean:
 #endif
 
 void init_crypto(struct v7 *v7) {
-#ifdef V7_ENABLE_CRYPTO
+#if V7_ENABLE_CRYPTO
   v7_val_t obj = v7_mk_object(v7);
   v7_set(v7, v7_get_global(v7), "Crypto", 6, obj);
   v7_set_method(v7, obj, "md5", Crypto_md5);
@@ -10794,325 +12555,7 @@ void init_crypto(struct v7 *v7) {
 #endif
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/../builtin/ubjson.c"
-#endif
-/*
- * Copyright (c) 2014-2016 Cesanta Software Limited
- * All rights reserved
- */
-
-/* Amalgamated: #include "v7/builtin/builtin.h" */
-
-#ifdef V7_ENABLE_UBJSON
-
-#include <string.h>
-#include <assert.h>
-
-/* Amalgamated: #include "common/ubjson.h" */
-
-/* Amalgamated: #include "v7/src/internal.h" */
-/* Amalgamated: #include "v7/src/core.h" */
-/* Amalgamated: #include "v7/src/object.h" */
-/* Amalgamated: #include "v7/src/array.h" */
-/* Amalgamated: #include "v7/src/primitive.h" */
-/* Amalgamated: #include "v7/src/string.h" */
-/* Amalgamated: #include "v7/src/util.h" */
-/* Amalgamated: #include "v7/src/exceptions.h" */
-/* Amalgamated: #include "v7/src/exec.h" */
-/* Amalgamated: #include "v7/src/function.h" */
-
-struct ubjson_ctx {
-  struct mbuf out;   /* output buffer */
-  struct mbuf stack; /* visit stack */
-  v7_val_t cb;       /* called to render data  */
-  v7_val_t errb;     /* called to finish; successo or rerror */
-  v7_val_t bin;      /* current Bin object */
-  size_t bytes_left; /* bytes left in current Bin generator */
-};
-
-struct visit {
-  v7_val_t obj;
-  union {
-    size_t next_idx;
-    void *p;
-  } v;
-};
-
-static void _ubjson_call_cb(struct v7 *v7, struct ubjson_ctx *ctx) {
-  v7_val_t res, cb, args = v7_mk_array(v7);
-  v7_own(v7, &args);
-
-  if (ctx->out.buf == NULL) {
-    /* signal end of stream */
-    v7_array_push(v7, args, V7_UNDEFINED);
-    cb = ctx->errb;
-  } else if (ctx->out.len > 0) {
-    v7_array_push(v7, args, v7_mk_string(v7, ctx->out.buf, ctx->out.len, 1));
-    ctx->out.len = 0;
-    cb = ctx->cb;
-  } else {
-    /* avoid calling cb with no output */
-    goto cleanup;
-  }
-
-  if (v7_apply(v7, cb, V7_UNDEFINED, args, &res) != V7_OK) {
-    fprintf(stderr, "Got error while calling ubjson cb: ");
-    v7_fprintln(stderr, v7, res);
-  }
-
-cleanup:
-  v7_disown(v7, &args);
-}
-
-struct visit *push_visit(struct mbuf *stack, v7_val_t obj) {
-  struct visit *res;
-  size_t pos = stack->len;
-  mbuf_append(stack, NULL, sizeof(struct visit));
-  res = (struct visit *) (stack->buf + pos);
-  memset(res, 0, sizeof(struct visit));
-  res->obj = obj;
-  return res;
-}
-
-struct visit *cur_visit(struct mbuf *stack) {
-  if (stack->len == 0) return NULL;
-  return (struct visit *) (stack->buf + stack->len - sizeof(struct visit));
-}
-
-void pop_visit(struct mbuf *stack) {
-  stack->len -= sizeof(struct visit);
-}
-
-static struct ubjson_ctx *ubjson_ctx_new(struct v7 *v7, val_t cb, val_t errb) {
-  struct ubjson_ctx *ctx = (struct ubjson_ctx *) malloc(sizeof(*ctx));
-  mbuf_init(&ctx->out, 0);
-  mbuf_init(&ctx->stack, 0);
-  ctx->cb = cb;
-  ctx->errb = errb;
-  ctx->bin = V7_UNDEFINED;
-  v7_own(v7, &ctx->cb);
-  v7_own(v7, &ctx->errb);
-  v7_own(v7, &ctx->bin);
-  return ctx;
-}
-
-static void ubjson_ctx_free(struct v7 *v7, struct ubjson_ctx *ctx) {
-  /*
-   * Clear out reference to this context in case there is some lingering
-   * callback.
-   */
-  if (!v7_is_undefined(ctx->bin)) {
-    v7_set(v7, ctx->bin, "ctx", ~0, V7_UNDEFINED);
-  }
-  v7_disown(v7, &ctx->bin);
-  v7_disown(v7, &ctx->errb);
-  v7_disown(v7, &ctx->cb);
-  mbuf_free(&ctx->out);
-  mbuf_free(&ctx->stack);
-  free(ctx);
-}
-
-/* This will be called many time to advance rendering of an ubjson ctx */
-static enum v7_err _ubjson_render_cont(struct v7 *v7, struct ubjson_ctx *ctx) {
-  enum v7_err rcode = V7_OK;
-  uint8_t fr = 1;
-  struct mbuf *buf = &ctx->out, *stack = &ctx->stack;
-  struct visit *cur;
-  v7_val_t gen_proto = v7_get(
-      v7, v7_get(v7, v7_get(v7, v7_get_global(v7), "UBJSON", ~0), "Bin", ~0),
-      "prototype", ~0);
-
-  if (ctx->out.len > 0) {
-    _ubjson_call_cb(v7, ctx);
-  }
-
-  for (cur = cur_visit(stack); cur != NULL; cur = cur_visit(stack)) {
-    v7_val_t obj = cur->obj;
-
-    if (v7_is_undefined(obj)) {
-      cs_ubjson_emit_null(buf);
-    } else if (v7_is_null(obj)) {
-      cs_ubjson_emit_null(buf);
-    } else if (v7_is_boolean(obj)) {
-      cs_ubjson_emit_boolean(buf, v7_get_bool(v7, obj));
-    } else if (v7_is_number(obj)) {
-      cs_ubjson_emit_autonumber(buf, v7_get_double(v7, obj));
-    } else if (v7_is_string(obj)) {
-      size_t n;
-      const char *s = v7_get_string(v7, &obj, &n);
-      cs_ubjson_emit_string(buf, s, n);
-    } else if (v7_is_array(v7, obj)) {
-      unsigned long cur_idx = cur->v.next_idx;
-
-      if (cur->v.next_idx == 0) {
-        cs_ubjson_open_array(buf);
-      }
-
-      cur->v.next_idx++;
-
-      if (cur->v.next_idx > v7_array_length(v7, cur->obj)) {
-        cs_ubjson_close_array(buf);
-      } else {
-        cur = push_visit(stack, v7_array_get(v7, obj, cur_idx));
-        /* skip default popping of visitor frame */
-        continue;
-      }
-    } else if (v7_is_object(obj)) {
-      size_t n;
-      v7_val_t name;
-      const char *s;
-
-      if (obj_prototype_v(v7, obj) == gen_proto) {
-        ctx->bytes_left = v7_get_double(v7, v7_get(v7, obj, "size", ~0));
-        cs_ubjson_emit_bin_header(buf, ctx->bytes_left);
-        ctx->bin = obj;
-        v7_set(v7, obj, "ctx", ~0, v7_mk_foreign(v7, ctx));
-        pop_visit(stack);
-        rcode =
-            v7_apply(v7, v7_get(v7, obj, "user", ~0), obj, V7_UNDEFINED, NULL);
-        if (rcode != V7_OK) {
-          goto clean;
-        }
-
-        /*
-         * The user generator will reenter calling this function again with the
-         * same context.
-         */
-        fr = 0;
-        goto clean;
-      }
-
-      if (cur->v.p == NULL) {
-        cs_ubjson_open_object(buf);
-      }
-
-      cur->v.p = v7_next_prop(cur->v.p, obj, &name, NULL, NULL);
-
-      if (cur->v.p == NULL) {
-        cs_ubjson_close_object(buf);
-      } else {
-        v7_val_t tmp = V7_UNDEFINED;
-        s = v7_get_string(v7, &name, &n);
-        cs_ubjson_emit_object_key(buf, s, n);
-
-        rcode = v7_get_throwing_v(v7, obj, name, &tmp);
-        if (rcode != V7_OK) {
-          goto clean;
-        }
-
-        cur = push_visit(stack, tmp);
-        /* skip default popping of visitor frame */
-        continue;
-      }
-    } else {
-      fprintf(stderr, "ubsjon: unsupported object: ");
-      v7_fprintln(stderr, v7, obj);
-    }
-
-    pop_visit(stack);
-  }
-
-  if (ctx->out.len > 0) {
-    _ubjson_call_cb(v7, ctx);
-  }
-  _ubjson_call_cb(v7, ctx);
-
-clean:
-  if (fr) {
-    ubjson_ctx_free(v7, ctx);
-  }
-  return rcode;
-}
-
-WARN_UNUSED_RESULT
-static enum v7_err _ubjson_render(struct v7 *v7, struct ubjson_ctx *ctx,
-                                  v7_val_t root) {
-  push_visit(&ctx->stack, root);
-  return _ubjson_render_cont(v7, ctx);
-}
-
-WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err UBJSON_render(struct v7 *v7, v7_val_t *res) {
-  enum v7_err rcode = V7_OK;
-  v7_val_t obj = v7_arg(v7, 0), cb = v7_arg(v7, 1), errb = v7_arg(v7, 2);
-  (void) res;
-
-  struct ubjson_ctx *ctx = ubjson_ctx_new(v7, cb, errb);
-  rcode = _ubjson_render(v7, ctx, obj);
-  if (rcode != V7_OK) {
-    goto clean;
-  }
-
-clean:
-  return rcode;
-}
-
-V7_PRIVATE enum v7_err Bin_send(struct v7 *v7, v7_val_t *res) {
-  enum v7_err rcode = V7_OK;
-  struct ubjson_ctx *ctx;
-  size_t n;
-  v7_val_t arg;
-  val_t this_obj = v7_get_this(v7);
-  const char *s;
-
-  (void) res;
-
-  arg = v7_arg(v7, 0);
-  ctx = (struct ubjson_ctx *) v7_get_ptr(v7, v7_get(v7, this_obj, "ctx", ~0));
-  if (ctx == NULL) {
-    rcode = v7_throwf(v7, "Error", "UBJSON context closed\n");
-    goto clean;
-  }
-  s = v7_get_string(v7, &arg, &n);
-  if (n > ctx->bytes_left) {
-    n = ctx->bytes_left;
-  } else {
-    ctx->bytes_left -= n;
-  }
-  /*
-   * TODO(mkm):
-   * this is useless buffering, we should call ubjson cb directly
-   */
-  mbuf_append(&ctx->out, s, n);
-  _ubjson_call_cb(v7, ctx);
-
-  if (ctx->bytes_left == 0) {
-    _ubjson_render_cont(v7, ctx);
-  }
-
-clean:
-  return rcode;
-}
-
-V7_PRIVATE enum v7_err UBJSON_Bin(struct v7 *v7, v7_val_t *res) {
-  v7_val_t this_obj = v7_get_this(v7);
-
-  (void) res;
-
-  v7_set(v7, this_obj, "size", ~0, v7_arg(v7, 0));
-  v7_set(v7, this_obj, "user", ~0, v7_arg(v7, 1));
-
-  return V7_OK;
-}
-
-void init_ubjson(struct v7 *v7) {
-  v7_val_t gen_proto, ubjson;
-  ubjson = v7_mk_object(v7);
-  v7_set(v7, v7_get_global(v7), "UBJSON", 6, ubjson);
-  v7_set_method(v7, ubjson, "render", UBJSON_render);
-  gen_proto = v7_mk_object(v7);
-  v7_set(v7, ubjson, "Bin", ~0,
-         v7_mk_function_with_proto(v7, UBJSON_Bin, gen_proto));
-  v7_set_method(v7, gen_proto, "send", Bin_send);
-}
-
-#else
-void init_ubjson(struct v7 *v7) {
-  (void) v7;
-}
-#endif
-#ifdef V7_MODULE_LINES
-#line 1 "./src/varint.c"
+#line 1 "v7/src/varint.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -11160,8 +12603,6 @@ V7_PRIVATE int calc_llen(size_t len) {
     n++;
   } while (len >>= 7);
 
-  assert(n <= (int) sizeof(len));
-
   return n;
 }
 
@@ -11180,16 +12621,20 @@ V7_PRIVATE int encode_varint(size_t len, unsigned char *p) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/tokenizer.c"
+#line 1 "v7/src/tokenizer.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
+/* Amalgamated: #include "common/cs_strtod.h" */
 /* Amalgamated: #include "common/utf.h" */
+
 /* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/core.h" */
+
+#if !defined(V7_NO_COMPILER)
 
 /*
  * NOTE(lsm): Must be in the same order as enum for keywords. See comment
@@ -11215,23 +12660,24 @@ V7_PRIVATE int is_reserved_word_token(enum v7_tok tok) {
  * Move ptr to the next token, skipping comments and whitespaces.
  * Return number of new line characters detected.
  */
-V7_PRIVATE int skip_to_next_tok(const char **ptr) {
+V7_PRIVATE int skip_to_next_tok(const char **ptr, const char *src_end) {
   const char *s = *ptr, *p = NULL;
   int num_lines = 0;
 
-  while (s != p && *s != '\0' && (isspace((unsigned char) *s) || *s == '/')) {
+  while (s != p && s < src_end && *s != '\0' &&
+         (isspace((unsigned char) *s) || *s == '/')) {
     p = s;
-    while (*s != '\0' && isspace((unsigned char) *s)) {
+    while (s < src_end && *s != '\0' && isspace((unsigned char) *s)) {
       if (*s == '\n') num_lines++;
       s++;
     }
-    if (s[0] == '/' && s[1] == '/') {
+    if ((s + 1) < src_end && s[0] == '/' && s[1] == '/') {
       s += 2;
-      while (s[0] != '\0' && s[0] != '\n') s++;
+      while (s < src_end && s[0] != '\0' && s[0] != '\n') s++;
     }
-    if (s[0] == '/' && s[1] == '*') {
+    if ((s + 1) < src_end && s[0] == '/' && s[1] == '*') {
       s += 2;
-      while (s[0] != '\0' && !(s[-1] == '/' && s[-2] == '*')) {
+      while (s < src_end && s[0] != '\0' && !(s[-1] == '/' && s[-2] == '*')) {
         if (s[0] == '\n') num_lines++;
         s++;
       }
@@ -11243,20 +12689,26 @@ V7_PRIVATE int skip_to_next_tok(const char **ptr) {
 }
 
 /* Advance `s` pointer to the end of identifier  */
-static void ident(const char **s) {
+static void ident(const char **s, const char *src_end) {
   const unsigned char *p = (unsigned char *) *s;
   int n;
   Rune r;
 
-  while (p[0] != '\0') {
+  while ((const char *) p < src_end && p[0] != '\0') {
     if (p[0] == '$' || p[0] == '_' || isalnum(p[0])) {
       /* $, _, or any alphanumeric are valid identifier characters */
       p++;
-    } else if (p[0] == '\\' && p[1] == 'u' && isxdigit(p[2]) &&
-               isxdigit(p[3]) && isxdigit(p[4]) && isxdigit(p[5])) {
+    } else if ((const char *) (p + 5) < src_end && p[0] == '\\' &&
+               p[1] == 'u' && isxdigit(p[2]) && isxdigit(p[3]) &&
+               isxdigit(p[4]) && isxdigit(p[5])) {
       /* Unicode escape, \uXXXX . Could be used like "var \u0078 = 1;" */
       p += 6;
     } else if ((n = chartorune(&r, (char *) p)) > 1 && isalpharune(r)) {
+      /*
+       * TODO(dfrank): the chartorune() call above can read `p` past the
+       * src_end, so it might crash on incorrect code. The solution would be
+       * to modify `chartorune()` to accept src_end argument as well.
+       */
       /* Unicode alphanumeric character */
       p += n;
     } else {
@@ -11279,10 +12731,10 @@ static enum v7_tok kw(const char *s, size_t len, int ntoks, enum v7_tok tok) {
   return i == ntoks ? TOK_IDENTIFIER : (enum v7_tok)(tok + i);
 }
 
-static enum v7_tok punct1(const char **s, int ch1, enum v7_tok tok1,
-                          enum v7_tok tok2) {
+static enum v7_tok punct1(const char **s, const char *src_end, int ch1,
+                          enum v7_tok tok1, enum v7_tok tok2) {
   (*s)++;
-  if (s[0][0] == ch1) {
+  if (*s < src_end && **s == ch1) {
     (*s)++;
     return tok1;
   } else {
@@ -11290,40 +12742,47 @@ static enum v7_tok punct1(const char **s, int ch1, enum v7_tok tok1,
   }
 }
 
-static enum v7_tok punct2(const char **s, int ch1, enum v7_tok tok1, int ch2,
-                          enum v7_tok tok2, enum v7_tok tok3) {
-  if (s[0][1] == ch1 && s[0][2] == ch2) {
+static enum v7_tok punct2(const char **s, const char *src_end, int ch1,
+                          enum v7_tok tok1, int ch2, enum v7_tok tok2,
+                          enum v7_tok tok3) {
+  if ((*s + 2) < src_end && s[0][1] == ch1 && s[0][2] == ch2) {
     (*s) += 3;
     return tok2;
   }
 
-  return punct1(s, ch1, tok1, tok3);
+  return punct1(s, src_end, ch1, tok1, tok3);
 }
 
-static enum v7_tok punct3(const char **s, int ch1, enum v7_tok tok1, int ch2,
-                          enum v7_tok tok2, enum v7_tok tok3) {
+static enum v7_tok punct3(const char **s, const char *src_end, int ch1,
+                          enum v7_tok tok1, int ch2, enum v7_tok tok2,
+                          enum v7_tok tok3) {
   (*s)++;
-  if (s[0][0] == ch1) {
-    (*s)++;
-    return tok1;
-  } else if (s[0][0] == ch2) {
-    (*s)++;
-    return tok2;
-  } else {
-    return tok3;
+  if (*s < src_end) {
+    if (**s == ch1) {
+      (*s)++;
+      return tok1;
+    } else if (**s == ch2) {
+      (*s)++;
+      return tok2;
+    }
   }
+  return tok3;
 }
 
 static void parse_number(const char *s, const char **end, double *num) {
-  *num = strtod(s, (char **) end);
+  *num = cs_strtod(s, (char **) end);
 }
 
-static enum v7_tok parse_str_literal(const char **p) {
+static enum v7_tok parse_str_literal(const char **p, const char *src_end) {
   const char *s = *p;
-  int quote = *s++;
+  int quote = '\0';
+
+  if (s < src_end) {
+    quote = *s++;
+  }
 
   /* Scan string literal, handle escape sequences */
-  for (; *s != quote && *s != '\0'; s++) {
+  for (; s < src_end && *s != '\0' && *s != quote; s++) {
     if (*s == '\\') {
       switch (s[1]) {
         case 'b':
@@ -11342,7 +12801,7 @@ static enum v7_tok parse_str_literal(const char **p) {
     }
   }
 
-  if (*s == quote) {
+  if (s < src_end && *s == quote) {
     s++;
     *p = s;
     return TOK_STRING_LITERAL;
@@ -11367,73 +12826,77 @@ static enum v7_tok parse_str_literal(const char **p) {
  * NOTE(lsm): `prev_tok` is a previously parsed token. It is needed for
  * correctly parsing regex literals.
  */
-V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
+V7_PRIVATE enum v7_tok get_tok(const char **s, const char *src_end, double *n,
                                enum v7_tok prev_tok) {
   const char *p = *s;
+
+  if (p >= src_end) {
+    return TOK_END_OF_INPUT;
+  }
 
   switch (*p) {
     /* Letters */
     case 'a':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
     case 'b':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 1, TOK_BREAK);
     case 'c':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 3, TOK_CASE);
     case 'd':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 4, TOK_DEBUGGER);
     case 'e':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 1, TOK_ELSE);
     case 'f':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 4, TOK_FALSE);
     case 'g':
     case 'h':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
     case 'i':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 3, TOK_IF);
     case 'j':
     case 'k':
     case 'l':
     case 'm':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
     case 'n':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 2, TOK_NEW);
     case 'o':
     case 'p':
     case 'q':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
     case 'r':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 1, TOK_RETURN);
     case 's':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 1, TOK_SWITCH);
     case 't':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 5, TOK_THIS);
     case 'u':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
     case 'v':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 2, TOK_VAR);
     case 'w':
-      ident(s);
+      ident(s, src_end);
       return kw(p, *s - p, 2, TOK_WHILE);
     case 'x':
     case 'y':
     case 'z':
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
 
     case '_':
@@ -11465,7 +12928,7 @@ V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
     case 'Y':
     case 'Z':
     case '\\': /* Identifier may start with unicode escape sequence */
-      ident(s);
+      ident(s, src_end);
       return TOK_IDENTIFIER;
 
     /* Numbers */
@@ -11485,18 +12948,18 @@ V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
     /* String literals */
     case '\'':
     case '"':
-      return parse_str_literal(s);
+      return parse_str_literal(s, src_end);
 
     /* Punctuators */
     case '=':
-      return punct2(s, '=', TOK_EQ, '=', TOK_EQ_EQ, TOK_ASSIGN);
+      return punct2(s, src_end, '=', TOK_EQ, '=', TOK_EQ_EQ, TOK_ASSIGN);
     case '!':
-      return punct2(s, '=', TOK_NE, '=', TOK_NE_NE, TOK_NOT);
+      return punct2(s, src_end, '=', TOK_NE, '=', TOK_NE_NE, TOK_NOT);
 
     case '%':
-      return punct1(s, '=', TOK_REM_ASSIGN, TOK_REM);
+      return punct1(s, src_end, '=', TOK_REM_ASSIGN, TOK_REM);
     case '*':
-      return punct1(s, '=', TOK_MUL_ASSIGN, TOK_MUL);
+      return punct1(s, src_end, '=', TOK_MUL_ASSIGN, TOK_MUL);
     case '/':
       /*
        * TOK_DIV, TOK_DIV_ASSIGN, and TOK_REGEX_LITERAL start with `/` char.
@@ -11512,10 +12975,10 @@ V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
         case TOK_CLOSE_BRACKET:
         case TOK_IDENTIFIER:
         case TOK_NUMBER:
-          return punct1(s, '=', TOK_DIV_ASSIGN, TOK_DIV);
+          return punct1(s, src_end, '=', TOK_DIV_ASSIGN, TOK_DIV);
         default:
           /* Not a division - this is a regex. Scan until closing slash */
-          for (p++; *p != '\0' && *p != '\n'; p++) {
+          for (p++; p < src_end && *p != '\0' && *p != '\n'; p++) {
             if (*p == '\\') {
               /* Skip escape sequence */
               p++;
@@ -11532,39 +12995,46 @@ V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
           }
           break;
       }
-      return punct1(s, '=', TOK_DIV_ASSIGN, TOK_DIV);
+      return punct1(s, src_end, '=', TOK_DIV_ASSIGN, TOK_DIV);
     case '^':
-      return punct1(s, '=', TOK_XOR_ASSIGN, TOK_XOR);
+      return punct1(s, src_end, '=', TOK_XOR_ASSIGN, TOK_XOR);
 
     case '+':
-      return punct3(s, '+', TOK_PLUS_PLUS, '=', TOK_PLUS_ASSIGN, TOK_PLUS);
+      return punct3(s, src_end, '+', TOK_PLUS_PLUS, '=', TOK_PLUS_ASSIGN,
+                    TOK_PLUS);
     case '-':
-      return punct3(s, '-', TOK_MINUS_MINUS, '=', TOK_MINUS_ASSIGN, TOK_MINUS);
+      return punct3(s, src_end, '-', TOK_MINUS_MINUS, '=', TOK_MINUS_ASSIGN,
+                    TOK_MINUS);
     case '&':
-      return punct3(s, '&', TOK_LOGICAL_AND, '=', TOK_AND_ASSIGN, TOK_AND);
+      return punct3(s, src_end, '&', TOK_LOGICAL_AND, '=', TOK_AND_ASSIGN,
+                    TOK_AND);
     case '|':
-      return punct3(s, '|', TOK_LOGICAL_OR, '=', TOK_OR_ASSIGN, TOK_OR);
+      return punct3(s, src_end, '|', TOK_LOGICAL_OR, '=', TOK_OR_ASSIGN,
+                    TOK_OR);
 
     case '<':
-      if (s[0][1] == '=') {
+      if (*s + 1 < src_end && s[0][1] == '=') {
         (*s) += 2;
         return TOK_LE;
       }
-      return punct2(s, '<', TOK_LSHIFT, '=', TOK_LSHIFT_ASSIGN, TOK_LT);
+      return punct2(s, src_end, '<', TOK_LSHIFT, '=', TOK_LSHIFT_ASSIGN,
+                    TOK_LT);
     case '>':
-      if (s[0][1] == '=') {
+      if (*s + 1 < src_end && s[0][1] == '=') {
         (*s) += 2;
         return TOK_GE;
       }
-      if (s[0][1] == '>' && s[0][2] == '>' && s[0][3] == '=') {
+      if (*s + 3 < src_end && s[0][1] == '>' && s[0][2] == '>' &&
+          s[0][3] == '=') {
         (*s) += 4;
         return TOK_URSHIFT_ASSIGN;
       }
-      if (s[0][1] == '>' && s[0][2] == '>') {
+      if (*s + 2 < src_end && s[0][1] == '>' && s[0][2] == '>') {
         (*s) += 3;
         return TOK_URSHIFT;
       }
-      return punct2(s, '>', TOK_RSHIFT, '=', TOK_RSHIFT_ASSIGN, TOK_GT);
+      return punct2(s, src_end, '>', TOK_RSHIFT, '=', TOK_RSHIFT_ASSIGN,
+                    TOK_GT);
 
     case '{':
       (*s)++;
@@ -11622,7 +13092,7 @@ V7_PRIVATE enum v7_tok get_tok(const char **s, double *n,
       /* Handle unicode variables */
       Rune r;
       if (chartorune(&r, *s) > 1 && isalpharune(r)) {
-        ident(s);
+        ident(s, src_end);
         return TOK_IDENTIFIER;
       }
       return TOK_END_OF_INPUT;
@@ -11635,14 +13105,15 @@ int main(void) {
   const char *src =
       "for (var fo++ = -1; /= <= 1.17; x<<) { == <<=, 'x')} "
       "Infinity %=x<<=2";
+  const char *src_end = src + strlen(src);
   enum v7_tok tok;
   double num;
   const char *p = src;
 
-  skip_to_next_tok(&src);
-  while ((tok = get_tok(&src, &num)) != TOK_END_OF_INPUT) {
+  skip_to_next_tok(&src, src_end);
+  while ((tok = get_tok(&src, src_end, &num)) != TOK_END_OF_INPUT) {
     printf("%d [%.*s]\n", tok, (int) (src - p), p);
-    skip_to_next_tok(&src);
+    skip_to_next_tok(&src, src_end);
     p = src;
   }
   printf("%d [%.*s]\n", tok, (int) (src - p), p);
@@ -11650,21 +13121,27 @@ int main(void) {
   return 0;
 }
 #endif
+
+#endif /* V7_NO_COMPILER */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/ast.c"
+#line 1 "v7/src/ast.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
-/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "common/cs_strtod.h" */
 /* Amalgamated: #include "common/mbuf.h" */
+
+/* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/varint.h" */
 /* Amalgamated: #include "v7/src/ast.h" */
 /* Amalgamated: #include "v7/src/core.h" */
 /* Amalgamated: #include "v7/src/string.h" */
 /* Amalgamated: #include "common/str_util.h" */
+
+#if !defined(V7_NO_COMPILER)
 
 #ifdef V7_LARGE_AST
 typedef uint32_t ast_skip_t;
@@ -11673,7 +13150,7 @@ typedef uint16_t ast_skip_t;
 #define AST_SKIP_MAX UINT16_MAX
 #endif
 
-#ifndef V7_DISABLE_AST_TAG_NAMES
+#if !V7_DISABLE_AST_TAG_NAMES
 #define AST_ENTRY(name, has_varint, has_inlined, num_skips, num_subtrees) \
   { (name), (has_varint), (has_inlined), (num_skips), (num_subtrees) }
 #else
@@ -12303,7 +13780,7 @@ V7_PRIVATE void ast_modify_tag(struct ast *a, ast_off_t tag_off,
   a->mbuf.buf[tag_off] = tag | (a->mbuf.buf[tag_off] & 0x80);
 }
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 V7_PRIVATE void ast_add_line_no(struct ast *a, ast_off_t tag_off, int line_no) {
   ast_off_t ln_off = tag_off + 1 /* tag byte */;
   int llen = calc_llen(line_no);
@@ -12417,7 +13894,7 @@ V7_PRIVATE int ast_get_line_no(struct ast *a, ast_off_t pos) {
    */
   int ret = 0;
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
   uint8_t lineno_present;
   enum ast_tag tag = uint8_to_tag(*(a->mbuf.buf + pos - 1), &lineno_present);
 
@@ -12482,7 +13959,7 @@ V7_PRIVATE double ast_get_num(struct ast *a, ast_off_t pos) {
   }
   strncpy(p, str, str_len);
   p[str_len] = '\0';
-  ret = strtod(p, NULL);
+  ret = cs_strtod(p, NULL);
   if (p != buf) free(p);
   return ret;
 }
@@ -12536,7 +14013,7 @@ V7_PRIVATE void ast_dump_tree(FILE *fp, struct ast *a, ast_off_t *ppos,
     fprintf(fp, "  ");
   }
 
-#ifndef V7_DISABLE_AST_TAG_NAMES
+#if !V7_DISABLE_AST_TAG_NAMES
   fprintf(fp, "%s", def->name);
 #else
   fprintf(fp, "TAG_%d", tag);
@@ -12614,8 +14091,10 @@ V7_PRIVATE void release_ast(struct v7 *v7, struct ast *a) {
     free(a);
   }
 }
+
+#endif /* V7_NO_COMPILER */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/bcode.c"
+#line 1 "v7/src/bcode.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -12628,6 +14107,7 @@ V7_PRIVATE void release_ast(struct v7 *v7, struct ast *a) {
 /* Amalgamated: #include "v7/src/exceptions.h" */
 /* Amalgamated: #include "v7/src/gc.h" */
 /* Amalgamated: #include "v7/src/core.h" */
+/* Amalgamated: #include "v7/src/regexp.h" */
 /* Amalgamated: #include "v7/src/function.h" */
 /* Amalgamated: #include "v7/src/util.h" */
 /* Amalgamated: #include "v7/src/shdata.h" */
@@ -12696,6 +14176,7 @@ static const char *op_names[] = {
   "JMP_IF_CONTINUE",
   "CREATE_OBJ",
   "CREATE_ARR",
+  "PUSH_PROP_ITER_CTX",
   "NEXT_PROP",
   "FUNC_LIT",
   "CALL",
@@ -12835,7 +14316,7 @@ V7_PRIVATE void bcode_init(struct bcode *bcode, uint8_t strict_mode,
   bcode->refcnt = 0;
   bcode->args_cnt = 0;
   bcode->strict_mode = strict_mode;
-#ifndef V7_DISABLE_FILENAMES
+#if !V7_DISABLE_FILENAMES
   bcode->filename = filename;
   bcode->filename_in_rom = filename_in_rom;
 #else
@@ -12865,7 +14346,7 @@ V7_PRIVATE void bcode_free(struct v7 *v7, struct bcode *bcode) {
   free(bcode->lit.p);
   memset(&bcode->lit, 0x00, sizeof(bcode->lit));
 
-#ifndef V7_DISABLE_FILENAMES
+#if !V7_DISABLE_FILENAMES
   if (!bcode->filename_in_rom && bcode->filename != NULL) {
     shdata_release((struct shdata *) bcode->filename);
     bcode->filename = NULL;
@@ -12895,7 +14376,7 @@ V7_PRIVATE void release_bcode(struct v7 *v7, struct bcode *b) {
   }
 }
 
-#ifndef V7_DISABLE_FILENAMES
+#if !V7_DISABLE_FILENAMES
 V7_PRIVATE const char *bcode_get_filename(struct bcode *bcode) {
   const char *ret = NULL;
   if (bcode->filename_in_rom) {
@@ -12908,7 +14389,7 @@ V7_PRIVATE const char *bcode_get_filename(struct bcode *bcode) {
 #endif
 
 V7_PRIVATE void bcode_copy_filename_from(struct bcode *dst, struct bcode *src) {
-#ifndef V7_DISABLE_FILENAMES
+#if !V7_DISABLE_FILENAMES
   dst->filename_in_rom = src->filename_in_rom;
   dst->filename = src->filename;
 
@@ -12925,7 +14406,7 @@ V7_PRIVATE void bcode_op(struct bcode_builder *bbuilder, uint8_t op) {
   bcode_ops_append(bbuilder, &op, 1);
 }
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 V7_PRIVATE void bcode_append_lineno(struct bcode_builder *bbuilder,
                                     int line_no) {
   int offset = bbuilder->ops.len;
@@ -12970,12 +14451,17 @@ static int bcode_is_inline_func(struct v7 *v7, val_t val) {
   return (v7->is_precompiling && is_js_function(val));
 }
 
+static int bcode_is_inline_regexp(struct v7 *v7, val_t val) {
+  return (v7->is_precompiling && v7_is_regexp(v7, val));
+}
+
 V7_PRIVATE lit_t bcode_add_lit(struct bcode_builder *bbuilder, val_t val) {
   lit_t lit;
   memset(&lit, 0, sizeof(lit));
 
   if (bcode_is_inline_string(bbuilder->v7, val) ||
-      bcode_is_inline_func(bbuilder->v7, val) || v7_is_number(val)) {
+      bcode_is_inline_func(bbuilder->v7, val) || v7_is_number(val) ||
+      bcode_is_inline_regexp(bbuilder->v7, val)) {
     /* literal should be inlined (it's `bcode_op_lit()` who does this) */
     lit.mode = LIT_MODE__INLINED;
     lit.v.inline_val = val;
@@ -13070,6 +14556,31 @@ bcode_decode_lit(struct v7 *v7, struct bcode *bcode, char **ops) {
 
       return res;
     }
+    case BCODE_INLINE_REGEXP_TYPE_TAG: {
+#if V7_ENABLE__RegExp
+      enum v7_err rcode = V7_OK;
+      val_t res;
+      size_t len_src, len_flags;
+      char *buf_src, *buf_flags;
+
+      len_src = bcode_get_varint(ops);
+      buf_src = *ops + 1;
+      *ops += len_src + 1 /* nul term */;
+
+      len_flags = bcode_get_varint(ops);
+      buf_flags = *ops + 1;
+      *ops += len_flags + 1 /* nul term */;
+
+      rcode = v7_mk_regexp(v7, buf_src, len_src, buf_flags, len_flags, &res);
+      assert(rcode == V7_OK);
+      (void) rcode;
+
+      return res;
+#else
+      fprintf(stderr, "Firmware is built without -DV7_ENABLE__RegExp\n");
+      abort();
+#endif
+    }
     default:
       return ((val_t *) vec->p)[idx - BCODE_MAX_INLINE_TYPE_TAG];
   }
@@ -13133,6 +14644,32 @@ V7_PRIVATE void bcode_op_lit(struct bcode_builder *bbuilder, enum opcode op,
 
         fclose(fp);
 #endif
+      } else if (v7_is_regexp(bbuilder->v7, lit.v.inline_val)) {
+#if V7_ENABLE__RegExp
+        struct v7_regexp *rp =
+            v7_get_regexp_struct(bbuilder->v7, lit.v.inline_val);
+        bcode_add_varint(bbuilder, BCODE_INLINE_REGEXP_TYPE_TAG);
+
+        /* append regexp source */
+        {
+          size_t len;
+          const char *buf =
+              v7_get_string(bbuilder->v7, &rp->regexp_string, &len);
+          bcode_add_varint(bbuilder, len);
+          bcode_ops_append(bbuilder, buf, len + 1 /* nul term */);
+        }
+
+        /* append regexp flags */
+        {
+          char buf[_V7_REGEXP_MAX_FLAGS_LEN + 1 /* nul term */];
+          size_t len = get_regexp_flags_str(bbuilder->v7, rp, buf);
+          bcode_add_varint(bbuilder, len);
+          bcode_ops_append(bbuilder, buf, len + 1 /* nul term */);
+        }
+#else
+        fprintf(stderr, "Firmware is built without -DV7_ENABLE__RegExp\n");
+        abort();
+#endif
       } else {
         /* invalid type of inlined value */
         abort();
@@ -13151,8 +14688,9 @@ V7_PRIVATE void bcode_push_lit(struct bcode_builder *bbuilder, lit_t lit) {
 }
 
 WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err bcode_add_name(struct bcode_builder *bbuilder,
-                                      const char *p, size_t len, size_t *idx) {
+    /*V7_PRIVATE*/ enum v7_err
+    bcode_add_name(struct bcode_builder *bbuilder, const char *p, size_t len,
+                   size_t *idx) {
   enum v7_err rcode = V7_OK;
   int llen;
   size_t ops_index;
@@ -13206,7 +14744,7 @@ V7_PRIVATE enum v7_err bcode_add_name(struct bcode_builder *bbuilder,
   return rcode;
 }
 
-V7_PRIVATE char *bcode_end_names(char *ops, size_t names_cnt) {
+/*V7_PRIVATE*/ char *bcode_end_names(char *ops, size_t names_cnt) {
   while (names_cnt--) {
     ops = bcode_next_name(ops, NULL, NULL);
   }
@@ -13265,19 +14803,31 @@ V7_PRIVATE bcode_off_t bcode_add_target(struct bcode_builder *bbuilder) {
   return pos;
 }
 
-/* Appends an op requiring a branch target. See bcode_add_target. */
-V7_PRIVATE bcode_off_t
-bcode_op_target(struct bcode_builder *bbuilder, uint8_t op) {
+/*
+ * Appends an op requiring a branch target. See bcode_add_target.
+ *
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+/*V7_PRIVATE*/ bcode_off_t bcode_op_target(struct bcode_builder *bbuilder,
+                                           uint8_t op) {
   bcode_op(bbuilder, op);
   return bcode_add_target(bbuilder);
 }
 
-V7_PRIVATE void bcode_patch_target(struct bcode_builder *bbuilder,
-                                   bcode_off_t label, bcode_off_t target) {
+/*V7_PRIVATE*/ void bcode_patch_target(struct bcode_builder *bbuilder,
+                                       bcode_off_t label, bcode_off_t target) {
   memcpy(bbuilder->ops.buf + label, &target, sizeof(target));
 }
 
-#ifndef V7_NO_FS
+/*V7_PRIVATE*/ void bcode_serialize(struct v7 *v7, struct bcode *bcode,
+                                    FILE *out) {
+  (void) v7;
+  (void) bcode;
+
+  fwrite(BIN_BCODE_SIGNATURE, sizeof(BIN_BCODE_SIGNATURE), 1, out);
+  bcode_serialize_func(v7, bcode, out);
+}
 
 static void bcode_serialize_varint(int n, FILE *out) {
   unsigned char buf[8];
@@ -13286,73 +14836,16 @@ static void bcode_serialize_varint(int n, FILE *out) {
   fwrite(buf, k, 1, out);
 }
 
-static void bcode_serialize_emit_type_tag(enum bcode_ser_lit_tag tag,
-                                          FILE *out) {
-  uint8_t t = (uint8_t) tag;
-  fwrite(&t, 1, 1, out);
-}
-
-static void bcode_serialize_string(struct v7 *v7, val_t v, FILE *out) {
-  size_t len;
-  const char *s = v7_get_string(v7, &v, &len);
-
-  bcode_serialize_varint(len, out);
-  fwrite(s, len + 1 /* NUL char */, 1, out);
-}
-
-static void bcode_serialize_lit(struct v7 *v7, val_t v, FILE *out) {
-  int t = val_type(v7, v);
-  switch (t) {
-    case V7_TYPE_NUMBER: {
-      double num = v7_get_double(v7, v);
-      char buf[18];
-      const char *fmt = num > 1e10 ? "%.21g" : "%.10g";
-      size_t len = snprintf(buf, sizeof(buf), fmt, num);
-
-      bcode_serialize_emit_type_tag(BCODE_SER_NUMBER, out);
-      bcode_serialize_varint(len, out);
-      fwrite(buf, len, 1, out);
-      break;
-    }
-    case V7_TYPE_STRING: {
-      bcode_serialize_emit_type_tag(BCODE_SER_STRING, out);
-      bcode_serialize_string(v7, v, out);
-      break;
-    }
-    /* TODO(mkm):
-     * case V7_TYPE_REGEXP_OBJECT:
-     */
-    case V7_TYPE_FUNCTION_OBJECT: {
-      struct v7_js_function *func;
-      func = get_js_function_struct(v);
-      assert(func->bcode != NULL);
-
-      bcode_serialize_emit_type_tag(BCODE_SER_FUNCTION, out);
-      bcode_serialize_func(v7, func->bcode, out);
-      break;
-    }
-    default:
-      fprintf(stderr, "Unhandled type: %d", t);
-      assert(1 == 0);
-  }
-}
-
 static void bcode_serialize_func(struct v7 *v7, struct bcode *bcode,
                                  FILE *out) {
-  val_t *vp;
   struct v7_vec *vec;
   (void) v7;
 
   /*
-   * literals table:
-   * <varint> // number of literals
-   * <bcode_ser_literal>*
+   * All literals should be inlined into `ops`, so we expect literals table
+   * to be empty here
    */
-  vec = &bcode->lit;
-  bcode_serialize_varint(vec->len / sizeof(val_t), out);
-  for (vp = (val_t *) vec->p; (char *) vp < vec->p + vec->len; vp++) {
-    bcode_serialize_lit(v7, *vp, out);
-  }
+  assert(bcode->lit.len == 0);
 
   /* args_cnt */
   bcode_serialize_varint(bcode->args_cnt, out);
@@ -13373,56 +14866,12 @@ static void bcode_serialize_func(struct v7 *v7, struct bcode *bcode,
   fwrite(vec->p, vec->len, 1, out);
 }
 
-V7_PRIVATE void bcode_serialize(struct v7 *v7, struct bcode *bcode, FILE *out) {
-  (void) v7;
-  (void) bcode;
-
-  fwrite(BIN_BCODE_SIGNATURE, sizeof(BIN_BCODE_SIGNATURE), 1, out);
-  bcode_serialize_func(v7, bcode, out);
-}
-
 static size_t bcode_deserialize_varint(const char **data) {
   size_t ret = 0;
   int len = 0;
   ret = decode_varint((const unsigned char *) (*data), &len);
   *data += len;
   return ret;
-}
-
-static const char *bcode_deserialize_lit(struct bcode_builder *bbuilder,
-                                         const char *data) {
-  enum bcode_ser_lit_tag lit_tag;
-
-  (void) bbuilder;
-
-  lit_tag = (enum bcode_ser_lit_tag) * data++;
-
-  switch (lit_tag) {
-    case BCODE_SER_NUMBER:
-    case BCODE_SER_STRING:
-    case BCODE_SER_FUNCTION: {
-      /*
-       * All numbers, strings and functions should be inlined into `ops` during
-       * serialization (see `bcode_add_lit()`, `bcode_is_inline_string()`,
-       * `bcode_is_inline_func()`, `bcode_op_lit()`), so we should never
-       * encounter them here
-       */
-      assert(0);
-      break;
-    }
-
-    case BCODE_SER_REGEX: {
-      /* TODO */
-      assert(0);
-      break;
-    }
-
-    default:
-      assert(0);
-      break;
-  }
-
-  return data;
 }
 
 static const char *bcode_deserialize_func(struct v7 *v7, struct bcode *bcode,
@@ -13438,12 +14887,10 @@ static const char *bcode_deserialize_func(struct v7 *v7, struct bcode *bcode,
    */
   bcode->deserialized = 1;
 
-  /* get number of literals */
-  size = bcode_deserialize_varint(&data);
-  /* deserialize all literals */
-  for (; size > 0; --size) {
-    data = bcode_deserialize_lit(&bbuilder, data);
-  }
+  /*
+   * In serialized functions, all literals are inlined into `ops`, so we don't
+   * deserialize them here in any way
+   */
 
   /* get number of args */
   bcode->args_cnt = bcode_deserialize_varint(&data);
@@ -13473,10 +14920,8 @@ V7_PRIVATE void bcode_deserialize(struct v7 *v7, struct bcode *bcode,
                                   const char *data) {
   data = bcode_deserialize_func(v7, bcode, data);
 }
-
-#endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/eval.c"
+#line 1 "v7/src/eval.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -13667,7 +15112,7 @@ static int del_property_deep(struct v7 *v7, val_t obj, const char *name,
   if (!v7_is_object(obj)) {
     return -1;
   }
-  for (; obj != V7_NULL; obj = obj_prototype_v(v7, obj)) {
+  for (; obj != V7_NULL; obj = v7_get_proto(v7, obj)) {
     int del_res;
     if ((del_res = v7_del(v7, obj, name, len)) != -1) {
       return del_res;
@@ -13909,6 +15354,10 @@ static void init_call_frame_bcode(struct v7 *v7,
     struct v7_call_frame_bcode *cf = find_call_frame_bcode(v7);
     if (cf != NULL) {
       cf->bcode_ops = prev_bcode_ops;
+
+      /* remember thrown value */
+      cf->vals.thrown_error = v7->vals.thrown_error;
+      cf->base.base.is_thrown = v7->is_thrown;
     }
   }
 
@@ -14030,6 +15479,15 @@ static void apply_frame_bcode(struct v7 *v7,
 
     bcode_restore_registers(v7, call_frame->bcode, r);
     r->ops = call_frame->bcode_ops;
+
+    /*
+     * restore thrown value if only there's no new thrown value
+     * (otherwise, the new one overrides the previous one)
+     */
+    if (!v7->is_thrown) {
+      v7->vals.thrown_error = call_frame->vals.thrown_error;
+      v7->is_thrown = call_frame->base.base.is_thrown;
+    }
   }
 }
 
@@ -14562,7 +16020,7 @@ static void push_bcode_history(struct v7 *v7, enum opcode op) {
   v7->last_ops[0] = op;
 }
 
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
 static void reset_last_name(struct v7 *v7) {
   v7->vals.last_name[0] = V7_UNDEFINED;
   v7->vals.last_name[1] = V7_UNDEFINED;
@@ -14573,6 +16031,12 @@ static void reset_last_name(struct v7 *v7) {
   (void) v7;
 }
 #endif
+
+static void prop_iter_ctx_dtor(struct v7 *v7, void *ud) {
+  struct prop_iter_ctx *ctx = (struct prop_iter_ctx *) ud;
+  v7_destruct_prop_iter_ctx(v7, ctx);
+  free(ctx);
+}
 
 /*
  * Evaluates given `bcode`. If `reset_line_no` is non-zero, the line number
@@ -14639,7 +16103,7 @@ restart:
   while (r.ops < r.end && rcode == V7_OK) {
     enum opcode op = (enum opcode) * r.ops;
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
     if ((uint8_t) op >= _OP_LINE_NO) {
       unsigned char buf[sizeof(size_t)];
       int len;
@@ -14670,8 +16134,9 @@ restart:
     push_bcode_history(v7, op);
 
     if (v7->need_gc) {
-      maybe_gc(v7);
-      v7->need_gc = 0;
+      if (maybe_gc(v7)) {
+        v7->need_gc = 0;
+      }
     }
 
     r.need_inc_ops = 1;
@@ -14753,7 +16218,7 @@ restart:
         break;
       case OP_PUSH_LIT: {
         PUSH(bcode_decode_lit(v7, r.bcode, &r.ops));
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
         /* name tracking */
         if (!v7_is_string(TOS())) {
           reset_last_name(v7);
@@ -15000,7 +16465,7 @@ restart:
         v1 = POP();
         BTRY(v7_get_throwing_v(v7, v1, v2, &v3));
         PUSH(v3);
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
         v7->vals.last_name[1] = v7->vals.last_name[0];
         v7->vals.last_name[0] = v2;
 #endif
@@ -15038,7 +16503,7 @@ restart:
           BTRY(v7_property_value(v7, get_scope(v7), p, &v2));
           PUSH(v2);
         }
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
         v7->vals.last_name[0] = v1;
         v7->vals.last_name[1] = V7_UNDEFINED;
 #endif
@@ -15130,36 +16595,76 @@ restart:
       case OP_CREATE_ARR:
         PUSH(v7_mk_array(v7));
         break;
+      case OP_PUSH_PROP_ITER_CTX: {
+        struct prop_iter_ctx *ctx =
+            (struct prop_iter_ctx *) calloc(1, sizeof(*ctx));
+        BTRY(init_prop_iter_ctx(v7, TOS(), 1, ctx));
+        v1 = v7_mk_object(v7);
+        v7_set_user_data(v7, v1, ctx);
+        v7_set_destructor_cb(v7, v1, prop_iter_ctx_dtor);
+        PUSH(v1);
+        break;
+      }
       case OP_NEXT_PROP: {
-        void *h = NULL;
-        v1 = POP(); /* handle */
+        struct prop_iter_ctx *ctx = NULL;
+        int ok = 0;
+        v1 = POP(); /* ctx */
         v2 = POP(); /* object */
 
-        if (!v7_is_null(v1)) {
-          h = v7_get_ptr(v7, v1);
-        }
+        ctx = (struct prop_iter_ctx *) v7_get_user_data(v7, v1);
 
         if (v7_is_object(v2)) {
           v7_prop_attr_t attrs;
+
           do {
             /* iterate properties until we find a non-hidden enumerable one */
             do {
-              h = v7_next_prop(h, v2, &res, NULL, &attrs);
-            } while (h != NULL && (attrs & (_V7_PROPERTY_HIDDEN |
-                                            V7_PROPERTY_NON_ENUMERABLE)));
+              BTRY(next_prop(v7, ctx, &res, NULL, &attrs, &ok));
+            } while (ok && (attrs & (_V7_PROPERTY_HIDDEN |
+                                     V7_PROPERTY_NON_ENUMERABLE)));
 
-            if (h == NULL) {
+            if (!ok) {
               /* no more properties in this object: proceed to the prototype */
-              v2 = obj_prototype_v(v7, v2);
+              v2 = v7_get_proto(v7, v2);
+              if (get_generic_object_struct(v2) != NULL) {
+                /*
+                 * the prototype is a generic object, so, init the context for
+                 * props iteration
+                 */
+                v7_destruct_prop_iter_ctx(v7, ctx);
+                BTRY(init_prop_iter_ctx(v7, v2, 1, ctx));
+              } else {
+                /*
+                 * we can't iterate the prototype's props, so, just stop
+                 * iteration.
+                 */
+                ctx = NULL;
+              }
             }
-          } while (h == NULL && get_generic_object_struct(v2) != NULL);
+          } while (!ok && ctx != NULL);
+        } else {
+          /*
+           * Not an object: reset the context.
+           */
+          ctx = NULL;
         }
 
-        if (h == NULL) {
+        if (ctx == NULL) {
           PUSH(v7_mk_boolean(v7, 0));
+
+          /*
+           * We could leave the context unfreed, and let the
+           * `prop_iter_ctx_dtor()` free it when the v1 will be GC-d, but
+           * let's do that earlier.
+           */
+          ctx = (struct prop_iter_ctx *) v7_get_user_data(v7, v1);
+          v7_destruct_prop_iter_ctx(v7, ctx);
+          free(ctx);
+          v7_set_user_data(v7, v1, NULL);
+          v7_set_destructor_cb(v7, v1, NULL);
         } else {
           PUSH(v2);
-          PUSH(v7_mk_foreign(v7, h));
+          PUSH(v1);
           PUSH(res);
           PUSH(v7_mk_boolean(v7, 1));
         }
@@ -15178,7 +16683,7 @@ restart:
           enum v7_err ignore;
 /* tried to call non-function object: throw a TypeError */
 
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
           /*
            * try to provide some useful context for the error message
            * using a good-enough heuristics
@@ -15210,7 +16715,7 @@ restart:
             case 0:
               ignore = v7_throwf(v7, TYPE_ERROR, "value is not a function");
               break;
-#ifndef V7_DISABLE_CALL_ERROR_CONTEXT
+#if !V7_DISABLE_CALL_ERROR_CONTEXT
 
             case 1:
               ignore = v7_throwf(v7, TYPE_ERROR, "%s is not a function",
@@ -15669,14 +17174,16 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
   fprintf(stderr, "src:'%s'\n", src);
 #endif
 
-  /* TODO(mkm): use GC pool */
+/* TODO(mkm): use GC pool */
+#if !defined(V7_NO_COMPILER)
   struct ast *a = (struct ast *) malloc(sizeof(struct ast));
+#endif
   size_t saved_stack_len = v7->stack.len;
   enum v7_err rcode = V7_OK;
   val_t _res = V7_UNDEFINED;
   struct gc_tmp_frame tf = new_tmp_frame(v7);
   struct bcode *bcode = NULL;
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   struct stack_track_ctx stack_track_ctx;
 #endif
   struct {
@@ -15686,7 +17193,7 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
 
   (void) filename;
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   v7_stack_track_start(v7, &stack_track_ctx);
 #endif
 
@@ -15704,7 +17211,7 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
 #else
              1,
 #endif
-#ifndef V7_DISABLE_FILENAMES
+#if !V7_DISABLE_FILENAMES
              filename ? shdata_create_from_string(filename) : NULL,
 #else
              NULL,
@@ -15715,8 +17222,10 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
   retain_bcode(v7, bcode);
   own_bcode(v7, bcode);
 
+#if !defined(V7_NO_COMPILER)
   ast_init(a, 0);
   a->refcnt = 1;
+#endif
 
   if (src != NULL) {
     /* Caller provided some source code, so, handle it somehow */
@@ -15729,14 +17238,26 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
 
       bcode_deserialize(v7, bcode, src + sizeof(BIN_BCODE_SIGNATURE));
 
-      /*
-       * Currently, we only support serialized bcode that is stored in some
-       * mmapped memory. Otherwise, we don't yet have any mechanism to free
-       * this memory at the appropriate time.
-       */
+/*
+ * Currently, we only support serialized bcode that is stored in some
+ * mmapped memory. Otherwise, we don't yet have any mechanism to free
+ * this memory at the appropriate time.
+ */
+
+/*
+ * TODO(dfrank): currently, we remove this assert, and introduce memory
+ * leak. We need to support that properly.
+ */
+#if 0
       assert(fr == 0);
+#else
+      if (fr) {
+        fr = 0;
+      }
+#endif
     } else {
-      /* Maybe regular JavaScript source or binary AST data */
+/* Maybe regular JavaScript source or binary AST data */
+#if !defined(V7_NO_COMPILER)
 
       if (src_len >= sizeof(BIN_AST_SIGNATURE) &&
           strncmp(BIN_AST_SIGNATURE, src, sizeof(BIN_AST_SIGNATURE)) == 0) {
@@ -15755,7 +17276,7 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
         }
       } else {
         /* we have regular JavaScript source, so, parse it */
-        V7_TRY(parse(v7, a, src, is_json));
+        V7_TRY(parse(v7, a, src, src_len, is_json));
       }
 
       /* we now have binary AST, let's compile it */
@@ -15777,6 +17298,13 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
         ast_off_t pos = 0;
         V7_TRY(compile_expr(v7, a, &pos, bcode));
       }
+#else  /* V7_NO_COMPILER */
+      (void) is_json;
+      /* Parsing JavaScript code is disabled */
+      rcode = v7_throwf(v7, SYNTAX_ERROR,
+                        "Parsing JS code is disabled by V7_NO_COMPILER");
+      V7_THROW(V7_SYNTAX_ERROR);
+#endif /* V7_NO_COMPILER */
     }
 
   } else if (is_js_function(func)) {
@@ -15820,8 +17348,7 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
   } else if (is_cfunction_lite(func) || is_cfunction_obj(v7, func)) {
     /* call cfunction */
 
-    V7_TRY(
-        call_cfunction(v7, func, this_object, args, 0 /* not a ctor */, &_res));
+    V7_TRY(call_cfunction(v7, func, this_object, args, is_constructor, &_res));
 
     goto clean;
   } else {
@@ -15829,8 +17356,9 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
     V7_TRY(v7_throwf(v7, TYPE_ERROR, "value is not a function"));
   }
 
-  /* We now have bcode to evaluate; proceed to it */
+/* We now have bcode to evaluate; proceed to it */
 
+#if !defined(V7_NO_COMPILER)
   /*
    * Before we evaluate bcode, we can safely release AST since it's not needed
    * anymore. Note that there's no leak here: if we `goto clean` from somewhere
@@ -15838,6 +17366,7 @@ V7_PRIVATE enum v7_err b_exec(struct v7 *v7, const char *src, size_t src_len,
    */
   release_ast(v7, a);
   a = NULL;
+#endif /* V7_NO_COMPILER */
 
   /* Evaluate bcode */
   V7_TRY(eval_bcode(v7, bcode, this_object, flags.line_no_reset, &_res));
@@ -15890,6 +17419,7 @@ clean:
   }
   assert(v7->stack.len == saved_stack_len);
 
+#if !defined(V7_NO_COMPILER)
   /*
    * release AST if needed (normally, it's already released above, before
    * bcode evaluation)
@@ -15898,6 +17428,7 @@ clean:
     release_ast(v7, a);
     a = NULL;
   }
+#endif /* V7_NO_COMPILER */
 
   if (is_constructor && !v7_is_object(_res)) {
     /* constructor returned non-object: replace it with `this` */
@@ -15909,7 +17440,7 @@ clean:
     *res = _res;
   }
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   {
     int diff = v7_stack_track_end(v7, &stack_track_ctx);
     if (diff > v7->stack_stat[V7_STACK_STAT_EXEC]) {
@@ -15930,7 +17461,7 @@ V7_PRIVATE enum v7_err b_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
                 res);
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/core.c"
+#line 1 "v7/src/core.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -15999,14 +17530,14 @@ static void generic_object_destructor(struct v7 *v7, void *ptr) {
         if (v7_is_foreign(p->name)) {
           v7_destructor_cb_t *cb =
               (v7_destructor_cb_t *) v7_get_ptr(v7, p->name);
-          cb(v7_get_ptr(v7, p->value));
+          cb(v7, v7_get_ptr(v7, p->value));
         }
         break;
       }
     }
   }
 
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   o->base.entity_id_base = V7_ENTITY_ID_PART_NONE;
   o->base.entity_id_spec = V7_ENTITY_ID_PART_NONE;
 #endif
@@ -16021,13 +17552,13 @@ static void function_destructor(struct v7 *v7, void *ptr) {
     release_bcode(v7, f->bcode);
   }
 
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   f->base.entity_id_base = V7_ENTITY_ID_PART_NONE;
   f->base.entity_id_spec = V7_ENTITY_ID_PART_NONE;
 #endif
 }
 
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
 static void property_destructor(struct v7 *v7, void *ptr) {
   struct v7_property *p = (struct v7_property *) ptr;
   (void) v7;
@@ -16076,7 +17607,7 @@ struct v7 *v7_create_opt(struct v7_create_opts opts) {
     v7_head = v7;
 #endif
 
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
     v7->gc_next_asn = 0;
     v7->gc_min_asn = 0;
 #endif
@@ -16091,7 +17622,7 @@ struct v7 *v7_create_opt(struct v7_create_opts opts) {
     v7->function_arena.destructor = function_destructor;
     gc_arena_init(&v7->property_arena, sizeof(struct v7_property),
                   opts.property_arena_size, 10, "property");
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
     v7->property_arena.destructor = property_destructor;
 #endif
 
@@ -16126,7 +17657,6 @@ struct v7 *v7_create_opt(struct v7_create_opts opts) {
     init_file(v7);
     init_crypto(v7);
     init_socket(v7);
-    init_ubjson(v7);
 #endif
 
     v7->inhibit_gc = 0;
@@ -16264,7 +17794,7 @@ const char *v7_get_parser_error(struct v7 *v7) {
   return v7->error_msg;
 }
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
 
 int v7_stack_stat(struct v7 *v7, enum v7_stack_stat_what what) {
   assert(what < V7_STACK_STATS_CNT);
@@ -16277,7 +17807,7 @@ void v7_stack_stat_clean(struct v7 *v7) {
 
 #endif /* V7_ENABLE_STACK_TRACKING */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/primitive.c"
+#line 1 "v7/src/primitive.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -16427,7 +17957,7 @@ int v7_is_foreign(val_t v) {
 
 /* }}} Foreign */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/function.c"
+#line 1 "v7/src/function.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -16449,7 +17979,7 @@ V7_PRIVATE struct v7_js_function *get_js_function_struct(val_t v) {
   struct v7_js_function *ret = NULL;
   assert(is_js_function(v));
   ret = (struct v7_js_function *) get_ptr(v);
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   if (ret->base.entity_id_spec != V7_ENTITY_ID_PART_JS_FUNC) {
     fprintf(stderr, "entity_id: not a function!\n");
     abort();
@@ -16477,7 +18007,7 @@ val_t mk_js_function(struct v7 *v7, struct v7_generic_object *scope,
     goto cleanup;
   }
 
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   f->base.entity_id_base = V7_ENTITY_ID_PART_OBJ;
   f->base.entity_id_spec = V7_ENTITY_ID_PART_JS_FUNC;
 #endif
@@ -16609,7 +18139,7 @@ int v7_is_callable(struct v7 *v7, val_t v) {
   return is_js_function(v) || is_cfunction_lite(v) || is_cfunction_obj(v7, v);
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/exec.c"
+#line 1 "v7/src/exec.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -16627,20 +18157,27 @@ int v7_is_callable(struct v7 *v7, val_t v) {
 /* Amalgamated: #include "v7/src/exceptions.h" */
 
 enum v7_err v7_exec(struct v7 *v7, const char *js_code, v7_val_t *res) {
-  return b_exec(v7, js_code, 0, NULL, V7_UNDEFINED, V7_UNDEFINED, V7_UNDEFINED,
-                0, 0, 0, res);
+  return b_exec(v7, js_code, strlen(js_code), NULL, V7_UNDEFINED, V7_UNDEFINED,
+                V7_UNDEFINED, 0, 0, 0, res);
 }
 
 enum v7_err v7_exec_opt(struct v7 *v7, const char *js_code,
                         const struct v7_exec_opts *opts, v7_val_t *res) {
-  return b_exec(v7, js_code, 0, opts->filename, V7_UNDEFINED, V7_UNDEFINED,
+  return b_exec(v7, js_code, strlen(js_code), opts->filename, V7_UNDEFINED,
+                V7_UNDEFINED,
                 (opts->this_obj == 0 ? V7_UNDEFINED : opts->this_obj),
                 opts->is_json, 0, 0, res);
 }
 
+enum v7_err v7_exec_buf(struct v7 *v7, const char *js_code, size_t len,
+                        v7_val_t *res) {
+  return b_exec(v7, js_code, len, NULL, V7_UNDEFINED, V7_UNDEFINED,
+                V7_UNDEFINED, 0, 0, 0, res);
+}
+
 enum v7_err v7_parse_json(struct v7 *v7, const char *str, v7_val_t *res) {
-  return b_exec(v7, str, 0, NULL, V7_UNDEFINED, V7_UNDEFINED, V7_UNDEFINED, 1,
-                0, 0, res);
+  return b_exec(v7, str, strlen(str), NULL, V7_UNDEFINED, V7_UNDEFINED,
+                V7_UNDEFINED, 1, 0, 0, res);
 }
 
 #ifndef V7_NO_FS
@@ -16674,7 +18211,7 @@ static enum v7_err exec_file(struct v7 *v7, const char *path, val_t *res,
      * TODO(dfrank): probably change API: clients can use
      *`v7_get_thrown_value()` now.
      */
-    *res = v7_get_thrown_value(v7, NULL);
+    if (res != NULL) *res = v7_get_thrown_value(v7, NULL);
     goto clean;
   } else {
 #ifndef V7_MMAP_EXEC
@@ -16708,18 +18245,9 @@ enum v7_err v7_apply(struct v7 *v7, v7_val_t func, v7_val_t this_obj,
 }
 
 #ifndef NO_LIBC
-/*
- * Compile a given JS source into a given output representation.
- *
- * if `bcode` is 0 it will enerate Abstract Syntax Tree (AST), otherwise
- *
- * If `binary` is 0, then generated dump is in text format, otherwise it is
- * in the binary format. Binary AST / BODE is self-sufficient and can be
- * executed by V7 with no extra input.
- *
- * `fp` must be an opened writable file stream to write compiled AST/bcode to.
- */
-enum v7_err v7_compile(const char *code, int binary, int use_bcode, FILE *fp) {
+#if !defined(V7_NO_COMPILER)
+enum v7_err _v7_compile(const char *src, size_t js_code_size, int binary,
+                        int use_bcode, FILE *fp) {
   struct ast ast;
   struct v7 *v7 = v7_create();
   ast_off_t pos = 0;
@@ -16728,14 +18256,14 @@ enum v7_err v7_compile(const char *code, int binary, int use_bcode, FILE *fp) {
   v7->is_precompiling = 1;
 
   ast_init(&ast, 0);
-  err = parse(v7, &ast, code, 0);
+  err = parse(v7, &ast, src, js_code_size, 0);
   if (err == V7_OK) {
     if (use_bcode) {
       struct bcode bcode;
       /*
        * We don't set filename here, because the bcode will be just serialized
        * and then freed. We don't currently serialize filename. If we ever do,
-       * we'll have to make `v7_compile()` to also take a filename argument,
+       * we'll have to make `_v7_compile()` to also take a filename argument,
        * and use it here.
        */
       bcode_init(&bcode, 0, NULL, 0);
@@ -16769,9 +18297,14 @@ enum v7_err v7_compile(const char *code, int binary, int use_bcode, FILE *fp) {
   v7_destroy(v7);
   return err;
 }
+
+enum v7_err v7_compile(const char *src, int binary, int use_bcode, FILE *fp) {
+  return _v7_compile(src, strlen(src), binary, use_bcode, fp);
+}
+#endif /* V7_NO_COMPILER */
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/util.c"
+#line 1 "v7/src/util.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -16783,8 +18316,12 @@ enum v7_err v7_compile(const char *code, int binary, int use_bcode, FILE *fp) {
 /* Amalgamated: #include "v7/src/object.h" */
 /* Amalgamated: #include "v7/src/util.h" */
 /* Amalgamated: #include "v7/src/string.h" */
+/* Amalgamated: #include "v7/src/array.h" */
+/* Amalgamated: #include "v7/src/eval.h" */
 /* Amalgamated: #include "v7/src/conversion.h" */
+/* Amalgamated: #include "v7/src/exceptions.h" */
 /* Amalgamated: #include "v7/src/primitive.h" */
+/* Amalgamated: #include "v7/src/std_proxy.h" */
 
 void v7_print(struct v7 *v7, v7_val_t v) {
   v7_fprint(stdout, v7, v);
@@ -16832,6 +18369,65 @@ void v7_print_error(FILE *f, struct v7 *v7, const char *ctx, val_t e) {
   v7_fprint_stack_trace(f, v7, e);
 }
 
+#if V7_ENABLE__Proxy
+
+v7_val_t v7_mk_proxy(struct v7 *v7, v7_val_t target,
+                     const v7_proxy_hnd_t *handler) {
+  enum v7_err rcode = V7_OK;
+  v7_val_t res = V7_UNDEFINED;
+  v7_val_t args = V7_UNDEFINED;
+  v7_val_t handler_v = V7_UNDEFINED;
+
+  v7_own(v7, &res);
+  v7_own(v7, &args);
+  v7_own(v7, &handler_v);
+  v7_own(v7, &target);
+
+  /* if target is not an object, create one */
+  if (!v7_is_object(target)) {
+    target = v7_mk_object(v7);
+  }
+
+  /* prepare handler object with necessary properties */
+  handler_v = v7_mk_object(v7);
+  if (handler->get != NULL) {
+    set_cfunc_prop(v7, handler_v, "get", handler->get);
+  }
+  if (handler->set != NULL) {
+    set_cfunc_prop(v7, handler_v, "set", handler->set);
+  }
+  if (handler->own_keys != NULL) {
+    set_cfunc_prop(v7, handler_v, "ownKeys", handler->own_keys);
+  }
+  if (handler->get_own_prop_desc != NULL) {
+    v7_def(v7, handler_v, "_gpdc", ~0, V7_DESC_ENUMERABLE(0),
+           v7_mk_foreign(v7, (void *) handler->get_own_prop_desc));
+  }
+
+  /* prepare args */
+  args = v7_mk_dense_array(v7);
+  v7_array_set(v7, args, 0, target);
+  v7_array_set(v7, args, 1, handler_v);
+
+  /* call Proxy constructor */
+  V7_TRY(b_apply(v7, v7_get(v7, v7->vals.global_object, "Proxy", ~0),
+                 v7_mk_object(v7), args, 1 /* as ctor */, &res));
+
+clean:
+  if (rcode != V7_OK) {
+    fprintf(stderr, "error during v7_mk_proxy()");
+    res = V7_UNDEFINED;
+  }
+
+  v7_disown(v7, &target);
+  v7_disown(v7, &handler_v);
+  v7_disown(v7, &args);
+  v7_disown(v7, &res);
+  return res;
+}
+
+#endif /* V7_ENABLE__Proxy */
+
 V7_PRIVATE enum v7_type val_type(struct v7 *v7, val_t v) {
   int tag;
   if (v7_is_number(v)) {
@@ -16847,17 +18443,17 @@ V7_PRIVATE enum v7_type val_type(struct v7 *v7, val_t v) {
     case V7_TAG_UNDEFINED >> 48:
       return V7_TYPE_UNDEFINED;
     case V7_TAG_OBJECT >> 48:
-      if (obj_prototype_v(v7, v) == v7->vals.array_prototype) {
+      if (v7_get_proto(v7, v) == v7->vals.array_prototype) {
         return V7_TYPE_ARRAY_OBJECT;
-      } else if (obj_prototype_v(v7, v) == v7->vals.boolean_prototype) {
+      } else if (v7_get_proto(v7, v) == v7->vals.boolean_prototype) {
         return V7_TYPE_BOOLEAN_OBJECT;
-      } else if (obj_prototype_v(v7, v) == v7->vals.string_prototype) {
+      } else if (v7_get_proto(v7, v) == v7->vals.string_prototype) {
         return V7_TYPE_STRING_OBJECT;
-      } else if (obj_prototype_v(v7, v) == v7->vals.number_prototype) {
+      } else if (v7_get_proto(v7, v) == v7->vals.number_prototype) {
         return V7_TYPE_NUMBER_OBJECT;
-      } else if (obj_prototype_v(v7, v) == v7->vals.function_prototype) {
+      } else if (v7_get_proto(v7, v) == v7->vals.function_prototype) {
         return V7_TYPE_CFUNCTION_OBJECT;
-      } else if (obj_prototype_v(v7, v) == v7->vals.date_prototype) {
+      } else if (v7_get_proto(v7, v) == v7->vals.date_prototype) {
         return V7_TYPE_DATE_OBJECT;
       } else {
         return V7_TYPE_GENERIC_OBJECT;
@@ -16882,7 +18478,7 @@ V7_PRIVATE enum v7_type val_type(struct v7 *v7, val_t v) {
   }
 }
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 V7_PRIVATE uint8_t msb_lsb_swap(uint8_t b) {
   if ((b & 0x01) != (b >> 7)) {
     b ^= 0x81;
@@ -16891,7 +18487,7 @@ V7_PRIVATE uint8_t msb_lsb_swap(uint8_t b) {
 }
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/string.c"
+#line 1 "v7/src/string.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -17312,7 +18908,7 @@ v7_val_t v7_mk_string(struct v7 *v7, const char *p, size_t len, int copy) {
     }
     embed_string(m, m->len, p, len, EMBSTR_ZERO_TERM);
     tag = V7_TAG_STRING_O;
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
     /* TODO(imax): panic if offset >= 2^32. */
     offset |= ((val_t) gc_next_allocation_seqn(v7, p, len)) << 32;
 #endif
@@ -17372,7 +18968,7 @@ const char *v7_get_string(struct v7 *v7, val_t *v, size_t *sizep) {
     size_t offset = (size_t) gc_string_val_to_offset(*v);
     char *s = v7->owned_strings.buf + offset;
 
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
     gc_check_valid_allocation_seqn(v7, (*v >> 32) & 0xFFFF);
 #endif
 
@@ -17426,7 +19022,7 @@ const char *v7_get_cstring(struct v7 *v7, v7_val_t *value) {
   return s;
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/array.c"
+#line 1 "v7/src/array.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -17482,7 +19078,7 @@ int v7_is_array(struct v7 *v7, val_t v) {
  */
 V7_PRIVATE val_t v7_mk_dense_array(struct v7 *v7) {
   val_t a = v7_mk_array(v7);
-#ifdef V7_ENABLE_DENSE_ARRAYS
+#if V7_ENABLE_DENSE_ARRAYS
   v7_own(v7, &a);
   v7_def(v7, a, "", 0, _V7_DESC_HIDDEN(1), V7_NULL);
 
@@ -17798,7 +19394,7 @@ enum v7_err v7_array_push_throwing(struct v7 *v7, v7_val_t arr, v7_val_t v,
   return v7_array_set_throwing(v7, arr, v7_array_length(v7, arr), v, res);
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/object.c"
+#line 1 "v7/src/object.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -17816,6 +19412,8 @@ enum v7_err v7_array_push_throwing(struct v7 *v7, v7_val_t arr, v7_val_t v,
 /* Amalgamated: #include "v7/src/eval.h" */
 /* Amalgamated: #include "v7/src/exceptions.h" */
 /* Amalgamated: #include "v7/src/conversion.h" */
+/* Amalgamated: #include "v7/src/std_proxy.h" */
+/* Amalgamated: #include "v7/src/util.h" */
 
 /*
  * Default property attributes (see `v7_prop_attr_t`)
@@ -17828,7 +19426,7 @@ V7_PRIVATE val_t mk_object(struct v7 *v7, val_t prototype) {
     return V7_NULL;
   }
   (void) v7;
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   o->base.entity_id_base = V7_ENTITY_ID_PART_OBJ;
   o->base.entity_id_spec = V7_ENTITY_ID_PART_GEN_OBJ;
 #endif
@@ -17858,7 +19456,7 @@ V7_PRIVATE struct v7_generic_object *get_generic_object_struct(val_t v) {
   } else {
     assert(v7_is_generic_object(v));
     ret = (struct v7_generic_object *) get_ptr(v);
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
     if (ret->base.entity_id_base != V7_ENTITY_ID_PART_OBJ) {
       fprintf(stderr, "not a generic object!\n");
       abort();
@@ -17878,7 +19476,7 @@ V7_PRIVATE struct v7_object *get_object_struct(val_t v) {
   } else {
     assert(v7_is_object(v));
     ret = (struct v7_object *) get_ptr(v);
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
     if (ret->entity_id_base != V7_ENTITY_ID_PART_OBJ) {
       fprintf(stderr, "not an object!\n");
       abort();
@@ -17901,7 +19499,7 @@ V7_PRIVATE int v7_is_generic_object(val_t v) {
 
 V7_PRIVATE struct v7_property *v7_mk_property(struct v7 *v7) {
   struct v7_property *p = new_property(v7);
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
   p->entity_id = V7_ENTITY_ID_PROP;
 #endif
   p->next = NULL;
@@ -17943,7 +19541,7 @@ V7_PRIVATE struct v7_property *v7_get_own_property2(struct v7 *v7, val_t obj,
   if (len <= 5) {
     ss = v7_mk_string(v7, name, len, 1);
     for (p = o->properties; p != NULL; p = p->next) {
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
       if (p->entity_id != V7_ENTITY_ID_PROP) {
         fprintf(stderr, "not a prop!=0x%x\n", p->entity_id);
         abort();
@@ -17957,7 +19555,7 @@ V7_PRIVATE struct v7_property *v7_get_own_property2(struct v7 *v7, val_t obj,
     for (p = o->properties; p != NULL; p = p->next) {
       size_t n;
       const char *s = v7_get_string(v7, &p->name, &n);
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
       if (p->entity_id != V7_ENTITY_ID_PROP) {
         fprintf(stderr, "not a prop!=0x%x\n", p->entity_id);
         abort();
@@ -17983,7 +19581,7 @@ V7_PRIVATE struct v7_property *v7_get_property(struct v7 *v7, val_t obj,
   if (!v7_is_object(obj)) {
     return NULL;
   }
-  for (; obj != V7_NULL; obj = obj_prototype_v(v7, obj)) {
+  for (; obj != V7_NULL; obj = v7_get_proto(v7, obj)) {
     struct v7_property *prop;
     if ((prop = v7_get_own_property(v7, obj, name, len)) != NULL) {
       return prop;
@@ -18028,6 +19626,13 @@ enum v7_err v7_get_throwing(struct v7 *v7, val_t obj, const char *name,
                             size_t name_len, val_t *res) {
   enum v7_err rcode = V7_OK;
   val_t v = obj;
+
+  v7_own(v7, &v);
+
+  if (name_len == (size_t) ~0) {
+    name_len = strlen(name);
+  }
+
   if (v7_is_string(obj)) {
     v = v7->vals.string_prototype;
   } else if (v7_is_number(obj)) {
@@ -18047,10 +19652,93 @@ enum v7_err v7_get_throwing(struct v7 *v7, val_t obj, const char *name,
     v = v7->vals.function_prototype;
   }
 
+#if V7_ENABLE__Proxy
+  {
+    struct v7_object *o = NULL;
+    if (v7_is_object(obj)) {
+      o = get_object_struct(obj);
+    }
+
+    if (o != NULL && (o->attributes & V7_OBJ_PROXY) &&
+        !is_special_proxy_name(name, name_len)) {
+      /* we need to access the target object through a proxy */
+
+      val_t target_v = V7_UNDEFINED;
+      val_t handler_v = V7_UNDEFINED;
+      val_t name_v = V7_UNDEFINED;
+      val_t get_v = V7_UNDEFINED;
+      val_t get_args_v = V7_UNDEFINED;
+
+      /*
+       * we need to create a copy of the name, because the given `name` might
+       * be returned by v7_get_string(), and any object creation might
+       * invalidate this pointer. Below, we're going to create some objects.
+       *
+       * It would probably be cleaner to always create a copy before calling
+       * v7_get_throwing if the name was returned by v7_get_string(), but that
+       * would cause additional pressure on the heap, so let's not do that
+       */
+      char *name_copy = (char *) calloc(1, name_len + 1 /* null-term */);
+      memcpy(name_copy, name, name_len);
+
+      v7_own(v7, &target_v);
+      v7_own(v7, &handler_v);
+      v7_own(v7, &name_v);
+      v7_own(v7, &get_v);
+      v7_own(v7, &get_args_v);
+
+      V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_TARGET_NAME, ~0, &target_v),
+              clean_proxy);
+      V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_HANDLER_NAME, ~0, &handler_v),
+              clean_proxy);
+      V7_TRY2(v7_get_throwing(v7, handler_v, "get", ~0, &get_v), clean_proxy);
+
+      if (v7_is_callable(v7, get_v)) {
+        /* The `get` callback is actually callable, so, use it */
+
+        /* prepare arguments for the callback */
+        get_args_v = v7_mk_dense_array(v7);
+        /*
+         * TODO(dfrank): don't copy string in case we already have val_t (we
+         * need some generic function which will take both `const char *` and
+         * val_t)
+         */
+        v7_array_set(v7, get_args_v, 0, target_v);
+        v7_array_set(v7, get_args_v, 1,
+                     v7_mk_string(v7, name_copy, name_len, 1));
+
+        /* call `get` callback */
+        V7_TRY2(b_apply(v7, get_v, V7_UNDEFINED, get_args_v, 0, res),
+                clean_proxy);
+      } else {
+        /*
+         * there's no `get` callback: then, get property from the target object
+         * (not from the proxy object)
+         */
+        V7_TRY2(v7_get_throwing(v7, target_v, name_copy, name_len, res),
+                clean_proxy);
+      }
+
+    clean_proxy:
+
+      free(name_copy);
+
+      v7_disown(v7, &get_args_v);
+      v7_disown(v7, &get_v);
+      v7_disown(v7, &name_v);
+      v7_disown(v7, &handler_v);
+      v7_disown(v7, &target_v);
+      goto clean;
+    }
+  }
+#endif
+
+  /* regular (non-proxy) property access */
   V7_TRY(
       v7_property_value(v7, obj, v7_get_property(v7, v, name, name_len), res));
 
 clean:
+  v7_disown(v7, &v);
   return rcode;
 }
 
@@ -18255,6 +19943,80 @@ V7_PRIVATE enum v7_err def_property_v(struct v7 *v7, val_t obj, val_t name,
     goto clean;
   }
 
+#if V7_ENABLE__Proxy
+  if ((get_object_struct(obj)->attributes & V7_OBJ_PROXY) &&
+      !is_special_proxy_name(n, len)) {
+    /* we need to access the target object through a proxy */
+
+    val_t target_v = V7_UNDEFINED;
+    val_t handler_v = V7_UNDEFINED;
+    val_t set_v = V7_UNDEFINED;
+    val_t set_args_v = V7_UNDEFINED;
+
+    v7_own(v7, &target_v);
+    v7_own(v7, &handler_v);
+    v7_own(v7, &set_v);
+    v7_own(v7, &set_args_v);
+
+    V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_TARGET_NAME, ~0, &target_v),
+            clean_proxy);
+    V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_HANDLER_NAME, ~0, &handler_v),
+            clean_proxy);
+    /*
+     * We'll consult "set" property in case of the plain assignment only;
+     * Object.defineProperty() has its own trap `defineProperty` which is not
+     * yet implemented in v7
+     */
+    if (as_assign) {
+      V7_TRY2(v7_get_throwing(v7, handler_v, "set", ~0, &set_v), clean_proxy);
+    }
+
+    if (v7_is_callable(v7, set_v)) {
+      /* The `set` callback is actually callable, so, use it */
+
+      /* prepare arguments for the callback */
+      set_args_v = v7_mk_dense_array(v7);
+      /*
+       * TODO(dfrank): don't copy string in case we already have val_t
+       * (we need some generic function which will take both const char * and
+       * val_t for that)
+       */
+      v7_array_set(v7, set_args_v, 0, target_v);
+      v7_array_set(v7, set_args_v, 1, name);
+      v7_array_set(v7, set_args_v, 2, val);
+
+      /* call `set` callback */
+      V7_TRY2(b_apply(v7, set_v, V7_UNDEFINED, set_args_v, 0, &val),
+              clean_proxy);
+
+      /* in strict mode, we should throw if trap returned falsy value */
+      if (is_strict_mode(v7) && !v7_is_truthy(v7, val)) {
+        V7_THROW2(
+            v7_throwf(v7, TYPE_ERROR, "Trap returned falsy for property '%s'",
+                      v7_get_string(v7, &name, NULL)),
+            clean_proxy);
+      }
+
+    } else {
+      /*
+       * there's no `set` callback: then, set property on the target object
+       * (not on the proxy object)
+       */
+      V7_TRY2(
+          def_property_v(v7, target_v, name, attrs_desc, val, as_assign, res),
+          clean_proxy);
+    }
+
+  clean_proxy:
+    v7_disown(v7, &set_args_v);
+    v7_disown(v7, &set_v);
+    v7_disown(v7, &handler_v);
+    v7_disown(v7, &target_v);
+    goto clean;
+  }
+#endif
+
+  /* regular (non-proxy) property access */
   prop = v7_get_own_property(v7, obj, n, len);
   if (prop == NULL) {
     /*
@@ -18468,20 +20230,370 @@ clean:
   return rcode;
 }
 
-void *v7_next_prop(void *handle, v7_val_t obj, v7_val_t *name, v7_val_t *value,
-                   v7_prop_attr_t *attrs) {
-  struct v7_property *p;
-  if (handle == NULL) {
-    p = get_object_struct(obj)->properties;
+enum v7_err v7_init_prop_iter_ctx(struct v7 *v7, v7_val_t obj,
+                                  struct prop_iter_ctx *ctx) {
+  return init_prop_iter_ctx(v7, obj, 1 /*proxy-transparent*/, ctx);
+}
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err init_prop_iter_ctx(struct v7 *v7, v7_val_t obj,
+                                          int proxy_transp,
+                                          struct prop_iter_ctx *ctx) {
+  enum v7_err rcode = V7_OK;
+
+  v7_own(v7, &obj);
+
+  memset(ctx, 0x00, sizeof(*ctx));
+
+  if (v7_is_object(obj)) {
+#if V7_ENABLE__Proxy
+    if (proxy_transp && get_object_struct(obj)->attributes & V7_OBJ_PROXY) {
+      v7_val_t ownKeys_v = V7_UNDEFINED;
+      v7_val_t args_v = V7_UNDEFINED;
+
+      v7_own(v7, &ownKeys_v);
+      v7_own(v7, &args_v);
+
+      ctx->proxy_ctx =
+          (struct prop_iter_proxy_ctx *) calloc(1, sizeof(*ctx->proxy_ctx));
+
+      ctx->proxy_ctx->target_obj = V7_UNDEFINED;
+      ctx->proxy_ctx->handler_obj = V7_UNDEFINED;
+      ctx->proxy_ctx->own_keys = V7_UNDEFINED;
+      ctx->proxy_ctx->get_own_prop_desc = V7_UNDEFINED;
+
+      v7_own(v7, &ctx->proxy_ctx->target_obj);
+      v7_own(v7, &ctx->proxy_ctx->handler_obj);
+      v7_own(v7, &ctx->proxy_ctx->own_keys);
+      v7_own(v7, &ctx->proxy_ctx->get_own_prop_desc);
+
+      V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_TARGET_NAME, ~0,
+                              &ctx->proxy_ctx->target_obj),
+              clean_proxy);
+      V7_TRY2(v7_get_throwing(v7, obj, _V7_PROXY_HANDLER_NAME, ~0,
+                              &ctx->proxy_ctx->handler_obj),
+              clean_proxy);
+
+      V7_TRY2(v7_get_throwing(v7, ctx->proxy_ctx->handler_obj, "ownKeys", ~0,
+                              &ownKeys_v),
+              clean_proxy);
+
+      if (v7_is_callable(v7, ownKeys_v)) {
+        /* prepare arguments for the ownKeys callback */
+        args_v = v7_mk_dense_array(v7);
+        v7_array_set(v7, args_v, 0, ctx->proxy_ctx->target_obj);
+
+        /* call `ownKeys` callback, and save the result in context */
+        V7_TRY2(b_apply(v7, ownKeys_v, V7_UNDEFINED, args_v, 0,
+                        &ctx->proxy_ctx->own_keys),
+                clean_proxy);
+
+        ctx->proxy_ctx->has_own_keys = 1;
+        ctx->proxy_ctx->own_key_idx = 0;
+
+      } else {
+        /*
+         * No ownKeys callback, so we'll iterate real properties of the target
+         * object
+         */
+
+        /*
+         * TODO(dfrank): add support for the target object which is a proxy as
+         * well
+         */
+        ctx->cur_prop =
+            get_object_struct(ctx->proxy_ctx->target_obj)->properties;
+      }
+
+      V7_TRY2(v7_get_throwing(v7, ctx->proxy_ctx->handler_obj, "_gpdc", ~0,
+                              &ctx->proxy_ctx->get_own_prop_desc),
+              clean_proxy);
+      if (v7_is_foreign(ctx->proxy_ctx->get_own_prop_desc)) {
+        /*
+         * C callback for getting property descriptor is provided: will use it
+         */
+        ctx->proxy_ctx->has_get_own_prop_desc = 1;
+        ctx->proxy_ctx->has_get_own_prop_desc_C = 1;
+      } else {
+        /*
+         * No C callback for getting property descriptor is provided, let's
+         * check if there is a JS one..
+         */
+        V7_TRY2(v7_get_throwing(v7, ctx->proxy_ctx->handler_obj,
+                                "getOwnPropertyDescriptor", ~0,
+                                &ctx->proxy_ctx->get_own_prop_desc),
+                clean_proxy);
+
+        if (v7_is_callable(v7, ctx->proxy_ctx->get_own_prop_desc)) {
+          /* Yes there is, we'll use it */
+          ctx->proxy_ctx->has_get_own_prop_desc = 1;
+        }
+      }
+
+    clean_proxy:
+      v7_disown(v7, &args_v);
+      v7_disown(v7, &ownKeys_v);
+
+      if (rcode != V7_OK) {
+        /* something went wrong, so, disown values in the context and free it */
+        v7_disown(v7, &ctx->proxy_ctx->get_own_prop_desc);
+        v7_disown(v7, &ctx->proxy_ctx->own_keys);
+        v7_disown(v7, &ctx->proxy_ctx->handler_obj);
+        v7_disown(v7, &ctx->proxy_ctx->target_obj);
+
+        free(ctx->proxy_ctx);
+        ctx->proxy_ctx = NULL;
+
+        goto clean;
+      }
+    } else {
+#else
+    (void) proxy_transp;
+#endif
+
+      /* Object is not a proxy: we'll iterate real properties */
+      ctx->cur_prop = get_object_struct(obj)->properties;
+
+#if V7_ENABLE__Proxy
+    }
+#endif
+  }
+
+#if V7_ENABLE__Proxy
+clean:
+#endif
+  v7_disown(v7, &obj);
+  if (rcode == V7_OK) {
+    ctx->init = 1;
+  }
+  return rcode;
+}
+
+void v7_destruct_prop_iter_ctx(struct v7 *v7, struct prop_iter_ctx *ctx) {
+  if (ctx->init) {
+#if V7_ENABLE__Proxy
+    if (ctx->proxy_ctx != NULL) {
+      v7_disown(v7, &ctx->proxy_ctx->target_obj);
+      v7_disown(v7, &ctx->proxy_ctx->handler_obj);
+      v7_disown(v7, &ctx->proxy_ctx->own_keys);
+      v7_disown(v7, &ctx->proxy_ctx->get_own_prop_desc);
+    }
+    free(ctx->proxy_ctx);
+    ctx->proxy_ctx = NULL;
+#else
+    (void) v7;
+#endif
+    ctx->init = 0;
+  }
+}
+
+int v7_next_prop(struct v7 *v7, struct prop_iter_ctx *ctx, v7_val_t *name,
+                 v7_val_t *value, v7_prop_attr_t *attrs) {
+  int ok = 0;
+  if (next_prop(v7, ctx, name, value, attrs, &ok) != V7_OK) {
+    fprintf(stderr, "next_prop failed\n");
+    ok = 0;
+  }
+  return ok;
+}
+
+#if V7_ENABLE__Proxy
+WARN_UNUSED_RESULT
+static enum v7_err get_custom_prop_desc(struct v7 *v7, v7_val_t name,
+                                        struct prop_iter_ctx *ctx,
+                                        struct v7_property *res_prop, int *ok) {
+  enum v7_err rcode = V7_OK;
+
+  v7_val_t args_v = V7_UNDEFINED;
+  v7_val_t desc_v = V7_UNDEFINED;
+  v7_val_t tmpflag_v = V7_UNDEFINED;
+
+  v7_own(v7, &name);
+  v7_own(v7, &args_v);
+  v7_own(v7, &desc_v);
+  v7_own(v7, &tmpflag_v);
+
+  *ok = 0;
+
+  if (ctx->proxy_ctx->has_get_own_prop_desc_C) {
+    /*
+     * There is a C callback which should fill the property descriptor
+     * structure, see `v7_get_own_prop_desc_cb_t`
+     */
+    v7_get_own_prop_desc_cb_t *cb = NULL;
+    memset(res_prop, 0, sizeof(*res_prop));
+    cb = (v7_get_own_prop_desc_cb_t *) v7_get_ptr(
+        v7, ctx->proxy_ctx->get_own_prop_desc);
+
+    res_prop->attributes = 0;
+    res_prop->value = V7_UNDEFINED;
+
+    *ok = !!cb(v7, ctx->proxy_ctx->target_obj, name, &res_prop->attributes,
+               &res_prop->value);
   } else {
-    p = ((struct v7_property *) handle)->next;
+    /* prepare arguments for the getOwnPropertyDescriptor callback */
+    args_v = v7_mk_dense_array(v7);
+    v7_array_set(v7, args_v, 0, ctx->proxy_ctx->target_obj);
+    v7_array_set(v7, args_v, 1, name);
+
+    /* call getOwnPropertyDescriptor callback */
+    V7_TRY(b_apply(v7, ctx->proxy_ctx->get_own_prop_desc, V7_UNDEFINED, args_v,
+                   0, &desc_v));
+
+    if (v7_is_object(desc_v)) {
+      res_prop->attributes = 0;
+
+      V7_TRY(v7_get_throwing(v7, desc_v, "writable", ~0, &tmpflag_v));
+      if (!v7_is_truthy(v7, tmpflag_v)) {
+        res_prop->attributes |= V7_PROPERTY_NON_WRITABLE;
+      }
+
+      V7_TRY(v7_get_throwing(v7, desc_v, "configurable", ~0, &tmpflag_v));
+      if (!v7_is_truthy(v7, tmpflag_v)) {
+        res_prop->attributes |= V7_PROPERTY_NON_CONFIGURABLE;
+      }
+
+      V7_TRY(v7_get_throwing(v7, desc_v, "enumerable", ~0, &tmpflag_v));
+      if (!v7_is_truthy(v7, tmpflag_v)) {
+        res_prop->attributes |= V7_PROPERTY_NON_ENUMERABLE;
+      }
+
+      V7_TRY(v7_get_throwing(v7, desc_v, "value", ~0, &res_prop->value));
+
+      *ok = 1;
+    }
   }
-  if (p != NULL) {
-    if (name != NULL) *name = p->name;
-    if (value != NULL) *value = p->value;
-    if (attrs != NULL) *attrs = p->attributes;
+
+  /* We always set the name in the property descriptor to the actual name */
+  res_prop->name = name;
+
+clean:
+  v7_disown(v7, &tmpflag_v);
+  v7_disown(v7, &desc_v);
+  v7_disown(v7, &args_v);
+  v7_disown(v7, &name);
+
+  return rcode;
+}
+#endif
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err next_prop(struct v7 *v7, struct prop_iter_ctx *ctx,
+                                 v7_val_t *name, v7_val_t *value,
+                                 v7_prop_attr_t *attrs, int *ok) {
+  enum v7_err rcode = V7_OK;
+  struct v7_property p;
+
+  (void) v7;
+
+  memset(&p, 0, sizeof(p));
+  p.name = V7_UNDEFINED;
+  p.value = V7_UNDEFINED;
+
+  v7_own(v7, &p.name);
+  v7_own(v7, &p.value);
+
+  assert(ctx->init);
+
+  *ok = 0;
+
+#if V7_ENABLE__Proxy
+  if (ctx->proxy_ctx == NULL || !ctx->proxy_ctx->has_own_keys) {
+    /*
+     * No `ownKeys` callback, so we'll iterate real properties of the object
+     * (either the given object or, if it's a proxy, the proxy's target object)
+     */
+
+    if (ctx->cur_prop != NULL) {
+      if (ctx->proxy_ctx == NULL || !ctx->proxy_ctx->has_get_own_prop_desc) {
+        /*
+         * There is no `getOwnPropertyDescriptor` callback, so, use the current
+         * real property
+         */
+        memcpy(&p, ctx->cur_prop, sizeof(p));
+        *ok = 1;
+      } else {
+        /*
+         * There is a `getOwnPropertyDescriptor` callback, so call it for the
+         * name of the current real property
+         */
+        V7_TRY(get_custom_prop_desc(v7, ctx->cur_prop->name, ctx, &p, ok));
+      }
+
+      ctx->cur_prop = ctx->cur_prop->next;
+    }
+  } else {
+    /* We have custom own keys */
+    v7_val_t cur_key = V7_UNDEFINED;
+    size_t len = v7_array_length(v7, ctx->proxy_ctx->own_keys);
+
+    v7_own(v7, &cur_key);
+
+    /*
+     * Iterate through the custom own keys until we can get the proper property
+     * descriptor for the given key
+     */
+    while (!*ok && (size_t) ctx->proxy_ctx->own_key_idx < len) {
+      cur_key = v7_array_get(v7, ctx->proxy_ctx->own_keys,
+                             ctx->proxy_ctx->own_key_idx);
+      ctx->proxy_ctx->own_key_idx++;
+
+      if (ctx->proxy_ctx->has_get_own_prop_desc) {
+        /*
+         * There is a `getOwnPropertyDescriptor` callback, so, call it for the
+         * current custom key and get all descriptor data from the object
+         * returned. The `ok` variable will be updated appropriately (it will
+         * be 0 if the callback did not return a proper descriptor)
+         */
+        V7_TRY2(get_custom_prop_desc(v7, cur_key, ctx, &p, ok), clean_custom);
+      } else {
+        /*
+         * There is no `getOwnPropertyDescriptor` callback, so, try to get
+         * real property with the name equal to the current key
+         */
+        size_t len = 0;
+        const char *name = v7_get_string(v7, &cur_key, &len);
+
+        struct v7_property *real_prop =
+            v7_get_own_property(v7, ctx->proxy_ctx->target_obj, name, len);
+        if (real_prop != NULL) {
+          /* Property exists, so use data from its descriptor */
+          memcpy(&p, real_prop, sizeof(p));
+          *ok = 1;
+        }
+      }
+    }
+  clean_custom:
+    v7_disown(v7, &cur_key);
+    if (rcode != V7_OK) {
+      goto clean;
+    }
   }
-  return p;
+
+#else
+  /*
+   * Proxy is disabled: just get the next property
+   */
+  if (ctx->cur_prop != NULL) {
+    memcpy(&p, ctx->cur_prop, sizeof(p));
+    *ok = 1;
+    ctx->cur_prop = ctx->cur_prop->next;
+  }
+#endif
+
+  /* If we have a valid property descriptor, use data from it */
+  if (*ok) {
+    if (name != NULL) *name = p.name;
+    if (value != NULL) *value = p.value;
+    if (attrs != NULL) *attrs = p.attributes;
+  }
+
+#if V7_ENABLE__Proxy
+clean:
+#endif
+  v7_disown(v7, &p.value);
+  v7_disown(v7, &p.name);
+  return rcode;
 }
 
 /* }}} Object properties */
@@ -18512,31 +20624,14 @@ V7_PRIVATE struct v7_object *obj_prototype(struct v7 *v7,
   }
 }
 
-V7_PRIVATE val_t obj_prototype_v(struct v7 *v7, val_t obj) {
-  /*
-   * NOTE: we don't use v7_is_callable() here, because it involves walking
-   * through the object's properties, which may be expensive. And it's done
-   * anyway for cfunction objects as it would for any other generic objects by
-   * the call to `obj_prototype()`.
-   *
-   * Since this function is called quite often (at least, GC walks the
-   * prototype chain), it's better to just handle cfunction objects as generic
-   * objects.
-   */
-  if (is_js_function(obj) || is_cfunction_lite(obj)) {
-    return v7->vals.function_prototype;
-  }
-  return v7_object_to_value(obj_prototype(v7, get_object_struct(obj)));
-}
-
 V7_PRIVATE int is_prototype_of(struct v7 *v7, val_t o, val_t p) {
   if (!v7_is_object(o) || !v7_is_object(p)) {
     return 0;
   }
 
   /* walk the prototype chain */
-  for (; !v7_is_null(o); o = obj_prototype_v(v7, o)) {
-    if (obj_prototype_v(v7, o) == p) {
+  for (; !v7_is_null(o); o = v7_get_proto(v7, o)) {
+    if (v7_get_proto(v7, o) == p) {
       return 1;
     }
   }
@@ -18560,6 +20655,23 @@ v7_val_t v7_set_proto(struct v7 *v7, v7_val_t obj, v7_val_t proto) {
   } else {
     return V7_UNDEFINED;
   }
+}
+
+val_t v7_get_proto(struct v7 *v7, val_t obj) {
+  /*
+   * NOTE: we don't use v7_is_callable() here, because it involves walking
+   * through the object's properties, which may be expensive. And it's done
+   * anyway for cfunction objects as it would for any other generic objects by
+   * the call to `obj_prototype()`.
+   *
+   * Since this function is called quite often (at least, GC walks the
+   * prototype chain), it's better to just handle cfunction objects as generic
+   * objects.
+   */
+  if (is_js_function(obj) || is_cfunction_lite(obj)) {
+    return v7->vals.function_prototype;
+  }
+  return v7_object_to_value(obj_prototype(v7, get_object_struct(obj)));
 }
 
 V7_PRIVATE struct v7_property *get_user_data_property(v7_val_t obj) {
@@ -18638,7 +20750,7 @@ void v7_set_destructor_cb(struct v7 *v7, v7_val_t obj, v7_destructor_cb_t *d) {
 
 /* }}} Object prototypes */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/regexp.c"
+#line 1 "v7/src/regexp.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -18683,7 +20795,7 @@ clean:
   return rcode;
 }
 
-V7_PRIVATE struct v7_regexp *v7_to_regexp(struct v7 *v7, val_t v) {
+V7_PRIVATE struct v7_regexp *v7_get_regexp_struct(struct v7 *v7, val_t v) {
   struct v7_property *p;
   int is = v7_is_regexp(v7, v);
   (void) is;
@@ -18703,6 +20815,21 @@ int v7_is_regexp(struct v7 *v7, val_t v) {
   return (p->value & V7_TAG_MASK) == V7_TAG_REGEXP;
 }
 
+V7_PRIVATE size_t
+get_regexp_flags_str(struct v7 *v7, struct v7_regexp *rp, char *buf) {
+  int re_flags = slre_get_flags(rp->compiled_regexp);
+  size_t n = 0;
+
+  (void) v7;
+  if (re_flags & SLRE_FLAG_G) buf[n++] = 'g';
+  if (re_flags & SLRE_FLAG_I) buf[n++] = 'i';
+  if (re_flags & SLRE_FLAG_M) buf[n++] = 'm';
+
+  assert(n <= _V7_REGEXP_MAX_FLAGS_LEN);
+
+  return n;
+}
+
 #else /* V7_ENABLE__RegExp */
 
 /*
@@ -18716,7 +20843,7 @@ int v7_is_regexp(struct v7 *v7, val_t v) {
 
 #endif /* V7_ENABLE__RegExp */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/exceptions.c"
+#line 1 "v7/src/exceptions.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -18834,14 +20961,16 @@ clean:
   return rcode;
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/conversion.c"
+#line 1 "v7/src/conversion.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
+/* Amalgamated: #include "common/cs_strtod.h" */
 /* Amalgamated: #include "common/str_util.h" */
+
 /* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/core.h" */
 /* Amalgamated: #include "v7/src/util.h" */
@@ -18853,10 +20982,6 @@ clean:
 /* Amalgamated: #include "v7/src/gc.h" */
 /* Amalgamated: #include "v7/src/array.h" */
 /* Amalgamated: #include "v7/src/object.h" */
-
-#ifdef V7_TEMP_OFF
-int double_to_str(char *buf, size_t buf_size, double val, int prec);
-#endif
 
 static void save_val(struct v7 *v7, const char *str, size_t str_len,
                      val_t *dst_v, char *dst, size_t dst_size, int wanted_len,
@@ -18960,17 +21085,8 @@ V7_PRIVATE enum v7_err primitive_to_str(struct v7 *v7, val_t v, val_t *res,
         goto clean;
       }
       {
-/*
- * ESP8266's sprintf doesn't support double & float.
- * TODO(alashkin): fix this
- */
-#ifndef V7_TEMP_OFF
         const char *fmt = num > 1e10 ? "%.21g" : "%.10g";
         wanted_len = snprintf(tmp_buf, sizeof(tmp_buf), fmt, num);
-#else
-        const int prec = num > 1e10 ? 21 : 10;
-        wanted_len = double_to_str(tmp_buf, sizeof(tmp_buf), num, prec);
-#endif
         save_val(v7, tmp_buf, strlen(tmp_buf), res, buf, buf_size, wanted_len,
                  res_len);
         goto clean;
@@ -19040,10 +21156,7 @@ V7_PRIVATE enum v7_err primitive_to_number(struct v7 *v7, val_t v, val_t *res) {
     size_t n;
     char *e, *s = (char *) v7_get_string(v7, res, &n);
     if (n != 0) {
-      /*
-       * TODO(dfrank) handle Infinity
-       */
-      d = strtod(s, &e);
+      d = cs_strtod(s, &e);
       if (e - n != s) {
         d = NAN;
       }
@@ -19079,7 +21192,7 @@ enum v7_err to_primitive(struct v7 *v7, val_t v, enum to_primitive_hint hint,
   if (v7_is_object(*res)) {
     /* Handle special case for Date object */
     if (hint == V7_TO_PRIMITIVE_HINT_AUTO) {
-      hint = (obj_prototype_v(v7, *res) == v7->vals.date_prototype)
+      hint = (v7_get_proto(v7, *res) == v7->vals.date_prototype)
                  ? V7_TO_PRIMITIVE_HINT_STRING
                  : V7_TO_PRIMITIVE_HINT_NUMBER;
     }
@@ -19446,18 +21559,29 @@ V7_PRIVATE enum v7_err to_json_or_debug(struct v7 *v7, val_t v, char *buf,
     case V7_TYPE_ERROR_OBJECT: {
       /* TODO(imax): make it return the desired size of the buffer */
       char *b = buf;
-      void *h = NULL;
       v7_val_t name = V7_UNDEFINED, val = V7_UNDEFINED;
-      v7_prop_attr_t attrs;
+      v7_prop_attr_t attrs = 0;
+      const char *pname;
+      size_t nlen;
+      int ok = 0;
+      struct prop_iter_ctx ctx;
+      memset(&ctx, 0, sizeof(ctx));
 
       mbuf_append(&v7->json_visited_stack, (char *) &v, sizeof(v));
       b += c_snprintf(b, BUF_LEFT(size, b - buf), "{");
-      while ((h = v7_next_prop(h, v, &name, &val, &attrs)) != NULL) {
+      V7_TRY2(init_prop_iter_ctx(v7, v, 1 /*proxy-transparent*/, &ctx),
+              clean_iter);
+      while (1) {
         size_t n;
         const char *s;
-        if (attrs & (_V7_PROPERTY_HIDDEN | V7_PROPERTY_NON_ENUMERABLE)) {
+        V7_TRY2(next_prop(v7, &ctx, &name, &val, &attrs, &ok), clean_iter);
+        if (!ok) {
+          break;
+        } else if (attrs & (_V7_PROPERTY_HIDDEN | V7_PROPERTY_NON_ENUMERABLE)) {
           continue;
         }
+        pname = v7_get_string(v7, &name, &nlen);
+        V7_TRY(v7_get_throwing(v7, v, pname, nlen, &val));
         if (!is_debug && should_skip_for_json(val_type(v7, val))) {
           continue;
         }
@@ -19468,13 +21592,18 @@ V7_PRIVATE enum v7_err to_json_or_debug(struct v7 *v7, val_t v, char *buf,
         b += c_snprintf(b, BUF_LEFT(size, b - buf), "\"%.*s\":", (int) n, s);
         {
           size_t tmp = 0;
-          V7_TRY(to_json_or_debug(v7, val, b, BUF_LEFT(size, b - buf), &tmp,
-                                  is_debug));
+          V7_TRY2(to_json_or_debug(v7, val, b, BUF_LEFT(size, b - buf), &tmp,
+                                   is_debug),
+                  clean_iter);
           b += tmp;
         }
       }
       b += c_snprintf(b, BUF_LEFT(size, b - buf), "}");
       v7->json_visited_stack.len -= sizeof(v);
+
+    clean_iter:
+      v7_destruct_prop_iter_ctx(v7, &ctx);
+
       len = b - buf;
       goto clean;
     }
@@ -19623,7 +21752,7 @@ int v7_is_truthy(struct v7 *v7, val_t v) {
   return v7_get_bool(v7, to_boolean_v(v7, v));
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/shdata.c"
+#line 1 "v7/src/shdata.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -19633,7 +21762,7 @@ int v7_is_truthy(struct v7 *v7, val_t v) {
 /* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/shdata.h" */
 
-#if !defined(V7_DISABLE_FILENAMES) && !defined(V7_DISABLE_LINE_NUMBERS)
+#if !V7_DISABLE_FILENAMES && !V7_DISABLE_LINE_NUMBERS
 V7_PRIVATE struct shdata *shdata_create(const void *payload, size_t size) {
   struct shdata *ret =
       (struct shdata *) calloc(1, sizeof(struct shdata) + size);
@@ -19666,7 +21795,7 @@ V7_PRIVATE void *shdata_get_payload(struct shdata *p) {
 }
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/gc.c"
+#line 1 "v7/src/gc.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -19792,7 +21921,7 @@ static struct gc_block *gc_new_block(struct gc_arena *a, size_t size) {
 }
 
 V7_PRIVATE void *gc_alloc_cell(struct v7 *v7, struct gc_arena *a) {
-#if V7_MALLOC_GC
+#ifdef V7_MALLOC_GC
   struct gc_cell *r;
   maybe_gc(v7);
   heapusage_dont_count(1);
@@ -19803,7 +21932,10 @@ V7_PRIVATE void *gc_alloc_cell(struct v7 *v7, struct gc_arena *a) {
 #else
   struct gc_cell *r;
   if (a->free == NULL) {
-    maybe_gc(v7);
+    if (!maybe_gc(v7)) {
+      /* GC is inhibited, so, schedule invocation for later */
+      v7->need_gc = 1;
+    }
 
     if (a->free == NULL) {
       struct gc_block *b = gc_new_block(a, a->size_increment);
@@ -20046,7 +22178,7 @@ V7_PRIVATE void gc_mark(struct v7 *v7, val_t v) {
   }
 
   /* mark object's prototype */
-  gc_mark(v7, obj_prototype_v(v7, v));
+  gc_mark(v7, v7_get_proto(v7, v));
 
   if (is_js_function(v)) {
     struct v7_js_function *func = get_js_function_struct(v);
@@ -20143,7 +22275,7 @@ V7_PRIVATE void gc_dump_arena_stats(const char *msg, struct gc_arena *a) {
 
 V7_PRIVATE uint64_t gc_string_val_to_offset(val_t v) {
   return (((uint64_t)(uintptr_t) get_ptr(v)) & ~V7_TAG_MASK)
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
          & 0xFFFFFFFF
 #endif
       ;
@@ -20153,7 +22285,7 @@ V7_PRIVATE val_t gc_string_val_from_offset(uint64_t s) {
   return s | V7_TAG_STRING_O;
 }
 
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
 
 static uint16_t next_asn(struct v7 *v7) {
   if (v7->gc_next_asn == 0xFFFF) {
@@ -20268,7 +22400,7 @@ void gc_mark_string(struct v7 *v7, val_t *v) {
   }
 #endif
 
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
   gc_check_valid_allocation_seqn(v7, (*v >> 32) & 0xFFFF);
 #endif
 
@@ -20293,12 +22425,12 @@ void gc_compact_strings(struct v7 *v7) {
   uint64_t h, next, head = 1;
   int len, llen;
 
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
   v7->gc_min_asn = v7->gc_next_asn;
 #endif
   while (p < v7->owned_strings.buf + v7->owned_strings.len) {
     if (p[-1] == '\1') {
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
       /* Not using gc_next_allocation_seqn() as we don't have full string. */
       uint16_t asn = next_asn(v7);
 #endif
@@ -20316,7 +22448,7 @@ void gc_compact_strings(struct v7 *v7) {
         memcpy(&next, (char *) (uintptr_t) h, sizeof(h));
 
         *(val_t *) (uintptr_t) h = gc_string_val_from_offset(head)
-#ifndef V7_DISABLE_STR_ALLOC_SEQ
+#if !V7_DISABLE_STR_ALLOC_SEQ
                                    | ((val_t) asn << 32)
 #endif
             ;
@@ -20341,7 +22473,7 @@ void gc_compact_strings(struct v7 *v7) {
        */
       memmove(v7->owned_strings.buf + head, p, len);
       v7->owned_strings.buf[head - 1] = 0x0;
-#if defined(V7_GC_VERBOSE) && !defined(V7_DISABLE_STR_ALLOC_SEQ)
+#if defined(V7_GC_VERBOSE) && !V7_DISABLE_STR_ALLOC_SEQ
       fprintf(stderr, "GC updated ASN %d: \"%.*s\"\n", asn, len - llen - 1,
               v7->owned_strings.buf + head + llen);
 #endif
@@ -20355,7 +22487,7 @@ void gc_compact_strings(struct v7 *v7) {
     }
   }
 
-#if defined(V7_GC_VERBOSE) && !defined(V7_DISABLE_STR_ALLOC_SEQ)
+#if defined(V7_GC_VERBOSE) && !V7_DISABLE_STR_ALLOC_SEQ
   fprintf(stderr, "GC valid ASN range: [%d,%d)\n", v7->gc_min_asn,
           v7->gc_next_asn);
 #endif
@@ -20393,10 +22525,12 @@ V7_PRIVATE void compute_need_gc(struct v7 *v7) {
   /* TODO(mkm): check free heap */
 }
 
-V7_PRIVATE void maybe_gc(struct v7 *v7) {
+V7_PRIVATE int maybe_gc(struct v7 *v7) {
   if (!v7->inhibit_gc) {
     v7_gc(v7, 0);
+    return 1;
   }
+  return 0;
 }
 #if defined(V7_GC_VERBOSE)
 static int gc_pass = 0;
@@ -20492,7 +22626,7 @@ static void gc_mark_call_stack(struct v7 *v7,
 
 /* Perform garbage collection */
 void v7_gc(struct v7 *v7, int full) {
-#ifdef V7_DISABLE_GC
+#if V7_DISABLE_GC
   (void) v7;
   (void) full;
   return;
@@ -20574,7 +22708,7 @@ V7_PRIVATE int gc_check_ptr(const struct gc_arena *a, const void *ptr) {
 #endif
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/freeze.c"
+#line 1 "v7/src/freeze.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -20652,14 +22786,14 @@ V7_PRIVATE void freeze_obj(struct v7 *v7, FILE *f, v7_val_t v) {
     fprintf(f,
             "{\"type\":\"func\", \"addr\":\"%p\", \"props\":\"%p\", "
             "\"attrs\":%d, \"scope\":\"%p\", \"bcode\":\"%p\""
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
             ", \"entity_id_base\":%d, \"entity_id_spec\":\"%d\" "
 #endif
             "}\n",
             (void *) obj_base,
             (void *) ((uintptr_t) obj_base->properties & ~0x1),
             obj_base->attributes | attrs, (void *) func->scope, (void *) bcode
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
             ,
             obj_base->entity_id_base, obj_base->entity_id_spec
 #endif
@@ -20695,14 +22829,14 @@ V7_PRIVATE void freeze_obj(struct v7 *v7, FILE *f, v7_val_t v) {
     fprintf(f,
             "{\"type\":\"obj\", \"addr\":\"%p\", \"props\":\"%p\", "
             "\"attrs\":%d, \"proto\":\"%p\""
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
             ", \"entity_id_base\":%d, \"entity_id_spec\":\"%d\" "
 #endif
             "}\n",
             (void *) obj_base,
             (void *) ((uintptr_t) obj_base->properties & ~0x1),
             obj_base->attributes | attrs, (void *) gob->prototype
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
             ,
             obj_base->entity_id_base, obj_base->entity_id_spec
 #endif
@@ -20727,14 +22861,14 @@ V7_PRIVATE void freeze_prop(struct v7 *v7, FILE *f, struct v7_property *prop) {
           " \"value\":\"0x%" INT64_X_FMT
           "\","
           " \"name_str\":\"%s\""
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
           ", \"entity_id\":\"%d\""
 #endif
           "}\n",
           (void *) prop, (void *) prop->next, prop->attributes | attrs,
           prop->name, val_type(v7, prop->value), prop->value,
           v7_get_cstring(v7, &prop->name)
-#if defined(V7_ENABLE_ENTITY_IDS)
+#if V7_ENABLE_ENTITY_IDS
               ,
           prop->entity_id
 #endif
@@ -20743,7 +22877,7 @@ V7_PRIVATE void freeze_prop(struct v7 *v7, FILE *f, struct v7_property *prop) {
 
 #endif
 #ifdef V7_MODULE_LINES
-#line 1 "./src/parser.c"
+#line 1 "v7/src/parser.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -20759,6 +22893,8 @@ V7_PRIVATE void freeze_prop(struct v7 *v7, FILE *f, struct v7_property *prop) {
 /* Amalgamated: #include "v7/src/ast.h" */
 /* Amalgamated: #include "v7/src/primitive.h" */
 /* Amalgamated: #include "v7/src/cyg_profile.h" */
+
+#if !defined(V7_NO_COMPILER)
 
 #define ACCEPT(t) (((v7)->cur_tok == (t)) ? next_tok((v7)), 1 : 0)
 
@@ -20919,11 +23055,11 @@ enum my_fid {
 
   /* parse_prop function */
   fid_parse_prop,
-#ifdef V7_ENABLE_JS_GETTERS
+#if V7_ENABLE_JS_GETTERS
   fid_p_prop_1_getter,
 #endif
   fid_p_prop_2,
-#ifdef V7_ENABLE_JS_SETTERS
+#if V7_ENABLE_JS_SETTERS
   fid_p_prop_3_setter,
 #endif
   fid_p_prop_4,
@@ -21869,13 +24005,13 @@ static const struct cr_func_desc _fid_descrs[MY_FID_CNT] = {
     /* fid_parse_prop ----------------------------------------- */
     /* fid_parse_prop */
     {CR_LOCALS_SIZEOF(fid_parse_prop_locals_t)},
-#ifdef V7_ENABLE_JS_GETTERS
+#if V7_ENABLE_JS_GETTERS
     /* fid_p_prop_1_getter */
     {CR_LOCALS_SIZEOF(fid_parse_prop_locals_t)},
 #endif
     /* fid_p_prop_2 */
     {CR_LOCALS_SIZEOF(fid_parse_prop_locals_t)},
-#ifdef V7_ENABLE_JS_SETTERS
+#if V7_ENABLE_JS_SETTERS
     /* fid_p_prop_3_setter */
     {CR_LOCALS_SIZEOF(fid_parse_prop_locals_t)},
 #endif
@@ -21992,16 +24128,17 @@ union user_arg_ret {
 static enum v7_tok next_tok(struct v7 *v7) {
   int prev_line_no = v7->pstate.prev_line_no;
   v7->pstate.prev_line_no = v7->pstate.line_no;
-  v7->pstate.line_no += skip_to_next_tok(&v7->pstate.pc);
+  v7->pstate.line_no += skip_to_next_tok(&v7->pstate.pc, v7->pstate.src_end);
   v7->after_newline = prev_line_no != v7->pstate.line_no;
   v7->tok = v7->pstate.pc;
-  v7->cur_tok = get_tok(&v7->pstate.pc, &v7->cur_tok_dbl, v7->cur_tok);
+  v7->cur_tok = get_tok(&v7->pstate.pc, v7->pstate.src_end, &v7->cur_tok_dbl,
+                        v7->cur_tok);
   v7->tok_len = v7->pstate.pc - v7->tok;
-  v7->pstate.line_no += skip_to_next_tok(&v7->pstate.pc);
+  v7->pstate.line_no += skip_to_next_tok(&v7->pstate.pc, v7->pstate.src_end);
   return v7->cur_tok;
 }
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 /*
  * Assumes `offset` points to the byte right after a tag
  */
@@ -22073,7 +24210,7 @@ static enum v7_err end_of_statement(struct v7 *v7) {
 static enum v7_tok lookahead(const struct v7 *v7) {
   const char *s = v7->pstate.pc;
   double d;
-  return get_tok(&s, &d, v7->cur_tok);
+  return get_tok(&s, v7->pstate.src_end, &d, v7->cur_tok);
 }
 
 static int parse_optional(struct v7 *v7, struct ast *a,
@@ -22236,11 +24373,11 @@ _cr_iter_begin:
     CR_DEFINE_ENTRY_POINT(fid_p_var_1);
 
     CR_DEFINE_ENTRY_POINT(fid_parse_prop);
-#ifdef V7_ENABLE_JS_GETTERS
+#if V7_ENABLE_JS_GETTERS
     CR_DEFINE_ENTRY_POINT(fid_p_prop_1_getter);
 #endif
     CR_DEFINE_ENTRY_POINT(fid_p_prop_2);
-#ifdef V7_ENABLE_JS_SETTERS
+#if V7_ENABLE_JS_SETTERS
     CR_DEFINE_ENTRY_POINT(fid_p_prop_3_setter);
 #endif
     CR_DEFINE_ENTRY_POINT(fid_p_prop_4);
@@ -22983,7 +25120,7 @@ fid_parse_prop :
 #undef L
 #define L CR_CUR_LOCALS_PT(fid_parse_prop_locals_t)
 {
-#ifdef V7_ENABLE_JS_GETTERS
+#if V7_ENABLE_JS_GETTERS
   if (v7->cur_tok == TOK_IDENTIFIER && v7->tok_len == 3 &&
       strncmp(v7->tok, "get", v7->tok_len) == 0 && lookahead(v7) != TOK_COLON) {
     next_tok(v7);
@@ -22994,7 +25131,7 @@ fid_parse_prop :
       if (v7->cur_tok == TOK_IDENTIFIER && lookahead(v7) == TOK_OPEN_PAREN) {
     /* ecmascript 6 feature */
     CALL_PARSE_FUNCDECL(1, 1, fid_p_prop_2);
-#ifdef V7_ENABLE_JS_SETTERS
+#if V7_ENABLE_JS_SETTERS
   } else if (v7->cur_tok == TOK_IDENTIFIER && v7->tok_len == 3 &&
              strncmp(v7->tok, "set", v7->tok_len) == 0 &&
              lookahead(v7) != TOK_COLON) {
@@ -23202,23 +25339,24 @@ fid_none:
 }
 
 V7_PRIVATE enum v7_err parse(struct v7 *v7, struct ast *a, const char *src,
-                             int is_json) {
+                             size_t src_len, int is_json) {
   enum v7_err rcode;
   const char *error_msg = NULL;
   const char *p;
   struct cr_ctx cr_ctx;
   union user_arg_ret arg_retval;
   enum cr_status rc;
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   struct stack_track_ctx stack_track_ctx;
 #endif
   int saved_line_no = v7->line_no;
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   v7_stack_track_start(v7, &stack_track_ctx);
 #endif
 
   v7->pstate.source_code = v7->pstate.pc = src;
+  v7->pstate.src_end = src + src_len;
   v7->pstate.file_name = "<stdin>";
   v7->pstate.line_no = 1;
   v7->pstate.in_function = 0;
@@ -23328,7 +25466,7 @@ V7_PRIVATE enum v7_err parse(struct v7 *v7, struct ast *a, const char *src,
   /* free resources occupied by context (at least, "stack" arrays) */
   cr_context_free(&cr_ctx);
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   {
     int diff = v7_stack_track_end(v7, &stack_track_ctx);
     if (diff > v7->stack_stat[V7_STACK_STAT_PARSER]) {
@@ -23355,7 +25493,8 @@ V7_PRIVATE enum v7_err parse(struct v7 *v7, struct ast *a, const char *src,
 
     assert(error_msg != NULL);
 
-    for (p = v7->tok - col; *p != '\0' && *p != '\n'; p++) {
+    for (p = v7->tok - col; p < v7->pstate.src_end && *p != '\0' && *p != '\n';
+         p++) {
       line_len++;
     }
 
@@ -23389,8 +25528,10 @@ clean:
   v7->line_no = saved_line_no;
   return rcode;
 }
+
+#endif /* V7_NO_COMPILER */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/compiler.c"
+#line 1 "v7/src/compiler.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -23405,6 +25546,8 @@ clean:
 /* Amalgamated: #include "v7/src/exceptions.h" */
 /* Amalgamated: #include "v7/src/conversion.h" */
 /* Amalgamated: #include "v7/src/regexp.h" */
+
+#if !defined(V7_NO_COMPILER)
 
 /*
  * The bytecode compiler takes an AST as input and produces one or more
@@ -23627,7 +25770,7 @@ clean:
 }
 #endif
 
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 static void append_lineno_if_changed(struct v7 *v7,
                                      struct bcode_builder *bbuilder,
                                      int line_no) {
@@ -24996,7 +27139,7 @@ V7_PRIVATE enum v7_err compile_stmt(struct bcode_builder *bbuilder,
      *   SWAP
      *   STASH
      *   DROP
-     *   PUSH_NULL
+     *   PUSH_PROP_ITER_CTX   # push initial iteration context
      *   TRY_PUSH_LOOP brend
      * loop:
      *   NEXT_PROP
@@ -25018,7 +27161,7 @@ V7_PRIVATE enum v7_err compile_stmt(struct bcode_builder *bbuilder,
      *              # we're not going to `continue`, so, need to remove an
      *              # extra stuff that was needed for the NEXT_PROP
      *
-     *   SWAP_DROP  # drop handle
+     *   SWAP_DROP  # drop iteration context
      *   SWAP_DROP  # drop <O>
      *   SWAP_DROP  # drop the value preceding the loop
      * try_pop:
@@ -25063,10 +27206,9 @@ V7_PRIVATE enum v7_err compile_stmt(struct bcode_builder *bbuilder,
       bcode_op(bbuilder, OP_DROP);
 
       /*
-       * OP_NEXT_PROP keeps the current position in an opaque handler.
-       * Feeding a null as initial value.
+       * OP_NEXT_PROP needs the iteration context, let's push the initial one.
        */
-      bcode_op(bbuilder, OP_PUSH_NULL);
+      bcode_op(bbuilder, OP_PUSH_PROP_ITER_CTX);
 
       brend_label = bcode_op_target(bbuilder, OP_TRY_PUSH_LOOP);
 
@@ -25396,13 +27538,17 @@ V7_PRIVATE enum v7_err compile_expr(struct v7 *v7, struct ast *a,
   v7->line_no = saved_line_no;
   return rcode;
 }
+
+#endif /* V7_NO_COMPILER */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/stdlib.c"
+#line 1 "v7/src/stdlib.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
+
+/* Amalgamated: #include "common/cs_strtod.h" */
 
 /* Amalgamated: #include "v7/src/internal.h" */
 /* Amalgamated: #include "v7/src/core.h" */
@@ -25420,6 +27566,7 @@ V7_PRIVATE enum v7_err compile_expr(struct v7 *v7, struct ast *a,
 /* Amalgamated: #include "v7/src/std_object.h" */
 /* Amalgamated: #include "v7/src/std_regex.h" */
 /* Amalgamated: #include "v7/src/std_string.h" */
+/* Amalgamated: #include "v7/src/std_proxy.h" */
 /* Amalgamated: #include "v7/src/js_stdlib.h" */
 /* Amalgamated: #include "v7/src/object.h" */
 /* Amalgamated: #include "v7/src/string.h" */
@@ -25603,7 +27750,7 @@ V7_PRIVATE enum v7_err Std_parseFloat(struct v7 *v7, v7_val_t *res) {
     p++;
   }
 
-  result = strtod(p, &end);
+  result = cs_strtod(p, &end);
 
   *res = (p == end) ? V7_TAG_NAN : v7_mk_number(v7, result);
 
@@ -25661,7 +27808,13 @@ V7_PRIVATE enum v7_err Std_exit(struct v7 *v7, v7_val_t *res) {
 }
 #endif
 
-V7_PRIVATE void init_stdlib(struct v7 *v7) {
+/*
+ * Initialize standard library.
+ *
+ * This function is used only internally, but used in a complicated mix of
+ * configurations, hence the commented V7_PRIVATE
+ */
+/*V7_PRIVATE*/ void init_stdlib(struct v7 *v7) {
   v7_prop_attr_desc_t attr_internal =
       (V7_DESC_ENUMERABLE(0) | V7_DESC_WRITABLE(0) | V7_DESC_CONFIGURABLE(0));
 
@@ -25679,6 +27832,7 @@ V7_PRIVATE void init_stdlib(struct v7 *v7) {
   v7->vals.global_object = v7_mk_object(v7);
   v7->vals.date_prototype = v7_mk_object(v7);
   v7->vals.function_prototype = v7_mk_object(v7);
+  v7->vals.proxy_prototype = v7_mk_object(v7);
 
   set_method(v7, v7->vals.global_object, "eval", Std_eval, 1);
   set_method(v7, v7->vals.global_object, "print", Std_print, 1);
@@ -25712,9 +27866,13 @@ V7_PRIVATE void init_stdlib(struct v7 *v7) {
 #endif
   init_function(v7);
   init_js_stdlib(v7);
+
+#if V7_ENABLE__Proxy
+  init_proxy(v7);
+#endif
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/js_stdlib.c"
+#line 1 "v7/src/js_stdlib.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -25874,7 +28032,7 @@ static const char * const js_functions[] = {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/slre.c"
+#line 1 "v7/src/slre.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -27101,16 +29259,12 @@ static void free_threads(struct slre_thread *t) {
   while (t->prev != NULL) t = get_prev_thread(t);
 }
 
-#define RE_NO_MATCH() \
-  if (!(thr = 0)) continue
-
 static unsigned char re_match(struct slre_instruction *pc, const char *current,
                               const char *end, const char *bol,
                               unsigned int flags, struct slre_loot *loot) {
   struct slre_loot sub, tmpsub;
   Rune c, r;
   struct slre_range *p;
-  unsigned char thr;
   size_t i;
   struct slre_thread thread, *curr_thread, *tmp_thr;
 
@@ -27124,7 +29278,7 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
     pc = curr_thread->pc;
     current = curr_thread->start;
     sub = curr_thread->loot;
-    for (thr = 1; thr;) {
+    for (;;) {
       switch (pc->opcode) {
         case I_END:
           memcpy(loot->caps, sub.caps, sizeof loot->caps);
@@ -27136,12 +29290,12 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
             current += chartorune(&c, current);
             if (c && !(pc->opcode == I_ANY && isnewline(c))) break;
           }
-          RE_NO_MATCH();
+          goto no_match;
 
         case I_BOL:
           if (current == bol) break;
           if ((flags & SLRE_FLAG_M) && isnewline(current[-1])) break;
-          RE_NO_MATCH();
+          goto no_match;
         case I_CH:
           if (current < end) {
             current += chartorune(&c, current);
@@ -27150,14 +29304,14 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
                                     tolowerrune(c) == tolowerrune(pc->par.c))))
               break;
           }
-          RE_NO_MATCH();
+          goto no_match;
         case I_EOL:
           if (current >= end) break;
           if ((flags & SLRE_FLAG_M) && isnewline(*current)) break;
-          RE_NO_MATCH();
+          goto no_match;
         case I_EOS:
           if (current >= end) break;
-          RE_NO_MATCH();
+          goto no_match;
 
         case I_JUMP:
           pc = pc->par.xy.x;
@@ -27168,14 +29322,14 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
             pc = pc->par.xy.y.y;
             continue;
           }
-          RE_NO_MATCH();
+          goto no_match;
         case I_LA_N:
           tmpsub = sub;
           if (!re_match(pc->par.xy.x, current, end, bol, flags, &tmpsub)) {
             pc = pc->par.xy.y.y;
             continue;
           }
-          RE_NO_MATCH();
+          goto no_match;
 
         case I_LBRA:
           sub.caps[pc->par.n].start = current;
@@ -27192,9 +29346,9 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
               p += chartorune(&rr, p);
               if (tolowerrune(r) != tolowerrune(rr)) break;
             }
-            if (num) RE_NO_MATCH();
+            if (num) goto no_match;
           } else if (strncmp(current, sub.caps[pc->par.n].start, i)) {
-            RE_NO_MATCH();
+            goto no_match;
           }
           if (i > 0) current += i;
           break;
@@ -27220,9 +29374,9 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
 
         case I_SET:
         case I_SET_N:
-          if (current >= end) RE_NO_MATCH();
+          if (current >= end) goto no_match;
           current += chartorune(&c, current);
-          if (!c) RE_NO_MATCH();
+          if (!c) goto no_match;
 
           i = 1;
           for (p = pc->par.cp->spans; i && p < pc->par.cp->end; p++)
@@ -27237,7 +29391,7 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
 
           if (pc->opcode == I_SET) i = !i;
           if (i) break;
-          RE_NO_MATCH();
+          goto no_match;
 
         case I_SPLIT:
           tmp_thr = curr_thread;
@@ -27257,13 +29411,15 @@ static unsigned char re_match(struct slre_instruction *pc, const char *current,
           if (iswordchar(current[0])) i = !i;
           if (pc->opcode == I_WORD_N) i = !i;
           if (i) break;
-        /* RE_NO_MATCH(); */
+        /* goto no_match; */
 
         default:
-          RE_NO_MATCH();
+          goto no_match;
       }
       pc++;
     }
+  no_match:
+    ;
   } while (curr_thread->prev != NULL);
   return 0;
 }
@@ -27554,7 +29710,7 @@ int main(int argc, char **argv) {
 
 #endif /* V7_ENABLE__RegExp */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/heapusage.c"
+#line 1 "v7/src/heapusage.c"
 #endif
 /*
  * Copyright (c) 2014-2016 Cesanta Software Limited
@@ -27565,7 +29721,9 @@ int main(int argc, char **argv) {
 #include <stdio.h>
 #include <assert.h>
 
-#if defined(V7_HEAPUSAGE_ENABLE)
+/* Amalgamated: #include "v7/src/internal.h" */
+
+#if V7_HEAPUSAGE_ENABLE
 
 /*
  * A flag that is set by GC before allocating its buffers, so we can
@@ -27725,7 +29883,7 @@ size_t heapusage_allocs_cnt(void) {
 
 #endif /* V7_HEAPUSAGE_ENABLE */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/cyg_profile.c"
+#line 1 "v7/src/cyg_profile.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -27748,44 +29906,6 @@ size_t heapusage_allocs_cnt(void) {
 /* Amalgamated: #include "v7/src/core.h" */
 
 #if defined(V7_CYG_PROFILE_ON)
-
-#if defined(V7_ENABLE_CALL_TRACE)
-
-#define CALL_TRACE_SIZE 32
-
-typedef struct {
-  uint16_t size;
-  uint16_t missed_cnt;
-  void *addresses[CALL_TRACE_SIZE];
-} call_trace_t;
-
-static call_trace_t call_trace = {0};
-
-NOINSTR
-void call_trace_print(const char *prefix, const char *suffix, size_t skip_cnt,
-                      size_t max_cnt) {
-  int i;
-  if (call_trace.missed_cnt > 0) {
-    fprintf(stderr, "missed calls! (%d) ", (int) call_trace.missed_cnt);
-  }
-  if (prefix != NULL) {
-    fprintf(stderr, "%s", prefix);
-  }
-  for (i = (int) call_trace.size - 1 - skip_cnt; i >= 0; i--) {
-    fprintf(stderr, " %lx", (unsigned long) call_trace.addresses[i]);
-    if (max_cnt > 0) {
-      if (--max_cnt == 0) {
-        break;
-      }
-    }
-  }
-  if (suffix != NULL) {
-    fprintf(stderr, "%s", suffix);
-  }
-  fprintf(stderr, "\n");
-}
-
-#endif
 
 #ifndef IRAM
 #define IRAM
@@ -27828,14 +29948,14 @@ IRAM void __cyg_profile_func_enter(void *this_fn, void *call_site) {
   }
 #endif
 
-#if defined(V7_ENABLE_GC_CHECK)
+#if V7_ENABLE_GC_CHECK
   {
     (void) this_fn;
     (void) call_site;
   }
 #endif
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   {
     struct v7 *v7;
     struct stack_track_ctx *ctx;
@@ -27862,13 +29982,11 @@ IRAM void __cyg_profile_func_enter(void *this_fn, void *call_site) {
   }
 #endif
 
-#if defined(V7_ENABLE_CALL_TRACE)
+#if V7_ENABLE_CALL_TRACE
   if (call_trace.size < CALL_TRACE_SIZE) {
     call_trace.addresses[call_trace.size] = this_fn;
-    call_trace.size++;
-  } else {
-    call_trace.missed_cnt++;
   }
+  call_trace.size++;
 #endif
 }
 
@@ -27880,7 +29998,7 @@ IRAM void __cyg_profile_func_exit(void *this_fn, void *call_site) {
   }
 #endif
 
-#if defined(V7_ENABLE_GC_CHECK)
+#if V7_ENABLE_GC_CHECK
   {
     struct v7 *v7;
     void *fp = __builtin_frame_address(1);
@@ -27914,35 +30032,19 @@ IRAM void __cyg_profile_func_exit(void *this_fn, void *call_site) {
   }
 #endif
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
   {
     (void) this_fn;
     (void) call_site;
   }
 #endif
 
-#if defined(V7_ENABLE_CALL_TRACE)
-  if (call_trace.missed_cnt > 0) {
-    call_trace.missed_cnt--;
-  } else if (call_trace.size > 0) {
-    if (call_trace.addresses[call_trace.size - 1] != this_fn) {
-      abort();
-    }
-    call_trace.size--;
-  } else {
-    /*
-     * We may get here if calls to `__cyg_profile_func_exit()` and
-     * `__cyg_profile_func_enter()` are unbalanced.
-     *
-     * TODO(dfrank) understand, why in the beginning of the program execution
-     * we get here. I was sure this should be impossible.
-     */
-    /* abort(); */
-  }
+#if V7_ENABLE_CALL_TRACE
+  if (call_trace.size > 0) call_trace.size--;
 #endif
 }
 
-#if defined(V7_ENABLE_STACK_TRACKING)
+#if V7_ENABLE_STACK_TRACKING
 
 void v7_stack_track_start(struct v7 *v7, struct stack_track_ctx *ctx) {
   /* insert new context at the head of the list */
@@ -27970,7 +30072,7 @@ int v7_stack_track_end(struct v7 *v7, struct stack_track_ctx *ctx) {
 #endif /* V7_ENABLE_STACK_TRACKING */
 #endif /* V7_CYG_PROFILE_ON */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_object.c"
+#line 1 "v7/src/std_object.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -28002,7 +30104,7 @@ V7_PRIVATE enum v7_err Obj_getPrototypeOf(struct v7 *v7, v7_val_t *res) {
         v7_throwf(v7, TYPE_ERROR, "Object.getPrototypeOf called on non-object");
     goto clean;
   }
-  *res = obj_prototype_v(v7, arg);
+  *res = v7_get_proto(v7, arg);
 
 clean:
   return rcode;
@@ -28482,6 +30584,7 @@ clean:
 #if V7_ENABLE__Object__isFrozen || V7_ENABLE__Object__isSealed
 static enum v7_err is_rigid(struct v7 *v7, v7_val_t *res, int is_frozen) {
   enum v7_err rcode = V7_OK;
+  int ok = 0;
   val_t arg = v7_arg(v7, 0);
 
   if (!v7_is_object(arg)) {
@@ -28492,21 +30595,30 @@ static enum v7_err is_rigid(struct v7 *v7, v7_val_t *res, int is_frozen) {
   *res = v7_mk_boolean(v7, 0);
 
   if (get_object_struct(arg)->attributes & V7_OBJ_NOT_EXTENSIBLE) {
-    void *h = NULL;
-    v7_prop_attr_t attrs;
-    while ((h = v7_next_prop(h, arg, NULL, NULL, &attrs)) != NULL) {
+    v7_prop_attr_t attrs = 0;
+    struct prop_iter_ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    V7_TRY2(init_prop_iter_ctx(v7, arg, 1, &ctx), clean_iter);
+    while (1) {
+      V7_TRY2(next_prop(v7, &ctx, NULL, NULL, &attrs, &ok), clean_iter);
+      if (!ok) {
+        break;
+      }
       if (!(attrs & V7_PROPERTY_NON_CONFIGURABLE)) {
-        goto clean;
+        goto clean_iter;
       }
       if (is_frozen) {
         if (!(attrs & V7_PROPERTY_SETTER) &&
             !(attrs & V7_PROPERTY_NON_WRITABLE)) {
-          goto clean;
+          goto clean_iter;
         }
       }
     }
 
     *res = v7_mk_boolean(v7, 1);
+
+  clean_iter:
+    v7_destruct_prop_iter_ctx(v7, &ctx);
     goto clean;
   }
 
@@ -28604,7 +30716,7 @@ V7_PRIVATE void init_object(struct v7 *v7) {
   set_cfunc_prop(v7, v7->vals.object_prototype, "valueOf", Obj_valueOf);
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_error.c"
+#line 1 "v7/src/std_error.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -28625,7 +30737,7 @@ V7_PRIVATE void init_object(struct v7 *v7) {
  * TODO(dfrank): make the top of v7->call_frame to represent the current
  * frame, and thus get rid of the `CUR_LINENO()`
  */
-#ifndef V7_DISABLE_LINE_NUMBERS
+#if !V7_DISABLE_LINE_NUMBERS
 #define CALLFRAME_LINENO(call_frame) ((call_frame)->line_no)
 #define CUR_LINENO() (v7->line_no)
 #else
@@ -28636,7 +30748,7 @@ V7_PRIVATE void init_object(struct v7 *v7) {
 WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err Error_ctor(struct v7 *v7, v7_val_t *res);
 
-#if !defined(V7_DISABLE_FILENAMES) && !defined(V7_DISABLE_LINE_NUMBERS)
+#if !V7_DISABLE_FILENAMES && !V7_DISABLE_LINE_NUMBERS
 static int printf_stack_line(char *p, size_t len, struct bcode *bcode,
                              int line_no, const char *leading) {
   int ret;
@@ -28752,7 +30864,7 @@ V7_PRIVATE enum v7_err Error_ctor(struct v7 *v7, v7_val_t *res) {
   /* TODO(mkm): set non enumerable but provide toString method */
   v7_set(v7, *res, "message", 7, arg0);
 
-#if !defined(V7_DISABLE_FILENAMES) && !defined(V7_DISABLE_LINE_NUMBERS)
+#if !V7_DISABLE_FILENAMES && !V7_DISABLE_LINE_NUMBERS
   /* Save the stack trace */
   {
     size_t len = 0;
@@ -28825,7 +30937,7 @@ V7_PRIVATE void init_error(struct v7 *v7) {
   }
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_number.c"
+#line 1 "v7/src/std_number.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -28934,7 +31046,7 @@ V7_PRIVATE enum v7_err Number_valueOf(struct v7 *v7, v7_val_t *res) {
 
   if (!v7_is_number(this_obj) &&
       (v7_is_object(this_obj) &&
-       obj_prototype_v(v7, this_obj) != v7->vals.number_prototype)) {
+       v7_get_proto(v7, this_obj) != v7->vals.number_prototype)) {
     rcode =
         v7_throwf(v7, TYPE_ERROR, "Number.valueOf called on non-number object");
     goto clean;
@@ -29081,7 +31193,7 @@ V7_PRIVATE void init_number(struct v7 *v7) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_json.c"
+#line 1 "v7/src/std_json.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -29100,6 +31212,11 @@ V7_PRIVATE void init_number(struct v7 *v7) {
 extern "C" {
 #endif /* __cplusplus */
 
+#if defined(V7_ALT_JSON_PARSE)
+extern enum v7_err v7_alt_json_parse(struct v7 *v7, v7_val_t json_string,
+                                     v7_val_t *res);
+#endif
+
 WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err Json_stringify(struct v7 *v7, v7_val_t *res) {
   val_t arg0 = v7_arg(v7, 0);
@@ -29113,7 +31230,13 @@ V7_PRIVATE enum v7_err Json_stringify(struct v7 *v7, v7_val_t *res) {
 WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err Json_parse(struct v7 *v7, v7_val_t *res) {
   v7_val_t arg = v7_arg(v7, 0);
-  return std_eval(v7, arg, V7_UNDEFINED, 1, res);
+  enum v7_err rcode = V7_OK;
+#if defined(V7_ALT_JSON_PARSE)
+  rcode = v7_alt_json_parse(v7, arg, res);
+#else
+  rcode = std_eval(v7, arg, V7_UNDEFINED, 1, res);
+#endif
+  return rcode;
 }
 
 V7_PRIVATE void init_json(struct v7 *v7) {
@@ -29127,7 +31250,7 @@ V7_PRIVATE void init_json(struct v7 *v7) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_array.c"
+#line 1 "v7/src/std_array.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -29981,7 +32104,7 @@ V7_PRIVATE void init_array(struct v7 *v7) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_boolean.c"
+#line 1 "v7/src/std_boolean.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -30030,7 +32153,7 @@ V7_PRIVATE enum v7_err Boolean_valueOf(struct v7 *v7, v7_val_t *res) {
   val_t this_obj = v7_get_this(v7);
   if (!v7_is_boolean(this_obj) &&
       (v7_is_object(this_obj) &&
-       obj_prototype_v(v7, this_obj) != v7->vals.boolean_prototype)) {
+       v7_get_proto(v7, this_obj) != v7->vals.boolean_prototype)) {
     rcode = v7_throwf(v7, TYPE_ERROR,
                       "Boolean.valueOf called on non-boolean object");
     goto clean;
@@ -30092,7 +32215,7 @@ V7_PRIVATE void init_boolean(struct v7 *v7) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_math.c"
+#line 1 "v7/src/std_math.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -30353,7 +32476,7 @@ V7_PRIVATE void init_math(struct v7 *v7) {
 
 #endif /* V7_ENABLE__Math */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_string.c"
+#line 1 "v7/src/std_string.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -30437,7 +32560,7 @@ struct _str_split_ctx {
 static void subs_regexp_init(struct _str_split_ctx *ctx, struct v7 *v7,
                              val_t sep) {
   ctx->v7 = v7;
-  ctx->impl.regexp.prog = v7_to_regexp(v7, sep)->compiled_regexp;
+  ctx->impl.regexp.prog = v7_get_regexp_struct(v7, sep)->compiled_regexp;
 }
 
 /* RegExp-based implementation of `p_exec` in `struct _str_split_ctx` */
@@ -30725,7 +32848,7 @@ V7_PRIVATE enum v7_err Str_valueOf(struct v7 *v7, v7_val_t *res) {
 
   if (!v7_is_string(this_obj) &&
       (v7_is_object(this_obj) &&
-       obj_prototype_v(v7, this_obj) != v7->vals.string_prototype)) {
+       v7_get_proto(v7, this_obj) != v7->vals.string_prototype)) {
     rcode =
         v7_throwf(v7, TYPE_ERROR, "String.valueOf called on non-string object");
     goto clean;
@@ -30859,7 +32982,7 @@ V7_PRIVATE enum v7_err Str_match(struct v7 *v7, v7_val_t *res) {
     }
   }
 
-  rxp = v7_to_regexp(v7, ro);
+  rxp = v7_get_regexp_struct(v7, ro);
   flag_g = slre_get_flags(rxp->compiled_regexp) & SLRE_FLAG_G;
   if (!flag_g) {
     rcode = rx_exec(v7, ro, so, 0, res);
@@ -30910,6 +33033,14 @@ V7_PRIVATE enum v7_err Str_replace(struct v7 *v7, v7_val_t *res) {
   val_t this_obj = v7_get_this(v7);
   const char *s;
   size_t s_len;
+  /*
+   * Buffer of temporary strings returned by the replacement funciton.  Will be
+   * allocated below if only the replacement is a function.  We need to store
+   * each string in a separate `val_t`, because string data of length <= 5 is
+   * stored right in `val_t`, so if there's more than one replacement,
+   * each subsequent replacement will overwrite the previous one.
+   */
+  val_t *tmp_str_buf = NULL;
   val_t out_str_o;
   char *old_owned_mbuf_base = v7->owned_strings.buf;
   char *old_owned_mbuf_end = v7->owned_strings.buf + v7->owned_strings.len;
@@ -30946,7 +33077,7 @@ V7_PRIVATE enum v7_err Str_replace(struct v7 *v7, v7_val_t *res) {
         goto clean;
       }
     }
-    prog = v7_to_regexp(v7, ro)->compiled_regexp;
+    prog = v7_get_regexp_struct(v7, ro)->compiled_regexp;
     flag_g = slre_get_flags(prog) & SLRE_FLAG_G;
 
     if (!v7_is_callable(v7, str_func)) {
@@ -31000,12 +33131,16 @@ V7_PRIVATE enum v7_err Str_replace(struct v7 *v7, v7_val_t *res) {
             goto clean;
           }
 
-          rcode = to_string(v7, val, &out_str_o, NULL, 0, NULL);
+          if (tmp_str_buf == NULL) {
+            tmp_str_buf = (val_t *) calloc(sizeof(val_t), V7_RE_MAX_REPL_SUB);
+          }
+
+          rcode = to_string(v7, val, &tmp_str_buf[out_sub_num], NULL, 0, NULL);
           if (rcode != V7_OK) {
             goto clean;
           }
         }
-        rez_str = v7_get_string(v7, &out_str_o, &rez_len);
+        rez_str = v7_get_string(v7, &tmp_str_buf[out_sub_num], &rez_len);
         if (rez_len) {
           ptok->start = rez_str;
           ptok->end = rez_str + rez_len;
@@ -31053,6 +33188,10 @@ V7_PRIVATE enum v7_err Str_replace(struct v7 *v7, v7_val_t *res) {
   *res = this_obj;
 
 clean:
+  if (tmp_str_buf != NULL) {
+    free(tmp_str_buf);
+    tmp_str_buf = NULL;
+  }
   return rcode;
 }
 
@@ -31087,8 +33226,8 @@ V7_PRIVATE enum v7_err Str_search(struct v7 *v7, v7_val_t *res) {
 
     s = v7_get_string(v7, &so, &s_len);
 
-    if (!slre_exec(v7_to_regexp(v7, ro)->compiled_regexp, 0, s, s + s_len,
-                   &sub))
+    if (!slre_exec(v7_get_regexp_struct(v7, ro)->compiled_regexp, 0, s,
+                   s + s_len, &sub))
       utf_shift = utfnlen(s, sub.caps[0].start - s); /* calc shift for UTF-8 */
   } else {
     utf_shift = 0;
@@ -31589,7 +33728,7 @@ V7_PRIVATE void init_string(struct v7 *v7) {
          v7_mk_cfunction(Str_blen));
 }
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_date.c"
+#line 1 "v7/src/std_date.c"
 #endif
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -31715,7 +33854,7 @@ static int ecma_DaylightSavingTA(etime_t t) {
   }
 }
 
-static int ecma_LocalTZA() {
+static int ecma_LocalTZA(void) {
   return (int) -g_gmtoffms;
 }
 
@@ -32386,7 +34525,7 @@ static int d_tptodatestr(const struct timeparts *tp, char *buf, int addtz) {
 
 DEF_TOSTR(DateString, d_localtime, d_tptodatestr, 1)
 
-static const char *d_gettzname() {
+static const char *d_gettzname(void) {
   return g_tzname;
 }
 
@@ -32481,7 +34620,7 @@ V7_PRIVATE enum v7_err Date_valueOf(struct v7 *v7, v7_val_t *res) {
   val_t this_obj = v7_get_this(v7);
   if (!v7_is_generic_object(this_obj) ||
       (v7_is_generic_object(this_obj) &&
-       obj_prototype_v(v7, this_obj) != v7->vals.date_prototype)) {
+       v7_get_proto(v7, this_obj) != v7->vals.date_prototype)) {
     rcode = v7_throwf(v7, TYPE_ERROR, "Date.valueOf called on non-Date object");
     goto clean;
   }
@@ -32781,7 +34920,7 @@ V7_PRIVATE void init_date(struct v7 *v7) {
 
 #endif /* V7_ENABLE__Date */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_function.c"
+#line 1 "v7/src/std_function.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -32912,6 +35051,16 @@ V7_PRIVATE enum v7_err Function_apply(struct v7 *v7, v7_val_t *res) {
     goto clean;
   }
 
+  if (is_js_function(this_obj)) {
+    /*
+     * `Function_apply` is a cfunction, so, GC is inhibited before calling it.
+     * But the given function to call is a JS function, so we should enable GC;
+     * otherwise, it will be inhibited during the whole execution of the given
+     * JS function
+     */
+    v7_set_gc_enabled(v7, 1);
+  }
+
   rcode = b_apply(v7, this_obj, this_arg, func_args, 0, res);
   if (rcode != V7_OK) {
     goto clean;
@@ -33002,7 +35151,7 @@ V7_PRIVATE void init_function(struct v7 *v7) {
 }
 #endif /* __cplusplus */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/std_regex.c"
+#line 1 "v7/src/std_regex.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -33089,7 +35238,7 @@ V7_PRIVATE enum v7_err Regex_global(struct v7 *v7, v7_val_t *res) {
   }
 
   if (v7_is_regexp(v7, r)) {
-    flags = slre_get_flags(v7_to_regexp(v7, r)->compiled_regexp);
+    flags = slre_get_flags(v7_get_regexp_struct(v7, r)->compiled_regexp);
   }
 
   *res = v7_mk_boolean(v7, flags & SLRE_FLAG_G);
@@ -33110,7 +35259,7 @@ V7_PRIVATE enum v7_err Regex_ignoreCase(struct v7 *v7, v7_val_t *res) {
   }
 
   if (v7_is_regexp(v7, r)) {
-    flags = slre_get_flags(v7_to_regexp(v7, r)->compiled_regexp);
+    flags = slre_get_flags(v7_get_regexp_struct(v7, r)->compiled_regexp);
   }
 
   *res = v7_mk_boolean(v7, flags & SLRE_FLAG_I);
@@ -33131,7 +35280,7 @@ V7_PRIVATE enum v7_err Regex_multiline(struct v7 *v7, v7_val_t *res) {
   }
 
   if (v7_is_regexp(v7, r)) {
-    flags = slre_get_flags(v7_to_regexp(v7, r)->compiled_regexp);
+    flags = slre_get_flags(v7_get_regexp_struct(v7, r)->compiled_regexp);
   }
 
   *res = v7_mk_boolean(v7, flags & SLRE_FLAG_M);
@@ -33154,7 +35303,7 @@ V7_PRIVATE enum v7_err Regex_source(struct v7 *v7, v7_val_t *res) {
   }
 
   if (v7_is_regexp(v7, r)) {
-    buf = v7_get_string(v7, &v7_to_regexp(v7, r)->regexp_string, &len);
+    buf = v7_get_string(v7, &v7_get_regexp_struct(v7, r)->regexp_string, &len);
   }
 
   *res = v7_mk_string(v7, buf, len, 1);
@@ -33170,7 +35319,7 @@ V7_PRIVATE enum v7_err Regex_get_lastIndex(struct v7 *v7, v7_val_t *res) {
   val_t this_obj = v7_get_this(v7);
 
   if (v7_is_regexp(v7, this_obj)) {
-    lastIndex = v7_to_regexp(v7, this_obj)->lastIndex;
+    lastIndex = v7_get_regexp_struct(v7, this_obj)->lastIndex;
   }
 
   *res = v7_mk_number(v7, lastIndex);
@@ -33189,7 +35338,7 @@ V7_PRIVATE enum v7_err Regex_set_lastIndex(struct v7 *v7, v7_val_t *res) {
     if (rcode != V7_OK) {
       goto clean;
     }
-    v7_to_regexp(v7, this_obj)->lastIndex = lastIndex;
+    v7_get_regexp_struct(v7, this_obj)->lastIndex = lastIndex;
   }
 
   *res = v7_mk_number(v7, lastIndex);
@@ -33210,7 +35359,7 @@ V7_PRIVATE enum v7_err rx_exec(struct v7 *v7, val_t rx, val_t vstr, int lind,
     const char *str = NULL;
     const char *end = NULL;
     const char *begin = NULL;
-    struct v7_regexp *rp = v7_to_regexp(v7, rx);
+    struct v7_regexp *rp = v7_get_regexp_struct(v7, rx);
     int flag_g = slre_get_flags(rp->compiled_regexp) & SLRE_FLAG_G;
 
     rcode = to_string(v7, vstr, &s, NULL, 0, NULL);
@@ -33286,6 +35435,18 @@ clean:
 }
 
 WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err Regex_flags(struct v7 *v7, v7_val_t *res) {
+  enum v7_err rcode = V7_OK;
+  char buf[3] = {0};
+  val_t this_obj = v7_get_this(v7);
+  struct v7_regexp *rp = v7_get_regexp_struct(v7, this_obj);
+  size_t n = get_regexp_flags_str(v7, rp, buf);
+  *res = v7_mk_string(v7, buf, n, 1);
+
+  return rcode;
+}
+
+WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err Regex_toString(struct v7 *v7, v7_val_t *res) {
   enum v7_err rcode = V7_OK;
   size_t n1, n2 = 0;
@@ -33294,7 +35455,6 @@ V7_PRIVATE enum v7_err Regex_toString(struct v7 *v7, v7_val_t *res) {
   val_t this_obj = v7_get_this(v7);
   struct v7_regexp *rp;
   const char *s1;
-  int re_flags;
 
   rcode = obj_value_of(v7, this_obj, &this_obj);
   if (rcode != V7_OK) {
@@ -33306,13 +35466,10 @@ V7_PRIVATE enum v7_err Regex_toString(struct v7 *v7, v7_val_t *res) {
     goto clean;
   }
 
-  rp = v7_to_regexp(v7, this_obj);
+  rp = v7_get_regexp_struct(v7, this_obj);
   s1 = v7_get_string(v7, &rp->regexp_string, &n1);
-  re_flags = slre_get_flags(rp->compiled_regexp);
+  n2 = get_regexp_flags_str(v7, rp, s2);
 
-  if (re_flags & SLRE_FLAG_G) s2[n2++] = 'g';
-  if (re_flags & SLRE_FLAG_I) s2[n2++] = 'i';
-  if (re_flags & SLRE_FLAG_M) s2[n2++] = 'm';
   c_snprintf(buf, sizeof(buf), "/%.*s/%.*s", (int) n1, s1, (int) n2, s2);
 
   *res = v7_mk_string(v7, buf, strlen(buf), 1);
@@ -33340,6 +35497,8 @@ V7_PRIVATE void init_regex(struct v7 *v7) {
          v7_mk_cfunction(Regex_multiline));
   v7_def(v7, v7->vals.regexp_prototype, "source", 6, V7_DESC_GETTER(1),
          v7_mk_cfunction(Regex_source));
+  v7_def(v7, v7->vals.regexp_prototype, "flags", 5, V7_DESC_GETTER(1),
+         v7_mk_cfunction(Regex_flags));
 
   v7_array_set(v7, lastIndex, 0, v7_mk_cfunction(Regex_get_lastIndex));
   v7_array_set(v7, lastIndex, 1, v7_mk_cfunction(Regex_set_lastIndex));
@@ -33349,7 +35508,92 @@ V7_PRIVATE void init_regex(struct v7 *v7) {
 
 #endif /* V7_ENABLE__RegExp */
 #ifdef V7_MODULE_LINES
-#line 1 "./src/main.c"
+#line 1 "v7/src/std_proxy.c"
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/* Amalgamated: #include "v7/src/internal.h" */
+/* Amalgamated: #include "v7/src/std_object.h" */
+/* Amalgamated: #include "v7/src/std_proxy.h" */
+/* Amalgamated: #include "v7/src/conversion.h" */
+/* Amalgamated: #include "v7/src/core.h" */
+/* Amalgamated: #include "v7/src/function.h" */
+/* Amalgamated: #include "v7/src/object.h" */
+/* Amalgamated: #include "v7/src/primitive.h" */
+/* Amalgamated: #include "v7/src/string.h" */
+/* Amalgamated: #include "v7/src/exceptions.h" */
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* __cplusplus */
+
+#if V7_ENABLE__Proxy
+
+WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err Proxy_ctor(struct v7 *v7, v7_val_t *res) {
+  enum v7_err rcode = V7_OK;
+  val_t this_obj = v7_get_this(v7);
+  val_t target_v = v7_arg(v7, 0);
+  val_t handler_v = v7_arg(v7, 1);
+  struct v7_object *t = NULL;
+  v7_prop_attr_desc_t attrs_desc =
+      (V7_DESC_WRITABLE(0) | V7_DESC_ENUMERABLE(0) | V7_DESC_CONFIGURABLE(0));
+
+  if (this_obj == v7_get_global(v7) || !v7_is_object(this_obj)) {
+    rcode = v7_throwf(v7, TYPE_ERROR, "Wrong 'this' object for Proxy ctor");
+    goto clean;
+  }
+
+  if (!v7_is_object(target_v) || !v7_is_object(handler_v)) {
+    rcode =
+        v7_throwf(v7, TYPE_ERROR,
+                  "Cannot create proxy with a non-object as target or handler");
+    goto clean;
+  }
+
+  t = get_object_struct(this_obj);
+  t->attributes |= V7_OBJ_PROXY;
+
+  v7_def(v7, this_obj, _V7_PROXY_TARGET_NAME, ~0, attrs_desc, target_v);
+  v7_def(v7, this_obj, _V7_PROXY_HANDLER_NAME, ~0, attrs_desc, handler_v);
+
+  (void) res;
+
+clean:
+  return rcode;
+}
+
+V7_PRIVATE void init_proxy(struct v7 *v7) {
+  /*v7_prop_attr_desc_t attrs_desc =*/
+  /*(V7_DESC_WRITABLE(0) | V7_DESC_ENUMERABLE(0) | V7_DESC_CONFIGURABLE(0));*/
+  val_t proxy =
+      mk_cfunction_obj_with_proto(v7, Proxy_ctor, 1, v7->vals.proxy_prototype);
+
+  v7_def(v7, v7->vals.global_object, "Proxy", ~0, V7_DESC_ENUMERABLE(0), proxy);
+}
+
+V7_PRIVATE int is_special_proxy_name(const char *name, size_t name_len) {
+  int ret = 0;
+  if (name_len == (size_t) ~0) {
+    name_len = strlen(name);
+  }
+  if (name_len == 5 && (memcmp(name, _V7_PROXY_TARGET_NAME, name_len) == 0 ||
+                        memcmp(name, _V7_PROXY_HANDLER_NAME, name_len) == 0)) {
+    ret = 1;
+  }
+  return ret;
+}
+
+#endif /* V7_ENABLE__Proxy */
+
+#if defined(__cplusplus)
+}
+#endif /* __cplusplus */
+#ifdef V7_MODULE_LINES
+#line 1 "v7/src/main.c"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -33437,6 +35681,10 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
 
   memset(&opts, 0, sizeof(opts));
 
+  (void) show_ast;
+  (void) binary_ast;
+  (void) dump_bcode;
+
   /* Execute inline code */
   for (i = 1; i < argc && argv[i][0] == '-'; i++) {
     if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
@@ -33505,7 +35753,7 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
   }
 #endif
 
-#if V7_ENABLE__Memory__stats > 0 && !defined(V7_DISABLE_GC)
+#if V7_ENABLE__Memory__stats > 0 && !V7_DISABLE_GC
   if (dump_stats) {
     printf("Memory stats during init:\n");
     dump_mm_stats(v7);
@@ -33523,10 +35771,15 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
     exec = v7_exec;
 
     if (show_ast || dump_bcode) {
+#if !defined(V7_NO_COMPILER)
       if (v7_compile(exprs[j], binary_ast, dump_bcode, stdout) != V7_OK) {
         exit_rcode = EXIT_FAILURE;
         fprintf(stderr, "%s\n", "parse error");
       }
+#else  /* V7_NO_COMPILER */
+      exit_rcode = EXIT_FAILURE;
+      fprintf(stderr, "%s\n", "Parsing is disabled by V7_NO_COMPILER");
+#endif /* V7_NO_COMPILER */
     } else if (exec(v7, exprs[j], &res) != V7_OK) {
       v7_print_error(stderr, v7, exprs[j], res);
       exit_rcode = EXIT_FAILURE;
@@ -33537,19 +35790,25 @@ int v7_main(int argc, char *argv[], void (*pre_freeze_init)(struct v7 *),
   /* Execute files */
   for (; i < argc; i++) {
     if (show_ast || dump_bcode) {
+#if !defined(V7_NO_COMPILER)
       size_t size;
       char *source_code;
       if ((source_code = cs_read_file(argv[i], &size)) == NULL) {
         exit_rcode = EXIT_FAILURE;
         fprintf(stderr, "Cannot read [%s]\n", argv[i]);
       } else {
-        if (v7_compile(source_code, binary_ast, dump_bcode, stdout) != V7_OK) {
+        if (_v7_compile(source_code, size, binary_ast, dump_bcode, stdout) !=
+            V7_OK) {
           fprintf(stderr, "error: %s\n", v7->error_msg);
           exit_rcode = EXIT_FAILURE;
           exit(exit_rcode);
         }
         free(source_code);
       }
+#else  /* V7_NO_COMPILER */
+      exit_rcode = EXIT_FAILURE;
+      fprintf(stderr, "%s\n", "Parsing is disabled by V7_NO_COMPILER");
+#endif /* V7_NO_COMPILER */
     } else if (v7_exec_file(v7, argv[i], &res) != V7_OK) {
       v7_print_error(stderr, v7, argv[i], res);
       res = V7_UNDEFINED;

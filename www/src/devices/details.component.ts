@@ -1,10 +1,12 @@
 import {
 	Component,
 	OnInit,
-	AfterViewInit
+	AfterViewInit,
+	OnDestroy
 }                         from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Observable }     from 'rxjs/Observable';
+import { Subscription }   from 'rxjs/Subscription';
 
 import {
 	Device,
@@ -18,7 +20,7 @@ declare var Highcharts: any;
 	templateUrl: 'tpl/device-details.html'
 } )
 
-export class DeviceDetailsComponent implements OnInit, AfterViewInit {
+export class DeviceDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
 
 	public loading: boolean = false;
 	public error: String;
@@ -35,6 +37,8 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 	private _yearChart: any;
 
 	private _colors: string[] = [ '#3c8dbc', '#c0392d', '#f1c50d', '#28ae61', '#8d44ad', '#7e8c8d' ];
+
+	private _subscription: Subscription;
 
 	public constructor(
 		private _route: ActivatedRoute,
@@ -62,6 +66,12 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 
 			//me.device.data = data_.data;
 		} );
+	};
+
+	public ngOnDestroy() {
+		if ( this._subscription ) {
+			this._subscription.unsubscribe();
+		}
 	};
 
 	public ngAfterViewInit() {
@@ -106,7 +116,7 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 					} )
 					.mergeMap( function( device_: Device ) {
 						if ( device_.type == 'level' ) {
-							return me._devicesService.getData( device_.id, { group: 'none', range: 1, interval: 'day' } )
+							return me._devicesService.getData( device_.id, { group: '5min', range: 1, interval: 'day' } )
 								.map( function( data_: any[] ) {
 									device_.dataBundle.day = data_;
 									return device_;
@@ -122,12 +132,21 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 						}
 					} )
 					.mergeMap( function( device_: Device ) {
-						return me._devicesService.getData( device_.id, { group: 'day', range: 7, interval: 'day' } )
-							.map( function( data_: any[] ) {
-								device_.dataBundle.week = data_;
-								return device_;
-							} )
-						;
+						if ( device_.type == 'level' ) {
+							return me._devicesService.getData( device_.id, { group: 'hour', range: 7, interval: 'day' } )
+								.map( function( data_: any[] ) {
+									device_.dataBundle.week = data_;
+									return device_;
+								} )
+							;
+						} else {
+							return me._devicesService.getData( device_.id, { group: 'day', range: 7, interval: 'day' } )
+								.map( function( data_: any[] ) {
+									device_.dataBundle.week = data_;
+									return device_;
+								} )
+							;
+						}
 					} )
 					.mergeMap( function( device_: Device ) {
 						return me._devicesService.getData( device_.id, { group: 'day', range: 1, interval: 'month' } )
@@ -160,7 +179,7 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 
 			// Then all of the observables are fetched at once.
 			me.loading = true;
-			Observable
+			me._subscription = Observable
 				.forkJoin( observables )
 				.subscribe( function( devices_: Device[] ) {
 
@@ -207,7 +226,6 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 					}
 					me._dayChart.redraw();
 
-/*
 					// Add week series
 					yAxis = -1;
 					lastUnit = null;
@@ -216,6 +234,12 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 						if ( device.unit != lastUnit ) {
 							lastUnit = device.unit;
 							yAxis++;
+							me._weekChart.yAxis[yAxis].update( {
+								title: {
+									text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
+								}
+							} , false );
+							
 						}
 						if ( yAxis > 1 ) {
 							break;
@@ -236,6 +260,12 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 								valueSuffix: ' ' + device.unit
 							}
 						};
+						if ( device.type == 'counter' ) {
+							serie.pointRange = 24 * 3600 * 1000;
+							serie.zIndex = 1;
+						} else {
+							serie.zIndex = 2;
+						}
 						me._weekChart.addSeries( serie, false );
 					}
 					me._weekChart.redraw();
@@ -248,6 +278,11 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 						if ( device.unit != lastUnit ) {
 							lastUnit = device.unit;
 							yAxis++;
+							me._monthChart.yAxis[yAxis].update( {
+								title: {
+									text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
+								}
+							} , false );
 						}
 						if ( yAxis > 1 ) {
 							break;
@@ -280,6 +315,11 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 						if ( device.unit != lastUnit ) {
 							lastUnit = device.unit;
 							yAxis++;
+							me._yearChart.yAxis[yAxis].update( {
+								title: {
+									text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
+								}
+							} , false );
 						}
 						if ( yAxis > 1 ) {
 							break;
@@ -303,13 +343,11 @@ export class DeviceDetailsComponent implements OnInit, AfterViewInit {
 						me._yearChart.addSeries( serie, false );
 					}
 					me._yearChart.redraw();
-*/
+
 					me.loading = false;
 				} )
 			;
-			
-
-
+		
 		} else {
 
 			// Fetch data for switch- and text devices.

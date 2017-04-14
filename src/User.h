@@ -24,20 +24,21 @@ namespace micasa {
 		}; // enum class Rights
 		ENUM_UTIL( Rights );
 
-		static const constexpr char* settingsName = "user";
+		static const char* settingsName;
 
 		User( const unsigned int id_, const std::string name_, const Rights rights_ );
 		~User();
 
-		unsigned int getId() const throw() { return this->m_id; };
-		Rights getRights() const throw() { return this->m_rights; };
-		std::shared_ptr<Settings<User> > getSettings() const throw() { return this->m_settings; };
+		unsigned int getId() const { return this->m_id; };
+		Rights getRights() const { return this->m_rights; };
+		std::string getName() const { return this->m_name; };
+		std::shared_ptr<Settings<User>> getSettings() const { return this->m_settings; };
 
 	private:
 		const unsigned int m_id;
 		const std::string m_name;
 		const Rights m_rights;
-		std::shared_ptr<Settings<User> > m_settings;
+		std::shared_ptr<Settings<User>> m_settings;
 
 	}; // class User
 

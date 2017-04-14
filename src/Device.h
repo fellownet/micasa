@@ -1,14 +1,15 @@
 #pragma once
 
 #include <string>
+#include <ostream>
+
 #include <memory>
 #include <map>
 #include <chrono>
 
-#include "Worker.h"
-#include "Settings.h"
 #include "Settings.h"
 #include "Utils.h"
+#include "Scheduler.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
 #define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
@@ -25,7 +26,7 @@ namespace micasa {
 
 	class Hardware;
 
-	class Device : public Worker, public std::enable_shared_from_this<Device> {
+	class Device : public std::enable_shared_from_this<Device> {
 		
 	public:
 		enum class Type: unsigned short {
@@ -38,75 +39,64 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 		
 		enum class UpdateSource: unsigned short {
-			INIT = 1,
-			HARDWARE = 2,
-			TIMER = 4,
-			SCRIPT = 8,
-			API = 16,
-			LINK = 32,
+			HARDWARE = 1,
+			TIMER    = 2,
+			SCRIPT   = 4,
+			API      = 8,
+			LINK     = 16,
+			SYSTEM   = 32,
 
-			USER = TIMER | SCRIPT | API | LINK,
-			EVENT = TIMER | SCRIPT | LINK,
-			CONTROLLER = INIT | HARDWARE,
-			ANY = USER | CONTROLLER,
+			USER     = TIMER | SCRIPT | API | LINK,
+			EVENT    = TIMER | SCRIPT | LINK,
+			ANY      = HARDWARE | TIMER | SCRIPT | API | LINK | SYSTEM,
 
 			INTERNAL = 64 // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
-		
-		/*
-		typedef int t_counterValue;
-		typedef double t_levelValue;
-		typedef std::string t_switchValue;
-		typedef std::string t_textValue;
 
-		union Value {
-			Value() : text( "" ) { };
-			~Value() { };
-			Value( t_counterValue value_ ) : counter( value_ ) { };
-			Value( t_levelValue value_ ) : level( value_ ) { };
-			Value( t_textValue value_ ) : text( value_ ) { };
+		static const char* settingsName;
 
-			t_counterValue counter;
-			t_levelValue level;
-			t_textValue text;
-		}; // union Value
-		*/
+		Device( const Device& ) = delete; // Do not copy!
+		Device& operator=( const Device& ) = delete; // Do not copy-assign!
+		Device( const Device&& ) = delete; // do not move
+		Device& operator=( Device&& ) = delete; // do not move-assign
 
-		static const constexpr char* settingsName = "device";
-		
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 
-		// This is the preferred way to create a device of specific type (hence the protected
-		// constructor).
-		static std::shared_ptr<Device> factory( std::shared_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_ );
+		// This is the preferred way to create a device of specific type (hence the protected constructor).
+		static std::shared_ptr<Device> factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		unsigned int getId() const throw() { return this->m_id; };
-		std::string getReference() const throw() { return this->m_reference; };
-		std::string getLabel() const throw() { return this->m_label; };
+		unsigned int getId() const { return this->m_id; };
+		std::string getReference() const { return this->m_reference; };
+		std::string getLabel() const { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
-		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
+		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ = false );
 		template<class T> typename T::t_value getValue() const;
-		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
-		std::shared_ptr<Hardware> getHardware() const throw() { return this->m_hardware; }
+		std::shared_ptr<Settings<Device>> getSettings() const { return this->m_settings; };
+		std::shared_ptr<Hardware> getHardware() const;
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
-		void touch();
+		bool isEnabled() const { return this->m_enabled; };
+		void setEnabled( bool enabled_ = true );
 
+		virtual void start() = 0;
+		virtual void stop() = 0;
 		virtual nlohmann::json getJson( bool full_ = false ) const;
 		virtual nlohmann::json getSettingsJson() const;
-		virtual void putSettingsJson( nlohmann::json& settings_ );
+		virtual void putSettingsJson( const nlohmann::json& settings_ );
 		virtual Type getType() const =0;
-		
+	
 	protected:
-		Device( std::shared_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_ );
-
-		std::shared_ptr<Hardware> m_hardware;
+		std::weak_ptr<Hardware> m_hardware;
 		const unsigned int m_id;
 		const std::string m_reference;
+		bool m_enabled;
 		std::string m_label;
-		std::shared_ptr<Settings<Device> > m_settings;
+		Scheduler m_scheduler;
+		std::shared_ptr<Settings<Device>> m_settings;
+
+		Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 	}; // class Device
 

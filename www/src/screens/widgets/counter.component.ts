@@ -2,20 +2,22 @@ import {
 	Component,
 	Input,
 	OnInit,
-	AfterViewInit
-}                          from '@angular/core';
-import {
-	Router,
-}                          from '@angular/router';
+	AfterViewInit,
+	OnDestroy
+}                       from '@angular/core';
 
 import {
 	Screen,
 	Widget
-}                          from '../screens.service';
+}                       from '../screens.service';
 import {
 	Device,
 	DevicesService
-}                          from '../../devices/devices.service';
+}                       from '../../devices/devices.service';
+import {
+	Router,
+}                       from '@angular/router';
+import { Subscription } from 'rxjs/Subscription';
 
 declare var Highcharts: any;
 
@@ -24,11 +26,12 @@ declare var Highcharts: any;
 	templateUrl: 'tpl/widgets/counter.html'
 } )
 
-export class WidgetCounterComponent implements OnInit, AfterViewInit {
+export class WidgetCounterComponent implements OnInit, AfterViewInit, OnDestroy {
 
 	private static _elementId = 0;
 
 	private _chart: any;
+	private _subscription: Subscription;
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
@@ -36,6 +39,7 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 
 	public error: string;
 	public elementId: number;
+	public loading: boolean = true;
 	public editing: boolean = false;
 
 	public constructor(
@@ -47,6 +51,12 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 	public ngOnInit() {
 		++WidgetCounterComponent._elementId;
 		this.elementId = WidgetCounterComponent._elementId;
+	};
+
+	public ngOnDestroy() {
+		if ( this._subscription ) {
+			this._subscription.unsubscribe();
+		}
 	};
 
 	public ngAfterViewInit() {
@@ -97,13 +107,16 @@ export class WidgetCounterComponent implements OnInit, AfterViewInit {
 
 	private _loadData(): void {
 		var me = this;
-		me._devicesService.getData( this.device.id, { group: 'hour', range: 1, interval: 'day' } )
+		me.loading = true;
+		me._subscription = me._devicesService.getData( this.device.id, { group: 'hour', range: 1, interval: 'day' } )
 			.subscribe(
 				function( data_: any[] ) {
+					me.loading = false;
 					var data: Array<Array<any>> = [];
 					for ( var i = 0; i < data_.length; i++ ) {
 						data.push( [ data_[i].timestamp * 1000, parseFloat( data_[i].value ) ] );
 					}
+
 					// First remove previes series if there is one (for instance when the
 					// refresh tool was clicked).
 					if ( me._chart.series.length > 0 ) {
