@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include "../Hardware.h"
 
 #include "../device/Level.h"

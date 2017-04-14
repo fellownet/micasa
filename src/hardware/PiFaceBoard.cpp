@@ -175,7 +175,7 @@ namespace micasa {
 		return result;
 	};
 
-	void PiFaceBoard::_process( unsigned long iteration_ ) {
+	inline void PiFaceBoard::_process( unsigned long iteration_ ) {
 
 		// Read and process output pin states.
 		unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA );
@@ -266,13 +266,13 @@ namespace micasa {
 		}
 	};
 
-	std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {
+	inline std::string PiFaceBoard::_createReference( unsigned short position_, unsigned short io_ ) const {
 		std::stringstream reference;
 		reference << this->m_reference << "_" << position_ << "_" << io_;
 		return reference.str();
 	};
 
-	std::pair<unsigned short, unsigned short> PiFaceBoard::_parseReference( const std::string& reference_ ) const {
+	inline std::pair<unsigned short, unsigned short> PiFaceBoard::_parseReference( const std::string& reference_ ) const {
 		auto parts = stringSplit( reference_, '_' );
 		return { std::stoi( parts[1] ), std::stoi( parts[2] ) };
 	};

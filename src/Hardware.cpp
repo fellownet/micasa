@@ -73,7 +73,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before Hardware instances." );
 #endif // _DEBUG
-		this->m_settings = std::make_shared<Settings<Hardware> >( *this );
+		this->m_settings = std::make_shared<Settings<Hardware>>( *this );
 	};
 
 	Hardware::~Hardware() {
@@ -130,7 +130,7 @@ namespace micasa {
 
 	void Hardware::init() {
 		std::lock_guard<std::mutex> devicesLock( this->m_devicesMutex );
-		std::vector<std::map<std::string, std::string> > devicesData = g_database->getQuery(
+		std::vector<std::map<std::string, std::string>> devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
 			"WHERE `hardware_id`=%d",
@@ -291,18 +291,18 @@ namespace micasa {
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices() const {
+	std::vector<std::shared_ptr<Device>> Hardware::getAllDevices() const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		std::vector<std::shared_ptr<Device> > all;
+		std::vector<std::shared_ptr<Device>> all;
 		for ( auto const &devicesIt : this->m_devices ) {
 			all.push_back( devicesIt.second );
 		}
 		return all;
 	};
 
-	std::vector<std::shared_ptr<Device> > Hardware::getAllDevices( const std::string& prefix_ ) const {
+	std::vector<std::shared_ptr<Device>> Hardware::getAllDevices( const std::string& prefix_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
-		std::vector<std::shared_ptr<Device> > result;
+		std::vector<std::shared_ptr<Device>> result;
 		for ( auto const &devicesIt : this->m_devices ) {
 			if ( devicesIt.second->getReference().substr( 0, prefix_.size() ) == prefix_ ) {
 				result.push_back( devicesIt.second );
@@ -381,7 +381,7 @@ namespace micasa {
 			pendingUpdate == nullptr
 			|| pendingUpdate->waitFor( blockNewUpdate_ )
 		) {
-			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, NULL, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
+			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, this, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
 				std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 				this->m_pendingUpdates.erase( reference_ );
 				return { source_, data_ };

@@ -24,13 +24,13 @@ namespace micasa {
 		Text( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
-		t_value getValue() const throw() { return this->m_value; };
-		t_value getPreviousValue() const throw() { return this->m_previousValue; };
+		t_value getValue() const { return this->m_value; };
+		t_value getPreviousValue() const { return this->m_previousValue; };
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 		void start() override;
 		void stop() override;
-		Device::Type getType() const throw() override { return Text::type; };
+		Device::Type getType() const override { return Text::type; };
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 		void putSettingsJson( const nlohmann::json& settings_ ) override;
@@ -43,9 +43,13 @@ namespace micasa {
 		struct {
 			t_value value;
 			Device::UpdateSource source;
-			std::weak_ptr<Scheduler::Task<> > task;
+			std::weak_ptr<Scheduler::Task<>> task;
 		} m_rateLimiter;
-		std::string m_lastLog;
+		struct {
+			std::string last;
+			unsigned int repeated;
+			std::weak_ptr<Scheduler::Task<>> task;
+		} m_logger;
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void _purgeHistory() const;

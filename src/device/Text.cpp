@@ -26,7 +26,8 @@ namespace micasa {
 		m_value( "" ),
 		m_previousValue( "" ),
 		m_updated( system_clock::now() ),
-		m_rateLimiter( { "", Device::resolveUpdateSource( 0 ) } )
+		m_rateLimiter( { "", Device::resolveUpdateSource( 0 ) } ),
+		m_logger( { "", 0 } )
 	{
 		try {
 			json result = g_database->getQueryRow<json>(
@@ -239,12 +240,27 @@ namespace micasa {
 			interval.c_str()
 		);
 	};
-	
+
 	void Text::log( const Logger::LogLevel& logLevel_, const std::string& message_ ) {
-		if ( this->m_lastLog == message_ ) {
+		auto task = this->m_logger.task.lock();
+		if ( ! task ) {
+			this->m_logger.task = this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& task_ ) {
+				if ( this->m_logger.repeated > 0 ) {
+					this->updateValue( UpdateSource::SYSTEM, "Last message was repeated " + std::to_string( this->m_logger.repeated ) + " times." );
+				}
+				this->m_logger.last = "";
+				this->m_logger.repeated = 0;
+			} );
+		}
+		if ( message_ == this->m_logger.last ) {
+			this->m_logger.repeated++;
 			return;
 		}
-		this->m_lastLog = message_;
+		if ( task ) {
+			this->m_scheduler.proceed( 0, task );
+			task->wait();
+		}
+		this->m_logger.last = message_;
 
 		std::string text = message_;
 		if ( logLevel_ == Logger::LogLevel::ERROR ) {

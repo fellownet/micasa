@@ -65,17 +65,17 @@ namespace micasa {
 		// This is the preferred way to create a device of specific type (hence the protected constructor).
 		static std::shared_ptr<Device> factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		unsigned int getId() const throw() { return this->m_id; };
-		std::string getReference() const throw() { return this->m_reference; };
-		std::string getLabel() const throw() { return this->m_label; };
+		unsigned int getId() const { return this->m_id; };
+		std::string getReference() const { return this->m_reference; };
+		std::string getLabel() const { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
 		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ = false );
 		template<class T> typename T::t_value getValue() const;
-		std::shared_ptr<Settings<Device> > getSettings() const throw() { return this->m_settings; };
+		std::shared_ptr<Settings<Device>> getSettings() const { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const;
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
-		bool isEnabled() const throw() { return this->m_enabled; };
+		bool isEnabled() const { return this->m_enabled; };
 		void setEnabled( bool enabled_ = true );
 
 		virtual void start() = 0;
@@ -92,7 +92,7 @@ namespace micasa {
 		bool m_enabled;
 		std::string m_label;
 		Scheduler m_scheduler;
-		std::shared_ptr<Settings<Device> > m_settings;
+		std::shared_ptr<Settings<Device>> m_settings;
 
 		Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 

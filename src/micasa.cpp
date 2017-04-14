@@ -13,10 +13,10 @@
 
 namespace micasa {
 	
-	std::shared_ptr<Database> g_database;
-	std::shared_ptr<Settings<> > g_settings;
-	std::shared_ptr<WebServer> g_webServer;
-	std::shared_ptr<Controller> g_controller;
+	std::unique_ptr<Database> g_database;
+	std::unique_ptr<Settings<>> g_settings;
+	std::unique_ptr<WebServer> g_webServer;
+	std::unique_ptr<Controller> g_controller;
 
 	const char g_usage[] = "Usage: micasa -p|--port <port> [-l|--loglevel <loglevel>] [-d|--daemonize] [-db|--database <filename>]\n";
 
@@ -85,14 +85,13 @@ int main( int argc_, char* argv_[] ) {
 		signal( SIGTERM, signal_handler );
 	}
 
-/*
-	g_database = std::make_shared<Database>( database );
+	g_database = std::unique_ptr<Database>( new Database( database ) );
 
 	// The database might take some time to initialize (due to the VACUUM call). An additional shutdown check is done.
 	if ( ! g_shutdown ) {
-		g_settings = std::make_shared<Settings<> >();
-		g_controller = std::make_shared<Controller>();
-		g_webServer = std::make_shared<WebServer>();
+		g_settings = std::unique_ptr<Settings<>>( new Settings<> );
+		g_controller = std::unique_ptr<Controller>( new Controller );
+		g_webServer = std::unique_ptr<WebServer>( new WebServer );
 
 		g_controller->start();
 		g_webServer->start();
@@ -104,15 +103,15 @@ int main( int argc_, char* argv_[] ) {
 		g_webServer->stop();
 		g_controller->stop();
 
-		g_webServer = NULL;
-		g_controller = NULL;
+		g_webServer = nullptr;
+		g_controller = nullptr;
 		if ( g_settings->isDirty() ) {
 			g_settings->commit();
 		}
-		g_settings = NULL;
+		g_settings = nullptr;
 	}
 
-	g_database = NULL;
-*/
+	g_database = nullptr;
+
 	return EXIT_SUCCESS;
 };

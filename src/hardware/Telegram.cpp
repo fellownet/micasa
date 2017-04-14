@@ -145,7 +145,7 @@ namespace micasa {
 		Hardware::stop();
 	};
 
-	std::string Telegram::getLabel() const throw() {
+	std::string Telegram::getLabel() const {
 		if ( this->m_username.size() ) {
 			std::stringstream label;
 			label << Telegram::label << " (" << this->m_username << ")";
@@ -186,7 +186,7 @@ namespace micasa {
 			// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
 			// to all chat devices.
 			auto sourceDevice = std::static_pointer_cast<Text>( device_ );
-			std::vector<std::shared_ptr<Text> > targetDevices;
+			std::vector<std::shared_ptr<Text>> targetDevices;
 			if ( sourceDevice->getReference() == "broadcast" ) {
 				auto allDevices = this->getAllDevices();
 				for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {

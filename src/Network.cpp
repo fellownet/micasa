@@ -339,7 +339,7 @@ namespace micasa {
 		}
 	};
 
-	void Network::_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
+	inline void Network::_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
 		Network& network = Network::get();
 
 		// The ACCEPT event is fired when a new connection enters a listening connection. The connection pointer points

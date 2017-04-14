@@ -67,7 +67,7 @@ namespace micasa {
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "OpenZWave Version %s.", Manager::getVersionAsString().c_str() );
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
 		if (
-			NULL == Manager::Get()
+			Manager::Get() == nullptr
 			|| 0 == g_managerWatchers
 		) {
 			Options::Create( "./lib/open-zwave/config", "./var", "" );
@@ -96,7 +96,7 @@ namespace micasa {
 
 		// There should be a valid manager right now, fail if there isn't or if we're unable to use it.
 		if (
-			NULL == Manager::Get()
+			Manager::Get() == nullptr
 			|| ! Manager::Get()->AddWatcher( micasa_openzwave_notification_handler, this )
 			|| ! Manager::Get()->AddDriver( this->m_settings->get( "port" ) )
 		) {

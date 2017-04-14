@@ -79,7 +79,7 @@ namespace micasa {
 		Hardware::stop();
 	};
 
-	std::string WeatherUnderground::getLabel() const throw() {
+	std::string WeatherUnderground::getLabel() const {
 		if ( this->m_details.size() ) {
 			std::stringstream label;
 			label << WeatherUnderground::label << " (" << this->m_details << ")";

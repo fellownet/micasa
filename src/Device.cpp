@@ -39,7 +39,7 @@ namespace micasa {
 		assert( g_controller && "Global Controller instance should be created before Device instances." );
 		assert( g_database && "Global Database instance should be created before Device instances." );
 #endif // _DEBUG
-		this->m_settings = std::make_shared<Settings<Device> >( *this );
+		this->m_settings = std::make_shared<Settings<Device>>( *this );
 	};
 	
 	Device::~Device() {

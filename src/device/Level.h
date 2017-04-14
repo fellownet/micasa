@@ -46,13 +46,13 @@ namespace micasa {
 		Level( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
-		t_value getValue() const throw() { return this->m_value; };
-		t_value getPreviousValue() const throw() { return this->m_previousValue; };
+		t_value getValue() const { return this->m_value; };
+		t_value getPreviousValue() const { return this->m_previousValue; };
 		nlohmann::json getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const;
 
 		void start() override;
 		void stop() override;
-		Device::Type getType() const throw() override { return Level::type; };
+		Device::Type getType() const override { return Level::type; };
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 
@@ -64,7 +64,7 @@ namespace micasa {
 			t_value value;
 			unsigned long count;
 			Device::UpdateSource source;
-			std::weak_ptr<Scheduler::Task<> > task;
+			std::weak_ptr<Scheduler::Task<>> task;
 		} m_rateLimiter;
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );

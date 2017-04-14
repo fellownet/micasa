@@ -148,7 +148,7 @@ namespace micasa {
 	using namespace nlohmann;
 
 	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Settings<> > g_settings;
+	extern std::shared_ptr<Settings<>> g_settings;
 
 	Controller::Controller() :
 		m_running( false )
@@ -198,7 +198,7 @@ namespace micasa {
 		// always have a higher id than clients, so the query order should make sure parents are created first and are
 		// present when childs are created.
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-		std::vector<std::map<std::string, std::string> > hardwareData = g_database->getQuery(
+		std::vector<std::map<std::string, std::string>> hardwareData = g_database->getQuery(
 			"SELECT `id`, `hardware_id`, `reference`, `type`, `enabled` "
 			"FROM `hardware` "
 			"ORDER BY `id` ASC"
@@ -299,22 +299,10 @@ namespace micasa {
 		}
 #endif // _WITH_LIBUDEV
 
-/*
-		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto hardware = hardwareIt.second;
-			if ( hardware->getState() != Hardware::State::DISABLED ) {
-				hardware->stop();
-			}
-		}
-		this->m_hardware.clear();
-		hardwareLock.unlock();
-*/
-
 		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a separate
 		// separate thread...
 		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-		std::map<std::string, std::future<void> > futures;
+		std::map<std::string, std::future<void>> futures;
 		for ( auto const &hardwareIt : this->m_hardware ) {
 			auto hardware = hardwareIt.second;
 			if ( hardware->getState() != Hardware::State::DISABLED ) {
@@ -359,9 +347,9 @@ namespace micasa {
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Hardware> > Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
+	std::vector<std::shared_ptr<Hardware>> Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Hardware> > children;
+		std::vector<std::shared_ptr<Hardware>> children;
 		for ( auto const &hardwareIt : this->m_hardware ) {
 			auto parent = hardwareIt.second->getParent();
 			if (
@@ -374,9 +362,9 @@ namespace micasa {
 		return children;
 	};
 	
-	std::vector<std::shared_ptr<Hardware> > Controller::getAllHardware() const {
+	std::vector<std::shared_ptr<Hardware>> Controller::getAllHardware() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Hardware> > all;
+		std::vector<std::shared_ptr<Hardware>> all;
 		for ( auto const &hardwareIt : this->m_hardware ) {
 			all.push_back( hardwareIt.second );
 		}
@@ -436,11 +424,17 @@ namespace micasa {
 	void Controller::removeHardware( const std::shared_ptr<Hardware> hardware_ ) {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
-		// First all the children of this hardware are stopped and removed from the list.
+		// First all the children of this hardware are stopped and removed from the list. NOTE the futures which we're
+		// using to watch the proper stopping of hardware, are created on the heap to allow them to be passed into the
+		// scheduler by pointer.
+		auto* futures = new std::map<std::string, std::future<void>>();
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( hardwareIt->second->getParent() == hardware_ ) {
-				if ( hardwareIt->second->getState() != Hardware::State::DISABLED ) {
-					hardwareIt->second->stop();
+			auto hardware = hardwareIt->second;
+			if ( hardware->getParent() == hardware_ ) {
+				if ( hardware->getState() != Hardware::State::DISABLED ) {
+					(*futures)[hardware->getName()] = std::async( std::launch::async, [hardware] {
+						hardware->stop();
+					} );
 				}
 				hardwareIt = this->m_hardware.erase( hardwareIt );
 			} else {
@@ -453,21 +447,36 @@ namespace micasa {
 		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
 			if ( hardwareIt->second == hardware_ ) {
 				if ( hardware_->getState() != Hardware::State::DISABLED ) {
-					hardware_->stop();
+					(*futures)[hardware_->getName()] = std::async( std::launch::async, [hardware_] {
+						hardware_->stop();
+					} );
 				}
-
 				g_database->putQuery(
 					"DELETE FROM `hardware` "
 					"WHERE `id`=%d",
 					hardware_->getId()
 				);
-
 				this->m_hardware.erase( hardwareIt );
 				break;
 			} else {
 				hardwareIt++;
 			}
 		}
+
+		// Waiting for the proper stopping of the hardware is done in a separate thread to allow the webserver to return
+		// the removal results immediately.
+		this->m_scheduler.schedule( 0, 1, this, [this,futures]( Scheduler::Task<>& ) {
+			for ( auto const &futuresIt : *futures ) {
+				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+				if ( status == std::future_status::timeout ) {
+					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
+				}
+#ifdef _DEBUG
+				assert( status == std::future_status::ready && "Hardware should stop properly." );
+#endif // _DEBUG
+			}
+			delete futures;
+		} );
 	};
 
 	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {
@@ -514,9 +523,9 @@ namespace micasa {
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Device> > Controller::getAllDevices() const {
+	std::vector<std::shared_ptr<Device>> Controller::getAllDevices() const {
 		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Device> > result;
+		std::vector<std::shared_ptr<Device>> result;
 		for ( auto const &hardwareIt : this->m_hardware ) {
 			auto devices = hardwareIt.second->getAllDevices();
 			result.insert( result.end(), devices.begin(), devices.end() );
@@ -687,7 +696,7 @@ namespace micasa {
 		}
 	};
 	
-	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ ) {
+	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ ) {
 		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
 			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 
@@ -774,7 +783,7 @@ namespace micasa {
 				bool run = true;
 
 				// Split the cron string into exactly 5 fields; m h dom mon dow.
-				std::vector<std::pair<unsigned int, unsigned int> > extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
+				std::vector<std::pair<unsigned int, unsigned int>> extremes = { { 0, 59 }, { 0, 23 }, { 1, 31 }, { 1, 12 }, { 1, 7 } };
 				auto fields = stringSplit( (*timerIt)["cron"], ' ' );
 				if ( fields.size() != 5 ) {
 					throw std::runtime_error( "invalid number of cron fields" );

@@ -40,7 +40,7 @@ namespace micasa {
 		m_shutdown( false ),
 		m_continue( false ),
 		m_count( 0 ),
-		m_threads( std::vector<std::thread>( std::max( 2U, std::thread::hardware_concurrency() ) ) )
+		m_threads( std::vector<std::thread>( std::max( 2U, 2 * std::thread::hardware_concurrency() ) ) )
 	{
 		for ( unsigned int i = 0; i < this->m_threads.size(); i++ ) {
 			this->m_threads[i] = std::thread( [this,i]() { this->_loop( i ); } );
@@ -88,7 +88,7 @@ namespace micasa {
 
 		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat. Their
 		// futures are gathered.
-		std::vector<std::shared_ptr<BaseTask> > tasks;
+		std::vector<std::shared_ptr<BaseTask>> tasks;
 		for ( auto taskIt = this->m_activeTasks.begin(); taskIt != this->m_activeTasks.end(); taskIt++ ) {
 			if (
 				(*taskIt)->m_scheduler == scheduler_
@@ -107,7 +107,7 @@ namespace micasa {
 		}
 	};
 
-	std::shared_ptr<Scheduler::BaseTask> Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const {
+	auto Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const -> std::shared_ptr<BaseTask> {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
 		auto position = this->m_start;
 		do {
@@ -183,61 +183,67 @@ namespace micasa {
 		}
 	};
 	
-	void Scheduler::ThreadPool::_insert( std::shared_ptr<BaseTask> task_ ) {
-#ifdef _DEBUG
-		assert( task_->m_previous == nullptr && task_->m_next == nullptr && "Task should not be part of the linked list before being inserted to it." );
-#endif // _DEBUG
-		if ( this->m_start == nullptr ) {
-			this->m_start = task_;
-			task_->m_previous = task_->m_next = task_;
-		} else {
-			auto position = this->m_start;
-			while( position->time < task_->time ) {
-				position = position->m_next;
-				if ( position == this->m_start ) {
-					break;
-				}
-			}
-			task_->m_previous = position->m_previous;
-			task_->m_next = position;
-			position->m_previous->m_next = task_;
-			position->m_previous = task_;
-
-			if ( task_->time < this->m_start->time ) {
+	inline void Scheduler::ThreadPool::_insert( std::shared_ptr<BaseTask> task_ ) {
+		if (
+			task_->m_previous == nullptr
+			&& task_->m_next == nullptr
+		) {
+			if ( this->m_start == nullptr ) {
 				this->m_start = task_;
-			}
+				task_->m_previous = task_->m_next = task_;
+			} else {
+				auto position = this->m_start;
+				while( position->time < task_->time ) {
+					position = position->m_next;
+					if ( position == this->m_start ) {
+						break;
+					}
+				}
+				task_->m_previous = position->m_previous;
+				task_->m_next = position;
+				position->m_previous->m_next = task_;
+				position->m_previous = task_;
+
+				if ( task_->time < this->m_start->time ) {
+					this->m_start = task_;
+				}
 #ifdef _DEBUG
-		assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
-		assert( this->m_start->time <= this->m_start->m_next->time && "Start should be the first task in the list." );
+				assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
+				assert( this->m_start->time <= this->m_start->m_next->time && "Start should be the first task in the list." );
 #endif // _DEBUG
+			}
+			this->m_count++;
+			this->_notify( false, [this]() -> void { this->m_continue = true; } );
 		}
-		this->m_count++;
-		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
-	void Scheduler::ThreadPool::_erase( std::shared_ptr<BaseTask> task_ ) {
+	inline void Scheduler::ThreadPool::_erase( std::shared_ptr<BaseTask> task_ ) {
+		if (
+			task_->m_previous != nullptr
+			&& task_->m_next != nullptr
+		) {
 #ifdef _DEBUG
-		assert( task_->m_previous != nullptr && task_->m_next != nullptr && "Task should be part of the linked list before being removed from it." );
-		assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
+			assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
 #endif // _DEBUG
-		if ( task_->m_next == task_ ) {
-			this->m_start = nullptr;
-		} else {
-			if ( this->m_start == task_ ) {
-				this->m_start = task_->m_next;
+			if ( task_->m_next == task_ ) {
+				this->m_start = nullptr;
+			} else {
+				if ( this->m_start == task_ ) {
+					this->m_start = task_->m_next;
+				}
+				task_->m_previous->m_next = task_->m_next;
+				task_->m_next->m_previous = task_->m_previous;
 			}
-			task_->m_previous->m_next = task_->m_next;
-			task_->m_next->m_previous = task_->m_previous;
-		}
-		task_->m_previous = task_->m_next = nullptr;
+			task_->m_previous = task_->m_next = nullptr;
 #ifdef _DEBUG
-		assert( ( this->m_start == nullptr || this->m_start->time <= this->m_start->m_next->time ) && "Start should be the first task in the list." );
+			assert( ( this->m_start == nullptr || this->m_start->time <= this->m_start->m_next->time ) && "Start should be the first task in the list." );
 #endif // _DEBUG
-		this->m_count--;
-		this->_notify( false, [this]() -> void { this->m_continue = true; } );
+			this->m_count--;
+			this->_notify( false, [this]() -> void { this->m_continue = true; } );
+		}
 	};
 
-	void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {
+	inline void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {
 		std::lock_guard<std::mutex> lock( this->m_conditionMutex );
 		func_();
 		if ( all_ ) {

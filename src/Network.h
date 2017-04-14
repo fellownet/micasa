@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <map>
+#include <unordered_map>
 #include <atomic>
 #include <queue>
 #include <mutex>
@@ -88,7 +89,7 @@ namespace micasa {
 			std::atomic<int> m_event;
 			std::atomic<unsigned int> m_flags;
 			t_eventFunc m_func;
-			std::queue<std::function<void(void)> > m_tasks;
+			std::queue<std::function<void(void)>> m_tasks;
 			mutable std::mutex m_tasksMutex;
 
 		}; // class Connection
@@ -111,7 +112,7 @@ namespace micasa {
 		mg_mgr m_manager;
 		std::atomic<bool> m_shutdown;
 		std::thread m_worker;
-		std::map<mg_connection*, std::shared_ptr<Connection> > m_connections;
+		std::unordered_map<mg_connection*, std::shared_ptr<Connection>> m_connections;
 
 		Network(); // private constructor
 		~Network(); // private destructor

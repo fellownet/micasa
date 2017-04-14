@@ -60,20 +60,20 @@ namespace micasa {
 		void init();
 		virtual void start();
 		virtual void stop();
-		unsigned int getId() const throw() { return this->m_id; };
-		Type getType() const throw() { return this->m_type; };
-		State getState() const throw() { return this->m_state; };
+		unsigned int getId() const { return this->m_id; };
+		Type getType() const { return this->m_type; };
+		State getState() const { return this->m_state; };
 		void setState( const State& state_, bool children_ = false );
-		std::string getReference() const throw() { return this->m_reference; };
+		std::string getReference() const { return this->m_reference; };
 		std::string getName() const;
-		std::shared_ptr<Settings<Hardware> > getSettings() const throw() { return this->m_settings; };
-		std::shared_ptr<Hardware> getParent() const throw() { return this->m_parent; };
+		std::shared_ptr<Settings<Hardware>> getSettings() const { return this->m_settings; };
+		std::shared_ptr<Hardware> getParent() const { return this->m_parent; };
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
-		std::vector<std::shared_ptr<Device> > getAllDevices() const;
-		std::vector<std::shared_ptr<Device> > getAllDevices( const std::string& prefix_ ) const;
+		std::vector<std::shared_ptr<Device>> getAllDevices() const;
+		std::vector<std::shared_ptr<Device>> getAllDevices( const std::string& prefix_ ) const;
 		template<class T> std::shared_ptr<T> declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ );
 		void removeDevice( const std::shared_ptr<Device> device_ );
 
@@ -91,7 +91,7 @@ namespace micasa {
 		const Type m_type;
 		const std::string m_reference;
 		const std::shared_ptr<Hardware> m_parent;
-		std::shared_ptr<Settings<Hardware> > m_settings;
+		std::shared_ptr<Settings<Hardware>> m_settings;
 		Scheduler m_scheduler;
 
 		Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ );
@@ -114,10 +114,10 @@ namespace micasa {
 			std::string data;
 		} t_pendingUpdate;
 
-		std::unordered_map<std::string, std::shared_ptr<Device> > m_devices;
+		std::unordered_map<std::string, std::shared_ptr<Device>> m_devices;
 		mutable std::mutex m_devicesMutex;
 		State m_state = State::DISABLED;
-		std::map<std::string, std::shared_ptr<Scheduler::Task<t_pendingUpdate> > > m_pendingUpdates;
+		std::map<std::string, std::shared_ptr<Scheduler::Task<t_pendingUpdate>>> m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
 
 	}; // class Hardware

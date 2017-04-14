@@ -16,8 +16,8 @@ namespace micasa {
 
 		void start() override;
 		void stop() override;
-		std::string getLabel() const throw() override { return PiFace::label; };
-		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) throw() override { return true; };
+		std::string getLabel() const override { return PiFace::label; };
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
 
 	private:
 		int m_fd;

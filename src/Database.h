@@ -26,10 +26,15 @@ namespace micasa {
 
 		Database( std::string filename_ );
 		~Database();
-		
+
+		Database( const Database& ) = delete; // do not copy
+		Database& operator=( const Database& ) = delete; // do not copy-assign
+		Database( const Database&& ) = delete; // do not move
+		Database& operator=( Database&& ) = delete; // do not move-assign
+
 		friend std::ostream& operator<<( std::ostream& out_, const Database* ) { out_ << "Database"; return out_; }
 
-		std::vector<std::map<std::string, std::string> > getQuery( const std::string query_, ... ) const;
+		std::vector<std::map<std::string, std::string>> getQuery( const std::string query_, ... ) const;
 		template<typename T> T getQuery( const std::string query_, ... ) const;
 		std::map<std::string, std::string> getQueryRow( const std::string query_, ... ) const;
 		template<typename T> T getQueryRow( const std::string query_, ... ) const;

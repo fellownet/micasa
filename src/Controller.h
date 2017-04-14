@@ -60,13 +60,18 @@ namespace micasa {
 		Controller();
 		~Controller();
 
+		Controller( const Controller& ) = delete; // do not copy
+		Controller& operator=( const Controller& ) = delete; // do not copy-assign
+		Controller( const Controller&& ) = delete; // do not move
+		Controller& operator=( Controller&& ) = delete; // do not move-assign
+
 		void start();
 		void stop();
 		
 		std::shared_ptr<Hardware> getHardware( const std::string& reference_ ) const;
 		std::shared_ptr<Hardware> getHardwareById( const unsigned int& id_ ) const;
-		std::vector<std::shared_ptr<Hardware> > getChildrenOfHardware( const Hardware& hardware_ ) const;
-		std::vector<std::shared_ptr<Hardware> > getAllHardware() const;
+		std::vector<std::shared_ptr<Hardware>> getChildrenOfHardware( const Hardware& hardware_ ) const;
+		std::vector<std::shared_ptr<Hardware>> getAllHardware() const;
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ );
 		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ );
 		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
@@ -75,7 +80,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
 		std::shared_ptr<Device> getDeviceByName( const std::string& name_ ) const;
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
-		std::vector<std::shared_ptr<Device> > getAllDevices() const;
+		std::vector<std::shared_ptr<Device>> getAllDevices() const;
 		bool isScheduled( std::shared_ptr<const Device> device_ ) const;
 
 		template<class D> void newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ );
@@ -87,7 +92,7 @@ namespace micasa {
 
 	private:
 		volatile bool m_running;
-		std::unordered_map<std::string, std::shared_ptr<Hardware> > m_hardware;
+		std::unordered_map<std::string, std::shared_ptr<Hardware>> m_hardware;
 		mutable std::mutex m_hardwareMutex;
 		Scheduler m_scheduler;
 		v7* m_v7_js;
@@ -102,7 +107,7 @@ namespace micasa {
 #endif // _WITH_LIBUDEV
 		
 		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string> >& scripts_ );
+		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ );
 		void _runTimers();
 		void _runLinks( std::shared_ptr<Device> device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;

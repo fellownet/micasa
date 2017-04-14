@@ -67,6 +67,12 @@ namespace micasa {
 
 		WebServer();
 		~WebServer();
+
+		WebServer( const WebServer& ) = delete; // Do not copy!
+		WebServer& operator=( const WebServer& ) = delete; // Do not copy-assign!
+		WebServer( const WebServer&& ) = delete; // do not move
+		WebServer& operator=( WebServer&& ) = delete; // do not move-assign
+
 		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
 		
 		void start();
@@ -74,8 +80,8 @@ namespace micasa {
 
 	private:
 		Scheduler m_scheduler;
-		std::vector<std::shared_ptr<ResourceCallback> > m_resources;
-		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User> > > m_logins;
+		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
+		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User>>> m_logins;
 		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
 #ifdef _WITH_OPENSSL

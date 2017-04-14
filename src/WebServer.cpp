@@ -56,7 +56,7 @@ namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
 	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<Settings<> > g_settings;
+	extern std::shared_ptr<Settings<>> g_settings;
 	
 	using namespace std::chrono;
 	using namespace nlohmann;
@@ -239,7 +239,7 @@ namespace micasa {
 		return ss.str();
 	};
 
-	void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
+	inline void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
 		auto uri = connection_->getUri();
 		if ( uri.substr( 0, 4 ) != "/api" ) {
 

@@ -45,17 +45,17 @@ namespace micasa {
 
 		void updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ = false );
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
-		Option getValueOption() const throw() { return this->m_value; };
-		Option getPreviousValueOption() const throw() { return this->m_previousValue; };
-		static Option getOppositeValueOption( const Option& value_ ) throw();
-		t_value getValue() const throw() { return OptionText.at( this->m_value ); };
-		t_value getPreviousValue() const throw() { return OptionText.at( this->m_previousValue ); };
-		static t_value getOppositeValue( const t_value& value_ ) throw();
+		Option getValueOption() const { return this->m_value; };
+		Option getPreviousValueOption() const { return this->m_previousValue; };
+		static Option getOppositeValueOption( const Option& value_ );
+		t_value getValue() const { return OptionText.at( this->m_value ); };
+		t_value getPreviousValue() const { return OptionText.at( this->m_previousValue ); };
+		static t_value getOppositeValue( const t_value& value_ );
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 		void start() override;
 		void stop() override;
-		Device::Type getType() const throw() override { return Switch::type; };
+		Device::Type getType() const override { return Switch::type; };
 		nlohmann::json getJson( bool full_ = false ) const override;
 		nlohmann::json getSettingsJson() const override;
 
@@ -66,7 +66,7 @@ namespace micasa {
 		struct {
 			Option value;
 			Device::UpdateSource source;
-			std::weak_ptr<Scheduler::Task<> > task;
+			std::weak_ptr<Scheduler::Task<>> task;
 		} m_rateLimiter;
 
 		void _processValue( const Device::UpdateSource& source_, const Option& value_ );

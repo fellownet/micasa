@@ -1,11 +1,8 @@
 #pragma once
 
 #include <thread>
-#include <future>
 #include <chrono>
 #include <vector>
-#include <map>
-#include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <climits>
@@ -127,24 +124,26 @@ namespace micasa {
 
 		Scheduler( const Scheduler& ) = delete; // Do not copy!
 		Scheduler& operator=( const Scheduler& ) = delete; // Do not copy-assign!
+		Scheduler( const Scheduler&& ) = delete; // do not move
+		Scheduler& operator=( Scheduler&& ) = delete; // do not move-assign
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V>> task = std::make_shared<Task<V>>( this, std::move( func_ ), std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ ), delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( std::static_pointer_cast<BaseTask>( task ) );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
-			std::shared_ptr<Task<V> > task = std::make_shared<Task<V> >( this, std::move( func_ ), time_, delay_, repeat_, data_ );
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+			std::shared_ptr<Task<V>> task = std::make_shared<Task<V>>( this, std::move( func_ ), time_, delay_, repeat_, data_ );
 			Scheduler::ThreadPool::get().schedule( task );
 			return task;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, void* data_, typename Task<V>::t_taskFunc&& func_ ) {
 			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, data_, std::move( func_ ) );
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V>> task_ ) {
 			task_->time = std::chrono::system_clock::now() + std::chrono::milliseconds( delay_ );
 			task_->delay = delay_;
 			task_->repeat = repeat_;
@@ -152,7 +151,7 @@ namespace micasa {
 			return task_;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V>> task_ ) {
 			task_->time = time_;
 			task_->delay = delay_;
 			task_->repeat = repeat_;
@@ -160,7 +159,7 @@ namespace micasa {
 			return task_;
 		};
 
-		template<typename V = void> std::shared_ptr<Task<V> > schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V> > task_ ) {
+		template<typename V = void> std::shared_ptr<Task<V>> schedule( unsigned long wait_, unsigned long delay_, unsigned long repeat_, std::shared_ptr<Task<V>> task_ ) {
 			return this->schedule<V>( std::chrono::system_clock::now() + std::chrono::milliseconds( wait_ ), delay_, repeat_, task_ );
 		};
 
@@ -196,7 +195,7 @@ namespace micasa {
 			bool m_continue;
 			std::shared_ptr<BaseTask> m_start;
 			unsigned int m_count;
-			std::vector<std::shared_ptr<BaseTask> > m_activeTasks;
+			std::vector<std::shared_ptr<BaseTask>> m_activeTasks;
 			mutable std::mutex m_tasksMutex;
 			std::vector<std::thread> m_threads;
 			std::condition_variable m_continueCondition;

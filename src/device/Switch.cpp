@@ -139,7 +139,7 @@ namespace micasa {
 		}
 	};
 
-	Switch::Option Switch::getOppositeValueOption( const Switch::Option& value_ ) throw() {
+	Switch::Option Switch::getOppositeValueOption( const Switch::Option& value_ ) {
 		switch( value_ ) {
 			case Option::ON: return Option::OFF; break;
 			case Option::OFF: return Option::ON; break;
@@ -153,7 +153,7 @@ namespace micasa {
 		}
 	};
 
-	Switch::t_value Switch::getOppositeValue( const Switch::t_value& value_ ) throw() {
+	Switch::t_value Switch::getOppositeValue( const Switch::t_value& value_ ) {
 		return Switch::resolveTextOption( Switch::getOppositeValueOption( Switch::resolveTextOption( value_ ) ) );
 	};
 

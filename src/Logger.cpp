@@ -3,6 +3,10 @@
 
 #include "Logger.h"
 
+#ifdef _DEBUG
+	#include <cassert>
+#endif // _DEBUG
+
 namespace micasa {
 
 	// ======
@@ -36,18 +40,24 @@ namespace micasa {
 		}
 		std::string message( buffer );
 
+		std::vector<std::shared_ptr<Receiver>> receivers;
 		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
-		std::vector<std::reference_wrapper<t_logReceiver> > receivers( this->m_receivers.begin(), this->m_receivers.end() );
-		receiversLock.unlock();
-		
-		for ( auto receiversIt = receivers.begin(); receiversIt != receivers.end(); receiversIt++ ) {
-			std::shared_ptr<Receiver> receiver = (*receiversIt).get().receiver.lock();
+		for ( const auto& receiverIt : this->m_receivers ) {
+			std::shared_ptr<Receiver> receiver = receiverIt.receiver.lock();
+#ifdef _DEBUG
+			assert( receiver && "Log receivers should be removed from the logger before being destroyed." );
+#endif // _DEBUG
 			if (
 				receiver
-				&& logLevel_ <= (*receiversIt).get().level
+				&& logLevel_ <= receiverIt.level
 			) {
-				receiver->log( logLevel_, message );
+				receivers.push_back( receiver );
 			}
+		}
+		receiversLock.unlock();
+
+		for ( const auto& receiver : receivers ) {
+			receiver->log( logLevel_, message );
 		}
 	};
 

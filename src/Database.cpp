@@ -30,8 +30,8 @@ namespace micasa {
 		}
 	};
 
-	std::vector<std::map<std::string, std::string> > Database::getQuery( const std::string query_, ... ) const {
-		std::vector<std::map<std::string, std::string> > result;
+	std::vector<std::map<std::string, std::string>> Database::getQuery( const std::string query_, ... ) const {
+		std::vector<std::map<std::string, std::string>> result;
 
 		va_list arguments;
 		va_start( arguments, query_ );
