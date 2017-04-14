@@ -7,6 +7,7 @@
 #endif // _DEBUG
 
 #include "Scheduler.h"
+#include "Utils.h"
 
 namespace micasa {
 
@@ -165,7 +166,7 @@ namespace micasa {
 
 			auto predicate = [&]() -> bool { return this->m_shutdown || this->m_continue; };
 			std::unique_lock<std::mutex> conditionLock( this->m_conditionMutex );
-			if ( this->m_start == nullptr ) {
+			if ( __unlikely( this->m_start == nullptr ) ) {
 				tasksLock.unlock();
 				this->m_continueCondition.wait( conditionLock, predicate );
 			} else {
@@ -188,7 +189,7 @@ namespace micasa {
 			task_->m_previous == nullptr
 			&& task_->m_next == nullptr
 		) {
-			if ( this->m_start == nullptr ) {
+			if ( __unlikely( this->m_start == nullptr ) ) {
 				this->m_start = task_;
 				task_->m_previous = task_->m_next = task_;
 			} else {
@@ -225,7 +226,7 @@ namespace micasa {
 #ifdef _DEBUG
 			assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
 #endif // _DEBUG
-			if ( task_->m_next == task_ ) {
+			if ( __unlikely( task_->m_next == task_ ) ) {
 				this->m_start = nullptr;
 			} else {
 				if ( this->m_start == task_ ) {
@@ -246,7 +247,7 @@ namespace micasa {
 	inline void Scheduler::ThreadPool::_notify( bool all_, std::function<void()>&& func_ ) {
 		std::lock_guard<std::mutex> lock( this->m_conditionMutex );
 		func_();
-		if ( all_ ) {
+		if ( __unlikely( all_ ) ) {
 			this->m_continueCondition.notify_all();
 		} else {
 			this->m_continueCondition.notify_one();

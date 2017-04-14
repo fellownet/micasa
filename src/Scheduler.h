@@ -122,8 +122,8 @@ namespace micasa {
 		Scheduler() { };
 		~Scheduler();
 
-		Scheduler( const Scheduler& ) = delete; // Do not copy!
-		Scheduler& operator=( const Scheduler& ) = delete; // Do not copy-assign!
+		Scheduler( const Scheduler& ) = delete; // do not copy
+		Scheduler& operator=( const Scheduler& ) = delete; // do not copy-assign
 		Scheduler( const Scheduler&& ) = delete; // do not move
 		Scheduler& operator=( Scheduler&& ) = delete; // do not move-assign
 
@@ -176,8 +176,12 @@ namespace micasa {
 		class ThreadPool final {
 
 		public:
-			ThreadPool( const ThreadPool& ) = delete; // Do not copy!
-			ThreadPool& operator=( const ThreadPool& ) = delete; // Do not copy-assign!
+			~ThreadPool(); // public destructor
+
+			ThreadPool( const ThreadPool& ) = delete; // do not copy
+			ThreadPool& operator=( const ThreadPool& ) = delete; // do not copy-assign
+			ThreadPool( const ThreadPool&& ) = delete; // do not move
+			ThreadPool& operator=( ThreadPool&& ) = delete; // do not move-assign
 
 			void schedule( std::shared_ptr<BaseTask> task_ );
 			void erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
@@ -202,7 +206,6 @@ namespace micasa {
 			mutable std::mutex m_conditionMutex;
 
 			ThreadPool(); // private constructor
-			~ThreadPool(); // private destructor
 
 			void _loop( unsigned int index_ );
 			void _insert( std::shared_ptr<BaseTask> task_ );

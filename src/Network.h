@@ -94,6 +94,8 @@ namespace micasa {
 
 		}; // class Connection
 
+		~Network(); // public destructor
+
 		Network( const Network& ) = delete; // do not copy
 		Network& operator=( const Network& ) = delete; // do not copy-assign
 		Network( const Network&& ) = delete; // do not move
@@ -115,7 +117,6 @@ namespace micasa {
 		std::unordered_map<mg_connection*, std::shared_ptr<Connection>> m_connections;
 
 		Network(); // private constructor
-		~Network(); // private destructor
 
 		static Network& get() {
 			// In c++11 static initialization is supposed to be thread-safe.

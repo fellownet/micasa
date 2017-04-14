@@ -89,7 +89,7 @@ namespace micasa {
 				this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 			}
 		};
-		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
+		if ( __unlikely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
 			task();
 		} else {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
@@ -105,7 +105,7 @@ namespace micasa {
 				mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
 			}
 		};
-		if ( std::this_thread::get_id() == Network::get().m_worker.get_id() ) {
+		if ( __likely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
 			task();
 		} else {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
@@ -315,7 +315,7 @@ namespace micasa {
 		memset( &options, 0, sizeof( options ) );
 		mg_connection* mg_conn;
 		unsigned int flags = 0;
-		if ( uri_.substr( 0, 4 ) == "http" ) {
+		if ( __likely( uri_.substr( 0, 4 ) == "http" ) ) {
 			if ( data_.is_null() ) {
 				mg_conn = mg_connect_http_opt( &network.m_manager, micasa_mg_handler, options, uri_.c_str(), NULL, NULL );
 			} else {

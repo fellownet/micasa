@@ -377,10 +377,10 @@ namespace micasa {
 	bool Hardware::_queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ ) {
 		std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 		auto pendingUpdate = this->m_pendingUpdates[reference_];
-		if (
+		if ( __likely(
 			pendingUpdate == nullptr
 			|| pendingUpdate->waitFor( blockNewUpdate_ )
-		) {
+		) ) {
 			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, this, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
 				std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 				this->m_pendingUpdates.erase( reference_ );

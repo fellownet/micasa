@@ -58,7 +58,9 @@ namespace micasa {
 
 		Device( const Device& ) = delete; // Do not copy!
 		Device& operator=( const Device& ) = delete; // Do not copy-assign!
-		
+		Device( const Device&& ) = delete; // do not move
+		Device& operator=( Device&& ) = delete; // do not move-assign
+
 		virtual ~Device();
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 

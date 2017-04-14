@@ -50,6 +50,8 @@ namespace micasa {
 
 		Hardware( const Hardware& ) = delete; // Do not copy!
 		Hardware& operator=( const Hardware& ) = delete; // Do not copy-assign!
+		Hardware( const Hardware&& ) = delete; // do not move
+		Hardware& operator=( Hardware&& ) = delete; // do not move-assign
 		
 		virtual ~Hardware();
 		

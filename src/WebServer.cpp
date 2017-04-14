@@ -241,7 +241,7 @@ namespace micasa {
 
 	inline void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
 		auto uri = connection_->getUri();
-		if ( uri.substr( 0, 4 ) != "/api" ) {
+		if ( __unlikely( uri.substr( 0, 4 ) != "/api" ) ) {
 
 			connection_->serve( "www" );
 
@@ -408,7 +408,7 @@ namespace micasa {
 				}
 
 				auto fGetSettings = []( std::shared_ptr<Hardware> hardware_ = nullptr ) {
-					if ( hardware_ == nullptr ) {
+					if ( __unlikely( hardware_ == nullptr ) ) {
 						json settings = json::array();
 						settings += {
 							{ "name", "name" },
@@ -924,6 +924,7 @@ namespace micasa {
 								device->getType() != Device::Type::SWITCH
 								|| ! readOnly
 							)
+							&& (*devicesIt) != device
 						) {
 							compatibleDevices += {
 								{ "value", (*devicesIt)->getId() },
@@ -938,6 +939,9 @@ namespace micasa {
 							{ "label", (*switchOptionIt).second }
 						};
 					}
+					std::sort( switchOptions.begin(), switchOptions.end(), []( const json& a_, const json& b_ ) {
+						return jsonGet<std::string>( a_, "label" ).compare( jsonGet<std::string>( b_, "label" ) );
+					} );
 
 					json settings = json::array();
 					settings += {
