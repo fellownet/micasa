@@ -24,8 +24,6 @@ extern "C" {
 
 #define NETWORK_CONNECTION_DEFAULT_TIMEOUT_SEC 10
 
-// TODO make the send and reply methods async using mg_broadcast and the poll event to push data.
-
 namespace micasa {
 
 	// =======

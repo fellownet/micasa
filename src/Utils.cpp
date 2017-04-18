@@ -64,7 +64,6 @@ namespace micasa {
 	};
 
 	std::string randomString( size_t length_ ) {
-		// TODO if available, use /dev/urandom or something similar to generate a random string.
 		auto randchar = []() -> char {
 			const char charset[] =
 			"0123456789"

@@ -139,7 +139,6 @@ namespace micasa {
 			result["signal_strength"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_SIGNAL_STRENGTH );
 		}
 
-		// TODO when fetching a list of devices, the database gets flooded with queries, that need to be improved.
 		result["total_timers"] = g_database->getQueryValue<unsigned int>(
 			"SELECT COUNT(`timer_id`) "
 			"FROM `x_timer_devices` "

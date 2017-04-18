@@ -129,8 +129,6 @@ namespace micasa {
 
 			// If a serial port was added (not necessarely ours) and we're currently disabled, see if it
 			// is the device we should use.
-			// TODO make this more rebust and detect what kind of device was inserted before feeding it
-			// to the OpenZWave library?
 			if (
 				action_ == "add"
 				&& (
@@ -396,7 +394,6 @@ namespace micasa {
 				}
 
 				case Notification::Type_NodeNaming: {
-					// TODO when adding nodes this might overwrite the controller name
 					if ( node == nullptr ) {
 						std::string manufacturer = Manager::Get()->GetNodeManufacturerName( homeId, nodeId );
 						std::string product = Manager::Get()->GetNodeProductName( homeId, nodeId );

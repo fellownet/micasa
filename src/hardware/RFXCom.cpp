@@ -10,8 +10,6 @@
 #include "../device/Level.h"
 #include "../device/Switch.h"
 
-// TODO implement many more recognized types.
-
 namespace micasa {
 
 	using namespace nlohmann;

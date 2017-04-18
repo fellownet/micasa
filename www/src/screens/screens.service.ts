@@ -9,7 +9,6 @@ import {
 
 export class Widget {
 	device_id: number;
-	// TODO additional widget properties such as width or height
 }
 
 export class Screen {

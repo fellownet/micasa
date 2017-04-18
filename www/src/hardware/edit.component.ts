@@ -62,8 +62,6 @@ export class HardwareEditComponent implements OnInit {
 	public submitHardware() {
 		var me = this;
 		me.loading = true;
-		// TODO figure out how those stupid nested forms work in Angular 2; how tough can it be to just
-		// nest two forms???! argh.
 		this._hardwareService.putHardware( me.hardware )
 			.subscribe(
 				function( hardware_: Hardware ) {
@@ -109,8 +107,6 @@ export class HardwareEditComponent implements OnInit {
 				return me._devicesService.getDevices( me.hardware.id );
 
 			} )
-			// TODO once the websocket code is in place the device list should update itself, optionally
-			// highlighting the row that has changed.
 			.delay( new Date( Date.now() + 500 ) )
 			.subscribe(
 				function( devices_: Device[] ) {
