@@ -1,5 +1,5 @@
-engines:
-  csslint:
-    enabled: true
+#engines:
+#  csslint:
+#    enabled: true
 exclude_paths:
 - "lib/*"
