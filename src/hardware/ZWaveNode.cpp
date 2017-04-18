@@ -414,7 +414,6 @@ namespace micasa {
 		// OpenZWave has an option to filter out duplicate values, but still it seems that some duplicate values are
 		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
 		// than once).
-		/*
 		auto fIsDuplicate = [this,&valueId_,&reference]() -> bool {
 			std::string stringValue;
 			Manager::Get()->GetValueAsString( valueId_, &stringValue );
@@ -428,7 +427,6 @@ namespace micasa {
 				return true;
 			}
 		};
-		*/
 
 		// Process all other values by command class.
 		unsigned int commandClass = valueId_.GetCommandClassId();
@@ -534,23 +532,22 @@ namespace micasa {
 					// NOTE the data variable is guaranteed to be set when the _releasePendingUpdate call returns true.
 					// The data variable contains the value we should revert to.
 					this->m_scheduler.schedule( 0, 1, this, [=]( Scheduler::Task<>& ) {
-						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) ) ) {
+						if (
+							this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+							&& ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC ) )
+						) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-							if ( this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
-								Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
-							}
+							Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
+							Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 						}
 					} );
 
 				// After all checks have been done to make sure the proper value is set, it might still be a duplicate.
-				/*
 				} else if (
 					! wasPendingUpdate
 					&& fIsDuplicate()
 				) {
 					Logger::logr( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value. Received %s.", Switch::resolveTextOption( targetValue ).c_str() );
-				*/
 
 				// The value appears to be valid and should be used to set the device.
 				} else {
@@ -587,9 +584,7 @@ namespace micasa {
 			
 					// If there's an update mutex available we need to make sure that it is properly notified of the
 					// execution of the update.
-					this->_releasePendingUpdate( reference, source_ );
-					//bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
-					/*
+					bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
 					if (
 						! wasPendingUpdate
 						&& fIsDuplicate()
@@ -597,7 +592,6 @@ namespace micasa {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 						break;
 					}
-					*/
 
 					unsigned char byteValue = 0;
 					if (
@@ -620,12 +614,10 @@ namespace micasa {
 
 			case COMMAND_CLASS_METER:
 			case COMMAND_CLASS_SENSOR_MULTILEVEL: {
-				/*
 				if ( fIsDuplicate() ) {
 					Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 					break;
 				}
-				*/
 
 				float floatValue = 0.;
 				if (
