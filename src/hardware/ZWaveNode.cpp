@@ -688,6 +688,20 @@ namespace micasa {
 							if ( Manager::Get()->GetValueUnits( valueId_ ) != "lux" ) {
 								multiplier = 1000. / 100.;
 							}
+						} else if (
+							"Barometric Pressure" == label
+							|| "Atmospheric Pressure" == label
+						) {
+							subtype = Level::SubType::PRESSURE;
+							if ( Manager::Get()->GetValueUnits( valueId_ ) == "kPa" ) {
+								multiplier = 1. / 1000.;
+								unit = Level::Unit::PASCAL;
+							} else if ( Manager::Get()->GetValueUnits( valueId_ ) == "inHg" ) {
+								multiplier = 3386.39;
+								unit = Level::Unit::PASCAL;
+							} else {
+								unit = Level::Unit::GENERIC;
+							}
 						}
 						auto device = this->declareDevice<Level>( reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
