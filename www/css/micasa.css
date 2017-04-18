@@ -74,6 +74,7 @@ a:focus, button:focus {
 	margin-left: 8px;
 }
 .header .navbar .nav:hover {
+	background: #367fa9;
 	background: rgba(0, 0, 0, 0.1);
 }
 .header .navbar .nav.menu-btn {
@@ -130,6 +131,7 @@ a:focus, button:focus {
 @media (max-width: 767px) {
 	.sidebar {
 		-webkit-transform: translate(-230px, 0);
+		-moz-transform: translate(-230px, 0);
 		-ms-transform: translate(-230px, 0);
 		-o-transform: translate(-230px, 0);
 		transform: translate(-230px, 0);
@@ -138,6 +140,7 @@ a:focus, button:focus {
 @media (max-width: 767px) {
 	.sidebar-open .sidebar {
 		-webkit-transform: translate(0, 0);
+		-moz-transform: translate(0, 0);
 		-ms-transform: translate(0, 0);
 		-o-transform: translate(0, 0);
 		transform: translate(0, 0);
@@ -251,6 +254,7 @@ a:focus, button:focus {
 	.sidebar-open .content {
 		/* this animation shifts the content to the right when the menu is opened */
 		-webkit-transform: translate(230px, 0);
+		-moz-transform: translate(230px, 0);
 		-ms-transform: translate(230px, 0);
 		-o-transform: translate(230px, 0);
 		transform: translate(230px, 0);

@@ -25,8 +25,6 @@ export class LinksListResolver implements Resolve<Link[]> {
 		var me = this;
 		return me._devicesService.getLinks( route_.params['device_id'] )
 			.catch( function( error_: string ) {
-				// TODO somehow do not resolve when device is not of type switch
-				//me._router.navigate( [ '/login' ] );
 				return Observable.of( [] );
 			} )
 		;

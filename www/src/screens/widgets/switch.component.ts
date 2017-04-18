@@ -30,7 +30,6 @@ export class WidgetSwitchComponent {
 	};
 
 	toggleSwitch() {
-		// TODO support for other types of switches (blinds etc).
 		var me = this;
 		if ( me.device.value == 'On' ) {
 			me.device.value = 'Off';
