@@ -10,7 +10,7 @@ namespace micasa {
 		}
 	};
 
-	const std::string Arguments::get( const std::string &option_ ) const {
+	std::string Arguments::get( const std::string& option_ ) const {
 		std::vector<std::string>::const_iterator itr;
 		itr =  std::find( this->_arguments.begin(), this->_arguments.end(), option_ );
 		if (

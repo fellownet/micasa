@@ -18,7 +18,15 @@ namespace micasa {
 	std::unique_ptr<WebServer> g_webServer;
 	std::unique_ptr<Controller> g_controller;
 
-	const char g_usage[] = "Usage: micasa -p|--port <port> [-l|--loglevel <loglevel>] [-d|--daemonize] [-db|--database <filename>]\n";
+	const char g_usage[] =
+		"Usage: micasa [-p|--port <port>] [-l|--loglevel <loglevel>] [-db|--database <filename>]\n"
+		"\t-p|--port <port>\n\t\tSets the port for secure web connections (defaults to 443).\n"
+		"\t-l|--loglevel <loglevel>\n\t\tSets the level of logging:\n"
+		"\t\t\t0 = default\n"
+		"\t\t\t1 = verbose\n"
+		"\t\t\t99 = debug\n"
+		"\t-db|--database <filename>\n\t\tUse supplied database (defaults to micasa.db in current folder).\n"
+	;
 
 	bool g_shutdown = false;
 
@@ -46,14 +54,13 @@ int main( int argc_, char* argv_[] ) {
 		std::cout << g_usage;
 		return 0;
 	}
-/*
-	int port = 80;
+
+	int port = 443;
 	if ( arguments.exists( "-p" ) ) {
 		port = atoi( arguments.get( "-p" ).c_str() );
 	} else if ( arguments.exists( "--port" ) ) {
 		port = atoi( arguments.get( "--port" ).c_str() );
 	}
-*/
 
 	Logger::LogLevel logLevel = Logger::LogLevel::NORMAL;
 	if ( arguments.exists( "-l" ) ) {
@@ -62,14 +69,6 @@ int main( int argc_, char* argv_[] ) {
 		logLevel = Logger::resolveLogLevel( std::stoi( arguments.get( "--loglevel" ) ) );
 	}
 	auto logger = Logger::addReceiver<ConsoleLogger>( logLevel );
-
-	bool daemonize = false;
-	if (
-		arguments.exists( "-d" )
-		|| arguments.exists( "--daemonize" )
-	) {
-		daemonize = true;
-	}
 
 	std::string database;
 	if ( arguments.exists( "-db" ) ) {
@@ -80,10 +79,8 @@ int main( int argc_, char* argv_[] ) {
 		database = "micasa.db";
 	}
 
-	if ( ! daemonize ) {
-		signal( SIGINT, signal_handler );
-		signal( SIGTERM, signal_handler );
-	}
+	signal( SIGINT, signal_handler );
+	signal( SIGTERM, signal_handler );
 
 	g_database = std::unique_ptr<Database>( new Database( database ) );
 
@@ -91,7 +88,7 @@ int main( int argc_, char* argv_[] ) {
 	if ( ! g_shutdown ) {
 		g_settings = std::unique_ptr<Settings<>>( new Settings<> );
 		g_controller = std::unique_ptr<Controller>( new Controller );
-		g_webServer = std::unique_ptr<WebServer>( new WebServer );
+		g_webServer = std::unique_ptr<WebServer>( new WebServer( port ) );
 
 		g_controller->start();
 		g_webServer->start();

@@ -71,7 +71,9 @@ namespace micasa {
 		{ WebServer::Method::OPTIONS, "OPTIONS" }
 	};
 	
-	WebServer::WebServer() {
+	WebServer::WebServer( unsigned int port_ ) :
+		m_port( port_ )
+	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global WebServer instance." );
 		assert( g_controller && "Global Controller instance should be created before global WebServer instance." );
@@ -169,16 +171,14 @@ namespace micasa {
 			}
 		};
 
-		this->m_bind = Network::bind( "80", handler );
+#ifndef _WITH_OPENSSL
+		this->m_bind = Network::bind( std::to_string( this->m_port ), handler );
+#else
+		this->m_bind = Network::bind( std::to_string( this->m_port ), CERT_FILE, KEY_FILE, handler );
+#endif // _WITH_OPENSSL
 		if ( ! this->m_bind ) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 80." );
+			Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_port );
 		}
-#ifdef _WITH_OPENSSL
-		this->m_bindSecure = Network::bind( "443", CERT_FILE, KEY_FILE, handler );
-		if ( ! this->m_bindSecure ) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind to port 443." );
-		}
-#endif
 
 		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
@@ -205,11 +205,6 @@ namespace micasa {
 		if ( this->m_bind ) {
 			this->m_bind->terminate();
 		}
-#ifdef _WITH_OPENSSL
-		if ( this->m_bindSecure ) {
-			this->m_bindSecure->terminate();
-		}
-#endif
 
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
@@ -932,6 +927,7 @@ namespace micasa {
 							};
 						}
 					}
+
 					json switchOptions = json::array();
 					for ( auto switchOptionIt = Switch::OptionText.begin(); switchOptionIt != Switch::OptionText.end(); switchOptionIt++ ) {
 						switchOptions += {
@@ -939,9 +935,6 @@ namespace micasa {
 							{ "label", (*switchOptionIt).second }
 						};
 					}
-					std::sort( switchOptions.begin(), switchOptions.end(), []( const json& a_, const json& b_ ) {
-						return jsonGet<std::string>( a_, "label" ).compare( jsonGet<std::string>( b_, "label" ) );
-					} );
 
 					json settings = json::array();
 					settings += {
