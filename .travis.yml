@@ -32,7 +32,7 @@ matrix:
             - git
 
     script:
-    - cmake -DDEBUG=OFF . && make && cd www && npm install
+    - cmake -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod
 
   # OSX
   - os: osx
