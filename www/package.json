@@ -5,13 +5,16 @@
 	"scripts"							: {
 		"start"								: "tsc -w",
 		"build"								: "tsc",
-		"postinstall"						: "tsc"
+		"build_dev"							: "npm run build && cp dev.html index.html",
+		"build_prod"						: "npm run build && browserify -s main app/main.js > app/bundle.js && uglifyjs app/bundle.js --screw-ie8 --compress --mangle --output app/bundle.min.js && cp prod.html index.html"
 	},
 	"keywords"							: [],
 	"author"							: "Bob Kersten // Fellownet",
 	"license"							: "MIT",
 	"dependencies"						: {
 		"typescript"						: "^2.0.10",
+		"browserify"						: "^14.3.0",
+		"uglifyjs"							: "^2.4.10",
 
 		"@angular/common"					: "^2.3.0",
 		"@angular/compiler"					: "^2.3.0",
