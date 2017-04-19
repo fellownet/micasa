@@ -496,7 +496,6 @@ namespace micasa {
 
 				Switch::Option targetValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
 
-				// TODO differentiate between blinds, switches etc (like open close on of etc).
 				auto device = this->declareDevice<Switch>( reference, label, {
 					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( allowedUpdateSources ) },
 					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( subtype ) },
@@ -680,20 +679,6 @@ namespace micasa {
 							if ( Manager::Get()->GetValueUnits( valueId_ ) != "lux" ) {
 								multiplier = 1000. / 100.;
 							}
-						} else if (
-							"Barometric Pressure" == label
-							|| "Atmospheric Pressure" == label
-						) {
-							subtype = Level::SubType::PRESSURE;
-							if ( Manager::Get()->GetValueUnits( valueId_ ) == "kPa" ) {
-								multiplier = 1. / 1000.;
-								unit = Level::Unit::PASCAL;
-							} else if ( Manager::Get()->GetValueUnits( valueId_ ) == "inHg" ) {
-								multiplier = 3386.39;
-								unit = Level::Unit::PASCAL;
-							} else {
-								unit = Level::Unit::GENERIC;
-							}
 						}
 						auto device = this->declareDevice<Level>( reference, label, {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
@@ -820,10 +805,7 @@ namespace micasa {
 					Manager::Get()->GetValueAsInt( valueId_, &intValue );
 					setting["value"] = intValue;
 				} else if ( type == ValueID::ValueType_Button ) {
-					// Perform action, such as reset to factory defaults.
-					// TODO these should actually be action resources directly, but how to name the resource?
-					//setting["type"] = "button";
-					break; // skip this setting for now > unsupported
+					break; // skip this setting for now > unsupported (make an action switch for this?)
 				} else if ( type == ValueID::ValueType_List ) {
 					setting["type"] = "list";
 					std::string listValue;

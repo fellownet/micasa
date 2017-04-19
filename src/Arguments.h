@@ -10,7 +10,7 @@ namespace micasa {
 	public:
 		Arguments( int &argc_, char **argv_ );
 
-		const std::string get( const std::string &option_ ) const;
+		std::string get( const std::string& option_ ) const;
 		bool exists( const std::string &option_ ) const;
 
 	private:

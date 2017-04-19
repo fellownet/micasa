@@ -21,6 +21,7 @@ namespace micasa {
 	};
 
 	Database::~Database() {
+		this->putQuery( "PRAGMA optimize" );
 		int result = sqlite3_close( this->m_connection );
 		if ( SQLITE_OK == result ) {
 			Logger::logr( Logger::LogLevel::VERBOSE, this, "Database %s closed.", this->m_filename.c_str() );
