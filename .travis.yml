@@ -57,7 +57,7 @@ matrix:
     - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod
 
 before_deploy:
-  - tar czf micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz micasa lib/open-zwave/config www/index.html www/css www/app
+  - tar czf micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz micasa lib/open-zwave/config www/index.html www/css www/app/bundle.min.js
   - shasum -a 256 micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz > micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz.sha256sum
 deploy:
   provider: releases
