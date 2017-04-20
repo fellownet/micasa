@@ -21,8 +21,6 @@ const Highcharts = require( 'highcharts/highcharts.src.js' );
 	selector: 'body',
 	templateUrl: 'tpl/app.html',
 	styleUrls: [
-		'node_modules/bootstrap/dist/css/bootstrap.css',
-		'node_modules/font-awesome/css/font-awesome.css',
 		'css/app.css'
 	],
 	encapsulation: ViewEncapsulation.None
