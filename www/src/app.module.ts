@@ -32,6 +32,9 @@ import 'rxjs/add/operator/catch';
 import 'rxjs/add/operator/filter';
 import 'rxjs/add/operator/takeWhile';
 
+import 'jquery/dist/jquery.js'
+import 'bootstrap/dist/js/bootstrap.js'
+
 @NgModule( {
 	imports: [
 		BrowserModule,

@@ -12,7 +12,6 @@
 		"removeComments": true,
 		"allowUnusedLabels": false,
 		"allowUnreachableCode": false,
-		"noImplicitAny": true,
 		"noImplicitReturns": true,
 		"noImplicitUseStrict": false,
 		"outDir": "app"

@@ -14,7 +14,8 @@ import {
 	DevicesService
 }                         from './devices.service';
 
-declare var Highcharts: any;
+declare var require: any;
+const Highcharts = require( 'highcharts/highcharts.src.js' );
 
 @Component( {
 	templateUrl: 'tpl/device-details.html'

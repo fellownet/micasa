@@ -1,6 +1,7 @@
 import {
 	Component,
-	OnInit
+	OnInit,
+	ViewEncapsulation
 }                         from '@angular/core';
 import { Observable }     from 'rxjs/Observable';
 
@@ -12,11 +13,19 @@ import { ScreensService } from './screens/screens.service';
 import { ACL }            from './users/users.service';
 
 declare var $: any;
-declare var Highcharts: any;
+
+declare var require: any;
+const Highcharts = require( 'highcharts/highcharts.src.js' );
 
 @Component( {
 	selector: 'body',
-	templateUrl: 'tpl/app.html'
+	templateUrl: 'tpl/app.html',
+	styleUrls: [
+		'node_modules/bootstrap/dist/css/bootstrap.css',
+		'node_modules/font-awesome/css/font-awesome.css',
+		'css/app.css'
+	],
+	encapsulation: ViewEncapsulation.None
 } )
 
 export class AppComponent implements OnInit {

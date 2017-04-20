@@ -12,10 +12,15 @@ import {
 	ScriptsService
 }                  from './scripts.service';
 
+import 'ace-builds/src-min-noconflict/ace.js';
+import 'ace-builds/src-min-noconflict/theme-crimson_editor.js';
+import 'ace-builds/src-min-noconflict/mode-javascript.js';
+
 declare var ace: any;
 
 @Component( {
 	templateUrl: 'tpl/script-edit.html',
+	styleUrls: [ 'css/script-edit.css' ]
 } )
 
 export class ScriptEditComponent implements OnInit {
@@ -41,8 +46,9 @@ export class ScriptEditComponent implements OnInit {
 			me._editor = ace.edit( 'script_editor_target' );
 			me._editor.setTheme( 'ace/theme/crimson_editor' );
 			me._editor.$blockScrolling = Infinity;
-			me._editor.session.setMode( 'ace/mode/javascript' );
 			me._editor.session.setUseSoftTabs( false );
+			me._editor.session.setUseWorker( false );
+			me._editor.session.setMode( 'ace/mode/javascript' );
 			me._editor.setValue( me.script.code, -1 );
 			me._editor.focus();
 		} );

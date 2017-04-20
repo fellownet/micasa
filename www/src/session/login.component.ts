@@ -12,6 +12,7 @@ import {
 
 @Component( {
 	templateUrl: 'tpl/login.html',
+	styleUrls: [ 'css/login.css' ]
 } )
 
 export class LoginComponent implements OnInit {
