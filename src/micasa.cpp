@@ -19,14 +19,13 @@ namespace micasa {
 	std::unique_ptr<Controller> g_controller;
 
 	const char g_usage[] =
-		"Usage: micasa [-p|--port <port>] [-sslp|--sslport <port>] [-l|--loglevel <loglevel>] [-db|--database <filename>]\n"
+		"Usage: micasa [-p|--port <port>] [-sslp|--sslport <port>] [-l|--loglevel <loglevel>]\n"
 		"\t-p|--port <port>\n\t\tSets the port for web connections (defaults to 80).\n"
 		"\t-sslp|--sslport <port>\n\t\tSets the port for secure web connections (defaults to no ssl).\n"
 		"\t-l|--loglevel <loglevel>\n\t\tSets the level of logging:\n"
 		"\t\t\t0 = default\n"
 		"\t\t\t1 = verbose\n"
 		"\t\t\t99 = debug\n"
-		"\t-db|--database <filename>\n\t\tUse supplied database (defaults to micasa.db in current folder).\n"
 	;
 
 	bool g_shutdown = false;
@@ -65,9 +64,9 @@ int main( int argc_, char* argv_[] ) {
 
 	int sslport = 0;
 	if ( arguments.exists( "-sslp" ) ) {
-		port = atoi( arguments.get( "-sslp" ).c_str() );
+		sslport = atoi( arguments.get( "-sslp" ).c_str() );
 	} else if ( arguments.exists( "--sslport" ) ) {
-		port = atoi( arguments.get( "--sslport" ).c_str() );
+		sslport = atoi( arguments.get( "--sslport" ).c_str() );
 	}
 
 	Logger::LogLevel logLevel = Logger::LogLevel::NORMAL;
@@ -78,19 +77,20 @@ int main( int argc_, char* argv_[] ) {
 	}
 	auto logger = Logger::addReceiver<ConsoleLogger>( logLevel );
 
-	std::string database;
-	if ( arguments.exists( "-db" ) ) {
-		database = arguments.get( "-db" );
-	} else if ( arguments.exists( "--database" ) ) {
-		database = arguments.get( "--database" );
-	} else {
-		database = "micasa.db";
+	// See if the datadir is read- and writable.
+	struct stat info;
+	if (
+		stat( _DATADIR, &info ) != 0
+		|| ( info.st_mode & S_IFDIR ) == 0
+	) {
+		std::cout << "Data directory is not read-writable (" << _DATADIR << ").\n";
+		return EXIT_FAILURE;
 	}
 
 	signal( SIGINT, signal_handler );
 	signal( SIGTERM, signal_handler );
 
-	g_database = std::unique_ptr<Database>( new Database( database ) );
+	g_database = std::unique_ptr<Database>( new Database );
 
 	// The database might take some time to initialize (due to the VACUUM call). An additional shutdown check is done.
 	if ( ! g_shutdown ) {

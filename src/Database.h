@@ -24,7 +24,7 @@ namespace micasa {
 			using runtime_error::runtime_error;
 		}; // class InvalidResultException
 
-		Database( std::string filename_ );
+		Database();
 		~Database();
 
 		Database( const Database& ) = delete; // do not copy
@@ -45,7 +45,6 @@ namespace micasa {
 		int getLastErrorCode() const;
 
 	private:
-		const std::string m_filename;
 		sqlite3 *m_connection;
 
 		void _init() const;

@@ -15,8 +15,10 @@
 #include <regex>
 #include <sstream>
 
-#include <openssl/x509.h>
-#include <openssl/pem.h>
+#ifdef _WITH_OPENSSL
+	#include <openssl/x509.h>
+	#include <openssl/pem.h>
+#endif
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -44,11 +46,6 @@
 #endif // _WITH_LINUX_SPI
 
 #include "json.hpp"
-
-#ifdef _WITH_OPENSSL
-	#define KEY_FILE "./var/key.pem"
-	#define CERT_FILE "./var/cert.pem"
-#endif
 
 #define WEBSERVER_HASH_MAGGI "6238fbba-1f79-11e7-93ae-92361f002671"
 
@@ -101,62 +98,64 @@ namespace micasa {
 		// http://stackoverflow.com/questions/256405/programmatically-create-x509-certificate-using-openssl
 
 #ifdef _WITH_OPENSSL
-		if (
-			access( KEY_FILE, F_OK ) != 0 
-			|| access( CERT_FILE, F_OK ) != 0
-		) {
-			Logger::log( Logger::LogLevel::NORMAL, this, "Generating SSL key and certificate." );
+		if ( this->m_sslport > 0 ) {
+			if (
+				access( ( std::string( _DATADIR ) + "/key.pem" ).c_str(), F_OK ) != 0 
+				|| access( ( std::string( _DATADIR ) + "/cert.pem" ).c_str(), F_OK ) != 0
+			) {
+				Logger::log( Logger::LogLevel::NORMAL, this, "Generating SSL key and certificate." );
 
-			EVP_PKEY* key = EVP_PKEY_new();
-			RSA* rsa = RSA_generate_key(
-				2048,   // number of bits for the key
-				RSA_F4, // exponent
-				NULL,   // callback - can be NULL if we aren't displaying progress
-				NULL    // callback argument - not needed in this case
-			);
-			if ( ! rsa ) {
-				throw std::runtime_error( "unable to generate 2048-bit RSA key" );
+				EVP_PKEY* key = EVP_PKEY_new();
+				RSA* rsa = RSA_generate_key(
+					2048,   // number of bits for the key
+					RSA_F4, // exponent
+					NULL,   // callback - can be NULL if we aren't displaying progress
+					NULL    // callback argument - not needed in this case
+				);
+				if ( ! rsa ) {
+					throw std::runtime_error( "unable to generate 2048-bit RSA key" );
+				}
+				EVP_PKEY_assign_RSA( key, rsa ); // now rsa will be free'd alongside m_key
+
+				X509* certificate = X509_new();
+				ASN1_INTEGER_set( X509_get_serialNumber( certificate ), 1 ); // some webservers reject serial number 0
+				X509_gmtime_adj( X509_get_notBefore( certificate ), 0 ); // not usable before 'now'
+				X509_gmtime_adj( X509_get_notAfter( certificate ), (long)( 60 * 60 * 24 * 365 ) ); // not usable after xx days
+				X509_set_pubkey( certificate, key );
+
+				X509_NAME* name = X509_get_subject_name( certificate );
+				X509_NAME_add_entry_by_txt( name, "C", MBSTRING_ASC, (unsigned char*)"NL", -1, -1, 0 );
+				X509_NAME_add_entry_by_txt( name, "CN", MBSTRING_ASC, (unsigned char*)"Micasa", -1, -1, 0 );
+				X509_NAME_add_entry_by_txt( name, "O", MBSTRING_ASC, (unsigned char*)"Fellownet", -1, -1, 0 );
+				X509_set_issuer_name( certificate, name );
+
+				// Self-sign the certificate with the private key (NOTE: when using real certificates, a CA should sign the
+				// certificate). So the certificate contains the public key and is signed with the private key. This makes
+				// sense for self-signed certificates.
+				X509_sign( certificate, key, EVP_sha1() );
+
+				// The private key and the certificate are written to disk in PEM format.
+				FILE* f = fopen( ( std::string( _DATADIR ) + "/key.pem" ).c_str(), "wb");
+				PEM_write_PrivateKey(
+					f,            // write the key to the file we've opened
+					key,          // our key from earlier
+					NULL,         // default cipher for encrypting the key on disk (EVP_des_ede3_cbc())
+					NULL,         // passphrase required for decrypting the key on disk ("replace_me")
+					0,            // length of the passphrase string (10)
+					NULL,         // callback for requesting a password
+					NULL          // data to pass to the callback
+				);
+				fclose( f );
+
+				f = fopen( ( std::string( _DATADIR ) + "/cert.pem" ).c_str(), "wb" );
+				PEM_write_X509(
+					f,            // write the certificate to the file we've opened
+					certificate   // our certificate
+				);
+				fclose( f );
+				X509_free( certificate );
+				EVP_PKEY_free( key );
 			}
-			EVP_PKEY_assign_RSA( key, rsa ); // now rsa will be free'd alongside m_key
-
-			X509* certificate = X509_new();
-			ASN1_INTEGER_set( X509_get_serialNumber( certificate ), 1 ); // some webservers reject serial number 0
-			X509_gmtime_adj( X509_get_notBefore( certificate ), 0 ); // not usable before 'now'
-			X509_gmtime_adj( X509_get_notAfter( certificate ), (long)( 60 * 60 * 24 * 365 ) ); // not usable after xx days
-			X509_set_pubkey( certificate, key );
-
-			X509_NAME* name = X509_get_subject_name( certificate );
-			X509_NAME_add_entry_by_txt( name, "C", MBSTRING_ASC, (unsigned char*)"NL", -1, -1, 0 );
-			X509_NAME_add_entry_by_txt( name, "CN", MBSTRING_ASC, (unsigned char*)"Micasa", -1, -1, 0 );
-			X509_NAME_add_entry_by_txt( name, "O", MBSTRING_ASC, (unsigned char*)"Fellownet", -1, -1, 0 );
-			X509_set_issuer_name( certificate, name );
-
-			// Self-sign the certificate with the private key (NOTE: when using real certificates, a CA should sign the
-			// certificate). So the certificate contains the public key and is signed with the private key. This makes
-			// sense for self-signed certificates.
-			X509_sign( certificate, key, EVP_sha1() );
-
-			// The private key and the certificate are written to disk in PEM format.
-			FILE* f = fopen( KEY_FILE, "wb");
-			PEM_write_PrivateKey(
-				f,            // write the key to the file we've opened
-				key,          // our key from earlier
-				NULL,         // default cipher for encrypting the key on disk (EVP_des_ede3_cbc())
-				NULL,         // passphrase required for decrypting the key on disk ("replace_me")
-				0,            // length of the passphrase string (10)
-				NULL,         // callback for requesting a password
-				NULL          // data to pass to the callback
-			);
-			fclose( f );
-
-			f = fopen( CERT_FILE, "wb" );
-			PEM_write_X509(
-				f,            // write the certificate to the file we've opened
-				certificate   // our certificate
-			);
-			fclose( f );
-			X509_free( certificate );
-			EVP_PKEY_free( key );
 		}
 #endif
 
@@ -179,7 +178,7 @@ namespace micasa {
 		}
 #ifdef _WITH_OPENSSL
 		if ( this->m_sslport > 0 ) {
-			this->m_sslbind = Network::bind( std::to_string( this->m_sslport ), CERT_FILE, KEY_FILE, handler );
+			this->m_sslbind = Network::bind( std::to_string( this->m_sslport ), std::string( _DATADIR ) + "/cert.pem", std::string( _DATADIR ) + "/key.pem", handler );
 			if ( ! this->m_sslbind ) {
 				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_sslport );
 			}
