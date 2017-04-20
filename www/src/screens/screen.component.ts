@@ -20,7 +20,7 @@ import {
 }                         from './screens.service';
 
 @Component( {
-	templateUrl: 'tpl/screen.html',
+	templateUrl: 'tpl/screen.html'
 } )
 
 export class ScreenComponent implements OnInit, OnDestroy {

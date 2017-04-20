@@ -21,10 +21,10 @@
 			'@angular/platform-browser-dynamic'	: 'npm:@angular/platform-browser-dynamic/bundles/platform-browser-dynamic.umd.js',
 			'@angular/router'					: 'npm:@angular/router/bundles/router.umd.js',
 			'rxjs'								: 'npm:rxjs',
-
-			// other libraries
-			'jquery'							: 'npm:jquery/dist/jquery.min.js',
-			'highcharts'						: 'npm:highcharts/js/highcharts.js'
+			'ace-builds'						: 'npm:ace-builds',
+			'jquery'							: 'npm:jquery',
+			'bootstrap'							: 'npm:bootstrap',
+			'highcharts'						: 'npm:highcharts'
 		},
 
 		// packages tells the System loader how to load when no filename and/or no extension

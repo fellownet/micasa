@@ -19,7 +19,8 @@ import {
 }                       from '@angular/router';
 import { Subscription } from 'rxjs/Subscription';
 
-declare var Highcharts: any;
+declare var require: any;
+const Highcharts = require( 'highcharts/highcharts.src.js' );
 
 @Component( {
 	selector: 'counterwidget',

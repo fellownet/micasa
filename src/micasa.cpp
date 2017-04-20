@@ -19,8 +19,9 @@ namespace micasa {
 	std::unique_ptr<Controller> g_controller;
 
 	const char g_usage[] =
-		"Usage: micasa [-p|--port <port>] [-l|--loglevel <loglevel>] [-db|--database <filename>]\n"
-		"\t-p|--port <port>\n\t\tSets the port for secure web connections (defaults to 443).\n"
+		"Usage: micasa [-p|--port <port>] [-sslp|--sslport <port>] [-l|--loglevel <loglevel>] [-db|--database <filename>]\n"
+		"\t-p|--port <port>\n\t\tSets the port for web connections (defaults to 80).\n"
+		"\t-sslp|--sslport <port>\n\t\tSets the port for secure web connections (defaults to no ssl).\n"
 		"\t-l|--loglevel <loglevel>\n\t\tSets the level of logging:\n"
 		"\t\t\t0 = default\n"
 		"\t\t\t1 = verbose\n"
@@ -55,11 +56,18 @@ int main( int argc_, char* argv_[] ) {
 		return 0;
 	}
 
-	int port = 443;
+	int port = 80;
 	if ( arguments.exists( "-p" ) ) {
 		port = atoi( arguments.get( "-p" ).c_str() );
 	} else if ( arguments.exists( "--port" ) ) {
 		port = atoi( arguments.get( "--port" ).c_str() );
+	}
+
+	int sslport = 0;
+	if ( arguments.exists( "-sslp" ) ) {
+		port = atoi( arguments.get( "-sslp" ).c_str() );
+	} else if ( arguments.exists( "--sslport" ) ) {
+		port = atoi( arguments.get( "--sslport" ).c_str() );
 	}
 
 	Logger::LogLevel logLevel = Logger::LogLevel::NORMAL;
@@ -88,7 +96,7 @@ int main( int argc_, char* argv_[] ) {
 	if ( ! g_shutdown ) {
 		g_settings = std::unique_ptr<Settings<>>( new Settings<> );
 		g_controller = std::unique_ptr<Controller>( new Controller );
-		g_webServer = std::unique_ptr<WebServer>( new WebServer( port ) );
+		g_webServer = std::unique_ptr<WebServer>( new WebServer( port, sslport ) );
 
 		g_controller->start();
 		g_webServer->start();

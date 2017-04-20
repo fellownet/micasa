@@ -16,7 +16,6 @@
 
 <aside class="sidebar" *ngIf="!!(session | async)">
 	<ul class="menu" (click)="hideMenu()">
-		<li class="menu-header"><span>Main Navigation</span></li>
 		<li routerLinkActive="active">
 			<a routerLink="/dashboard">
 				<i class="fa fa-dashboard"></i> <span>Dashboard</span>
@@ -67,7 +66,7 @@
 		<ng-container *ngFor="let screen of screens | async">
 		<li *ngIf="screen.id > 1" routerLinkActive="active">
 			<a routerLink="/screens/{{screen.id}}">
-				<i class="fa fa-th"></i>
+				<i class="fa fa-laptop"></i>
 				<span>{{screen.name}}</span>
 			</a>
 		</li>

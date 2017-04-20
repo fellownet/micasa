@@ -6,14 +6,15 @@
 		"start"								: "tsc -w",
 		"build"								: "tsc",
 		"build_dev"							: "npm run build && cp dev.html index.html",
-		"build_prod"						: "npm run build && browserify -s main app/main.js > app/bundle.js && uglifyjs app/bundle.js --screw-ie8 --compress --mangle --output app/bundle.min.js && cp prod.html index.html"
+		"build_prod"						: "npm run build && echo 'Browserify...' && browserify -s main app/main.js > app/bundle.js && echo 'Uglify...' && uglifyjs app/bundle.js --screw-ie8 --compress --mangle --output app/bundle.min.js && cp prod.html index.html"
 	},
 	"keywords"							: [],
 	"author"							: "Bob Kersten // Fellownet",
 	"license"							: "MIT",
 	"dependencies"						: {
-		"typescript"						: "^2.0.10",
+		"typescript"						: "^2.2.2",
 		"browserify"						: "^14.3.0",
+		"browserify-shim"					: "^3.8.14",
 		"uglifyjs"							: "^2.4.10",
 
 		"@angular/common"					: "^2.3.0",
@@ -31,9 +32,25 @@
 		"rxjs"								: "^5.0.0-rc.4",
 		"core-js"							: "^2.4.1",
 
-		"jquery"							: "^3.1.1",
-		"highcharts"						: "^5.0.6",
+		"jquery"							: "^3.2.1",
+		"bootstrap"							: "^3.3.7",
+		"font-awesome"						: "^4.7.0",
+		"highcharts"						: "^5.0.10",
 		"ace-builds"						: "^1.2.5"
 	},
-	"repository"						: {}
+	"repository"						: {},
+
+	"browser"							: {
+		"jquery/dist/jquery.js"				: "./node_modules/jquery/dist/jquery.js",
+		"bootstrap/dist/js/bootstrap.js"	: "./node_modules/bootstrap/dist/js/bootstrap.js"
+	},
+	"browserify"						: {
+		"transform"							: [ "browserify-shim" ]
+	},
+	"browserify-shim"					: {
+		"jquery/dist/jquery.js"				: "$",
+		"bootstrap/dist/js/bootstrap.js"	: {
+			"depends"							: [ "jquery/dist/jquery.js:$" ]
+		}
+	}
 }

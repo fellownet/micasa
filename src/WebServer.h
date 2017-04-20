@@ -65,7 +65,7 @@ namespace micasa {
 			const std::string message;
 		}; // class ResourceException
 
-		WebServer( unsigned int port_ );
+		WebServer( unsigned int port_, unsigned int sslport_ );
 		~WebServer();
 
 		WebServer( const WebServer& ) = delete; // Do not copy!
@@ -80,11 +80,13 @@ namespace micasa {
 
 	private:
 		unsigned int m_port;
+		unsigned int m_sslport;
 		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
 		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User>>> m_logins;
 		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
+		std::shared_ptr<Network::Connection> m_sslbind;
 
 		std::string _hash( const std::string& data_ ) const;
 		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
