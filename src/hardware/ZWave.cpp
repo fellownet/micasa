@@ -70,7 +70,7 @@ namespace micasa {
 			Manager::Get() == nullptr
 			|| 0 == g_managerWatchers
 		) {
-			Options::Create( "./lib/open-zwave/config", "./var", "" );
+			Options::Create( "./lib/open-zwave/config", std::string( _DATADIR ), "" );
 #ifdef _DEBUG
 			Options::Get()->AddOptionInt( "SaveLogLevel", LogLevel_Detail );
 			Options::Get()->AddOptionInt( "QueueLogLevel", LogLevel_Debug );

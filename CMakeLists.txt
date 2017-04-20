@@ -63,6 +63,13 @@ if( DEBUG )
 endif()
 
 #
+# Set default DATADIR location
+#
+set(DATADIR "./" CACHE STRING "Data directory")
+message( STATUS "Using ${DATADIR} as datadir" )
+add_definitions( -D_DATADIR="${DATADIR}" )
+
+#
 # Raspberry Pi options.
 #
 option( INCLUDE_LINUX_I2C "Include I2C support" YES )
