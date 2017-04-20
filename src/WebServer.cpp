@@ -71,8 +71,9 @@ namespace micasa {
 		{ WebServer::Method::OPTIONS, "OPTIONS" }
 	};
 	
-	WebServer::WebServer( unsigned int port_ ) :
-		m_port( port_ )
+	WebServer::WebServer( unsigned int port_, unsigned int sslport_ ) :
+		m_port( port_ ),
+		m_sslport( sslport_ )
 	{
 #ifdef _DEBUG
 		assert( g_database && "Global Database instance should be created before global WebServer instance." );
@@ -170,15 +171,20 @@ namespace micasa {
 				this->_processRequest( connection_ );
 			}
 		};
-
-#ifndef _WITH_OPENSSL
-		this->m_bind = Network::bind( std::to_string( this->m_port ), handler );
-#else
-		this->m_bind = Network::bind( std::to_string( this->m_port ), CERT_FILE, KEY_FILE, handler );
-#endif // _WITH_OPENSSL
-		if ( ! this->m_bind ) {
-			Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_port );
+		if ( this->m_port > 0 ) {
+			this->m_bind = Network::bind( std::to_string( this->m_port ), handler );
+			if ( ! this->m_bind ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_port );
+			}
 		}
+#ifdef _WITH_OPENSSL
+		if ( this->m_sslport > 0 ) {
+			this->m_sslbind = Network::bind( std::to_string( this->m_sslport ), CERT_FILE, KEY_FILE, handler );
+			if ( ! this->m_sslbind ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_sslport );
+			}
+		}
+#endif // _WITH_OPENSSL
 
 		// If there are no users defined in the database, a default administrator is created.
 		if ( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `users`" ) == 0 ) {
