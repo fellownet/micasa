@@ -16,6 +16,9 @@
 
 <aside class="sidebar" *ngIf="!!(session | async)">
 	<ul class="menu" (click)="hideMenu()">
+		<li class="menu-header">
+			<span>Navigation</span>
+		</li>
 		<li routerLinkActive="active">
 			<a routerLink="/dashboard">
 				<i class="fa fa-dashboard"></i> <span>Dashboard</span>

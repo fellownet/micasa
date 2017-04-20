@@ -6,7 +6,11 @@
 		"start"								: "tsc -w",
 		"build"								: "tsc",
 		"build_dev"							: "npm run build && cp dev.html index.html",
-		"build_prod"						: "npm run build && echo 'Browserify...' && browserify -s main app/main.js > app/bundle.js && echo 'Uglify...' && uglifyjs app/bundle.js --screw-ie8 --compress --mangle --output app/bundle.min.js && cp prod.html index.html"
+		"build_prod"						: "npm run build && npm run _environment && npm run _browserify && npm run _uglify && npm run _styles && cp prod.html index.html",
+		"_environment"						: "echo \"/* micasa */\n\n\" > app/app.js && for f in node_modules/core-js/client/shim.min.js node_modules/zone.js/dist/zone.js node_modules/reflect-metadata/Reflect.js; do (cat \"${f}\"; printf \"\n \n\") >> app/app.js; done",
+		"_browserify"						: "browserify -s main app/main.js >> app/app.js",
+		"_uglify"							: "uglifyjs app/app.js --screw-ie8 --compress --mangle --output app/app.min.js",
+		"_styles"							: "cp -r node_modules/font-awesome/fonts/. fonts && echo \"/* micasa */\n\n\" > css/env.css && for f in node_modules/bootstrap/dist/css/bootstrap.min.css node_modules/font-awesome/css/font-awesome.min.css; do (cat \"${f}\"; printf \"\n \n\") >> css/env.css; done"
 	},
 	"keywords"							: [],
 	"author"							: "Bob Kersten // Fellownet",

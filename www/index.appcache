@@ -2,11 +2,12 @@ CACHE MANIFEST
 
 CACHE:
 index.html
+css/env.css
 css/app.css
 css/login.css
 css/script-edit.css
 
-app/bundle.min.js
+app/app.min.js
 
 tpl/app.html
 tpl/device-details.html
@@ -31,13 +32,6 @@ tpl/widgets/counter.html
 tpl/widgets/level.html
 tpl/widgets/switch.html
 tpl/widgets/text.html
-
-node_modules/bootstrap/dist/css/bootstrap.min.css
-node_modules/font-awesome/css/font-awesome.min.css
-
-node_modules/core-js/client/shim.min.js
-node_modules/zone.js/dist/zone.min.js
-node_modules/reflect-metadata/Reflect.js
 
 NETWORK:
 *
