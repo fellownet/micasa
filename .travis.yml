@@ -32,7 +32,7 @@ matrix:
             - git
 
     script:
-    - cmake -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod
+    - cmake -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod && cd ..
 
   # OSX
   - os: osx
@@ -54,10 +54,10 @@ matrix:
       - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
     script:
-    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod
+    - cmake -DOPENSSL_LIBRARIES=/usr/local/opt/openssl/lib -DOPENSSL_INCLUDE_DIRS=/usr/local/opt/openssl/include/ -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod && cd ..
 
 before_deploy:
-  - tar -czf micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz micasa lib/open-zwave/config www/index.html www/index.appcache www/css www/fonts www/tpl www/app/app.min.js
+  - tar -C .. -czf micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz micasa/micasa micasa/lib/open-zwave/config micasa/www/index.html micasa/www/index.appcache micasa/www/css micasa/www/fonts micasa/www/tpl micasa/www/app/app.min.js
   - shasum -a 256 micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz > micasa_${TRAVIS_OS_NAME}_${TARGET_ARCHITECTURE}.tgz.sha256sum
 deploy:
   provider: releases
