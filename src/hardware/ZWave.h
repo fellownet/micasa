@@ -6,7 +6,9 @@
 
 #include "Notification.h"
 
-#define OPEN_ZWAVE_MANAGER_BUSY_WAIT_MSEC             3000 // how long to wait for a busy manager
+#define OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC              100
+#define OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC     5000
+#define OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS          10
 #define OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES 1
 
 void micasa_openzwave_notification_handler( const ::OpenZWave::Notification* notification_, void* handler_ );
