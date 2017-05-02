@@ -193,7 +193,7 @@ namespace micasa {
 		setting = {
 			{ "name", "ignore_duplicates" },
 			{ "label", "Ignore Duplicates" },
-			{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
+			{ "description", "When this checkbox is enabled all duplicate values not originating from the hardare are discarded." },
 			{ "type", "boolean" },
 			{ "class", "advanced" },
 			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },

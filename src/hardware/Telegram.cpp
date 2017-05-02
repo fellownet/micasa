@@ -173,8 +173,9 @@ namespace micasa {
 				} else {
 					Logger::log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
 					this->m_acceptMode = true;
-					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this]( Scheduler::Task<>& ) {
+					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this,device]( Scheduler::Task<>& ) {
 						this->m_acceptMode = false;
+						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
 					} );
 				}

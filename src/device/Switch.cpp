@@ -55,9 +55,6 @@ namespace micasa {
 				this->m_id
 			);
 			this->m_value = this->m_rateLimiter.value = Switch::resolveTextOption( jsonGet<std::string>( result, "value" ) );
-			if ( this->m_value == Switch::Option::ACTIVATE ) {
-				this->m_value = this->m_rateLimiter.value = Switch::Option::IDLE;
-			}
 			this->m_updated = system_clock::now() - seconds( jsonGet<unsigned int>( result, "age" ) );
 		} catch( const Database::NoResultsException& ex_ ) {
 			Logger::log( Logger::LogLevel::DEBUG, this, "No starting value." );
@@ -250,7 +247,7 @@ namespace micasa {
 		Option previous = this->m_value;
 		this->m_value = value_;
 		
-		// If the update originates from the hardware, do not send it to the hardware again.
+		// If the update originates from the hardware it is not send back to the hardware again.
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
@@ -274,7 +271,6 @@ namespace micasa {
 				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
-				this->m_value = Switch::Option::IDLE;
 				Logger::log( Logger::LogLevel::NORMAL, this, "Activated." );
 			} else {
 				Logger::logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );

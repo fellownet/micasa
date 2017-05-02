@@ -219,47 +219,35 @@ namespace micasa {
 			range_ *= 7;
 		}
 
-		std::vector<std::string> validGroups = { /*"none",*/ "hour", "day", "month", "year" };
+		std::vector<std::string> validGroups = { "hour", "day", "month", "year" };
 		if ( std::find( validGroups.begin(), validGroups.end(), group_ ) == validGroups.end() ) {
 			return json::array();
 		}
 
 		double divider = this->m_settings->get<double>( "divider", 1 );
 
-		/*
-		if ( group_ == "none" ) {
-			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( `value` + %.6f ) / %.6f ) AS `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp`, `date` "
-				"FROM `device_counter_history` "
-				"WHERE `device_id`=%d "
-				"AND `date` >= datetime('now','-%d %s') "
-				"ORDER BY `date` ASC ",
-				offset,
-				divider,
-				this->m_id,
-				range_,
-				interval.c_str()
-			);
-		} else {
-		*/
-
 		std::string dateFormat = "%Y-%m-%d %H:30:00";
 		std::string groupFormat = "%Y-%m-%d-%H";
+		std::string start = "'start of day','+' || strftime('%H') || ' hours'";
+
 		if ( group_ == "day" ) {
 			dateFormat = "%Y-%m-%d 12:00:00";
 			groupFormat = "%Y-%m-%d";
+			start = "'start of day'";
 		} else if ( group_ == "month" ) {
 			dateFormat = "%Y-%m-15 12:00:00";
 			groupFormat = "%Y-%m";
+			start = "'start of month'";
 		} else if ( group_ == "year" ) {
 			dateFormat = "%Y-06-15 12:00:00";
 			groupFormat = "%Y";
+			start = "'start of year'";
 		}
 		return g_database->getQuery<json>(
 			"SELECT printf(\"%%.3f\", sum(`diff`) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
 			"FROM `device_counter_trends` "
 			"WHERE `device_id`=%d "
-			"AND `date` >= datetime('now','-%d %s') "
+			"AND `date` >= datetime('now','-%d %s',%s) "
 			"GROUP BY strftime(%Q, `date`) "
 			"ORDER BY `date` ASC ",
 			divider,
@@ -268,10 +256,9 @@ namespace micasa {
 			this->m_id,
 			range_,
 			interval.c_str(),
+			start.c_str(),
 			groupFormat.c_str()
 		);
-
-		//}
 	};
 
 	void Counter::_processValue( const Device::UpdateSource& source_, const t_value& value_ ) {
@@ -280,7 +267,7 @@ namespace micasa {
 		t_value previous = this->m_value;
 		this->m_value = value_;
 		
-		// If the update originates from the hardware, do not send it to the hardware again.
+		// If the update originates from the hardware it is not send back to the hardware again.
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
