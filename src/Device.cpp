@@ -130,8 +130,13 @@ namespace micasa {
 		result["hardware"] = hardware->getName();
 		result["hardware_id"] = hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
-		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
 
+		if (
+			this->getType() != Device::Type::SWITCH
+			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
+		) {
+			result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
+		}
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
 		}
