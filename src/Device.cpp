@@ -190,16 +190,21 @@ namespace micasa {
 		};
 		result += setting;
 
-		setting = {
-			{ "name", "ignore_duplicates" },
-			{ "label", "Ignore Duplicates" },
-			{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
-			{ "type", "boolean" },
-			{ "class", "advanced" },
-			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
-			{ "sort", 3 }
-		};
-		result += setting;
+		if (
+			this->getType() != Device::Type::SWITCH
+			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
+		) {
+			setting = {
+				{ "name", "ignore_duplicates" },
+				{ "label", "Ignore Duplicates" },
+				{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
+				{ "type", "boolean" },
+				{ "class", "advanced" },
+				{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
+				{ "sort", 3 }
+			};
+			result += setting;
+		}
 
 		return result;
 	};

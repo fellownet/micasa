@@ -84,7 +84,8 @@ namespace micasa {
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
+			{ "ignore_duplicates", true }
 		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
 	};
 
