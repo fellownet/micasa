@@ -27,10 +27,10 @@
 extern "C" {
 	#include "v7.h"
 	
-	v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ );
-	v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ );
-	v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ );
-	v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ );
+	v7_err micasa_v7_update_device( struct v7*, v7_val_t* );
+	v7_err micasa_v7_get_device( struct v7*, v7_val_t* );
+	v7_err micasa_v7_include( struct v7*, v7_val_t* );
+	v7_err micasa_v7_log( struct v7*, v7_val_t* );
 } // extern "C"
 
 namespace micasa {
@@ -38,10 +38,8 @@ namespace micasa {
 	class Controller final : public std::enable_shared_from_this<Controller> {
 
 		friend std::ostream& operator<<( std::ostream& out_, const Controller* ) { out_ << "Controller"; return out_; }
-		friend v7_err (::micasa_v7_update_device)( struct v7* js_, v7_val_t* res_ );
-		friend v7_err (::micasa_v7_get_device)( struct v7* js_, v7_val_t* res_ );
-		friend v7_err (::micasa_v7_include)( struct v7* js_, v7_val_t* res_ );
-		friend v7_err (::micasa_v7_log)( struct v7* js_, v7_val_t* res_ );
+		friend v7_err (::micasa_v7_update_device)( struct v7*, v7_val_t* );
+		friend v7_err (::micasa_v7_include)( struct v7*, v7_val_t* );
 
 #ifdef _WITH_LIBUDEV
 		typedef std::function<void( const std::string& serialPort_, const std::string& action_ )> t_serialPortCallback;
@@ -114,7 +112,6 @@ namespace micasa {
 
 		template<class D> void _js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		bool _js_include( const std::string& name_, std::string& script_ );
-		void _js_log( const std::string& log_ );
 		
 	}; // class Controller
 
