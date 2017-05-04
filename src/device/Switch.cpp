@@ -41,7 +41,6 @@ namespace micasa {
 	Switch::Switch( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( Option::OFF ),
-		m_previousValue( Option::OFF ),
 		m_updated( system_clock::now() ),
 		m_rateLimiter( { Option::OFF, Device::resolveUpdateSource( 0 ) } )
 	{
@@ -265,7 +264,6 @@ namespace micasa {
 					Switch::resolveTextOption( this->m_value ).c_str()
 				);
 			}
-			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled

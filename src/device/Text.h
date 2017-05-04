@@ -25,7 +25,6 @@ namespace micasa {
 
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
 		t_value getValue() const { return this->m_value; };
-		t_value getPreviousValue() const { return this->m_previousValue; };
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 		void start() override;
@@ -38,7 +37,6 @@ namespace micasa {
 
 	private:
 		t_value m_value;
-		t_value m_previousValue;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			t_value value;
