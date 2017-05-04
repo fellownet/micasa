@@ -49,7 +49,7 @@ export class ScriptEditComponent implements OnInit {
 			me._editor.session.setUseSoftTabs( false );
 			me._editor.session.setUseWorker( false );
 			me._editor.session.setMode( 'ace/mode/javascript' );
-			me._editor.setValue( me.script.code, -1 );
+			me._editor.session.setValue( me.script.code, -1 );
 			me._editor.focus();
 		} );
 	};
