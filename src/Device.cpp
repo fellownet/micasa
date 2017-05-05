@@ -41,7 +41,7 @@ namespace micasa {
 #endif // _DEBUG
 		this->m_settings = std::make_shared<Settings<Device>>( *this );
 	};
-	
+
 	Device::~Device() {
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be destroyed after Device instances." );
@@ -52,7 +52,7 @@ namespace micasa {
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
 		out_ << device_->getHardware()->getName() << " / " << device_->getName(); return out_;
 	};
-	
+
 	std::string Device::getName() const {
 		return this->m_settings->get( "name", this->m_label );
 	};
@@ -88,7 +88,7 @@ namespace micasa {
 	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_, bool force_ );
 	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_, bool force_ );
 	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_, bool force_ );
-	
+
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
 #ifdef _DEBUG
@@ -100,7 +100,7 @@ namespace micasa {
 	template Level::t_value Device::getValue<Level>() const;
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
-	
+
 	std::shared_ptr<Device> Device::factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:

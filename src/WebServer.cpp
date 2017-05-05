@@ -1315,9 +1315,12 @@ namespace micasa {
 	};
 
 	void WebServer::_installTimerResourceHandler() {
+		// https://www.liberiangeek.net/2013/05/is-there-a-better-task-scheduler-in-ubuntu-13-04-raring-ringtail/		
+		// https://www.liberiangeek.net/wp-content/uploads/2013/05/gnome_schedule_ubuntu1304_1_thumb.png
+		// https://www.ghacks.net/2011/03/09/schedule-cron-jobs-with-this-easy-to-use-gui/
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
 			"webserver",
-			"^/api/timers(/([0-9]+))?$",
+			"^/api/timers(/([0-9]+|new))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {

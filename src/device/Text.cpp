@@ -257,7 +257,6 @@ namespace micasa {
 		}
 		if ( task ) {
 			this->m_scheduler.proceed( 0, task );
-			task->wait();
 		}
 		this->m_logger.last = message_;
 
@@ -279,8 +278,7 @@ namespace micasa {
 		t_value previous = this->m_value;
 		this->m_value = value_;
 
-		// If the update originates from the hardware, or the value is NOT different than the current value,
-		// do not send it to the hardware again.
+		// If the update originates from the hardware it is not send back to the hardware again.
 		bool success = true;
 		bool apply = true;
 		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
