@@ -550,7 +550,6 @@ namespace micasa {
 				if ( scripts.size() > 0 ) {
 					json event;
 					event["value"] = device_->getValue();
-					event["previous_value"] = device_->getPreviousValue();
 					event["source"] = Device::resolveUpdateSource( source_ );
 					event["device"] = device_->getJson( false );
 					this->_runScripts( "event", event, scripts );

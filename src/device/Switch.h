@@ -46,10 +46,8 @@ namespace micasa {
 		void updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ = false );
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
 		Option getValueOption() const { return this->m_value; };
-		Option getPreviousValueOption() const { return this->m_previousValue; };
 		static Option getOppositeValueOption( const Option& value_ );
 		t_value getValue() const { return OptionText.at( this->m_value ); };
-		t_value getPreviousValue() const { return OptionText.at( this->m_previousValue ); };
 		static t_value getOppositeValue( const t_value& value_ );
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
@@ -61,7 +59,6 @@ namespace micasa {
 
 	private:
 		Option m_value;
-		Option m_previousValue;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			Option value;
