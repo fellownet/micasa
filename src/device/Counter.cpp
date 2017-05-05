@@ -35,7 +35,6 @@ namespace micasa {
 	Counter::Counter( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
-		m_previousValue( 0 ),
 		m_updated( system_clock::now() ),
 		m_rateLimiter( { 0, Device::resolveUpdateSource( 0 ) } )
 	{
@@ -282,7 +281,6 @@ namespace micasa {
 					this->m_value
 				);
 			}
-			this->m_previousValue = previous; // before newEvent so previous value can be provided
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled

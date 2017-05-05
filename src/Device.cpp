@@ -41,7 +41,7 @@ namespace micasa {
 #endif // _DEBUG
 		this->m_settings = std::make_shared<Settings<Device>>( *this );
 	};
-	
+
 	Device::~Device() {
 #ifdef _DEBUG
 		assert( g_controller && "Global Controller instance should be destroyed after Device instances." );
@@ -52,7 +52,7 @@ namespace micasa {
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
 		out_ << device_->getHardware()->getName() << " / " << device_->getName(); return out_;
 	};
-	
+
 	std::string Device::getName() const {
 		return this->m_settings->get( "name", this->m_label );
 	};
@@ -88,7 +88,7 @@ namespace micasa {
 	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_, bool force_ );
 	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_, bool force_ );
 	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_, bool force_ );
-	
+
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
 #ifdef _DEBUG
@@ -100,7 +100,7 @@ namespace micasa {
 	template Level::t_value Device::getValue<Level>() const;
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
-	
+
 	std::shared_ptr<Device> Device::factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:
@@ -130,8 +130,13 @@ namespace micasa {
 		result["hardware"] = hardware->getName();
 		result["hardware_id"] = hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
-		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
 
+		if (
+			this->getType() != Device::Type::SWITCH
+			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
+		) {
+			result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
+		}
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
 		}
@@ -190,16 +195,21 @@ namespace micasa {
 		};
 		result += setting;
 
-		setting = {
-			{ "name", "ignore_duplicates" },
-			{ "label", "Ignore Duplicates" },
-			{ "description", "When this checkbox is enabled all duplicate values not originating from the hardare are discarded." },
-			{ "type", "boolean" },
-			{ "class", "advanced" },
-			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
-			{ "sort", 3 }
-		};
-		result += setting;
+		if (
+			this->getType() != Device::Type::SWITCH
+			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
+		) {
+			setting = {
+				{ "name", "ignore_duplicates" },
+				{ "label", "Ignore Duplicates" },
+				{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
+				{ "type", "boolean" },
+				{ "class", "advanced" },
+				{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
+				{ "sort", 3 }
+			};
+			result += setting;
+		}
 
 		return result;
 	};

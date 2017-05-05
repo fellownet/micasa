@@ -19,126 +19,113 @@
 	#include <cassert>
 #endif // _DEBUG
 
-v7_err micasa_v7_update_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+v7_err micasa_v7_update_device( struct v7* v7_, v7_val_t* res_ ) {
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
-
-	v7_val_t arg0 = v7_arg( js_, 0 );
+	v7_val_t arg0 = v7_arg( v7_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		device = controller->getDeviceById( v7_get_int( js_, arg0 ) );
+		device = controller->getDeviceById( v7_get_int( v7_, arg0 ) );
 	} else if ( v7_is_string( arg0 ) ) {
-		device = controller->getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+		device = controller->getDeviceByName( v7_get_string( v7_, &arg0, NULL ) );
 		if ( device == nullptr ) {
-			device = controller->getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
+			device = controller->getDeviceByLabel( v7_get_string( v7_, &arg0, NULL ) );
 		}
 	}
 	if ( device == nullptr ) {
-		return v7_throwf( js_, "Error", "Invalid device." );
+		return v7_throwf( v7_, "Error", "Invalid device." );
 	}
-
-	v7_val_t arg1 = v7_arg( js_, 1 );
 
 	std::string options = "";
-	v7_val_t arg2 = v7_arg( js_, 2 );
+	v7_val_t arg2 = v7_arg( v7_, 2 );
 	if ( v7_is_string( arg2 ) ) {
-		options = v7_get_string( js_, &arg2, NULL );
+		options = v7_get_string( v7_, &arg2, NULL );
+	} else {
+		return v7_throwf( v7_, "Error", "Invalid options." );
 	}
 
+	v7_val_t arg1 = v7_arg( v7_, 1 );
 	if ( v7_is_number( arg1 ) ) {
-		double value = v7_get_double( js_, arg1 );
+		double value = v7_get_double( v7_, arg1 );
 		if ( device->getType() == micasa::Device::Type::COUNTER ) {
 			controller->_js_updateDevice( std::static_pointer_cast<micasa::Counter>( device ), value, options );
 		} else if ( device->getType() == micasa::Device::Type::LEVEL ) {
 			controller->_js_updateDevice( std::static_pointer_cast<micasa::Level>( device ), value, options );
 		} else {
-			return v7_throwf( js_, "Error", "Invalid parameter for device." );
+			return v7_throwf( v7_, "Error", "Invalid parameter for device." );
 		}
 	} else if ( v7_is_string( arg1 ) ) {
-		std::string value = v7_get_string( js_, &arg1, NULL );
+		std::string value = v7_get_string( v7_, &arg1, NULL );
 		if ( device->getType() == micasa::Device::Type::SWITCH ) {
 			controller->_js_updateDevice( std::static_pointer_cast<micasa::Switch>( device ), value, options );
 		} else if ( device->getType() == micasa::Device::Type::TEXT ) {
 			controller->_js_updateDevice( std::static_pointer_cast<micasa::Text>( device ), value, options );
 		} else {
-			return v7_throwf( js_, "Error", "Invalid parameter for device." );
+			return v7_throwf( v7_, "Error", "Invalid parameter for device." );
 		}
 	} else {
-		return v7_throwf( js_, "Error", "Invalid parameter for device." );
+		return v7_throwf( v7_, "Error", "Invalid parameter for device." );
 	}
 
 	return V7_OK;
 };
 
-v7_err micasa_v7_get_device( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+v7_err micasa_v7_get_device( struct v7* v7_, v7_val_t* res_ ) {
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
 
 	std::shared_ptr<micasa::Device> device = nullptr;
-
-	v7_val_t arg0 = v7_arg( js_, 0 );
+	v7_val_t arg0 = v7_arg( v7_, 0 );
 	if ( v7_is_number( arg0 ) ) {
-		device = controller->getDeviceById( v7_get_int( js_, arg0 ) );
+		device = controller->getDeviceById( v7_get_int( v7_, arg0 ) );
 	} else if ( v7_is_string( arg0 ) ) {
-		device = controller->getDeviceByLabel( v7_get_string( js_, &arg0, NULL ) );
+		device = controller->getDeviceByName( v7_get_string( v7_, &arg0, NULL ) );
 		if ( device == nullptr ) {
-			device = controller->getDeviceByName( v7_get_string( js_, &arg0, NULL ) );
+			device = controller->getDeviceByLabel( v7_get_string( v7_, &arg0, NULL ) );
 		}
 	}
 	if ( device == nullptr ) {
-		return v7_throwf( js_, "Error", "Invalid device." );
+		return v7_throwf( v7_, "Error", "Invalid device." );
 	}
 
-	v7_err js_error;
-	switch( device->getType() ) {
-		case micasa::Device::Type::COUNTER:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Counter>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-		case micasa::Device::Type::LEVEL:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Level>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-		case micasa::Device::Type::SWITCH:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Switch>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-		case micasa::Device::Type::TEXT:
-			js_error = v7_parse_json( js_, std::static_pointer_cast<micasa::Text>( device )->getJson( false ).dump().c_str(), res_ );
-			break;
-	}
-
+	v7_err js_error = v7_parse_json( v7_, device->getJson( false ).dump().c_str(), res_ );
 	if ( V7_OK != js_error ) {
-		return v7_throwf( js_, "Error", "Internal error." );
+		return v7_throwf( v7_, "Error", "Internal error." );
 	}
 
 	return V7_OK;
 };
 
-v7_err micasa_v7_include( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+v7_err micasa_v7_include( struct v7* v7_, v7_val_t* res_ ) {
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
 	
-	v7_val_t arg0 = v7_arg( js_, 0 );
+	v7_val_t arg0 = v7_arg( v7_, 0 );
 	std::string script;
 	if (
 		v7_is_string( arg0 )
-		&& controller->_js_include( v7_get_string( js_, &arg0, NULL ), script )
+		&& controller->_js_include( v7_get_string( v7_, &arg0, NULL ), script )
 	) {
 		v7_val_t js_result;
-		return v7_exec( js_, script.c_str(), &js_result );
+		return v7_exec( v7_, script.c_str(), &js_result );
 	} else {
-		return v7_throwf( js_, "Error", "Invalid script name." );
+		return v7_throwf( v7_, "Error", "Invalid script name." );
 	}
 }
 
-v7_err micasa_v7_log( struct v7* js_, v7_val_t* res_ ) {
-	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( js_, v7_get_global( js_ ) ) );
+v7_err micasa_v7_log( struct v7* v7_, v7_val_t* res_ ) {
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
 	
-	v7_val_t arg0 = v7_arg( js_, 0 );
-	std::string log;
-	if ( v7_is_string( arg0 ) ) {
-		controller->_js_log( v7_get_string( js_, &arg0, NULL ) );
-	} else if ( v7_is_number( arg0 ) ) {
-		controller->_js_log( std::to_string( v7_get_double( js_, arg0 ) ) );
+	v7_val_t arg0 = v7_arg( v7_, 0 );
+	char buffer[100], *p;
+	if ( v7_is_object( arg0 ) ) {
+		p = v7_stringify( v7_, arg0, buffer, sizeof( buffer ), V7_STRINGIFY_JSON );
 	} else {
-		return v7_throwf( js_, "Error", "Invalid log value." );
+		p = v7_stringify( v7_, arg0, buffer, sizeof( buffer ), V7_STRINGIFY_DEFAULT );
 	}
+	micasa::Logger::log( micasa::Logger::LogLevel::SCRIPT, controller, std::string( p ) );
+	if ( p != buffer ) {
+		free(p);
+	}
+
 	return V7_OK;
 }
 
@@ -157,8 +144,8 @@ namespace micasa {
 		assert( g_database && "Global Database instance should be created before global Controller instance." );
 #endif // _DEBUG
 
-		// Initialize the v7 javascript environment.
-		std::unique_lock<std::mutex> jsLock( this->m_jsMutex );
+		std::lock_guard<std::mutex> lock( this->m_jsMutex );
+
 		this->m_v7_js = v7_create();
 		v7_val_t root = v7_get_global( this->m_v7_js );
 		v7_set_user_data( this->m_v7_js, root, this );
@@ -170,13 +157,12 @@ namespace micasa {
 				Logger::log( Logger::LogLevel::ERROR, this, "Syntax error in default userdata." );
 			}
 		}
-		v7_set( this->m_v7_js, root, "userdata", ~0, userDataObj );
+		v7_def( this->m_v7_js, root, "userdata", ~0, V7_PROPERTY_NON_CONFIGURABLE, userDataObj );
 
 		v7_set_method( this->m_v7_js, root, "updateDevice", &micasa_v7_update_device );
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
-		jsLock.unlock();
 	};
 
 	Controller::~Controller() {
@@ -564,7 +550,6 @@ namespace micasa {
 				if ( scripts.size() > 0 ) {
 					json event;
 					event["value"] = device_->getValue();
-					event["previous_value"] = device_->getPreviousValue();
 					event["source"] = Device::resolveUpdateSource( source_ );
 					event["device"] = device_->getJson( false );
 					this->_runScripts( "event", event, scripts );
@@ -1059,10 +1044,6 @@ namespace micasa {
 		} catch( const Database::NoResultsException& ex_ ) {
 			return false;
 		}
-	};
-
-	void Controller::_js_log( const std::string& log_ ) {
-		Logger::log( Logger::LogLevel::SCRIPT, this, log_ );
 	};
 
 }; // namespace micasa

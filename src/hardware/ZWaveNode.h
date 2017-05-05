@@ -10,7 +10,7 @@
 
 #define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC              30000 // how long to wait for result
 #define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC             5000  // how long to block node while waiting for result
-#define OPEN_ZWAVE_NODE_RACE_WAIT_MSEC              3000
+#define OPEN_ZWAVE_NODE_RACE_WAIT_MSEC              1500
 #define OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC 250 // how long to block duplicate values at the value id level
 
 namespace micasa {

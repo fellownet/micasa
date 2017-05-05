@@ -179,7 +179,7 @@ set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -D
 # https://github.com/cesanta/v7
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
-add_definitions( -DV7_ENABLE_FILE=ON )
+add_definitions( -DV7_ENABLE_FILE -DV7_ENABLE_SOCKET -DV7_ENABLE_CRYPTO )
 
 #
 # Set compiler options.
