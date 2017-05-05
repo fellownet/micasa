@@ -15,13 +15,13 @@ namespace micasa {
 
 	void Logger::addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ ) {
 		Logger& logger = Logger::get();
-		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
+		std::lock_guard<std::mutex> lock( logger.m_receiversMutex );
 		logger.m_receivers.push_back( { receiver_, level_ } );
 	};
 	
 	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
 		Logger& logger = Logger::get();
-		std::lock_guard<std::recursive_mutex> receiversLock( logger.m_receiversMutex );
+		std::lock_guard<std::mutex> lock( logger.m_receiversMutex );
 		for ( auto receiversIt = logger.m_receivers.begin(); receiversIt != logger.m_receivers.end(); ) {
 			if ( (*receiversIt).receiver.lock() == receiver_ ) {
 				receiversIt = logger.m_receivers.erase( receiversIt );
@@ -40,8 +40,7 @@ namespace micasa {
 		}
 		std::string message( buffer );
 
-		std::vector<std::shared_ptr<Receiver>> receivers;
-		std::unique_lock<std::recursive_mutex> receiversLock( this->m_receiversMutex );
+		std::lock_guard<std::mutex> lock( this->m_receiversMutex );
 		for ( const auto& receiverIt : this->m_receivers ) {
 			std::shared_ptr<Receiver> receiver = receiverIt.receiver.lock();
 #ifdef _DEBUG
@@ -51,13 +50,8 @@ namespace micasa {
 				receiver
 				&& logLevel_ <= receiverIt.level
 			) {
-				receivers.push_back( receiver );
+				receiver->log( logLevel_, message );
 			}
-		}
-		receiversLock.unlock();
-
-		for ( const auto& receiver : receivers ) {
-			receiver->log( logLevel_, message );
 		}
 	};
 

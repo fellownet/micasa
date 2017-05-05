@@ -2,7 +2,7 @@
 
 #include <string>
 #include <ostream>
-
+#include <mutex>
 #include <memory>
 #include <map>
 #include <chrono>
@@ -95,6 +95,7 @@ namespace micasa {
 		std::string m_label;
 		Scheduler m_scheduler;
 		std::shared_ptr<Settings<Device>> m_settings;
+		mutable std::mutex m_deviceMutex;
 
 		Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 

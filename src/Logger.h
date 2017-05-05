@@ -74,7 +74,7 @@ namespace micasa {
 			LogLevel level;
 		};
 		std::vector<t_logReceiver> m_receivers;
-		mutable std::recursive_mutex m_receiversMutex;
+		mutable std::mutex m_receiversMutex;
 
 		Logger() { }; // private constructor
 		~Logger() { }; // private destructor

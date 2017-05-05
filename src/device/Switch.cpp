@@ -79,6 +79,7 @@ namespace micasa {
 	};
 
 	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ ) {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		Switch::SubType subType = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
 		if (
 			! force_
@@ -154,6 +155,7 @@ namespace micasa {
 	};
 
 	json Switch::getJson( bool full_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
 		result["value"] = this->getValue();
