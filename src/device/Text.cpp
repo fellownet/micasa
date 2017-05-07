@@ -71,6 +71,7 @@ namespace micasa {
 	};
 
 	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		if (
 			! force_
 			&& ! this->m_enabled
@@ -118,6 +119,7 @@ namespace micasa {
 	};
 
 	json Text::getJson( bool full_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
 		result["value"] = this->getValue();
@@ -243,7 +245,7 @@ namespace micasa {
 	void Text::log( const Logger::LogLevel& logLevel_, const std::string& message_ ) {
 		auto task = this->m_logger.task.lock();
 		if ( ! task ) {
-			this->m_logger.task = this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& task_ ) {
+			this->m_logger.task = this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( Scheduler::Task<>& ) {
 				if ( this->m_logger.repeated > 0 ) {
 					this->updateValue( UpdateSource::SYSTEM, "Last message was repeated " + std::to_string( this->m_logger.repeated ) + " times." );
 				}
@@ -260,16 +262,19 @@ namespace micasa {
 		}
 		this->m_logger.last = message_;
 
-		std::string text = message_;
-		if ( logLevel_ == Logger::LogLevel::ERROR ) {
-			text = "Error: " + text;
-		} else if ( logLevel_ == Logger::LogLevel::WARNING ) {
-			text = "Warning: " + text;
-		} else if ( logLevel_ == Logger::LogLevel::SCRIPT ) {
-			text = "Script: " + text;
-		}
-
-		this->updateValue( UpdateSource::SYSTEM, text );
+		// The actual updating of the value with the log is done in a separate task because the action itself might
+		// generate a log and would then cause a deadlock by the logger.
+		this->m_scheduler.schedule( 0, 1, this, [=]( Scheduler::Task<>& ) {
+			std::string text = message_;
+			if ( logLevel_ == Logger::LogLevel::ERROR ) {
+				text = "Error: " + text;
+			} else if ( logLevel_ == Logger::LogLevel::WARNING ) {
+				text = "Warning: " + text;
+			} else if ( logLevel_ == Logger::LogLevel::SCRIPT ) {
+				text = "Script: " + text;
+			}
+			this->updateValue( UpdateSource::SYSTEM, text );
+		} );
 	};
 
 	void Text::_processValue( const Device::UpdateSource& source_, const t_value& value_ ) {

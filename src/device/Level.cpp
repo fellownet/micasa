@@ -87,6 +87,7 @@ namespace micasa {
 	};
 
 	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		if (
 			! force_
 			&& ! this->m_enabled
@@ -156,6 +157,7 @@ namespace micasa {
 	};
 
 	json Level::getJson( bool full_ ) const {
+		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
 		double divider = this->m_settings->get<double>( "divider", 1 );
