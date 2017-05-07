@@ -381,7 +381,9 @@ namespace micasa {
 			case Notification::Type_SceneEvent: {
 				// Scene (activation) events are handled ourselves because they do not represent a valid value id.
 				this->declareDevice<Switch>( "scene_" + std::to_string( notification_->GetSceneId() ), "Scene", {
-					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) }
+					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
+					{ "ignore_duplicates", false }
 				} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 				break;
 			}

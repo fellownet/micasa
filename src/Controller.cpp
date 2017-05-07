@@ -40,7 +40,7 @@ v7_err micasa_v7_update_device( struct v7* v7_, v7_val_t* res_ ) {
 	v7_val_t arg2 = v7_arg( v7_, 2 );
 	if ( v7_is_string( arg2 ) ) {
 		options = v7_get_string( v7_, &arg2, NULL );
-	} else {
+	} else if ( ! v7_is_undefined( arg2 ) ) {
 		return v7_throwf( v7_, "Error", "Invalid options." );
 	}
 

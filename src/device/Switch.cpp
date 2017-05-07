@@ -84,6 +84,7 @@ namespace micasa {
 		if (
 			! force_
 			&& subType != Switch::SubType::ACTION
+			&& value_ != Switch::Option::ACTIVATE
 			&& ! this->m_enabled
 			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
@@ -98,6 +99,8 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", true )
 			&& this->m_value == value_
+			&& subType != Switch::SubType::ACTION
+			&& value_ != Switch::Option::ACTIVATE
 			&& this->getHardware()->getState() >= Hardware::State::READY
 		) {
 			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
