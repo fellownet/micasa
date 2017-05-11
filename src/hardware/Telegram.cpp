@@ -32,9 +32,8 @@ namespace micasa {
 		this->declareDevice<Switch>( "accept", "Enable Accept Mode", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
 		this->declareDevice<Text>( "broadcast", "Broadcast", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Text::resolveTextSubType( Text::SubType::NOTIFICATION ) }
@@ -163,11 +162,10 @@ namespace micasa {
 		}
 
 		if ( device_->getType() == Device::Type::SWITCH ) {
-
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 			if (
 				device->getReference() == "accept"
-				&& device->getValueOption() == Switch::Option::ACTIVATE
+				&& device->getValueOption() == Switch::Option::ENABLED
 			) {
 				if ( this->m_acceptMode ) {
 					Logger::log( Logger::LogLevel::ERROR, this, "Accept Mode already enabled." );
@@ -176,13 +174,12 @@ namespace micasa {
 					this->m_acceptMode = true;
 					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this,device]( Scheduler::Task<>& ) {
 						this->m_acceptMode = false;
-						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+						device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
 					} );
 				}
 				return true;
 			}
-
 		} else if ( device_->getType() == Device::Type::TEXT ) {
 
 			// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send

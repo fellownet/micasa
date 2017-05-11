@@ -20,20 +20,23 @@ namespace micasa {
 			FAN,
 			HEATER,
 			BELL,
-			ACTION
+			SCENE,
+			ACTION = 99 // reserved for hardware actions such as network healing or adding devices
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
 		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
 
-		enum class Option: unsigned short {
-			ON = 1,
-			OFF = 2,
-			OPEN = 4,
-			CLOSE = 8,
-			STOP = 16,
-			START = 32,
-			IDLE = 64,
-			ACTIVATE = 128
+		enum class Option: unsigned int {
+			ON       = (1 << 0),
+			OFF      = (1 << 1),
+			OPEN     = (1 << 2),
+			CLOSE    = (1 << 3),
+			STOP     = (1 << 4),
+			START    = (1 << 5),
+			ENABLED  = (1 << 6),
+			DISABLED = (1 << 7),
+			IDLE     = (1 << 8),
+			ACTIVATE = (1 << 9)
 		}; // enum class Option
 		static const std::map<Switch::Option, std::string> OptionText;
 		ENUM_UTIL_W_TEXT( Option, OptionText );
@@ -43,8 +46,8 @@ namespace micasa {
 		
 		Switch( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		void updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ = false );
-		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
+		void updateValue( const Device::UpdateSource& source_, const Option& value_ );
+		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		Option getValueOption() const { return this->m_value; };
 		static Option getOppositeValueOption( const Option& value_ );
 		t_value getValue() const { return OptionText.at( this->m_value ); };
@@ -59,6 +62,7 @@ namespace micasa {
 
 	private:
 		Option m_value;
+		Device::UpdateSource m_source;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			Option value;

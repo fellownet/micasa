@@ -39,18 +39,18 @@ namespace micasa {
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 		
 		enum class UpdateSource: unsigned short {
-			HARDWARE = 1,
-			TIMER    = 2,
-			SCRIPT   = 4,
-			API      = 8,
-			LINK     = 16,
-			SYSTEM   = 32,
+			HARDWARE = (1 << 0),
+			TIMER    = (1 << 1),
+			SCRIPT   = (1 << 2),
+			API      = (1 << 3),
+			LINK     = (1 << 4),
+			SYSTEM   = (1 << 5),
 
 			USER     = TIMER | SCRIPT | API | LINK,
 			EVENT    = TIMER | SCRIPT | LINK,
 			ANY      = HARDWARE | TIMER | SCRIPT | API | LINK | SYSTEM,
 
-			INTERNAL = 64 // should always be filtered out by hardware
+			INTERNAL = (1 << 6) // should always be filtered out by hardware
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 
@@ -72,7 +72,7 @@ namespace micasa {
 		std::string getLabel() const { return this->m_label; };
 		std::string getName() const;
 		void setLabel( const std::string& label_ );
-		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ = false );
+		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
 		std::shared_ptr<Settings<Device>> getSettings() const { return this->m_settings; };
 		std::shared_ptr<Hardware> getHardware() const;
@@ -95,7 +95,6 @@ namespace micasa {
 		std::string m_label;
 		Scheduler m_scheduler;
 		std::shared_ptr<Settings<Device>> m_settings;
-		mutable std::mutex m_deviceMutex;
 
 		Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 

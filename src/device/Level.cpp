@@ -86,11 +86,9 @@ namespace micasa {
 		} );
 	};
 
-	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
+	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		if (
-			! force_
-			&& ! this->m_enabled
+			! this->m_enabled
 			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
 			return;
@@ -122,7 +120,7 @@ namespace micasa {
 				&& ( ( value_ + offset ) / divider ) > this->m_settings->get<double>( "maximum" )
 			)
 		) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Invalid value." );
+			Logger::log( this->m_enabled ? Logger::LogLevel::ERROR : Logger::LogLevel::VERBOSE, this, "Invalid value." );
 			return;
 		}
 
@@ -157,13 +155,13 @@ namespace micasa {
 	};
 
 	json Level::getJson( bool full_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
 		double divider = this->m_settings->get<double>( "divider", 1 );
 		double offset = this->m_settings->get<double>( "offset", 0 );
 		result["value"] = round( ( ( this->m_value / divider ) + offset ) * 1000.0f ) / 1000.0f;
 		result["raw_value"] = this->m_value;
+		result["source"] = this->m_source;
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "level";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
@@ -368,6 +366,7 @@ namespace micasa {
 					this->m_value
 				);
 			}
+			this->m_source = source_;
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled

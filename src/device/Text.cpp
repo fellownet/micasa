@@ -70,11 +70,9 @@ namespace micasa {
 		} );
 	};
 
-	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
+	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		if (
-			! force_
-			&& ! this->m_enabled
+			! this->m_enabled
 			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
 			return;
@@ -119,10 +117,10 @@ namespace micasa {
 	};
 
 	json Text::getJson( bool full_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
-		result["value"] = this->getValue();
+		result["value"] = this->m_value;
+		result["source"] = this->m_source;
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "text";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
@@ -298,6 +296,7 @@ namespace micasa {
 					this->m_value.c_str()
 				);
 			}
+			this->m_source = source_;
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled

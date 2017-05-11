@@ -61,12 +61,12 @@ namespace micasa {
 	};
 
 	const std::map<Hardware::State, std::string> Hardware::StateText = {
-		{ Hardware::State::INIT, "initializing" },
-		{ Hardware::State::READY, "ready" },
-		{ Hardware::State::DISABLED, "disabled" },
-		{ Hardware::State::FAILED, "failed" },
-		{ Hardware::State::SLEEPING, "sleeping" },
-		{ Hardware::State::DISCONNECTED, "disconnected" }
+		{ Hardware::State::INIT, "Initializing" },
+		{ Hardware::State::READY, "Ready" },
+		{ Hardware::State::DISABLED, "Disabled" },
+		{ Hardware::State::FAILED, "Failed" },
+		{ Hardware::State::SLEEPING, "Sleeping" },
+		{ Hardware::State::DISCONNECTED, "Disconnected" }
 	};
 
 	Hardware::Hardware( const unsigned int id_, const Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_ ) : m_id( id_ ), m_type( type_ ), m_reference( reference_ ), m_parent( parent_ ) {

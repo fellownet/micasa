@@ -84,9 +84,8 @@ namespace micasa {
 		this->declareDevice<Switch>( "create_switch_device", "Add Switch Device", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void RFXCom::stop() {

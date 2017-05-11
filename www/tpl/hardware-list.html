@@ -69,11 +69,11 @@
 		<!-- td>{{item.id}}</td -->
 		<td>{{item.name}}</td>
 		<td><span class="label"
-			[class.label-default]="item.state=='disabled'"
-			[class.label-success]="item.state=='ready'"
-			[class.label-danger]="item.state=='failed'"
-			[class.label-info]="item.state=='sleeping' || item.state=='disconnected'"
-			[class.label-warning]="item.state=='initializing'"
+			[class.label-default]="item.state=='Disabled'"
+			[class.label-success]="item.state=='Ready'"
+			[class.label-danger]="item.state=='Failed'"
+			[class.label-info]="item.state=='Sleeping' || item.state=='Disconnected'"
+			[class.label-warning]="item.state=='Initializing'"
 			>{{item.state}}</span></td>
 		<td>{{item.label}}</td>
 		<td>{{item.type}}</td>

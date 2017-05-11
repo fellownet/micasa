@@ -105,6 +105,12 @@ namespace micasa {
 		bool _queuePendingUpdate( const std::string& reference_, const std::string& data_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _queuePendingUpdate( const std::string& reference_, const Device::UpdateSource& source_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
 		bool _queuePendingUpdate( const std::string& reference_, const unsigned int& blockNewUpdate_, const unsigned int& waitForResult_ );
+
+		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_, bool release_ = false );
+		bool _hasPendingUpdate( const std::string& reference_, std::string& data_, bool release_ = false );
+		bool _hasPendingUpdate( const std::string& reference_, Device::UpdateSource& source_, bool release_ = false );
+		bool _hasPendingUpdate( const std::string& reference_, bool release_ = false );
+
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, std::string& data_ );
 		bool _releasePendingUpdate( const std::string& reference_, Device::UpdateSource& source_ );
