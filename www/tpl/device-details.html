@@ -147,11 +147,11 @@
 	<tr *ngFor="let item of grid.page">
 		<td>{{item.timestamp | timestamp}}</td>
 		<td><span class="label"
-			[class.label-success]="item.value=='On'"
-			[class.label-danger]="item.value=='Off'"
+			[class.label-success]="item.value=='On'||item.value=='Enabled'"
+			[class.label-danger]="item.value=='Off'||item.value=='Disabled'"
 			[class.label-primary]="item.value=='Stop'"
 			[class.label-warning]="item.value=='Idle'"
-			[class.label-info]="item.value!='On' && item.value!='Off' && item.value!='Stop' && item.value!='Idle'"
+			[class.label-info]="item.value!='On' && item.value!='Enabled' && item.value!='Off' && item.value!='Disabled' && item.value!='Stop' && item.value!='Idle'"
 			>{{item.value}}</span>
 		</td>
 	</tr>

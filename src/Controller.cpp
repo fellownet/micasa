@@ -597,90 +597,46 @@ namespace micasa {
 			source = Device::resolveUpdateSource( 0 );
 		}
 
-		// The scheduler should not prevent devices from being destroyed, hence we're capturing a weak pointer into the
-		// update task. This also prevents a shared_ptr cycle (!).
-		std::weak_ptr<D> device = device_;
+		// A mutable copy is made from the passed const options. This is necessary because even though we need to use
+		// the mutable flag on the lambda, the original type copied into the lambda is const and mutable won't change
+		// that. So now, a non const is copied into the lamda as const and the mutable flag will alow it to be changed.
+		TaskOptions options = options_;
+		options.repeat--;
+		options.clear = false;
 
-		typename D::t_value currentValue = device_->getValue();
-		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
-			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
-				auto targetDevice = device.lock();
-				if ( targetDevice ) {
-					targetDevice->updateValue( source, value_ );
+		// Tasks are scheduled synchroniously, one after another, to make sure the tasks are executed sequentially. The
+		// device is captured as a weak pointer to prevent the scheduler from blocking the destruction of devices. This
+		// also prevents a shared_ptr cycle (!).
+		std::weak_ptr<D> devicePtr = device_;
+		this->m_scheduler.schedule( 1000 * options.afterSec, 1, device_.get(), [this,devicePtr,source,value_,options]( Scheduler::Task<>& ) mutable {
+			auto device = devicePtr.lock();
+			if ( device ) {
+				typename D::t_value current = device->getValue();
+				device->updateValue( source, value_ );
+
+				options.afterSec = options.repeatSec;
+
+				if ( options.forSec > 0.000001 ) {
+					this->m_scheduler.schedule( 1000 * options.forSec, 1, device.get(), [this,devicePtr,source,value_,options,current]( Scheduler::Task<>& ) mutable {
+						auto device = devicePtr.lock();
+						if ( device ) {
+							device->updateValue( source, current );
+							if ( options.repeat > 0 ) {
+								this->_processTask( device, value_, source, options );
+							}
+						}
+					} );
+				} else if ( options.repeat > 0 ) {
+					this->_processTask( device, value_, source, options );
 				}
-			} );
-
-			if (
-				options_.forSec > 0.05
-				&& (
-					options_.repeat > 0
-					|| i < abs( options_.repeat ) - 1
-				)
-			) {
-				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,currentValue]( Scheduler::Task<>& ) {
-					auto targetDevice = device.lock();
-					if ( targetDevice ) {
-						targetDevice->updateValue( source, currentValue );
-					}
-				} );
 			}
-		}
+		} );
 	};
 	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 	template void Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	// The switch variant of the method is specialized separately because it uses the opposite value instead of the
-	// previous value for the "for"-option.
-	template<> void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
-		if ( options_.clear ) {
-			this->m_scheduler.erase(
-				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
-					return task_.data == device_.get();
-				}
-			);
-		}
+	template void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 
-		// If the recur option was set, no script or timer source is send along with the update. This way updating the
-		// device will cause additional scripts to be executed.
-		Device::UpdateSource source = source_;
-		if ( options_.recur ) {
-			source = Device::resolveUpdateSource( 0 );
-		}
-
-		// The scheduler should not prevent devices from being destroyed, hence we're capturing a weak pointer into the
-		// update task. This also prevents a shared_ptr cycle (!).
-		std::weak_ptr<Switch> device = device_;
-
-		Switch::t_value oppositeValue = Switch::getOppositeValue( value_ );
-		for ( int i = 0; i < abs( options_.repeat ); i++ ) {
-			unsigned long delay = 1000 * ( options_.afterSec + ( i * options_.forSec ) + ( i * options_.repeatSec ) );
-			this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,value_]( Scheduler::Task<>& ) {
-				auto targetDevice = device.lock();
-				if ( targetDevice ) {
-					targetDevice->updateValue( source, value_ );
-				}
-			} );
-
-			if (
-				options_.forSec > 0.05
-				&& (
-					options_.repeat > 0
-					|| i < abs( options_.repeat ) - 1
-				)
-			) {
-				delay += ( 1000 * options_.forSec );
-				this->m_scheduler.schedule( delay, 1, device_.get(), [device,source,oppositeValue]( Scheduler::Task<>& ) {
-					auto targetDevice = device.lock();
-					if ( targetDevice ) {
-						targetDevice->updateValue( source, oppositeValue );
-					}
-				} );
-			}
-		}
-	};
-	
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ ) {
 		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
 			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );

@@ -77,17 +77,17 @@ namespace micasa {
 		return hardware;
 	};
 
-	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_, bool force_ ) {
+	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
 		auto target = dynamic_cast<T*>( this );
 #ifdef _DEBUG
 		assert( target && "Invalid device template specifier." );
 #endif // _DEBUG
-		target->updateValue( source_, value_, force_ );
+		target->updateValue( source_, value_ );
 	};
-	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_, bool force_ );
-	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_, bool force_ );
-	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_, bool force_ );
-	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_, bool force_ );
+	template void Device::updateValue<Counter>( const Device::UpdateSource& source_, const Counter::t_value& value_ );
+	template void Device::updateValue<Level>( const Device::UpdateSource& source_, const Level::t_value& value_ );
+	template void Device::updateValue<Switch>( const Device::UpdateSource& source_, const Switch::t_value& value_ );
+	template void Device::updateValue<Text>( const Device::UpdateSource& source_, const Text::t_value& value_ );
 
 	template<class T> typename T::t_value Device::getValue() const {
 		auto target = dynamic_cast<const T*>( this );
@@ -130,13 +130,7 @@ namespace micasa {
 		result["hardware"] = hardware->getName();
 		result["hardware_id"] = hardware->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
-
-		if (
-			this->getType() != Device::Type::SWITCH
-			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
-		) {
-			result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
-		}
+		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
 		}
@@ -195,21 +189,16 @@ namespace micasa {
 		};
 		result += setting;
 
-		if (
-			this->getType() != Device::Type::SWITCH
-			|| "action" != this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) )
-		) {
-			setting = {
-				{ "name", "ignore_duplicates" },
-				{ "label", "Ignore Duplicates" },
-				{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
-				{ "type", "boolean" },
-				{ "class", "advanced" },
-				{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
-				{ "sort", 3 }
-			};
-			result += setting;
-		}
+		setting = {
+			{ "name", "ignore_duplicates" },
+			{ "label", "Ignore Duplicates" },
+			{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
+			{ "type", "boolean" },
+			{ "class", "advanced" },
+			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
+			{ "sort", 3 }
+		};
+		result += setting;
 
 		return result;
 	};

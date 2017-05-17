@@ -56,21 +56,18 @@ namespace micasa {
 		this->declareDevice<Switch>( "heal", "Node Heal", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "identify", "Identify Node", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "config", "Request Node Config", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 	};
 
 	void ZWaveNode::stop() {
@@ -229,19 +226,14 @@ namespace micasa {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
 						if ( device->getReference() == "heal" ) {
-
 							Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
 							device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 							Logger::log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
-
 						} else if ( device->getReference() == "identify" ) {
-
 							Manager::Get()->RefreshNodeInfo( this->m_homeId, this->m_nodeId );
 							device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 							Logger::log( Logger::LogLevel::NORMAL, this, "Identifying node." );
-
 						} else if ( device->getReference() == "config" ) {
-
 							Manager::Get()->RequestAllConfigParams( this->m_homeId, this->m_nodeId );
 							device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 							Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
@@ -382,8 +374,7 @@ namespace micasa {
 				// Scene (activation) events are handled ourselves because they do not represent a valid value id.
 				this->declareDevice<Switch>( "scene_" + std::to_string( notification_->GetSceneId() ), "Scene", {
 					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-					{ "ignore_duplicates", false }
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::SCENE ) }
 				} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 				break;
 			}
@@ -396,6 +387,7 @@ namespace micasa {
 						}
 						this->_updateNames();
 						this->setState( Hardware::State::READY );
+						this->_releasePendingUpdate( "timeout_heal" );
 						break;
 					}
 					case Notification::Code_Dead: {
@@ -408,6 +400,7 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::NORMAL, this, "Node is awake again." );
 						}
 						this->setState( Hardware::State::READY );
+						this->_releasePendingUpdate( "timeout_heal" );
 						this->_updateNames();
 						break;
 					}
@@ -417,7 +410,17 @@ namespace micasa {
 						break;
 					}
 					case Notification::Code_Timeout: {
-						Logger::log( Logger::LogLevel::WARNING, this, "Node timeout." );
+						if (
+							this->getState() >= Hardware::State::READY
+							&& this->m_parent->getState() >= Hardware::State::READY
+							&& this->_queuePendingUpdate( "timeout_heal", 0, 1000 * 60 * 30 ) // max once per 30 mins
+						) {
+							auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
+							device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
+							Logger::log( Logger::LogLevel::WARNING, this, "Node timeout, heal initiated." );
+						} else {
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Node timeout." ); // timeouts during startup are to be expected
+						}
 						break;
 					}
 				}
@@ -443,7 +446,25 @@ namespace micasa {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
 		unsigned int index = valueId_.GetIndex();
 		std::string reference = std::to_string( valueId_.GetId() );
-		
+
+		// OpenZWave has an option to filter out duplicate values, but still it seems that some duplicate values are
+		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
+		// than once within a short period of time).
+		std::string stringValue;
+		Manager::Get()->GetValueAsString( valueId_, &stringValue );
+		bool duplicate;
+		std::string compareValue;
+		if ( this->_releasePendingUpdate( reference + "_df", compareValue ) ) {
+			duplicate = ( stringValue == compareValue );
+		} else {
+			duplicate = false;
+		}
+		this->_queuePendingUpdate( reference + "_df", stringValue, 0, OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC );
+		if ( duplicate ) {
+			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+			return;
+		}
+
 		// Some values are not going to be processed ever and can be filtered out beforehand. NOTE these labels cannot
 		// be changed by the end-user so they're safe to be checked against.
 		if (
@@ -458,23 +479,6 @@ namespace micasa {
 		) {
 			return;
 		}
-
-		// OpenZWave has an option to filter out duplicate values, but still it seems that some duplicate values are
-		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
-		// than once).
-		auto fIsDuplicate = [this,&valueId_,&reference]() -> bool {
-			std::string stringValue;
-			Manager::Get()->GetValueAsString( valueId_, &stringValue );
-			std::string valueIdExt = reference + "_df_" + stringValue;
-			if (
-				stringValue.empty()
-				|| this->_queuePendingUpdate( valueIdExt, 0, OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC )
-			) {
-				return false;
-			} else {
-				return true;
-			}
-		};
 
 		// Process all other values by command class.
 		unsigned int commandClass = valueId_.GetCommandClassId();
@@ -527,6 +531,7 @@ namespace micasa {
 
 				std::string data; // data stored alognside pending update
 				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_, data );
+
 				bool boolValue = false;
 				if ( valueId_.GetType() == ValueID::ValueType_Bool ) {
 					if ( false == Manager::Get()->GetValueAsBool( valueId_, &boolValue ) ) {
@@ -540,6 +545,9 @@ namespace micasa {
 						return;
 					}
 					boolValue = !!( (unsigned int)byteValue );
+				} else {
+					Logger::logr( Logger::LogLevel::ERROR, this, "Unknown value type %d.", valueId_.GetType() );
+					return;
 				}
 
 				Switch::Option targetValue = ( boolValue ? Switch::Option::ON : Switch::Option::OFF );
@@ -552,7 +560,7 @@ namespace micasa {
 				if ( "Unknown" != label ) {
 					device->setLabel( label );
 				}
-				
+
 				// NOTE During testing it appears as if some nodes report the wrong dynamic value after an update. This
 				// is known to happen with some Fibaro FGS223 firmwares where the original value is reported while the
 				// new value does get set. NOTE adding INTERNAL to the update source prevents this check from running
@@ -573,35 +581,12 @@ namespace micasa {
 				// to the queue, which should make the bug-check above also work when fixing race conditions.
 				} else if (
 					! wasPendingUpdate
-					&& this->_releasePendingUpdate( reference + "_race", data )
+					&& this->_releasePendingUpdate( reference + "_race", data ) // sets data to the value to revert to
 					&& targetValue != Switch::resolveTextOption( data )
+					&& this->_queuePendingUpdate( reference, source_ & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					// NOTE the data variable is guaranteed to be set when the _releasePendingUpdate call returns true.
-					// The data variable contains the value we should revert to.
-					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( Scheduler::Task<>& task_ ) {
-						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-							if ( this->_queuePendingUpdate( reference, source_, data, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
-								Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
-							}
-
-							task_.repeat = 0; // done
-
-						// After several tries the manager instance still isn't ready, so we're bailing out with an
-						// error.
-						} else if ( task_.repeat == 0 ) {
-							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
-						}
-					} );
-
-				// After all checks have been done to make sure the proper value is set, it might still be a duplicate.
-				} else if (
-					! wasPendingUpdate
-					&& fIsDuplicate()
-				) {
-					Logger::logr( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value. Received %s.", Switch::resolveTextOption( targetValue ).c_str() );
+					Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
+					Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
 
 				// The value appears to be valid and should be used to set the device.
 				} else {
@@ -618,7 +603,7 @@ namespace micasa {
 						this->_queuePendingUpdate( reference + "_race", source_, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
 					}
 
-					device->updateValue( source_, targetValue );
+					device->updateValue( source_ & ~Device::UpdateSource::INTERNAL, targetValue );
 				}
 				break;
 			}
@@ -637,16 +622,7 @@ namespace micasa {
 						subtype = Level::SubType::DIMMER;
 					}
 			
-					// If there's an update mutex available we need to make sure that it is properly notified of the
-					// execution of the update.
-					bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_ );
-					if (
-						! wasPendingUpdate
-						&& fIsDuplicate()
-					) {
-						Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
-						break;
-					}
+					this->_releasePendingUpdate( reference, source_ );
 
 					unsigned char byteValue = 0;
 					if (
@@ -669,11 +645,6 @@ namespace micasa {
 
 			case COMMAND_CLASS_METER:
 			case COMMAND_CLASS_SENSOR_MULTILEVEL: {
-				if ( fIsDuplicate() ) {
-					Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
-					break;
-				}
-
 				float floatValue = 0.;
 				if (
 					valueId_.GetType() == ValueID::ValueType_Decimal

@@ -148,21 +148,18 @@ namespace micasa {
 		this->declareDevice<Switch>( "heal", "Network Heal", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
 		this->declareDevice<Switch>( "include", "Inclusion Mode", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
 		this->declareDevice<Switch>( "exclude", "Exclusion Mode", {
 			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE | Device::UpdateSource::API ) },
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
-			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) },
-			{ "ignore_duplicates", false }
-		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE, true );
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
 	};
 
 	void ZWave::stop() {
@@ -231,15 +228,41 @@ namespace micasa {
 	};
 
 	bool ZWave::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+		if ( this->getState() < Hardware::State::READY ) {
+			Logger::log( Logger::LogLevel::WARNING, this, "Controller not ready." );
+			return false;
+		}
+
 		if ( device_->getType() == Device::Type::SWITCH ) {
 			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
-				if ( this->getState() < Hardware::State::READY ) {
-					Logger::log( Logger::LogLevel::WARNING, this, "Controller not ready." );
-					return false;
-				}
+			if (
+				device->getReference() == "heal"
+				&& device->getValueOption() == Switch::Option::ACTIVATE
+			) {
+				// This method is most likely called from the scheduler and should therefore not block for too long, so
+				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( Scheduler::Task<>& task_ ) {
+					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
+						Manager::Get()->HealNetwork( this->m_homeId, true );
+						device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
+						Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
+
+						task_.repeat = 0; // done
+
+					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+					} else if ( task_.repeat == 0 ) {
+						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
+					}
+				} );
+
+				apply_ = false; // value is applied only after a successfull command
+				return true;
+			}
+
+			if ( device->getValueOption() == Switch::Option::ENABLED ) {
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
 				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( Scheduler::Task<>& task_ ) {
@@ -247,30 +270,21 @@ namespace micasa {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 						bool cancel = false;
 				
-						if ( device->getReference() == "heal" ) {
-
-							Manager::Get()->HealNetwork( this->m_homeId, true );
-							device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
-
-						} else if ( device->getReference() == "include" ) {
-
+						if ( device->getReference() == "include" ) {
 							if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
-								device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
+								device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ENABLED );
 								cancel = true;
-								Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode activated." );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode enabled." );
 							} else {
-								Logger::log( Logger::LogLevel::ERROR, this, "Unable to activate inclusion mode." );
+								Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable inclusion mode." );
 							}
-
 						} else if ( device->getReference() == "exclude" ) {
-
 							if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
-								device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
+								device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ENABLED );
 								cancel = true;
-								Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode activated." );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode enabled." );
 							} else {
-								Logger::log( Logger::LogLevel::ERROR, this, "Unable to activate exclusion mode." );
+								Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable exclusion mode." );
 							}
 						}
 
@@ -281,7 +295,7 @@ namespace micasa {
 								if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 									std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 									Manager::Get()->CancelControllerCommand( this->m_homeId );
-									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::IDLE );
+									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
 									task_.repeat = 0; // done
 
 								// After several tries the manager instance still isn't ready, so we're bailing out with

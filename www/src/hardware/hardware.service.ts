@@ -57,8 +57,12 @@ export class HardwareService {
 	};
 
 	public performAction( hardware_: Hardware, device_: Device ): Observable<boolean> {
+		var value: String = 'Activate';
+		if ( device_.value == 'Disabled' ) {
+			value = 'Enabled';
+		}
 		return this._sessionService.http<any>( 'patch', 'devices/' + device_.id, {
-			value: 'Activate'
+			value: value
 		} );
 	};
 }

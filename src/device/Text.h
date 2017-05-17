@@ -23,7 +23,7 @@ namespace micasa {
 		
 		Text( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		void updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ = false );
+		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const { return this->m_value; };
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
@@ -37,6 +37,7 @@ namespace micasa {
 
 	private:
 		t_value m_value;
+		Device::UpdateSource m_source;
 		std::chrono::system_clock::time_point m_updated;
 		struct {
 			t_value value;

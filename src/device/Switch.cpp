@@ -24,6 +24,7 @@ namespace micasa {
 		{ Switch::SubType::FAN, "fan" },
 		{ Switch::SubType::HEATER, "heater" },
 		{ Switch::SubType::BELL, "bell" },
+		{ Switch::SubType::SCENE, "scene" },
 		{ Switch::SubType::ACTION, "action" },
 	};
 
@@ -34,6 +35,8 @@ namespace micasa {
 		{ Switch::Option::CLOSE, "Close" },
 		{ Switch::Option::STOP, "Stop" },
 		{ Switch::Option::START, "Start" },
+		{ Switch::Option::ENABLED, "Enabled" },
+		{ Switch::Option::DISABLED, "Disabled" },
 		{ Switch::Option::IDLE, "Idle" },
 		{ Switch::Option::ACTIVATE, "Activate" },
 	};
@@ -78,14 +81,11 @@ namespace micasa {
 		} );
 	};
 
-	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_, bool force_ ) {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
+	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
 		Switch::SubType subType = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
 		if (
-			! force_
+			! this->m_enabled
 			&& subType != Switch::SubType::ACTION
-			&& value_ != Switch::Option::ACTIVATE
-			&& ! this->m_enabled
 			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
 		) {
 			return;
@@ -99,8 +99,6 @@ namespace micasa {
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", true )
 			&& this->m_value == value_
-			&& subType != Switch::SubType::ACTION
-			&& value_ != Switch::Option::ACTIVATE
 			&& this->getHardware()->getState() >= Hardware::State::READY
 		) {
 			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
@@ -131,7 +129,7 @@ namespace micasa {
 		}
 	};
 	
-	void Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_, bool force_ ) {
+	void Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );
@@ -147,6 +145,8 @@ namespace micasa {
 			case Option::CLOSE: return Option::OPEN; break;
 			case Option::STOP: return Option::START; break;
 			case Option::START: return Option::STOP; break;
+			case Option::ENABLED: return Option::DISABLED; break;
+			case Option::DISABLED: return Option::ENABLED; break;
 			case Option::IDLE: return Option::ACTIVATE; break;
 			case Option::ACTIVATE: return Option::IDLE; break;
 			default: return value_; break;
@@ -158,10 +158,10 @@ namespace micasa {
 	};
 
 	json Switch::getJson( bool full_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_deviceMutex );
 		json result = Device::getJson( full_ );
 
 		result["value"] = this->getValue();
+		result["source"] = this->m_source;
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "switch";
 		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
@@ -266,6 +266,7 @@ namespace micasa {
 					Switch::resolveTextOption( this->m_value ).c_str()
 				);
 			}
+			this->m_source = source_;
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled
@@ -275,6 +276,7 @@ namespace micasa {
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Activated." );
+				this->m_value = Switch::Option::IDLE;
 			} else {
 				Logger::logr( Logger::LogLevel::NORMAL, this, "New value %s.", Switch::OptionText.at( this->m_value ).c_str() );
 			}

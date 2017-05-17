@@ -46,7 +46,8 @@
 </thead>
 <tbody>
 	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)"
-		[class.disabled]="!device.enabled"
+		[class.disabled]="!device.enabled && device.subtype!='action'"
+		[class.info]="device.subtype=='action'"
 		[class.warning]="device.battery_level && device.battery_level >= 5 && device.battery_level < 25"
 		[class.danger]="device.battery_level && device.battery_level < 5"
 	>
@@ -89,11 +90,11 @@
 			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 5"></i>
 		</td>
 		<td><span class="label"
-			[class.label-success]="device.value=='On'"
-			[class.label-danger]="device.value=='Off'"
+			[class.label-success]="device.value=='On'||device.value=='Enabled'"
+			[class.label-danger]="device.value=='Off'||device.value=='Disabled'"
 			[class.label-primary]="device.value=='Stop'"
 			[class.label-warning]="device.value=='Idle'"
-			[class.label-info]="device.value!='On' && device.value!='Off' && device.value!='Stop' && device.value!='Idle'"
+			[class.label-info]="device.value!='On' && device.value!='Enabled' && device.value!='Off' && device.value!='Disabled' && device.value!='Stop' && device.value!='Idle'"
 			>{{device.value | truncate:15:'&hellip;'}} {{device.unit}}</span>
 		</td>
 		<td>{{device.hardware}}</td>

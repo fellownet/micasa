@@ -26,20 +26,20 @@ namespace micasa {
 		enum class Method: unsigned short {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
-			GET     = 1,
+			GET     = (1 << 0),
 			// v Retrieve all resources in a collection (header only)
 			// v Retrieve a single resource (header only)
-			HEAD    = 2,
+			HEAD    = (1 << 1),
 			// v Create a new resource in a collection
-			POST    = 4,
+			POST    = (1 << 2),
 			// v Update a resource
-			PUT     = 8,
+			PUT     = (1 << 3),
 			// v Update a resource
-			PATCH   = 16,
+			PATCH   = (1 << 4),
 			// v Delete a resource
-			DELETE  = 32,
+			DELETE  = (1 << 5),
 			// v Return available methods for resource or collection
-			OPTIONS = 64
+			OPTIONS = (1 << 6)
 		}; // enum class Method
 		static const std::map<Method, std::string> MethodText;
 		ENUM_UTIL_W_TEXT( Method, MethodText );
