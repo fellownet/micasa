@@ -1,5 +1,6 @@
 <section class="content-header">
-<h1>{{link.name}}<small>{{device.name}}</small></h1>
+<a routerLink="/devices/{{device.id}}/edit" (click)="loading=true;" class="btn btn-primary btn-xs pull-right"><i class="fa fa-arrow-left"></i> Back</a>
+<h1>{{link.name}}<small>{{device.name}}, {{device.hardware}}</small></h1>
 </section>
 
 <section class="content-body">
@@ -22,7 +23,7 @@
 				<div class="box-body">
 					<settings [settings]="link.settings" [form]="linkForm" [values]="link" #settingsComponent="settingsComponent"></settings>
 				</div>
-				<div class="box-footer row actionrow">
+				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!linkForm.form.valid || linkForm.form.pristine || loading">Save</button>
 					</div>

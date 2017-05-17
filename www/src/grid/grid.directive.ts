@@ -17,11 +17,11 @@ export class GridDirective implements OnInit, OnChanges {
 
 	@Input( "gridSort" ) private _defaultSortField: string;
 	@Input( "gridOrder" ) private _defaultSortOrder: string;
+	@Input( "gridPage" ) private _page: number = 1;
 	@Input( "gridPageSize" ) private _pageSize: number = 15;
 
 	private _sortField: string = '';
 	private _sortOrder: string = 'asc';
-	private _page: number = 1;
 
 	public page: any[] = [];
 
@@ -76,6 +76,10 @@ export class GridDirective implements OnInit, OnChanges {
 		return this._pageSize;
 	};
 
+	public getPageCount(): number {
+		return Math.ceil( this.data.length / this._pageSize );
+	};
+
 	private _sort() {
 		var me = this;
 		this.data.sort( function( a_: any, b_: any ): number {
@@ -92,6 +96,9 @@ export class GridDirective implements OnInit, OnChanges {
 	};
 
 	private _slice() {
+		if ( this._page > this.getPageCount() ) {
+			this._page = this.getPageCount();
+		}
 		let offset: number = ( this._page - 1 ) * this._pageSize;
 		this.page = this.data.slice( offset, offset + this._pageSize );
 	};

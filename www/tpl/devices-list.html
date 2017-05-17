@@ -1,5 +1,7 @@
 <section class="content-header" *ngIf="!hardware || devices.length>0">
-<h1>Devices</h1>
+<h1>Devices
+<small *ngIf="hardware">{{hardware.name}}<span *ngIf="hardware.parent">, {{hardware.parent.name}}</span></small>
+</h1>
 </section>
 
 <section class="content-body" *ngIf="devices.length==0 && !loading && !hardware">
@@ -28,9 +30,9 @@
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
-				<div class="box-body table-responsive no-padding">
+				<div class="box-body no-padding">
 
-<table class="table table-hover" [gridData]="devices" [gridSort]="'name'" #grid="GridDirective">
+<table class="table table-hover" [gridData]="devices" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
 <thead>
 	<tr>
 		<th class="icon"></th>
@@ -40,8 +42,6 @@
 		<th [gridField]="'hardware'">Hardware</th>
 		<th [gridField]="'label'">Label</th>
 		<th [gridField]="'age'">Last Update</th>
-		<!-- th [gridField]="'type'">Type</th -->
-		<!-- th [gridField]="'subtype'">SubType</th -->
 	</tr>
 </thead>
 <tbody>
@@ -84,8 +84,6 @@
 			<i class="fa fa-calendar" *ngIf="device.total_timers > 0"></i>
 			<i class="fa fa-link" *ngIf="device.total_links > 0"></i>
 			<i class="fa fa-clock-o" *ngIf="device.scheduled"></i>
-			<!--i class="fa fa-battery-full" *ngIf="device.battery_level && device.battery_level >= 75"></i-->
-			<!--i class="fa fa-battery-three-quarters" *ngIf="device.battery_level && device.battery_level >= 50 && device.battery_level < 75"></i-->
 			<i class="fa fa-battery-half" *ngIf="device.battery_level && device.battery_level >= 25 && device.battery_level < 50"></i>
 			<i class="fa fa-battery-quarter" *ngIf="device.battery_level && device.battery_level >= 5 && device.battery_level < 25"></i>
 			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 5"></i>
@@ -101,17 +99,15 @@
 		<td>{{device.hardware}}</td>
 		<td>{{device.label}}</td>
 		<td>{{-device.age | timestamp}}</td>
-		<!-- td><span class="label label-default">{{device.type}}</span></td -->
-		<!-- td><span class="label label-default">{{device.subtype}}</span></td -->
 	</tr>
 </tbody>
-<tfoot>
-	<tr>
-		<td colspan="7" class="paging"><grid-paging [grid]="grid"></grid-paging></td>
-	</tr>
-</tfoot>
 </table>
 
+				</div>
+				<div class="box-footer" *ngIf="grid.getPageCount()>1">
+					<div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 paging">
+						<grid-paging [grid]="grid"></grid-paging>
+					</div>
 				</div>
 				<div class="box-overlay" *ngIf="loading">
 					<i class="fa fa-spinner fa-pulse"></i>

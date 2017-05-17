@@ -16,6 +16,8 @@ export class Timer {
 @Injectable()
 export class TimersService {
 
+	public lastPage: any = {};
+
 	public constructor(
 		private _sessionService: SessionService
 	) {

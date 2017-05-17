@@ -1,7 +1,6 @@
 /* global */
 
 @import url(https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic);
-
 @import url(https://fonts.googleapis.com/css?family=Roboto:300,400,600,700,900|Roboto+Condensed:400);
 
 body {
@@ -134,6 +133,7 @@ label span.mandatory {
 	overflow-x: hidden;
 	overflow-y: scroll;
 	-ms-overflow-style: -ms-autohiding-scrollbar;
+	-webkit-overflow-scrolling: touch;
 }
 .sidebar::-webkit-scrollbar {
 	display: none;
@@ -220,10 +220,10 @@ label span.mandatory {
 /* content */
 
 .content {
-	-webkit-transition: -webkit-transform 0.3s ease-in-out, margin 0.3s ease-in-out;
-	-moz-transition: -moz-transform 0.3s ease-in-out, margin 0.3s ease-in-out;
-	-o-transition: -o-transform 0.3s ease-in-out, margin 0.3s ease-in-out;
-	transition: transform 0.3s ease-in-out, margin 0.3s ease-in-out;
+	-webkit-transition: -webkit-transform 0.3s ease-in-out;
+	-moz-transition: -moz-transform 0.3s ease-in-out;
+	-o-transition: -o-transform 0.3s ease-in-out;
+	transition: transform 0.3s ease-in-out;
 
 	margin-left: 230px;
 	z-index: 820;
@@ -345,12 +345,13 @@ label span.mandatory {
 
 .content .box-body {
 	padding: 10px 10px 0 10px;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
 }
 .content .box-body .callout {
 	margin-bottom: 10px;
 }
-.content .box-body .table,
-.content .box-body.table-responsive {
+.content .box-body .table {
 	margin-bottom: 0;
 }
 .content .box-body .table td.icon {
@@ -364,16 +365,25 @@ label span.mandatory {
 .content .box-body p {
 	margin-bottom: 10px;
 }
-.content .box-body.chart-box {
+.content .box-body.chart {
 	padding: 0;
 	height: 300px;
+	overflow: hidden;
 }
-.content .box-body.chart-box.widget {
+.content .box-body.chart.widget {
 	height: 200px;
 }
 .content .box-footer {
+	border-top: 1px solid #d2d6de;
+	padding: 10px 5px 0 5px;
+}
+.content form .box-footer {
 	border-top: 1px solid #f4f4f4;
-	padding: 10px;
+}
+.content .box-footer [class*='col-'] {
+	padding-left: 5px;
+	padding-right: 5px;
+	padding-bottom: 10px;
 }
 .content .box-overlay {
 	position: absolute;
@@ -396,41 +406,21 @@ label span.mandatory {
 	font-size: 35px;
 }
 
-@media (max-width: 768px) {
-	.content .actionrow > [class*='col-']:not(:last-child) {
-		padding-bottom: 5px;
-	}
-}
-@media (min-width: 768px) {
-	.content .actionrow > [class*='col-']:not(:last-child) {
-		padding-right:5px;
-	}
-	.content .actionrow > [class*='col-']:not(:first-child) {
-		padding-left:5px;
-	}
-}
-
 /* table pagination */
 
-div.paging {
-	display: block;
-}
-.table td.paging,
-div.paging {
-	text-align: right;
-	padding-right: 10px;
-}
 .paging ul {
-	list-style: none;
 	margin: 0;
 	padding: 0;
+	text-align: right;
+	display: block;
 }
 .paging li {
 	display: inline-block;
-	margin: 10px 0;
 }
-.actionrow .paging li {
-	margin: 0;
+@media (max-width: 768px) {
+	.paging ul {
+		text-align: center;
+	}
 }
 
 /* callouts */
@@ -532,14 +522,12 @@ div.paging {
 .btn-selected {
 	background-color: #CCC;
 }
-.table td {
+.table td,
+.table th {
 	white-space: nowrap;
 }
 .table-hover tr td {
 	cursor: pointer;
-}
-.table td.paging {
-	padding: 0;
 }
 .table th a {
 	cursor: pointer;

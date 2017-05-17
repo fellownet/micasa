@@ -54,6 +54,9 @@ export class Link {
 @Injectable()
 export class DevicesService {
 
+	public lastPage: any = {};
+	public linksLastPage: any = {};
+
 	public constructor(
 		private _sessionService: SessionService
 	) {

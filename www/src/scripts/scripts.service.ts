@@ -14,6 +14,8 @@ export class Script {
 @Injectable()
 export class ScriptsService {
 
+	public lastPage: number = NaN;
+
 	public constructor(
 		private _sessionService: SessionService
 	) {
