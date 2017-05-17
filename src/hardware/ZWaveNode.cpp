@@ -610,7 +610,8 @@ namespace micasa {
 					// which is used to detect and prevent race conditions. The value to revert to when a race condition
 					// is detected is stored as data variable alongside the pending update.
 					if (
-						device->getSettings()->get<bool>( "prevent_race_conditions", false )
+						device->getValueOption() != targetValue
+						&& device->getSettings()->get<bool>( "prevent_race_conditions", false )
 						&& Device::resolveUpdateSource( source_ & Device::UpdateSource::EVENT ) > 0
 					) {
 						data = Switch::resolveTextOption( targetValue );
