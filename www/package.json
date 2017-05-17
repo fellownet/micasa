@@ -1,60 +1,60 @@
 {
-	"name"								: "micasa",
-	"version"							: "0.0.1",
-	"description"						: "Micasa is a software domotica controller designed to interconnect various types of hardware.",
-	"scripts"							: {
-		"start"								: "tsc -w",
-		"build"								: "tsc",
-		"build_dev"							: "npm run build && cp dev.html index.html",
-		"build_prod"						: "npm run build && npm run _environment && npm run _browserify && npm run _uglify && npm run _styles && cp prod.html index.html",
-		"_environment"						: "echo \"/* micasa */\n\n\" > app/app.js && for f in node_modules/core-js/client/shim.min.js node_modules/zone.js/dist/zone.js node_modules/reflect-metadata/Reflect.js; do (cat \"${f}\"; printf \"\n \n\") >> app/app.js; done",
-		"_browserify"						: "browserify -s main app/main.js >> app/app.js",
-		"_uglify"							: "uglifyjs app/app.js --screw-ie8 --compress --mangle --output app/app.min.js",
-		"_styles"							: "cp -r node_modules/font-awesome/fonts/. fonts && echo \"/* micasa */\n\n\" > css/env.css && for f in node_modules/bootstrap/dist/css/bootstrap.min.css node_modules/font-awesome/css/font-awesome.min.css; do (cat \"${f}\"; printf \"\n \n\") >> css/env.css; done"
-	},
-	"keywords"							: [],
-	"author"							: "Bob Kersten // Fellownet",
-	"license"							: "MIT",
-	"dependencies"						: {
-		"typescript"						: "^2.2.2",
-		"browserify"						: "^14.3.0",
-		"browserify-shim"					: "^3.8.14",
-		"uglifyjs"							: "^2.4.10",
-
-		"@angular/common"					: "~4.0.0",
-		"@angular/compiler"					: "~4.0.0",
-		"@angular/core"						: "~4.0.0",
-		"@angular/forms"					: "~4.0.0",
-		"@angular/http"						: "~4.0.0",
-		"@angular/platform-browser"			: "~4.0.0",
-		"@angular/platform-browser-dynamic"	: "~4.0.0",
-		"@angular/router"					: "~4.0.0",
-
-		"systemjs"							: "0.19.40",
-		"zone.js"							: "^0.8.4",
-		"reflect-metadata"					: "^0.1.8",
-		"rxjs"								: "5.0.1",
-		"core-js"							: "^2.4.1",
-
-		"jquery"							: "^3.2.1",
-		"bootstrap"							: "^3.3.7",
-		"font-awesome"						: "^4.7.0",
-		"highcharts"						: "^5.0.10",
-		"ace-builds"						: "^1.2.6"
-	},
-	"repository"						: {},
-
-	"browser"							: {
-		"jquery/dist/jquery.js"				: "./node_modules/jquery/dist/jquery.js",
-		"bootstrap/dist/js/bootstrap.js"	: "./node_modules/bootstrap/dist/js/bootstrap.js"
-	},
-	"browserify"						: {
-		"transform"							: [ "browserify-shim" ]
-	},
-	"browserify-shim"					: {
-		"jquery/dist/jquery.js"				: "$",
-		"bootstrap/dist/js/bootstrap.js"	: {
-			"depends"							: [ "jquery/dist/jquery.js:$" ]
-		}
-	}
+  "name": "micasa",
+  "version": "0.0.1",
+  "description": "Micasa is a software domotica controller designed to interconnect various types of hardware.",
+  "scripts": {
+    "start": "tsc -w",
+    "build": "tsc",
+    "build_dev": "npm run build && cp dev.html index.html",
+    "build_prod": "npm run build && npm run _environment && npm run _browserify && npm run _uglify && npm run _styles && cp prod.html index.html",
+    "_environment": "echo \"/* micasa */\n\n\" > app/app.js && for f in node_modules/core-js/client/shim.min.js node_modules/zone.js/dist/zone.js node_modules/reflect-metadata/Reflect.js; do (cat \"${f}\"; printf \"\n \n\") >> app/app.js; done",
+    "_browserify": "browserify -s main app/main.js >> app/app.js",
+    "_uglify": "uglifyjs app/app.js --screw-ie8 --compress --mangle --output app/app.min.js",
+    "_styles": "cp -r node_modules/font-awesome/fonts/. fonts && echo \"/* micasa */\n\n\" > css/env.css && for f in node_modules/bootstrap/dist/css/bootstrap.min.css node_modules/font-awesome/css/font-awesome.min.css; do (cat \"${f}\"; printf \"\n \n\") >> css/env.css; done"
+  },
+  "keywords": [],
+  "author": "Bob Kersten // Fellownet",
+  "license": "MIT",
+  "dependencies": {
+    "@angular/common": "~4.0.0",
+    "@angular/compiler": "~4.0.0",
+    "@angular/core": "~4.0.0",
+    "@angular/forms": "~4.0.0",
+    "@angular/http": "~4.0.0",
+    "@angular/platform-browser": "~4.0.0",
+    "@angular/platform-browser-dynamic": "~4.0.0",
+    "@angular/router": "~4.0.0",
+    "ace-builds": "^1.2.6",
+    "bootstrap": "^3.3.7",
+    "browserify": "^14.3.0",
+    "browserify-shim": "^3.8.14",
+    "core-js": "^2.4.1",
+    "font-awesome": "^4.7.0",
+    "highcharts": "^5.0.10",
+    "jquery": "^3.2.1",
+    "reflect-metadata": "^0.1.8",
+    "rxjs": "5.0.1",
+    "systemjs": "0.19.40",
+    "typescript": "^2.2.2",
+    "uglifyjs": "^2.4.10",
+    "zone.js": "^0.8.4"
+  },
+  "repository": {},
+  "browser": {
+    "jquery/dist/jquery.js": "./node_modules/jquery/dist/jquery.js",
+    "bootstrap/dist/js/bootstrap.js": "./node_modules/bootstrap/dist/js/bootstrap.js"
+  },
+  "browserify": {
+    "transform": [
+      "browserify-shim"
+    ]
+  },
+  "browserify-shim": {
+    "jquery/dist/jquery.js": "$",
+    "bootstrap/dist/js/bootstrap.js": {
+      "depends": [
+        "jquery/dist/jquery.js:$"
+      ]
+    }
+  }
 }

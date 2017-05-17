@@ -18,6 +18,8 @@ export class Hardware {
 @Injectable()
 export class HardwareService {
 
+	public lastPage: any = {};
+
 	public constructor(
 		private _sessionService: SessionService
 	) {

@@ -1,7 +1,9 @@
 import {
 	Component,
 	OnInit,
-	Input
+	OnDestroy,
+	Input,
+	ViewChild
 }                   from '@angular/core';
 import {
 	Router,
@@ -12,19 +14,24 @@ import {
 	Hardware,
 	HardwareService
 }                   from './hardware.service';
+import {
+	GridPagingComponent
+}                   from '../grid/paging.component'
 
 @Component( {
 	selector: 'hardware',
 	templateUrl: 'tpl/hardware-list.html',
 } )
 
-export class HardwareListComponent implements OnInit {
+export class HardwareListComponent implements OnInit, OnDestroy {
 
 	public loading: boolean = false;
 	public error: String;
 	public hardware: Hardware[];
+	public startPage: number = 1;
 
 	@Input() public parent?: Hardware;
+	@ViewChild(GridPagingComponent) private _paging: GridPagingComponent;
 
 	public constructor(
 		private _router: Router,
@@ -37,7 +44,22 @@ export class HardwareListComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.hardware = data_.list;
+			if ( !!me.parent ) {
+				me.startPage = me._hardwareService.lastPage[me.parent.id] || 1;
+			} else {
+				me.startPage = me._hardwareService.lastPage['global'] || 1;
+			}
 		} );
+	};
+
+	public ngOnDestroy() {
+		if ( this._paging ) {
+			if ( !!this.parent ) {
+				this._hardwareService.lastPage[this.parent.id] = this._paging.getActivePage();
+			} else {
+				this._hardwareService.lastPage['global'] = this._paging.getActivePage();
+			}
+		}
 	};
 
 	public selectHardware( hardware_: Hardware ) {

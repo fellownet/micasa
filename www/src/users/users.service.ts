@@ -28,6 +28,8 @@ export class User {
 @Injectable()
 export class UsersService {
 
+	public lastPage: number = NaN;
+
 	public constructor(
 		private _sessionService: SessionService
 	) {

@@ -1,8 +1,8 @@
 <section class="content-header">
-<h1>Links<small>{{device.name}}</small></h1>
+<h1>Links<small>{{device.name}}, {{device.hardware}}</small></h1>
 </section>
 
-<section class="content-body">
+<section class="content-body" *ngIf="links.length==0 && !loading">
 
 	<div class="callout callout-danger" *ngIf="error">
 		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
@@ -13,9 +13,35 @@
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
-				<div class="box-body table-responsive no-padding" *ngIf="links.length>0">
+				<div class="box-footer">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<button type="submit" class="btn btn-primary btn-block" (click)="addLink()">Add</button>
+					</div>
+				</div>
 
-<table class="table table-hover" [gridData]="links" [gridSort]="'name'" #grid="GridDirective">
+				<div class="box-overlay" *ngIf="loading">
+					<i class="fa fa-spinner fa-pulse"></i>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</section>
+
+<section class="content-body" *ngIf="links.length>0">
+
+	<div class="callout callout-danger" *ngIf="error">
+		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="box">
+				<div class="box-body no-padding">
+
+<table class="table table-hover" [gridData]="links" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
 <thead>
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
@@ -62,15 +88,18 @@
 </table>
 
 				</div>
-				<div class="box-footer row actionrow">
-					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+				<div class="box-footer">
+					<div class="col-xs-12 col-sm-8 col-sm-push-4 col-md-9 col-md-push-3 col-lg-10 col-lg-push-2 paging" *ngIf="grid.getPageCount()>1">
+						<grid-paging [grid]="grid"></grid-paging>
+					</div>
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
+						[class.col-sm-pull-8]="grid.getPageCount()>1"
+						[class.col-md-pull-9]="grid.getPageCount()>1"
+						[class.col-lg-pull-10]="grid.getPageCount()>1"
+					>
 						<button type="submit" class="btn btn-primary btn-block" (click)="addLink()">Add</button>
 					</div>
-					<div class="col-xs-12 col-sm-8 col-md-9 col-lg-10 paging" *ngIf="links.length>0">
-						
-					</div>
 				</div>
-
 				<div class="box-overlay" *ngIf="loading">
 					<i class="fa fa-spinner fa-pulse"></i>
 				</div>

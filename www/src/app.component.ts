@@ -13,6 +13,7 @@ import { ScreensService } from './screens/screens.service';
 import { ACL }            from './users/users.service';
 
 declare var $: any;
+declare var navigator: any;
 
 declare var require: any;
 const Highcharts = require( 'highcharts/highcharts.src.js' );
