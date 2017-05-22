@@ -73,7 +73,19 @@ export class DevicesService {
 		} else {
 			resource += '?enabled=1';
 		}
-		return this._sessionService.http<Device[]>( 'get', resource );
+		return this._sessionService.http<Device[]>( 'get', resource )
+			.map( function( devices_: Device[] ) {
+				return devices_.sort( function( left_: Device, right_: Device ) {
+					if ( left_.name > right_.name ) {
+						return 1;
+					}
+					if ( left_.name < right_.name ) {
+						return -1;
+					}
+					return 0;
+				} );
+			} )
+		;
 	};
 
 	public getDevice( id_: number ): Observable<Device> {

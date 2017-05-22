@@ -36,7 +36,7 @@
     "rxjs": "5.0.1",
     "systemjs": "0.19.40",
     "typescript": "^2.2.2",
-    "uglifyjs": "^2.4.10",
+    "uglify-js": "^3.0.7",
     "zone.js": "^0.8.4"
   },
   "repository": {},

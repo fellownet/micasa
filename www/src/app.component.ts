@@ -9,7 +9,10 @@ import {
 	Session,
 	SessionService
 }                         from './session/session.service';
-import { ScreensService } from './screens/screens.service';
+import {
+	ScreensService,
+	Screen
+}                         from './screens/screens.service';
 import { ACL }            from './users/users.service';
 
 declare var $: any;
@@ -21,9 +24,7 @@ const Highcharts = require( 'highcharts/highcharts.src.js' );
 @Component( {
 	selector: 'body',
 	templateUrl: 'tpl/app.html',
-	styleUrls: [
-		'css/app.css'
-	],
+	styleUrls: [ 'css/app.css' ],
 	encapsulation: ViewEncapsulation.None
 } )
 
@@ -31,7 +32,7 @@ export class AppComponent implements OnInit {
 
 	public session: Observable<Session>;
 	public ACL = ACL;
-	public screens: Observable<any[]>;
+	public screens: Observable<Screen[]>;
 
 	public constructor(
 		private _sessionService: SessionService,
@@ -50,6 +51,9 @@ export class AppComponent implements OnInit {
 
 		// The defaults for all chart types are set here, the one place that is in common for all
 		// widgets with charts.
+
+
+/*
 		let animationDuration: number = 300;
 		Highcharts.setOptions( {
 			global: {
@@ -116,6 +120,7 @@ export class AppComponent implements OnInit {
 				}
 			}
 		} );
+*/
 	};
 
 	public toggleMenu(): void {

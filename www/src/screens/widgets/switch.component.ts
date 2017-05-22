@@ -2,41 +2,44 @@ import {
 	Component,
 	Input,
 	OnInit
-}                  from '@angular/core';
+}                       from '@angular/core';
 
 import {
-	Screen,
-	Widget
-}                  from '../screens.service';
+	WidgetComponent
+}                       from '../widget.component';
 import {
 	Device,
 	DevicesService
-}                  from '../../devices/devices.service';
+}                       from '../../devices/devices.service'
 
 @Component( {
 	selector: 'switchwidget',
 	templateUrl: 'tpl/widgets/switch.html'
 } )
 
-export class WidgetSwitchComponent {
+export class WidgetSwitchComponent implements OnInit {
 
-	@Input( 'screen' ) public screen: Screen;
-	@Input( 'widget' ) public widget: Widget;
-	@Input( 'device' ) public device: Device;
+	public editing: boolean = false;
 
-	constructor(
+	@Input( 'widget' ) public parent: WidgetComponent;
+	@Input( 'placeholder' ) public placeholder: boolean;
+
+	public constructor(
 		private _devicesService: DevicesService
 	) {
 	};
 
-	toggleSwitch() {
+	public ngOnInit() {
+	};
+
+	public toggle() {
 		var me = this;
-		if ( me.device.value == 'On' ) {
-			me.device.value = 'Off';
+		if ( me.parent.devices[me.parent.widget.sources[0].device_id].value == 'On' ) {
+			me.parent.devices[me.parent.widget.sources[0].device_id].value = 'Off';
 		} else {
-			me.device.value = 'On';
+			me.parent.devices[me.parent.widget.sources[0].device_id].value = 'On';
 		}
-		this._devicesService.patchDevice( me.device, me.device.value )
+		me._devicesService.patchDevice( me.parent.devices[me.parent.widget.sources[0].device_id], me.parent.devices[me.parent.widget.sources[0].device_id].value )
 			.subscribe(
 				function( device_: Device ) {
 				},

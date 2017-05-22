@@ -1,0 +1,20 @@
+<div [ngClass]="classes">
+
+	<div class="callout callout-danger" *ngIf="!!error">
+		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+		<h4>Error!</h4>
+		<p>{{error}}</p>
+	</div>
+
+	<ng-container *ngIf="!error && !loading" [ngSwitch]="widget.type">
+		<chartwidget *ngSwitchCase="'chart'" [widget]="self"></chartwidget>
+		<latestwidget *ngSwitchCase="'latest'" [widget]="self"></latestwidget>
+		<switchwidget *ngSwitchCase="'switch'" [widget]="self"></switchwidget>
+		<tablewidget *ngSwitchCase="'table'" [widget]="self"></tablewidget>
+	</ng-container>
+
+	<ng-container *ngIf="!error && loading" [ngSwitch]="widget.type">
+		<chartwidget *ngSwitchCase="'chart'" [widget]="self" [placeholder]="true"></chartwidget>
+	</ng-container>
+
+</div>

@@ -67,7 +67,7 @@
 		</li>
 
 		<ng-container *ngFor="let screen of screens | async">
-		<li *ngIf="screen.id > 1" routerLinkActive="active">
+		<li *ngIf="screen.id > 1 && !screen.device_id" routerLinkActive="active">
 			<a routerLink="/screens/{{screen.id}}">
 				<i class="fa fa-laptop"></i>
 				<span>{{screen.name}}</span>

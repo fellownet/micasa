@@ -272,7 +272,7 @@ namespace micasa {
 	};
 
 	json Level::getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const {
-		std::vector<std::string> validIntervals = { "day", "week", "month", "year" };
+		std::vector<std::string> validIntervals = { "hour", "day", "week", "month", "year" };
 		if ( std::find( validIntervals.begin(), validIntervals.end(), interval_ ) == validIntervals.end() ) {
 			return json::array();
 		}

@@ -6,6 +6,7 @@ import {
 	Router,
 	ActivatedRoute
 }                  from '@angular/router';
+import { Device }  from '../devices/devices.service';
 import {
 	Screen,
 	ScreensService
@@ -19,7 +20,9 @@ export class ScreenEditComponent implements OnInit {
 
 	public loading: boolean = false;
 	public error: string;
+
 	public screen: Screen;
+	public device?: Device;
 
 	public constructor(
 		private _router: Router,
@@ -31,7 +34,8 @@ export class ScreenEditComponent implements OnInit {
 	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
-			me.screen = data_.screen;
+			me.screen = data_.payload.screen;
+			me.device = data_.payload.device;
 		} );
 	};
 
@@ -57,7 +61,11 @@ export class ScreenEditComponent implements OnInit {
 		me._screensService.deleteScreen( me.screen )
 			.subscribe(
 				function( screens_: Screen[] ) {
-					me._router.navigate( [ '/dashboard' ] );
+					if ( !!me.device ) {
+						me._router.navigate( [ '/devices', me.device.id ] );
+					} else {
+						me._router.navigate( [ '/dashboard' ] );
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;

@@ -208,7 +208,7 @@ namespace micasa {
 	};
 
 	json Counter::getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const {
-		std::vector<std::string> validIntervals = { "day", "week", "month", "year" };
+		std::vector<std::string> validIntervals = { "hour", "day", "week", "month", "year" };
 		if ( std::find( validIntervals.begin(), validIntervals.end(), interval_ ) == validIntervals.end() ) {
 			return json::array();
 		}
@@ -228,7 +228,6 @@ namespace micasa {
 		std::string dateFormat = "%Y-%m-%d %H:30:00";
 		std::string groupFormat = "%Y-%m-%d-%H";
 		std::string start = "'start of day','+' || strftime('%H') || ' hours'";
-
 		if ( group_ == "day" ) {
 			dateFormat = "%Y-%m-%d 12:00:00";
 			groupFormat = "%Y-%m-%d";

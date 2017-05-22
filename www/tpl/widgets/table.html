@@ -1,0 +1,68 @@
+<div class="box">
+	<div class="box-header with-border">
+		<div class="box-tools" *ngIf="!editing">
+			<button type="button" (click)="parent.delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
+			<button type="button" (click)="editing=true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+			<button type="button" (click)="parent.reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
+		</div>
+		<h3 class="box-title">{{parent.widget.name}}</h3>
+	</div>
+
+	<!-- view -->
+	<ng-container *ngIf="!editing">
+	<div class="box-body no-padding">
+
+<table class="table" [gridData]="parent.data[parent.widget.sources[0].device_id]" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">
+<thead>
+	<tr>
+		<th [gridField]="'timestamp'">Updated</th>
+		<th [gridField]="'value'">Value</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let item of grid.page">
+		<td>{{item.timestamp | timestamp}}</td>
+		<td><span class="label"
+			[class.label-success]="item.value=='On'||item.value=='Enabled'"
+			[class.label-danger]="item.value=='Off'||item.value=='Disabled'"
+			[class.label-primary]="item.value=='Stop'"
+			[class.label-warning]="item.value=='Idle'"
+			[class.label-info]="item.value!='On' && item.value!='Enabled' && item.value!='Off' && item.value!='Disabled' && item.value!='Stop' && item.value!='Idle'"
+			>{{item.value}}</span>
+		</td>
+	</tr>
+</tbody>
+</table>
+
+	</div>
+	<div class="box-footer" *ngIf="grid.getPageCount()>1">
+		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 paging">
+			<grid-paging [grid]="grid"></grid-paging>
+		</div>
+	</div>
+	</ng-container>
+
+	<!-- edit -->
+	<form role="form" *ngIf="editing" (ngSubmit)="parent.save();editing=false">
+	<div class="box-body">
+
+		<div class="form-group">
+			<label for="widget_name">Name</label>
+			<input type="text" class="form-control" id="widget_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="parent.widget.name" name="name" #name="ngModel">
+		</div>
+		<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+
+	</div>
+
+	<div class="box-footer">
+		<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
+			<button type="submit" class="btn btn-success btn-block" [disabled]="false">Save</button>
+		</div>
+
+		<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
+			<button type="button" class="btn btn-danger btn-block" (click)="parent.delete()" [disabled]="false">Delete</button>
+		</div>
+	</div>
+	</form>
+
+</div>
