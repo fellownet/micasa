@@ -1,0 +1,114 @@
+<div class="box">
+	<div class="box-header with-border">
+		<div class="box-tools" *ngIf="!editing && !placeholder">
+			<button type="button" (click)="parent.delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
+			<button type="button" (click)="editing=true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+			<button type="button" (click)="parent.reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
+		</div>
+		<h3 class="box-title" [class.empty]="!parent.widget.name">{{parent.widget.name ? parent.widget.name : 'Edit Widget'}}</h3>
+	</div>
+
+	<!-- view -->
+	<div class="box-body no-padding chart" *ngIf="!editing" id="chart_target_{{elementId}}"></div>
+
+	<!-- edit -->
+	<form role="form" *ngIf="editing" (ngSubmit)="parent.save()" #widgetForm="ngForm">
+	<div class="box-body">
+
+		<div class="form-group">
+			<label for="widget_name">Name<span class="mandatory"> *</span></label>
+			<input type="text" class="form-control" id="widget_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="parent.widget.name" name="name" #name="ngModel">
+		</div>
+		<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+		<div class="form-group">
+			<label for="widget-size">Size<span class="mandatory"> *</span></label>
+			<select class="form-control" id="widget-size" required [(ngModel)]="parent.widget.size" name="size" #size="ngModel">
+				<option value="small">Small</option>
+				<option value="medium">Medium</option>
+				<option value="large">Large</option>
+			</select>
+		</div>
+		<div class="row">
+			<div class="col-xs-12 col-sm-6 col-md-6 col-lg-6">
+				<div class="form-group">
+					<label for="widget_range">Range<span class="mandatory"> *</span></label>
+					<input type="number" class="form-control" id="widget_range" placeholder="Enter range" autocomplete="off" required [(ngModel)]="parent.widget.range" name="range" #range="ngModel">
+				</div>
+			</div>
+			<div class="col-xs-12 col-sm-6 col-md-6 col-lg-6">
+				<div class="form-group">
+					<label for="widget-interval">Interval<span class="mandatory"> *</span></label>
+					<select class="form-control" id="widget-interval" required [(ngModel)]="parent.widget.interval" name="interval" #interval="ngModel">
+						<option value="hour">Hour</option>
+						<option value="day">Day</option>
+						<option value="week">Week</option>
+						<option value="month">Month</option>
+						<option value="year">Year</option>
+					</select>
+				</div>
+			</div>
+		</div>
+		<div class="callout callout-danger" [hidden]="range.valid || range.pristine">A range is required!</div>
+	</div>
+
+	<div class="box-body no-padding">
+
+<table class="table">
+<thead>
+	<tr>
+		<th><label>Devices<span class="mandatory"> *</span></label></th>
+		<th class="minimum right">&nbsp;</th>
+	</tr>
+</thead>
+<tbody>
+	<tr *ngFor="let source of parent.widget.sources">
+		<td>{{parent.devices[source.device_id].name}}</td>
+		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="removeSource(source)"><i class="fa fa-times"></i></button></td>
+	</tr>
+	<tr>
+		<td>
+			<select class="form-control" #deviceSelect>
+				<ng-container *ngFor="let device of devices | async">
+					<option value="{{device.id}}">{{device.name}}</option>
+				</ng-container>
+			</select>
+		</td>
+		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="addSource(deviceSelect.value)"><i class="fa fa-plus"></i></button></td>
+	</tr>
+
+</tbody>
+</table>
+
+	</div>
+
+	<div class="box-footer" *ngIf="parent.widget.size=='large'">
+		<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
+			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+		</div>
+		<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
+			<button type="button" class="btn btn-danger btn-block" (click)="parent.delete()" [disabled]="false">Delete</button>
+		</div>
+	</div>
+	<div class="box-footer" *ngIf="parent.widget.size=='medium'">
+		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4">
+			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+		</div>
+		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4 col-lg-offset-4">
+			<button type="button" class="btn btn-danger btn-block" (click)="parent.delete()" [disabled]="false">Delete</button>
+		</div>
+	</div>
+	<div class="box-footer" *ngIf="parent.widget.size=='small'">
+		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
+			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+		</div>
+		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
+			<button type="button" class="btn btn-danger btn-block" (click)="parent.delete()" [disabled]="false">Delete</button>
+		</div>
+	</div>
+
+	</form>
+
+	<div class="box-overlay" *ngIf="placeholder">
+		<i class="fa fa-spinner fa-pulse"></i>
+	</div>
+</div>

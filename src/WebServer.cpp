@@ -1845,6 +1845,7 @@ namespace micasa {
 							&& input_["$1"].is_string()
 						) {
 							user_->getSettings()->put( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>(), (*find).dump() );
+							user_->getSettings()->commit();
 							output_["code"] = 200;
 						}
 						break;
@@ -1856,6 +1857,7 @@ namespace micasa {
 							&& user_->getSettings()->contains( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() )
 						) {
 							user_->getSettings()->remove( WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX + input_["$1"].get<std::string>() );
+							user_->getSettings()->commit();
 							output_["code"] = 200;
 						}
 						break;

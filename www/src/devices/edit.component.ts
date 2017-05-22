@@ -20,7 +20,8 @@ import {
 }                   from '../timers/timers.service';
 import {
 	Screen,
-	ScreensService
+	ScreensService,
+	Widget
 }                   from '../screens/screens.service';
 
 @Component( {
@@ -151,7 +152,50 @@ export class DeviceEditComponent implements OnInit {
 
 	public addToScreen( screen_: Screen ) {
 		var me = this;
-		screen_.widgets.push( { device_id: me.device.id } );
+		let widget: Widget;
+		if ( me.device.type == 'switch' ) {
+			widget = {
+				type: 'switch',
+				size: 'small',
+				name: me.device.name,
+				properties: {
+					color: 'aqua'
+				},
+				sources: [ {
+					device_id: me.device.id,
+					properties: {}
+				} ],
+				interval: 'hour',
+				range: 1
+			};
+		} else if ( me.device.type == 'text' ) {
+			widget = {
+				type: 'table',
+				size: 'large',
+				name: me.device.name,
+				properties: {},
+				sources: [ {
+					device_id: me.device.id,
+					properties: {}
+				} ],
+				interval: 'hour',
+				range: 1
+			};
+		} else {
+			widget = {
+				type: 'chart',
+				size: 'large',
+				name: me.device.name,
+				properties: {},
+				sources: [ {
+					device_id: me.device.id,
+					properties: {}
+				} ],
+				interval: 'week',
+				range: 1
+			};
+		}
+		screen_.widgets.push( widget );
 		me._screensService.putScreen( screen_ )
 			.subscribe( function( screens_: Screen[] ) {
 				if ( screen_.id == 1 ) {

@@ -7,15 +7,27 @@ import {
 	DevicesService
 }                         from '../devices/devices.service';
 
-export class Widget {
+export class Source {
 	device_id: number;
-}
+	properties: any;
+};
+
+export class Widget {
+	name: string;
+	size: string;
+	type: string;
+	properties: any;
+	sources: Source[];
+	interval: string;
+	range: number;
+};
 
 export class Screen {
 	id: number;
-	name: string;
+	name?: string; // either device name or dedicated screen name
+	device_id?: number;
 	widgets: Widget[];
-}
+};
 
 @Injectable()
 export class ScreensService {
@@ -38,7 +50,20 @@ export class ScreensService {
 						return screen;
 					}
 				}
-				return Observable.throw( 'invalid screen' );
+				throw new Error( 'invalid screen' );
+			} )
+		;
+	};
+
+	public getScreenForDevice( device_id_: number ): Observable<Screen> {
+		return this.getScreens()
+			.map( function( screens_: Screen[] ) {
+				for ( let screen of screens_ ) {
+					if ( screen.device_id == device_id_ ) {
+						return screen;
+					}
+				}
+				throw new Error( 'invalid screen' );
 			} )
 		;
 	};
@@ -77,4 +102,84 @@ export class ScreensService {
 		;
 	};
 
-}
+	public getDefaultScreenForDevice( device_: Device ) {
+		let screen: Screen;
+		switch( device_.type ) {
+			case 'level':
+			case 'counter':
+				screen = {
+					id: NaN,
+					device_id: device_.id,
+					widgets: [ {
+						type: 'chart',
+						name: 'Day',
+						size: 'large',
+						properties: {},
+						sources: [ {
+							device_id: device_.id,
+							properties: {}
+						} ],
+						interval: 'day',
+						range: 1
+					}, {
+						type: 'chart',
+						name: 'Week',
+						size: 'large',
+						properties: {},
+						sources: [ {
+							device_id: device_.id,
+							properties: {}
+						} ],
+						interval: 'week',
+						range: 1
+					}, {
+						type: 'chart',
+						name: 'Month',
+						size: 'large',
+						properties: {},
+						sources: [ {
+							device_id: device_.id,
+							properties: {}
+						} ],
+						interval: 'month',
+						range: 1
+					}, {
+						type: 'chart',
+						name: 'Year',
+						size: 'large',
+						properties: {},
+						sources: [ {
+							device_id: device_.id,
+							properties: {}
+						} ],
+						interval: 'year',
+						range: 1
+					} ]
+				};
+				break;
+
+			case 'switch':
+			case 'text':
+				screen = {
+					id: NaN,
+					device_id: device_.id,
+					widgets: [ {
+						type: 'table',
+						name: 'History',
+						size: 'large',
+						properties: {},
+						sources: [ {
+							device_id: device_.id,
+							properties: {}
+						} ],
+						interval: 'week',
+						range: 1
+					} ]
+				};
+				break;
+
+		}
+		return screen;
+	};
+
+};

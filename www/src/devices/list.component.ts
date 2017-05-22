@@ -54,6 +54,10 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 		this._route.data
 			.subscribe( function( data_: any ) {
 				me.devices = data_.devices;
+
+				// TODO upon first load iterate all screens for each device and see if a screen has become obsolete due
+				// to a device being removed. Remove the screen if so.
+
 				if ( !!me.hardware ) {
 					me.startPage = me._devicesService.lastPage[me.hardware.id] || 1;
 				} else {

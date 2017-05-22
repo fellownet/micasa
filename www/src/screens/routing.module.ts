@@ -14,12 +14,12 @@ import { ScriptsListResolver }    from '../scripts/list.resolver';
 import { SessionGuard }           from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'dashboard',                                 component: ScreenComponent,        canActivate: [SessionGuard], resolve: { screen: ScreenResolver }, data: { dashboard: true } },
-	{ path: 'screens/add',                               component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { screen: ScreenResolver } },
-	{ path: 'screens/:screen_id',                        component: ScreenComponent,        canActivate: [SessionGuard], resolve: { screen: ScreenResolver } },
-	{ path: 'screens/:screen_id/edit',                   component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { screen: ScreenResolver } },
-	{ path: 'screens/:screen_id/device/:device_id',      component: DeviceDetailsComponent, canActivate: [SessionGuard], resolve: { screen: ScreenResolver, device: DeviceResolver } },
-	{ path: 'screens/:screen_id/device/:device_id/edit', component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { screen: ScreenResolver, device: DeviceResolver, scripts: ScriptsListResolver, screens: ScreensListResolver } }
+	{ path: 'dashboard',                                 component: ScreenComponent,        canActivate: [SessionGuard], resolve: { payload: ScreenResolver }, data: { dashboard: true } },
+	{ path: 'screens/add',                               component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+	{ path: 'screens/:screen_id',                        component: ScreenComponent,        canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+	{ path: 'screens/:screen_id/edit',                   component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+//	{ path: 'screens/:screen_id/device/:device_id',      component: DeviceDetailsComponent, canActivate: [SessionGuard], resolve: { payload: ScreenResolver, device: DeviceResolver } },
+//	{ path: 'screens/:screen_id/device/:device_id/edit', component: DeviceEditComponent,    canActivate: [SessionGuard], resolve: { payload: ScreenResolver, device: DeviceResolver, scripts: ScriptsListResolver, screens: ScreensListResolver } }
 ];
 
 @NgModule( {
