@@ -22,6 +22,7 @@
 			<div class="box">
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+						<div class="dropdown">
 						<button type="button" [disabled]="loading" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
@@ -33,6 +34,7 @@
 							<li><a (click)="addHardware('telegram');">Telegram Bot</a></li>
 							<li><a (click)="addHardware('piface');">PiFace</a></li>
 						</ul>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -93,6 +95,7 @@
 						[class.col-md-pull-9]="grid.getPageCount()>1"
 						[class.col-lg-pull-10]="grid.getPageCount()>1"
 					>
+						<div class="dropdown">
 						<button type="button" [disabled]="loading" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<li><a (click)="addHardware('dummy');">Dummy Hardware</a></li>
@@ -104,6 +107,7 @@
 							<li><a (click)="addHardware('telegram');">Telegram Bot</a></li>
 							<li><a (click)="addHardware('piface');">PiFace</a></li>
 						</ul>
+						</div>
 					</div>
 				</div>
 				<div class="box-footer" *ngIf="parent && grid.getPageCount()>1">

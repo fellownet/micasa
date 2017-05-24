@@ -25,7 +25,6 @@
 					<settings [settings]="hardware.settings" [form]="hardwareForm" [values]="hardware" #settingsComponent="settingsComponent"></settings>
 				</div>
 
-
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="!hardwareForm.form.valid || hardwareForm.form.pristine || loading">Save</button>
@@ -42,13 +41,15 @@
 					>
 						<button type="button" class="btn btn-danger btn-block" [disabled]="loading" (click)="deleteHardware()">Delete</button>
 					</div>
-					<div *ngIf="hasActionDevices" class="col-xs-12 col-sm-4 col-sm-pull-4 col-md-3 col-md-pull-3 col-lg-2 col-lg-pull-2 dropdown">
+					<div *ngIf="hasActionDevices" class="col-xs-12 col-sm-4 col-sm-pull-4 col-md-3 col-md-pull-3 col-lg-2 col-lg-pull-2">
+						<div class="dropdown">
 						<button type="button" class="btn btn-primary btn-block dropdown-toggle" [disabled]="loading" data-toggle="dropdown">Actions <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<ng-container *ngFor="let device of devices">
 							<li *ngIf="device.subtype=='action'"><a (click)="performAction(device);">{{device.label}}</a></li>
 							</ng-container>
 						</ul>
+						</div>
 					</div>
 				</div>
 				</form>

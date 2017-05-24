@@ -18,8 +18,8 @@ export class Widget {
 	type: string;
 	properties: any;
 	sources: Source[];
-	interval: string;
-	range: number;
+	interval?: string;
+	range?: number;
 };
 
 export class Screen {
@@ -117,7 +117,9 @@ export class ScreensService {
 						properties: {},
 						sources: [ {
 							device_id: device_.id,
-							properties: {}
+							properties: {
+								color: 'blue'
+							}
 						} ],
 						interval: 'day',
 						range: 1
@@ -128,7 +130,9 @@ export class ScreensService {
 						properties: {},
 						sources: [ {
 							device_id: device_.id,
-							properties: {}
+							properties: {
+								color: 'blue'
+							}
 						} ],
 						interval: 'week',
 						range: 1
@@ -139,7 +143,9 @@ export class ScreensService {
 						properties: {},
 						sources: [ {
 							device_id: device_.id,
-							properties: {}
+							properties: {
+								color: 'blue'
+							}
 						} ],
 						interval: 'month',
 						range: 1
@@ -150,7 +156,9 @@ export class ScreensService {
 						properties: {},
 						sources: [ {
 							device_id: device_.id,
-							properties: {}
+							properties: {
+								color: 'blue'
+							}
 						} ],
 						interval: 'year',
 						range: 1

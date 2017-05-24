@@ -1,13 +1,10 @@
 /* global */
 
-@import url(https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic);
-@import url(https://fonts.googleapis.com/css?family=Roboto:300,400,600,700,900|Roboto+Condensed:400);
-
 body {
 	background-color: #ecf0f5;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-	font-family: 'Roboto', sans-serif;
+	font-family: 'Helvetica', 'Arial', sans-serif;
 	font-weight: 400;
 }
 a, button {
@@ -229,7 +226,6 @@ label span.mandatory {
 	z-index: 820;
 	padding-top: 65px;
 	background-color: #ecf0f5;
-	padding-bottom: 15px;
 }
 .content .content-header {
 	position: relative;
@@ -238,7 +234,8 @@ label span.mandatory {
 .content .content-header > h1 {
 	margin: 0;
 	font-size: 24px;
-	font-family: 'Roboto Condensed', sans-serif;
+	font-family: 'Helvetica Narrow', 'Arial Narrow', 'Helvetica', 'Arial', sans-serif;
+	font-weight: 500;
 }
 .content .content-header > h1 > small {
 	font-size: 15px;
@@ -257,6 +254,17 @@ label span.mandatory {
 	margin-left: auto;
 	padding-left: 15px;
 	padding-right: 15px;
+}
+.content .content-body {
+
+}
+.content .content-body [class*='col-'] {
+	padding-left: 7px;
+	padding-right: 8px;
+}
+.content .content-body .row {
+	margin-left: -7px;
+	margin-right: -8px;
 }
 
 @media (max-width: 767px) {
@@ -325,8 +333,8 @@ label span.mandatory {
 	max-width: calc(100% - 55px);
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-family: 'Roboto Condensed', sans-serif;
-	font-weight: 400;
+	font-family: 'Helvetica Narrow', 'Arial Narrow', 'Helvetica', 'Arial', sans-serif;
+	font-weight: 500;
 }
 .content .box-header .box-title.empty {
 	color: #AAA;
@@ -392,6 +400,9 @@ label span.mandatory {
 	height: 300px;
 	overflow: hidden;
 }
+.content .box-body.gauge {
+	height: 180px;
+}
 .content .box-body.chart.widget {
 	height: 200px;
 }
@@ -423,10 +434,6 @@ label span.mandatory {
 	text-align: center;
 	font-size: 13px;
 	padding: 5px 0;
-}
-.content .bg.box.bg-navy .box-footer {
-	background-color: rgba( 255, 255, 255, 0.16 );
-	color: #000;
 }
 .content .box-footer [class*='col-'] {
 	padding-left: 5px;
@@ -469,9 +476,6 @@ label span.mandatory {
 .content .box.bg-green {
 	background-color: #00a65a;
 }
-.content .box.bg-navy {
-	background-color: #001f3f;
-}
 .content .box.bg-teal {
 	background-color: #39cccc;
 }
@@ -483,6 +487,9 @@ label span.mandatory {
 }
 .content .box.bg-purple {
 	background-color: #605ca8;
+}
+.content .box.bg-gray {
+	background-color: #AAAAAA;
 }
 
 /* table pagination */
@@ -513,8 +520,8 @@ label span.mandatory {
 }
 .callout h4 {
 	margin-top: 0;
-	font-weight: 600;
-	font-family: 'Roboto Condensed', sans-serif;
+	font-family: 'Helvetica Narrow', 'Arial Narrow', 'Helvetica', 'Arial', sans-serif;
+	font-weight: 500;
 }
 .callout.callout-danger {
 	border-color: #c23321;
@@ -645,18 +652,72 @@ form .table tr td {
 	font-size: 1.2em;
 }
 
+/* login */
+
+.login-box-content {
+	position: fixed;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	overflow: hidden;
+}
+.login-box {
+	width: 360px;
+	margin: 7% auto;
+}
+.login-box .login-logo {
+	font-size: 35px;
+	text-align: center;
+	margin-bottom: 25px;
+	font-weight: 300;
+}
+.login-box .login-box-body {
+	background: #fff;
+	padding: 20px;
+	color: #666;
+	border-radius: 3px;
+	border-top: 3px solid #d2d6de;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+	position: relative;
+}
+
+@media (max-width: 768px) {
+	.login-box {
+		width: 90%;
+		margin-top: 20px;
+	}
+}
+
 /* widgets */
 
-.content .box-body.switch .table td {
+.content .box-body.switch .table td,
+.content .box-body.latest .table td {
 	border: 0;
 	text-align: center;
 	color: #FFF;
 	font-size: 30px;
 }
-.content .box-body.switch .table td i {
+.content .box-body.switch .table td i,
+.content .box-body.latest .table td i {
 	font-size: 45px;
 	color: rgba( 0, 0, 0, 0.3 );
 }
 .content .box-body.switch {
 	cursor: pointer;
+}
+.content .box-body.switch td.minimum,
+.content .box-body.latest td.minimum {
+	width: 25%;
+}
+
+/* script editor */
+
+.editor {
+	height: 400px;
+}
+.ace_scrollbar-inner {
+	/* fixes a bug where scrollbars don't appear on safari */
+	background-color: white;
+	opacity: 0.01;
 }

@@ -15,6 +15,7 @@ import { WidgetChartComponent }  from './widgets/chart.component';
 import { WidgetLatestComponent } from './widgets/latest.component';
 import { WidgetSwitchComponent } from './widgets/switch.component';
 import { WidgetTableComponent }  from './widgets/table.component';
+import { WidgetGaugeComponent }  from './widgets/gauge.component';
 
 @NgModule( {
 	imports: [
@@ -31,7 +32,8 @@ import { WidgetTableComponent }  from './widgets/table.component';
 		WidgetChartComponent,
 		WidgetLatestComponent,
 		WidgetSwitchComponent,
-		WidgetTableComponent
+		WidgetTableComponent,
+		WidgetGaugeComponent
 	],
 	providers: [
 		ScreenResolver,
