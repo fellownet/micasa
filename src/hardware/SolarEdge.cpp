@@ -21,7 +21,7 @@ namespace micasa {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& task_ ) {
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id" } ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -131,7 +131,7 @@ namespace micasa {
 						true
 					)->start();
 				}
-				this->m_scheduler.schedule( 1000 * 10, 1, this, [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) -> void {
 					this->setState( Hardware::State::SLEEPING );
 				} );
 				return true;

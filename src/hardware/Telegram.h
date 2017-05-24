@@ -3,6 +3,9 @@
 #include "../Hardware.h"
 #include "../Network.h"
 
+#define TELEGRAM_BUSY_WAIT_MSEC         60000 // how long to wait for result
+#define TELEGRAM_BUSY_BLOCK_MSEC        500   // how long to block activies while waiting for result
+
 namespace micasa {
 
 	class Telegram final : public Hardware {

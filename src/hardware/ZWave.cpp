@@ -242,7 +242,7 @@ namespace micasa {
 			) {
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( Scheduler::Task<>& task_ ) {
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
@@ -250,10 +250,10 @@ namespace micasa {
 						device->updateValue( source_ | Device::UpdateSource::HARDWARE, Switch::Option::ACTIVATE );
 						Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
 
-						task_.repeat = 0; // done
+						task_->repeat = 0; // done
 
 					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_.repeat == 0 ) {
+					} else if ( task_->repeat == 0 ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
 					}
 				} );
@@ -265,7 +265,7 @@ namespace micasa {
 			if ( device->getValueOption() == Switch::Option::ENABLED ) {
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( Scheduler::Task<>& task_ ) {
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 						bool cancel = false;
@@ -291,25 +291,25 @@ namespace micasa {
 						// Cancelling in- or exclude mode should also be done in several short attempts as opposed to
 						// one long blocking attempt.
 						if ( cancel ) {
-							this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,device]( Scheduler::Task<>& task_ ) {
+							this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 								if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 									std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 									Manager::Get()->CancelControllerCommand( this->m_homeId );
 									device->updateValue( Device::UpdateSource::HARDWARE, Switch::Option::DISABLED );
-									task_.repeat = 0; // done
+									task_->repeat = 0; // done
 
 								// After several tries the manager instance still isn't ready, so we're bailing out with
 								// an error.
-								} else if ( task_.repeat == 0 ) {
+								} else if ( task_->repeat == 0 ) {
 									Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command cancellation failed." );	
 								}
 							} );
 						}
 
-						task_.repeat = 0; // done
+						task_->repeat = 0; // done
 
 					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_.repeat == 0 ) {
+					} else if ( task_->repeat == 0 ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
 					}
 				} );
@@ -358,7 +358,7 @@ namespace micasa {
 				} else {
 					this->setState( Hardware::State::FAILED, true );
 					Logger::log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
-					this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
+					this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 						Manager::Get()->RemoveDriver( this->m_port );
 						this->m_port.clear();
 					} );
@@ -371,7 +371,7 @@ namespace micasa {
 				if ( this->m_port == this->m_settings->get( "port" ) ) {
 					Logger::log( Logger::LogLevel::ERROR, this, "Driver failed." );
 				}
-				this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 					Manager::Get()->RemoveDriver( this->m_port );
 					this->m_port.clear();
 				} );

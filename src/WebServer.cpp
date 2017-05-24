@@ -260,7 +260,7 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			this->m_scheduler.schedule( 0, 1, this, [this,connection_,uri,method,headers,data,params]( Scheduler::Task<>& ) {
+			this->m_scheduler.schedule( 0, 1, this, [this,connection_,uri,method,headers,data,params]( std::shared_ptr<Scheduler::Task<>> ) {
 
 				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
 				// string).
@@ -592,7 +592,7 @@ namespace micasa {
 								}
 							}
 
-							this->m_scheduler.schedule( 0, 1, this, [hardware,enabled,restart]( Scheduler::Task<>& ) {
+							this->m_scheduler.schedule( 0, 1, this, [hardware,enabled,restart]( std::shared_ptr<Scheduler::Task<>> ) {
 								auto hardwareList = g_controller->getAllHardware();
 								if (
 									! enabled
