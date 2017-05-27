@@ -6,15 +6,12 @@
 		<p>{{error}}</p>
 	</div>
 
-	<ng-container *ngIf="!error && !loading" [ngSwitch]="widget.type">
-		<chartwidget *ngSwitchCase="'chart'" [widget]="self"></chartwidget>
-		<latestwidget *ngSwitchCase="'latest'" [widget]="self"></latestwidget>
-		<switchwidget *ngSwitchCase="'switch'" [widget]="self"></switchwidget>
-		<tablewidget *ngSwitchCase="'table'" [widget]="self"></tablewidget>
-	</ng-container>
-
-	<ng-container *ngIf="!error && loading" [ngSwitch]="widget.type">
-		<chartwidget *ngSwitchCase="'chart'" [widget]="self" [placeholder]="true"></chartwidget>
+	<ng-container *ngIf="!error" [ngSwitch]="widget.type">
+		<tablewidget *ngSwitchCase="'table'" [widget]="widget" [devices]="devices" [parent]="self" (onAction)="onAction($event)"></tablewidget>
+		<chartwidget *ngSwitchCase="'chart'" [widget]="widget" [devices]="devices" [parent]="self" (onAction)="onAction($event)"></chartwidget>
+		<gaugewidget *ngSwitchCase="'gauge'" [widget]="widget" [devices]="devices" [parent]="self" (onAction)="onAction($event)"></gaugewidget>
+		<switchwidget *ngSwitchCase="'switch'" [widget]="widget" [devices]="devices" [parent]="self" (onAction)="onAction($event)"></switchwidget>
+		<latestwidget *ngSwitchCase="'latest'" [widget]="widget" [devices]="devices" [parent]="self" (onAction)="onAction($event)"></latestwidget>
 	</ng-container>
 
 </div>

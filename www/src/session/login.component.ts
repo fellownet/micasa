@@ -11,8 +11,7 @@ import {
 }                  from './session.service';
 
 @Component( {
-	templateUrl: 'tpl/login.html',
-	styleUrls: [ 'css/login.css' ]
+	templateUrl: 'tpl/login.html'
 } )
 
 export class LoginComponent implements OnInit {

@@ -1,7 +1,10 @@
 import {
 	Component,
-	OnInit
+	OnInit,
+	OnDestroy,
+	ViewChild
 }                  from '@angular/core';
+import { NgForm }  from '@angular/forms';
 import {
 	Router,
 	ActivatedRoute
@@ -16,13 +19,15 @@ import {
 	templateUrl: 'tpl/screen-edit.html',
 } )
 
-export class ScreenEditComponent implements OnInit {
+export class ScreenEditComponent implements OnInit, OnDestroy {
 
 	public loading: boolean = false;
 	public error: string;
 
 	public screen: Screen;
 	public device?: Device;
+
+	@ViewChild( 'screenForm' ) private _form: NgForm;
 
 	public constructor(
 		private _router: Router,
@@ -37,6 +42,11 @@ export class ScreenEditComponent implements OnInit {
 			me.screen = data_.payload.screen;
 			me.device = data_.payload.device;
 		} );
+	};
+
+	public ngOnDestroy() {
+		// TODO doesn't work :/
+		this._form.resetForm();
 	};
 
 	public submitScreen() {

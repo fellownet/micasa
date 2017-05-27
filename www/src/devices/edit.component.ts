@@ -153,48 +153,76 @@ export class DeviceEditComponent implements OnInit {
 	public addToScreen( screen_: Screen ) {
 		var me = this;
 		let widget: Widget;
-		if ( me.device.type == 'switch' ) {
-			widget = {
-				type: 'switch',
-				size: 'small',
-				name: me.device.name,
-				properties: {
-					color: 'aqua'
-				},
-				sources: [ {
-					device_id: me.device.id,
-					properties: {}
-				} ],
-				interval: 'hour',
-				range: 1
-			};
-		} else if ( me.device.type == 'text' ) {
-			widget = {
-				type: 'table',
-				size: 'large',
-				name: me.device.name,
-				properties: {},
-				sources: [ {
-					device_id: me.device.id,
-					properties: {}
-				} ],
-				interval: 'hour',
-				range: 1
-			};
-		} else {
-			widget = {
-				type: 'chart',
-				size: 'large',
-				name: me.device.name,
-				properties: {},
-				sources: [ {
-					device_id: me.device.id,
-					properties: {}
-				} ],
-				interval: 'week',
-				range: 1
-			};
+
+		switch( me.device.type ) {
+			case 'switch':
+				widget = {
+					type: 'switch',
+					size: 'small',
+					name: me.device.name,
+					properties: {
+						color: 'aqua'
+					},
+					sources: [ {
+						device_id: me.device.id,
+						properties: {
+						}
+					} ]
+				};
+				break;
+			case 'text':
+				widget = {
+					type: 'table',
+					size: 'large',
+					name: me.device.name,
+					properties: {
+						color: 'aqua'
+					},
+					sources: [ {
+						device_id: me.device.id,
+						properties: {
+						}
+					} ]
+				};
+				break;
+			case 'level':
+				widget = {
+					type: 'gauge',
+					size: 'small',
+					name: me.device.name,
+					properties: {
+						color: 'blue'
+					},
+					sources: [ {
+						device_id: me.device.id,
+						properties: {
+							color: 'blue'
+						}
+					} ],
+					interval: 'week',
+					range: 1
+				};
+				break;
+			case 'counter':
+				widget = {
+					type: 'chart',
+					size: 'large',
+					name: me.device.name,
+					properties: {
+						color: 'blue'
+					},
+					sources: [ {
+						device_id: me.device.id,
+						properties: {
+							color: 'blue'
+						}
+					} ],
+					interval: 'month',
+					range: 1
+				};
+				break;
 		}
+
 		screen_.widgets.push( widget );
 		me._screensService.putScreen( screen_ )
 			.subscribe( function( screens_: Screen[] ) {

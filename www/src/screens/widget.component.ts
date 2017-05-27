@@ -1,8 +1,7 @@
 import {
 	Component,
 	Input,
-	OnInit,
-	OnDestroy
+	OnInit
 }                         from '@angular/core';
 import { Observable }     from 'rxjs/Observable';
 
@@ -15,56 +14,93 @@ import {
 	Device,
 	DevicesService
 }                         from '../devices/devices.service'
-import { SessionService } from '../session/session.service';
+//import { SessionService } from '../session/session.service';
 
 @Component( {
 	selector: 'widget',
 	templateUrl: 'tpl/widget.html'
 } )
 
-export class WidgetComponent implements OnInit, OnDestroy {
+export class WidgetComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error?: string;
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'device' ) public device?: Device;
 	@Input( 'widget' ) public widget: Widget;
 
-	public devices: any; // key = device_id, value = device
-	public data: any; // key = device_id, value = data array
-
-	private _active: boolean = true;
+	public devices: Observable<Device[]>;
+	public editing: boolean = false;
 
 	public constructor(
 		private _screensService: ScreensService,
-		private _devicesService: DevicesService,
-		private _sessionService: SessionService
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
+		this.devices = this._gatherDevices();
+	};
+
+	private _gatherDevices(): Observable<Device[]> {
 		var me = this;
-		me._load().subscribe( function() {
+		let observables: Observable<Device>[] = [];
+		let done: number[] = [];
+		for ( let source of me.widget.sources ) {
+			if ( done.indexOf( source.device_id ) > -1 ) {
+				continue;
+			}
+			if (
+				!!me.device
+				&& me.device.id == source.device_id
+			) {
+				observables.push( Observable.of( me.device ) );
+			} else {
+				observables.push(
+					me._devicesService.getDevice( source.device_id )
 
-			// Listen for events broadcasted from the session service.
-			me._sessionService.events
-				.takeWhile( () => me._active )
-				.subscribe( function( event_: any ) {
-					console.log( 'got an event in screen component' );
-					console.log( event_ );
+						// NOTE we're capturing http errors when the device cannot be fetched. If we wouldn't, the
+						// forkJoin would never complete and the widget becomes unusable. Instead, the failed source is
+						// removed from the widget and null (!) is passed.
+						.catch( function( error_: string ) {
+							let index: number = me.widget.sources.indexOf( source );
+							if ( index > -1 ) {
+								me.widget.sources.splice( index, 1 );
+							}
+							return Observable.of( null );
+						} )
+				);
+			}
+			done.push( source.device_id );
+		}
 
-					// TODO see if the event targets one of our devices.
+		return Observable
+			.forkJoin( observables )
+			.map( function( devices_: Device[] ) {
+				return devices_.filter(
+					device_ => device_ !== null // filter out failed devices (see NOTE above)
+				);
+			} )
+			.do( function( devices_: Device[] ) {
 
-				} )
-			;
-		} );
+				// NOTE if there are no devices in the widget the widget itself is automatically removed.
+				if ( devices_.length == 0 ) {
+					let index: number = me.screen.widgets.indexOf( me.widget );
+					if ( index > -1 ) {
+						me.screen.widgets.splice( index, 1 );
+						// TODO shouldn't the screen be saved here? For instance; the dashboard cannot be saved and
+						// would then keep on trying to fetch the widget devices.
+					}
+				}
+			} )
+		;
 	};
 
-	public ngOnDestroy() {
-		this._active = false;
-	};
 
+
+
+
+/*
 	private _load(): Observable<null> {
 		var me = this;
 		me.loading = true;
@@ -104,11 +140,18 @@ export class WidgetComponent implements OnInit, OnDestroy {
 			.forkJoin( observables )
 			.mergeMap( function( devices_: Device[] ) {
 
-				// Then for each fetched device, the data is fetched using the date range of the widget.
+				// If the widget type is anything other than "latest" the data for the widget is fetched using the date
+				// range of the widget.
 				let observables: Observable<[number,any[]]>[] = [];
 				for ( let device of devices_ ) {
 					if ( null != device ) { // in case of an error
 						me.devices[device.id] = device;
+						if (
+							me.widget.type == 'latest' // TODO the latest widget can also benefit from fetching data, like showing max and min in a gauge
+							|| me.widget.type == 'switch'
+						) {
+							continue;
+						}
 						switch( device.type ) {
 							case 'switch':
 							case 'text':
@@ -159,22 +202,26 @@ export class WidgetComponent implements OnInit, OnDestroy {
 					}
 				}
 
-				// TODO if there are no observables then all the devices of this widget have been removed and the
-				// widget needs to be removed.
-
-				return Observable
-					.forkJoin( observables )
-					.mergeMap( function( data_: any[] ) {
-						for ( let data of data_ ) {
-							me.data[data[0]] = data[1];
-						}
-						me.loading = false;
-						return Observable.of( null );
-					} )
-				;
+				if ( observables.length > 0 ) {
+					return Observable
+						.forkJoin( observables )
+						.mergeMap( function( data_: any[] ) {
+							for ( let data of data_ ) {
+								me.data[data[0]] = data[1];
+							}
+							me.loading = false;
+							return Observable.of( null );
+						} )
+					;
+				} else {
+					me.loading = false;
+					return Observable.of( null );
+				}
 			} )
 		;
 	};
+
+*/
 
 	public get self(): WidgetComponent { // allows to pass the component to the child through input binding
 		return this;
@@ -192,23 +239,37 @@ export class WidgetComponent implements OnInit, OnDestroy {
 		};
 	};
 
-	public delete() {
-		let index = this.screen.widgets.indexOf( this.widget );
-		if ( index > -1 ) {
-			this.screen.widgets.splice( index, 1 );
-			this._screensService.putScreen( this.screen ).subscribe();
+	public onAction( action_: string ): void {
+		switch( action_ ) {
+			case 'save':
+				this._screensService.putScreen( this.screen ).subscribe();
+				this.devices = this._gatherDevices();
+				break;
+			case 'delete':
+				let index = this.screen.widgets.indexOf( this.widget );
+				if ( index > -1 ) {
+					this.screen.widgets.splice( index, 1 );
+					this._screensService.putScreen( this.screen ).subscribe();
+				}
+				break;
+			case 'reload':
+				this.devices = this._gatherDevices();
+				break;
+			case 'type_change':
+				switch( this.widget.type ) {
+					case 'table':
+					case 'chart':
+						this.widget.size = 'large';
+						break;
+					case 'gauge':
+						this.widget.size = 'medium';
+						break;
+					case 'switch':
+						this.widget.size = 'small';
+						break;
+				}
+				break;
 		}
-	};
-
-	public save( reload_: boolean = true ) {
-		this._screensService.putScreen( this.screen ).subscribe();
-		if ( reload_ ) {
-			this.reload();
-		}
-	};
-
-	public reload() {
-		this._load().subscribe();
 	};
 
 }

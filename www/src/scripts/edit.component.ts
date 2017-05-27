@@ -19,8 +19,7 @@ import 'ace-builds/src-min-noconflict/mode-javascript.js';
 declare var ace: any;
 
 @Component( {
-	templateUrl: 'tpl/script-edit.html',
-	styleUrls: [ 'css/script-edit.css' ]
+	templateUrl: 'tpl/script-edit.html'
 } )
 
 export class ScriptEditComponent implements OnInit {
