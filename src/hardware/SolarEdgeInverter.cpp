@@ -30,7 +30,7 @@ namespace micasa {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 		
-		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -133,7 +133,7 @@ namespace micasa {
 					} );
 					device->updateValue( Device::UpdateSource::HARDWARE, telemetry["temperature"].get<double>() );
 				}
-				this->m_scheduler.schedule( 1000 * 10, 1, this, [this]( Scheduler::Task<>& ) -> void {
+				this->m_scheduler.schedule( 1000 * 10, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) -> void {
 					this->setState( Hardware::State::SLEEPING );
 				} );
 			}

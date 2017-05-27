@@ -30,7 +30,7 @@ namespace micasa {
 		// BaseTask
 		// ========
 
-		class BaseTask {
+		class BaseTask: public std::enable_shared_from_this<BaseTask> {
 			friend class ThreadPool;
 		
 		public:
@@ -74,7 +74,7 @@ namespace micasa {
 		template<typename T = void> class Task : public BaseTask {
 
 		public:
-			typedef std::function<T(Task<T>&)> t_taskFunc;
+			typedef std::function<T(std::shared_ptr<Task<T>>)> t_taskFunc;
 
 			Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 				BaseTask( scheduler_, time_, delay_, repeat_, data_ ),
@@ -91,7 +91,7 @@ namespace micasa {
 				if ( ! this->m_first ) {
 					this->m_resultMutex.lock();
 				}
-				this->m_result = this->m_func( *this );
+				this->m_result = this->m_func( std::static_pointer_cast<Task<T>>( this->shared_from_this() ) );
 				this->m_first = false;
 				this->m_resultMutex.unlock();
 			};
@@ -225,7 +225,7 @@ namespace micasa {
 	template<> class Scheduler::Task<void> : public BaseTask {
 
 	public:
-		typedef std::function<void(Task<void>&)> t_taskFunc;
+		typedef std::function<void(std::shared_ptr<Task<void>>)> t_taskFunc;
 
 		Task( Scheduler* scheduler_, t_taskFunc&& func_, std::chrono::system_clock::time_point time_, unsigned long delay_, unsigned long repeat_, void* data_ ) :
 			BaseTask( scheduler_, time_, delay_, repeat_, data_ ),
@@ -240,7 +240,7 @@ namespace micasa {
 			if ( ! this->m_first ) {
 				this->m_resultMutex.lock();
 			}
-			this->m_func( *this );
+			this->m_func( std::static_pointer_cast<Task<void>>( this->shared_from_this() ) );
 			this->m_first = false;
 			this->m_resultMutex.unlock();
 		};

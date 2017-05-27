@@ -219,7 +219,7 @@ namespace micasa {
 				hardwareDataIt.at( "enabled" ) == "1"
 				&& parent == nullptr
 			) {
-				this->m_scheduler.schedule( 0, 1, this, [hardware]( Scheduler::Task<>& ) {
+				this->m_scheduler.schedule( 0, 1, this, [hardware]( std::shared_ptr<Scheduler::Task<>> ) {
 					hardware->start();
 				} );
 			}
@@ -230,7 +230,7 @@ namespace micasa {
 		// to make sure the whole minute has passed.
 		auto now = system_clock::now();
 		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( this->m_running ) {
 				this->_runTimers();
 			}
@@ -451,7 +451,7 @@ namespace micasa {
 
 		// Waiting for the proper stopping of the hardware is done in a separate thread to allow the webserver to return
 		// the removal results immediately.
-		this->m_scheduler.schedule( 0, 1, this, [this,futures]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, 1, this, [this,futures]( std::shared_ptr<Scheduler::Task<>> ) {
 			for ( auto const &futuresIt : *futures ) {
 				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
 				if ( status == std::future_status::timeout ) {
@@ -608,7 +608,7 @@ namespace micasa {
 		// device is captured as a weak pointer to prevent the scheduler from blocking the destruction of devices. This
 		// also prevents a shared_ptr cycle (!).
 		std::weak_ptr<D> devicePtr = device_;
-		this->m_scheduler.schedule( 1000 * options.afterSec, 1, device_.get(), [this,devicePtr,source,value_,options]( Scheduler::Task<>& ) mutable {
+		this->m_scheduler.schedule( 1000 * options.afterSec, 1, device_.get(), [this,devicePtr,source,value_,options]( std::shared_ptr<Scheduler::Task<>> ) mutable {
 			auto device = devicePtr.lock();
 			if ( device ) {
 				typename D::t_value current = device->getValue();
@@ -617,7 +617,7 @@ namespace micasa {
 				options.afterSec = options.repeatSec;
 
 				if ( options.forSec > 0.000001 ) {
-					this->m_scheduler.schedule( 1000 * options.forSec, 1, device.get(), [this,devicePtr,source,value_,options,current]( Scheduler::Task<>& ) mutable {
+					this->m_scheduler.schedule( 1000 * options.forSec, 1, device.get(), [this,devicePtr,source,value_,options,current]( std::shared_ptr<Scheduler::Task<>> ) mutable {
 						auto device = devicePtr.lock();
 						if ( device ) {
 							device->updateValue( source, current );
@@ -638,7 +638,7 @@ namespace micasa {
 	template void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 
 	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ ) {
-		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 
 			// Configure the v7 javascript environment with context data.

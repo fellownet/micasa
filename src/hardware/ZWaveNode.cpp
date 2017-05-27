@@ -221,7 +221,7 @@ namespace micasa {
 
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( Scheduler::Task<>& task_ ) {
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
@@ -239,10 +239,10 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
 						}
 
-						task_.repeat = 0; // done
+						task_->repeat = 0; // done
 
 					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_.repeat == 0 ) {
+					} else if ( task_->repeat == 0 ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
 					}
 				} );
@@ -282,7 +282,7 @@ namespace micasa {
 
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( Scheduler::Task<>& task_ ) {
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
@@ -292,10 +292,10 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
 						}
 
-						task_.repeat = 0; // done
+						task_->repeat = 0; // done
 
 					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_.repeat == 0 ) {
+					} else if ( task_->repeat == 0 ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
 					}
 				} );
@@ -310,7 +310,7 @@ namespace micasa {
 
 				// This method is most likely called from the scheduler and should therefore not block for too long, so
 				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( Scheduler::Task<>& task_ ) {
+				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
@@ -320,10 +320,10 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
 						}
 
-						task_.repeat = 0; // done
+						task_->repeat = 0; // done
 
 					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_.repeat == 0 ) {
+					} else if ( task_->repeat == 0 ) {
 						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );	
 					}
 				} );

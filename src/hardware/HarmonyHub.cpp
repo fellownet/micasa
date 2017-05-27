@@ -32,7 +32,7 @@ namespace micasa {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Hardware::start();
 
-		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( Scheduler::Task<>& task_ ) {
+		this->m_task = this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( ! this->m_settings->contains( { "address", "port" } ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Hardware::State::FAILED );
@@ -92,7 +92,7 @@ namespace micasa {
 			} );
 		} );
 
-		this->m_scheduler.schedule( 1000 * HARMONY_HUB_PING_INTERVAL_SEC, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& task_ ) {
+		this->m_scheduler.schedule( 1000 * HARMONY_HUB_PING_INTERVAL_SEC, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( this->getState() == Hardware::State::READY ) {
 				std::stringstream response;
 				response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;

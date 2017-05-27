@@ -381,7 +381,7 @@ namespace micasa {
 			pendingUpdate == nullptr
 			|| pendingUpdate->waitFor( blockNewUpdate_ )
 		) ) {
-			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, this, [this,reference_,source_,data_]( Scheduler::Task<t_pendingUpdate>& ) -> t_pendingUpdate {
+			this->m_pendingUpdates[reference_] = this->m_scheduler.schedule<t_pendingUpdate>( waitForResult_, 1, this, [this,reference_,source_,data_]( std::shared_ptr<Scheduler::Task<t_pendingUpdate>> ) -> t_pendingUpdate {
 				std::lock_guard<std::mutex> pendingUpdatesLock( this->m_pendingUpdatesMutex );
 				this->m_pendingUpdates.erase( reference_ );
 				return { source_, data_ };
