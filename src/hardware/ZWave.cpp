@@ -355,6 +355,7 @@ namespace micasa {
 					this->m_settings->put( "port", this->m_port );
 					this->m_settings->put( "home_id", homeId );
 					Logger::log( Logger::LogLevel::NORMAL, this, "Driver ready." );
+					this->setState( Hardware::State::READY );
 				} else {
 					this->setState( Hardware::State::FAILED, true );
 					Logger::log( Logger::LogLevel::ERROR, this, "Driver has wrong home id." );
@@ -378,26 +379,13 @@ namespace micasa {
 				break;
 			}
 
-			case Notification::Type_AwakeNodesQueried:
 			case Notification::Type_AllNodesQueried:
 			case Notification::Type_AllNodesQueriedSomeDead: {
-				this->setState( Hardware::State::READY );
-
-				// All nodes that aren't set ready yet have failed. They are not present within the controller
-				// somehow.
 				for ( auto& node : g_controller->getChildrenOfHardware( *this ) ) {
 					if ( node->getState() < Hardware::State::READY ) {
 						Logger::log( Logger::LogLevel::ERROR, node.get(), "Node failed." );
 						node->setState( Hardware::State::FAILED );
 					}
-				}
-
-				// At this point we're going to instruct all nodes to report their configuration parameters.
-				Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
-				auto nodes = g_controller->getChildrenOfHardware( *this );
-				for ( auto nodeIt = nodes.begin(); nodeIt != nodes.end(); nodeIt++ ) {
-					auto node = std::static_pointer_cast<ZWaveNode>( *nodeIt );
-					Manager::Get()->RequestAllConfigParams( node->m_homeId, node->m_nodeId );
 				}
 				break;
 			}

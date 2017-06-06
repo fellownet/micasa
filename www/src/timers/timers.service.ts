@@ -17,6 +17,7 @@ export class Timer {
 export class TimersService {
 
 	public lastPage: any = {};
+	public returnUrl?: string;
 
 	public constructor(
 		private _sessionService: SessionService
@@ -47,10 +48,10 @@ export class TimersService {
 		}
 	};
 
-	public deleteTimer( timer_: Timer ): Observable<boolean> {
+	public deleteTimer( timer_: Timer ): Observable<Timer> {
 		return this._sessionService.http<any>( 'delete', 'timers/' + timer_.id )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return timer_;
 			} )
 		;
 	};

@@ -29,6 +29,7 @@ export class User {
 export class UsersService {
 
 	public lastPage: number = NaN;
+	public returnUrl?: string;
 
 	public constructor(
 		private _sessionService: SessionService
@@ -51,10 +52,10 @@ export class UsersService {
 		}
 	};
 
-	public deleteUser( user_: User ): Observable<boolean> {
+	public deleteUser( user_: User ): Observable<User> {
 		return this._sessionService.http<any>( 'delete', 'users/' + user_.id )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return user_;
 			} )
 		;
 	};

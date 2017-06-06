@@ -48,9 +48,8 @@ namespace micasa {
 		
 		class ResourceCallback {
 		public:
-			ResourceCallback( const std::string& reference_, const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : reference( reference_ ), uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
+			ResourceCallback( const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
 
-			const std::string reference;
 			const std::string uri;
 			const Method methods;
 			const t_callback callback;
@@ -92,6 +91,7 @@ namespace micasa {
 		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();
+		void _installLinkResourceHandler();
 		void _installScriptResourceHandler();
 		void _installTimerResourceHandler();
 		void _installUserResourceHandler();

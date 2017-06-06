@@ -1,15 +1,15 @@
 <div class="box">
-	<div class="box-header with-border">
-		<div class="box-tools" *ngIf="!parent.editing">
+	<div class="box-header with-border" *ngIf="editable">
+		<div class="box-tools" *ngIf="! parent.editing">
 			<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
-			<button type="button" (click)="parent.editing=true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+			<button type="button" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			<button type="button" (click)="reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
 		</div>
-		<h3 class="box-title" [class.empty]="!widget.name">{{widget.name ? widget.name : 'Edit Widget'}}</h3>
+		<h3 class="box-title" [class.empty]="! widget.name">{{ widget.name ? widget.name : 'Edit Widget' }}</h3>
 	</div>
 
 	<!-- view -->
-	<ng-container *ngIf="!parent.editing && data.length > 0">
+	<ng-container *ngIf="! parent.editing && data.length > 0">
 	<div class="box-body no-padding scroll">
 
 <table class="table" [gridData]="data" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">
@@ -21,14 +21,14 @@
 </thead>
 <tbody>
 	<tr *ngFor="let item of grid.page">
-		<td>{{item.timestamp | timestamp}}</td>
+		<td>{{ item.timestamp | timestamp }}</td>
 		<td><span class="label"
-			[class.label-success]="item.value=='On'||item.value=='Enabled'"
-			[class.label-danger]="item.value=='Off'||item.value=='Disabled'"
-			[class.label-primary]="item.value=='Stop'"
-			[class.label-warning]="item.value=='Idle'"
-			[class.label-info]="item.value!='On' && item.value!='Enabled' && item.value!='Off' && item.value!='Disabled' && item.value!='Stop' && item.value!='Idle'"
-			>{{item.value}}</span>
+			[class.label-success]="item.value == 'On' || item.value == 'Enabled'"
+			[class.label-danger]="item.value == 'Off' || item.value == 'Disabled'"
+			[class.label-primary]="item.value == 'Stop'"
+			[class.label-warning]="item.value == 'Idle'"
+			[class.label-info]="item.value != 'On' && item.value != 'Enabled' && item.value != 'Off' && item.value != 'Disabled' && item.value != 'Stop' && item.value != 'Idle'"
+			>{{ item.value }}</span>
 		</td>
 	</tr>
 </tbody>
@@ -46,7 +46,7 @@
 	<form role="form" *ngIf="parent.editing" (ngSubmit)="save()" #widgetForm="ngForm">
 
 	<div class="box-body">
-		<div class="form-group" [class.has-error]="!namefield.valid && !namefield.pristine">
+		<div class="form-group" [class.has-error]="! namefield.valid && ! namefield.pristine">
 			<label for="namefield">Name</label>
 			<input type="text" class="form-control" id="namefield" placeholder="Name" autocomplete="off" required [(ngModel)]="widget.name" name="name" #namefield="ngModel">
 		</div>
@@ -61,27 +61,35 @@
 				<option value="table" *ngIf="device && ! ( device.type == 'level' || device.type == 'counter' )">Table</option>
 			</select>
 		</div>
+		<div class="form-group">
+			<label for="devicefield">Device<span class="mandatory"> *</span></label>
+			<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
+				<ng-container *ngFor="let device of devices | async | sort:'name'">
+					<option value="{{ device.id }}">{{ device.name }}</option>
+				</ng-container>
+			</select>
+		</div>
 	</div>
 
-	<div class="box-footer" *ngIf="widget.size=='large'">
+	<div class="box-footer" *ngIf="widget.size == 'large'">
 		<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
 		</div>
 	</div>
-	<div class="box-footer" *ngIf="widget.size=='medium'">
+	<div class="box-footer" *ngIf="widget.size == 'medium'">
 		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4 col-lg-offset-4">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
 		</div>
 	</div>
-	<div class="box-footer" *ngIf="widget.size=='small'">
+	<div class="box-footer" *ngIf="widget.size == 'small'">
 		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>

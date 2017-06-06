@@ -50,18 +50,9 @@ export class ScreenResolver implements Resolve<Screen> {
 				me._devicesService.getDevice( +route_.params['device_id'] )
 					.subscribe( function( device_: Device ) {
 						result.device = device_;
-						me._screensService.getScreenForDevice( device_.id )
-							.subscribe( function( screen_: Screen ) {
-								result.screen = screen_;
-								observer_.next( result );
-								observer_.complete();
-							}, function( error_: string ) {
-								result.screen = me._screensService.getDefaultScreenForDevice( device_ );
-								me._screensService.putScreen( result.screen ).subscribe();
-								observer_.next( result );
-								observer_.complete();
-							} )
-						;
+						result.screen = me._screensService.getDefaultScreenForDevice( device_ );
+						observer_.next( result );
+						observer_.complete();
 					}, function( error_: string ) {
 						me._router.navigate( [ '/login' ] );
 					} )

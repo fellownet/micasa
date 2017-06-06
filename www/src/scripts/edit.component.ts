@@ -60,7 +60,12 @@ export class ScriptEditComponent implements OnInit {
 		this._scriptsService.putScript( me.script )
 			.subscribe(
 				function( script_: Script ) {
-					me._router.navigate( [ '/scripts' ] );
+					if ( !!me._scriptsService.returnUrl ) {
+						me._router.navigateByUrl( me._scriptsService.returnUrl );
+						delete me._scriptsService.returnUrl;
+					} else {
+						me._router.navigate( [ '/scripts' ] );
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;
@@ -75,12 +80,12 @@ export class ScriptEditComponent implements OnInit {
 		me.loading = true;
 		me._scriptsService.deleteScript( me.script )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						me._router.navigate( [ '/scripts' ] );
+				function( script_: Script ) {
+					if ( !!me._scriptsService.returnUrl ) {
+						me._router.navigateByUrl( me._scriptsService.returnUrl );
+						delete me._scriptsService.returnUrl;
 					} else {
-						me.loading = false;
-						this.error = 'Unable to delete script.';
+						me._router.navigate( [ '/scripts' ] );
 					}
 				},
 				function( error_: string ) {

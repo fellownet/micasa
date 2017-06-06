@@ -15,10 +15,6 @@ import {
 import { Hardware } from '../hardware/hardware.service';
 import { Script }   from '../scripts/scripts.service';
 import {
-	Timer,
-	TimersService
-}                   from '../timers/timers.service';
-import {
 	Screen,
 	ScreensService,
 	Widget
@@ -36,10 +32,6 @@ export class DeviceEditComponent implements OnInit {
 	public scripts: Script[];
 	public screens: Screen[];
 
-	public hardware?: Hardware;
-	public script?: Script;
-	public screen?: Screen;
-
 	public hasAdvancedSettings: boolean = false;
 
 	public constructor(
@@ -54,15 +46,6 @@ export class DeviceEditComponent implements OnInit {
 		var me = this;
 		this._route.data
 			.subscribe( function( data_: any ) {
-				if ( 'hardware' in data_ ) {
-					me.hardware = data_.hardware;
-				}
-				if ( 'script' in data_ ) {
-					me.script = data_.script;
-				}
-				if ( 'screen' in data_ ) {
-					me.screen = data_.screen;
-				}
 				me.device = data_.device;
 				me.scripts = data_.scripts;
 				me.screens = data_.screens;
@@ -78,19 +61,12 @@ export class DeviceEditComponent implements OnInit {
 	public submitDevice( form_: NgForm ) {
 		var me = this;
 		me.loading = true;
-		this._devicesService.putDevice( me.device )
+		me._devicesService.putDevice( me.device )
 			.subscribe(
 				function( device_: Device ) {
-					if ( me.hardware ) {
-						if ( me.hardware.parent ) {
-							me._router.navigate( [ '/hardware', me.hardware.parent.id, me.hardware.id, 'edit' ] );
-						} else {
-							me._router.navigate( [ '/hardware', me.hardware.id, 'edit' ] );
-						}
-					} else if ( me.script ) {
-						me._router.navigate( [ '/scripts', me.script.id ] );
-					} else if ( me.screen ) {
-						me._router.navigate( [ '/screens', me.screen.id ] );
+					if ( !!me._devicesService.returnUrl ) {
+						me._router.navigateByUrl( me._devicesService.returnUrl );
+						delete me._devicesService.returnUrl;
 					} else {
 						me._router.navigate( [ '/devices' ] );
 					}
@@ -108,24 +84,12 @@ export class DeviceEditComponent implements OnInit {
 		me.loading = true;
 		me._devicesService.deleteDevice( me.device )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						if ( me.hardware ) {
-							if ( me.hardware.parent ) {
-								me._router.navigate( [ '/hardware', me.hardware.parent.id, me.hardware.id, 'edit' ] );
-							} else {
-								me._router.navigate( [ '/hardware', me.hardware.id, 'edit' ] );
-							}
-						} else if ( me.script ) {
-							me._router.navigate( [ '/scripts', me.script.id ] );
-						} else if ( me.screen ) {
-							me._router.navigate( [ '/screens', me.screen.id ] );
-						} else {
-							me._router.navigate( [ '/devices' ] );
-						}
+				function( device_: Device ) {
+					if ( !!me._devicesService.returnUrl ) {
+						me._router.navigateByUrl( me._devicesService.returnUrl );
+						delete me._devicesService.returnUrl;
 					} else {
-						me.loading = false;
-						this.error = 'Unable to delete device.';
+						me._router.navigate( [ '/devices' ] );
 					}
 				},
 				function( error_: string ) {
@@ -136,17 +100,16 @@ export class DeviceEditComponent implements OnInit {
 		;
 	};
 
-	public updateSelectedScripts( id_: number, event_: any ) {
-		let target: any = event.target;
-		if ( target.checked ) {
-			if ( this.device.scripts.indexOf( id_ ) < 0 ) {
-				this.device.scripts.push( id_ );
-			}
-		} else {
-			let pos: number = this.device.scripts.indexOf( id_ );
-			if ( pos >= 0 ) {
-				this.device.scripts.splice( pos, 1 );
-			}
+	public addScript( script_id_: number ) {
+		if ( !! script_id_ ) {
+			this.device.scripts.push( +script_id_ );
+		}
+	};
+
+	public removeScript( script_id_: number ) {
+		let pos: number = this.device.scripts.indexOf( script_id_ );
+		if ( pos >= 0 ) {
+			this.device.scripts.splice( pos, 1 );
 		}
 	};
 

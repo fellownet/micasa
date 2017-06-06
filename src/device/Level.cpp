@@ -6,6 +6,9 @@
 #include "../Controller.h"
 #include "../User.h"
 
+#define DEVICE_LEVEL_DEFAULT_HISTORY_RETENTION 7 // days
+#define DEVICE_LEVEL_DEFAULT_TRENDS_RETENTION 36 // months
+
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
@@ -42,6 +45,19 @@ namespace micasa {
 		{ Level::Unit::LUX, "lx" },
 		{ Level::Unit::SECONDS, " sec" },
 	};
+
+	const std::map<Level::Unit, std::string> Level::UnitFormat = {
+		{ Level::Unit::GENERIC, "%.3f" },
+		{ Level::Unit::PERCENT, "%.1f" },
+		{ Level::Unit::WATT, "%.0f" },
+		{ Level::Unit::VOLT, "%.0f" },
+		{ Level::Unit::AMPERES, "%.0f" },
+		{ Level::Unit::CELSIUS, "%.1f" },
+		{ Level::Unit::FAHRENHEIT, "%.1f" },
+		{ Level::Unit::PASCAL, "%.0f" },
+		{ Level::Unit::LUX, "%.0f" },
+		{ Level::Unit::SECONDS, "%.0f" },
+	};
 	
 	Level::Level( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( hardware_, id_, reference_, label_, enabled_ ),
@@ -53,7 +69,7 @@ namespace micasa {
 			json result = g_database->getQueryRow<json>(
 				"SELECT `value`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `age` "
 				"FROM `device_level_history` "
-				"WHERE `device_id`=%d "
+				"WHERE `device_id` = %d "
 				"ORDER BY `date` DESC "
 				"LIMIT 1",
 				this->m_id
@@ -73,7 +89,7 @@ namespace micasa {
 			this->_processTrends();
 		} );
 		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
-			this->_purgeHistory();
+			this->_purgeHistoryAndTrends();
 		} );
 	};
 
@@ -157,15 +173,19 @@ namespace micasa {
 	json Level::getJson( bool full_ ) const {
 		json result = Device::getJson( full_ );
 
+		std::string unit = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
 		double divider = this->m_settings->get<double>( "divider", 1 );
 		double offset = this->m_settings->get<double>( "offset", 0 );
-		result["value"] = round( ( ( this->m_value / divider ) + offset ) * 1000.0f ) / 1000.0f;
+
+		result["value"] = std::stod( stringFormat( Level::UnitFormat.at( Level::resolveTextUnit( unit ) ), ( this->m_value / divider ) + offset ) );
 		result["raw_value"] = this->m_value;
-		result["source"] = this->m_source;
+		result["source"] = Device::resolveUpdateSource( this->m_source );
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "level";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
-		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+		result["unit"] = unit;
+		result["history_retention"] = this->m_settings->get<int>( "history_retention", DEVICE_LEVEL_DEFAULT_HISTORY_RETENTION );
+		result["trends_retention"] = this->m_settings->get<int>( "trends_retention", DEVICE_LEVEL_DEFAULT_TRENDS_RETENTION );
 		if ( this->m_settings->contains( "minimum" ) ) {
 			result["minimum"] = this->m_settings->get<double>( "minimum" );
 		}
@@ -224,6 +244,28 @@ namespace micasa {
 			}
 			result += setting;
 		}
+
+		result += {
+			{ "name", "history_retention" },
+			{ "label", "History Retention" },
+			{ "description", "How long to keep history in the database in days. Level devices store their value in the history database every 5 minutes." },
+			{ "type", "int" },
+			{ "minimum", 1 },
+			{ "default", DEVICE_LEVEL_DEFAULT_HISTORY_RETENTION },
+			{ "class", "advanced" },
+			{ "sort", 12 }
+		};
+
+		result += {
+			{ "name", "trends_retention" },
+			{ "label", "Trends Retention" },
+			{ "description", "How long to keep trends in the database in months. Level device trends keep averaged data on hourly basis and are less resource hungry." },
+			{ "type", "int" },
+			{ "minimum", 1 },
+			{ "default", DEVICE_LEVEL_DEFAULT_TRENDS_RETENTION },
+			{ "class", "advanced" },
+			{ "sort", 13 }
+		};
 
 		result += {
 			{ "name", "minimum" },
@@ -287,21 +329,22 @@ namespace micasa {
 			return json::array();
 		}
 
+		std::string unit = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+		std::string format = Level::UnitFormat.at( Level::resolveTextUnit( unit ) );
 		double divider = this->m_settings->get<double>( "divider", 1 );
 		double offset = this->m_settings->get<double>( "offset", 0 );
 
 		if ( group_ == "5min" ) {
 			std::string dateFormat = "%Y-%m-%d %H:%M:00";
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( avg(`value`) + %.6f ) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MIN(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MIN( `date` ) ) AS `date` "
+				"SELECT CAST( printf( %Q, ( `value` / %.6f ) + %.6f ) AS REAL ) AS `value`, CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `timestamp`, strftime( %Q, `date` ) AS `date` "
 				"FROM `device_level_history` "
-				"WHERE `device_id`=%d "
-				"AND `date` >= datetime('now','-%d %s') "
-				"GROUP BY printf( \"%%s-%%d\", strftime( '%%Y-%%m-%%d-%%H', `date` ), CAST( strftime( '%%M', `date` ) / 5 AS INTEGER ) ) "
+				"WHERE `device_id` = %d "
+				"AND `date` >= datetime( 'now', '-%d %s' ) "
 				"ORDER BY `date` ASC ",
-				offset,
+				format.c_str(),
 				divider,
-				dateFormat.c_str(),
+				offset,
 				dateFormat.c_str(),
 				this->m_id,
 				range_,
@@ -310,7 +353,7 @@ namespace micasa {
 		} else {
 			std::string dateFormat = "%Y-%m-%d %H:30:00";
 			std::string groupFormat = "%Y-%m-%d-%H";
-			std::string start = "'start of day','+' || strftime('%H') || ' hours'";
+			std::string start = "'start of day','+' || strftime( '%H' ) || ' hours'";
 			if ( group_ == "day" ) {
 				dateFormat = "%Y-%m-%d 12:00:00";
 				groupFormat = "%Y-%m-%d";
@@ -325,14 +368,26 @@ namespace micasa {
 				start = "'start of year'";
 			}
 			return g_database->getQuery<json>(
-				"SELECT printf(\"%%.3f\", ( avg(`average`) + %.6f ) /  %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
+				"SELECT "
+					"CAST( printf( %Q, ( avg( `average` ) / %.6f ) +  %.6f ) AS REAL ) AS `value`, "
+					"CAST( printf( %Q, ( max( `max` ) / %.6f ) +  %.6f ) AS REAL ) AS `maximum`, "
+					"CAST( printf( %Q, ( min( `min` ) / %.6f ) +  %.6f ) AS REAL ) AS `minimum`, "
+					"CAST( strftime( '%%s', strftime( %Q, "
+					"MAX( `date` ) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
 				"FROM `device_level_trends` "
-				"WHERE `device_id`=%d "
-				"AND `date` >= datetime('now','-%d %s',%s) "
+				"WHERE `device_id` = %d "
+				"AND `date` >= datetime( 'now', '-%d %s', %s ) "
 				"GROUP BY strftime( %Q, `date` ) "
 				"ORDER BY `date` ASC ",
-				offset,
+				format.c_str(),
 				divider,
+				offset,
+				format.c_str(),
+				divider,
+				offset,
+				format.c_str(),
+				divider,
+				offset,
 				dateFormat.c_str(),
 				dateFormat.c_str(),
 				this->m_id,
@@ -359,11 +414,33 @@ namespace micasa {
 
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
+				std::string date = "strftime( '%Y-%m-%d %H:', datetime( 'now' ) ) || CASE WHEN CAST( strftime( '%M',  datetime( 'now' ) ) AS INTEGER ) < 10 THEN '0' ELSE '' END || CAST( CAST( strftime( '%M', datetime( 'now' ) ) AS INTEGER ) / 5 * 5 AS TEXT ) || ':00'";
 				g_database->putQuery(
-					"INSERT INTO `device_level_history` (`device_id`, `value`) "
-					"VALUES (%d, %.6lf)",
+					"REPLACE INTO `device_level_history` ( `device_id`, `date`, `value`, `samples` ) "
+					"VALUES ( "
+						"%d, "
+						"%s, "
+						"COALESCE( ( "
+							"SELECT printf( '%%.6f', ( ( `value` * `samples` ) + %.6f ) / ( `samples` + 1 ) ) "
+							"FROM `device_level_history` "
+							"WHERE `device_id` = %d "
+							"AND `date` = %s "
+						"), %.6f ), "
+						"COALESCE( ( "
+							"SELECT `samples` + 1 "
+							"FROM `device_level_history` "
+							"WHERE `device_id` = %d "
+							"AND `date` = %s "
+						"), 1 ) "
+					")",
 					this->m_id,
-					this->m_value
+					date.c_str(),
+					this->m_value,
+					this->m_id,
+					date.c_str(),
+					this->m_value,
+					this->m_id,
+					date.c_str()
 				);
 			}
 			this->m_source = source_;
@@ -385,10 +462,10 @@ namespace micasa {
 		std::string groupFormat = "%Y-%m-%d-%H";
 
 		auto trends = g_database->getQuery(
-			"SELECT MAX(`value`) AS `max`, MIN(`value`) AS `min`, AVG(`value`) AS `average`, strftime(%Q, MAX(`date`)) AS `date` "
+			"SELECT MAX( `value` ) AS `max`, MIN( `value` ) AS `min`, AVG( `value` ) AS `average`, strftime( %Q, MAX( `date` ) ) AS `date` "
 			"FROM `device_level_history` "
-			"WHERE `device_id`=%d AND `Date` > datetime('now','-5 hour') "
-			"GROUP BY strftime(%Q, `date`)",
+			"WHERE `device_id` = %d AND `Date` > datetime( 'now','-5 hour' ) "
+			"GROUP BY strftime( %Q, `date` )",
 			hourFormat.c_str(),
 			this->m_id,
 			groupFormat.c_str()
@@ -398,8 +475,8 @@ namespace micasa {
 		for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
 			if ( trendsIt != trends.begin() ) {
 				g_database->putQuery(
-					"REPLACE INTO `device_level_trends` (`device_id`, `min`, `max`, `average`, `date`) "
-					"VALUES (%d, %.6lf, %.6lf, %.6lf, %Q)",
+					"REPLACE INTO `device_level_trends` ( `device_id`, `min`, `max`, `average`, `date` ) "
+					"VALUES ( %d, %.6f, %.6f, %.6f, %Q )",
 					this->m_id,
 					std::stod( (*trendsIt)["min"] ),
 					std::stod( (*trendsIt)["max"] ),
@@ -410,21 +487,21 @@ namespace micasa {
 		}
 	};
 
-	void Level::_purgeHistory() const {
-#ifdef _DEBUG
+	void Level::_purgeHistoryAndTrends() const {
 		g_database->putQuery(
 			"DELETE FROM `device_level_history` "
-			"WHERE `Date` < datetime( 'now','-%d day' )",
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
-		);
-#else // _DEBUG
-		g_database->putQuery(
-			"DELETE FROM `device_level_history` "
-			"WHERE `device_id`=%d AND `Date` < datetime( 'now','-%d day' )",
+			"WHERE `device_id` = %d "
+			"AND `date` < datetime( 'now','-%d day' )",
 			this->m_id,
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+			this->m_settings->get<int>( "history_retention", DEVICE_LEVEL_DEFAULT_HISTORY_RETENTION )
 		);
-#endif // _DEBUG
+		g_database->putQuery(
+			"DELETE FROM `device_level_trends` "
+			"WHERE `device_id` = %d "
+			"AND `date` < datetime( 'now','-%d month' )",
+			this->m_id,
+			this->m_settings->get<int>( "trends_retention", DEVICE_LEVEL_DEFAULT_TRENDS_RETENTION )
+		);
 	};
 
 }; // namespace micasa

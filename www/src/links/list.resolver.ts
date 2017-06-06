@@ -9,21 +9,21 @@ import { Observable }      from 'rxjs/Observable';
 
 import {
 	Link,
-	DevicesService
-}                          from '../devices.service';
+	LinksService
+}                          from './links.service';
 
 @Injectable()
 export class LinksListResolver implements Resolve<Link[]> {
 
 	public constructor(
 		private _router: Router,
-		private _devicesService: DevicesService
+		private _linksService: LinksService
 	) {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Link[]> {
 		var me = this;
-		return me._devicesService.getLinks( route_.params['device_id'] )
+		return me._linksService.getLinks( route_.params['device_id'] )
 			.catch( function( error_: string ) {
 				return Observable.of( [] );
 			} )

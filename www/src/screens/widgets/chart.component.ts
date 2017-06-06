@@ -43,6 +43,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'devices' ) private _devices: Observable<Device[]>;
 	@Input( 'parent' ) public parent: WidgetComponent;
+	@Input( 'editable' ) public editable: boolean;
 
 	@Output() onAction = new EventEmitter<string>();
 
@@ -80,6 +81,9 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		Highcharts.setOptions( {
 			global: {
 				timezoneOffset: new Date().getTimezoneOffset()
+			},
+			lang: {
+				thousandsSep: ''
 			}
 		} );
 
@@ -96,9 +100,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 				let animationDuration: number = 300;
 				let config: any = {
 					chart: {
-						animation: {
-							duration: animationDuration
-						},
 						style: {
 							fontFamily: 'helvetica, arial, sans-serif'
 						},
@@ -151,7 +152,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 								states: {
 									hover: {
 										enabled: true,
-										symbol: 'circle',
 										radius: 6,
 										lineWidth: 2
 									}
@@ -161,7 +161,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					}
 				};
 
-				// Add day series.
 				let yAxis: number = -1;
 				let lastUnit:string = null;
 				let serie:number = -1;
@@ -170,8 +169,8 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					let device: Device = me.data[source.device_id][0];
 					let data: any[] = me.data[source.device_id][1];
 
-					// If the device type is 'level' or 'counter', series are added. Switch and text devices are added as
-					// plotlines instead.
+					// If the device type is 'level' or 'counter', series are added. Switch and text devices are added
+					// as plotlines instead.
 					if (
 						device.type == 'counter'
 						|| device.type == 'level'
@@ -187,6 +186,13 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							break;
 						}
 
+						let range: boolean = (
+							data.length > 0
+							&& source.properties.range
+							&& 'minimum' in data[0]
+							&& 'maximum' in data[0]
+						);
+
 						config.series[++serie] = {
 							data: [],
 							visible: !source.properties.hidden,
@@ -200,16 +206,26 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							events: {
 								hide: function() {
 									source.properties.hidden = true;
-									//me.parent.save( false );
+									if ( range ) {
+										this.chart.series[1 + this.chart.series.indexOf( this )].hide();
+									}
+									if ( me.editable ) {
+										me.save( false );
+									}
 								},
 								show: function() {
 									source.properties.hidden = false;
-									//me.parent.save( false );
+									if ( range ) {
+										this.chart.series[1 + this.chart.series.indexOf( this )].show();
+									}
+									if ( me.editable ) {
+										me.save( false );
+									}
 								}
 							}
 						};
 						for ( let point of data ) {
-							config.series[serie].data.push( [ point.timestamp * 1000, parseFloat( point.value ) ] );
+							config.series[serie].data.push( [ point.timestamp * 1000, point.value ] );
 						}
 						if ( device.type == 'counter' ) {
 							switch( me.widget.interval ) {
@@ -220,10 +236,88 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									config.series[serie].pointRange = 24 * 3600 * 1000;
 									break;
 							}
-							config.series[serie].zIndex = 1;
+							config.series[serie].zIndex = 10;
 						} else {
-							config.series[serie].zIndex = 2;
+							config.series[serie].zIndex = 20;
 						}
+
+						// Add range.
+						if ( range ) {
+							config.series[++serie] = {
+								data: [],
+								color: me._colors[source.properties.color || 'aqua'],
+								yAxis: yAxis,
+								type: 'areasplinerange',
+								showInLegend: false,
+								zIndex: 1,
+								animation: {
+									duration: animationDuration
+								},
+								lineWidth: 0,
+								fillOpacity: 0.13,
+								enableMouseTracking: false,
+								marker: {
+									enabled: false
+								}
+							};
+							for ( let point of data ) {
+								config.series[serie].data.push( [ point.timestamp * 1000, point.minimum, point.maximum ] );
+							}
+						}
+
+						// Add trendline.
+						if (
+							data.length > 2
+							&& source.properties.trendline
+						) {
+							var ii = 0, x, y, x0, x1, y0, y1, dx,
+								m = 0, b = 0, cs, ns,
+								n = data.length, Sx = 0, Sy = 0, Sxy = 0, Sx2 = 0, S2x = 0;
+
+							// Do math stuff.
+							for (ii; ii < data.length; ii++) {
+								x = data[ii].timestamp;
+								y = data[ii].value;
+								Sx += x;
+								Sy += y;
+								Sxy += (x * y);
+								Sx2 += (x * x);
+							}
+
+							// Calculate slope and intercept.
+							m = (n * Sx2 - S2x) != 0 ? (n * Sxy - Sx * Sy) / (n * Sx2 - Sx * Sx) : 0;
+							b = (Sy - m * Sx) / n;
+
+							// Calculate minimal coordinates to draw the trendline.
+							dx = 0;
+							x0 = data[0].timestamp - dx;
+							y0 = m * x0 + b;
+							x1 = data[ii - 1].timestamp + dx;
+							y1 = m * x1 + b;
+
+							// Add series.
+							config.series[++serie] = {
+								data: [
+									[ x0 * 1000, y0 ],
+									[ x1 * 1000, y1 ]
+								],
+								name: 'trendline',
+								color: me._colors[source.properties.trendline_color || 'red'],
+								yAxis: yAxis,
+								type: 'line',
+								zIndex: 2,
+								animation: {
+									duration: animationDuration * 4
+								},
+								lineWidth: 2,
+								dashStyle: 'LongDash',
+								enableMouseTracking: false,
+								marker: {
+									enabled: false
+								}
+							};
+						}
+
 					} else if (
 						device.type == 'switch'
 						|| device.type == 'text'
@@ -289,7 +383,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 						observables.push(
 							me._devicesService.getData( device.id, {
 								group:
-									[ '5min', '5min', 'day', 'day', 'day' ][
+									[ '5min', '5min', 'hour', 'day', 'day' ][
 										[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
 									],
 								range: me.widget.range,
@@ -365,8 +459,11 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		}
 	};
 
-	public save() {
+	public save( reload_: boolean = true ) {
 		this.onAction.emit( 'save' );
+		if ( reload_ ) {
+			this.onAction.emit( 'reload' );
+		}
 		this.parent.editing = false;
 	};
 

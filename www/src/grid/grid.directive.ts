@@ -6,6 +6,10 @@ import {
 	SimpleChanges
 }                 from '@angular/core';
 
+import {
+	SortPipe
+}                 from '../utils/sort.pipe';
+
 @Directive( {
 	selector: 'table[gridData]',
 	exportAs: 'GridDirective'
@@ -35,7 +39,7 @@ export class GridDirective implements OnInit, OnChanges {
 			if ( this._defaultSortOrder ) {
 				this._sortOrder = this._defaultSortOrder.toLowerCase() == 'desc' ? 'desc' : 'asc';
 			}
-			this._sort();
+			new SortPipe().transform( this.data, this._sortField, this._sortOrder == 'desc' );
 		}
 		this._slice();
 	};
@@ -50,7 +54,7 @@ export class GridDirective implements OnInit, OnChanges {
 		) {
 			this._sortField = sortField_;
 			this._sortOrder = sortOrder_;
-			this._sort();
+			new SortPipe().transform( this.data, this._sortField, this._sortOrder == 'desc' );
 			this._slice();
 		}
 	};
@@ -78,21 +82,6 @@ export class GridDirective implements OnInit, OnChanges {
 
 	public getPageCount(): number {
 		return Math.ceil( this.data.length / this._pageSize );
-	};
-
-	private _sort() {
-		var me = this;
-		this.data.sort( function( a_: any, b_: any ): number {
-			let a: any = ( typeof( a_[me._sortField] ) == 'string' ? a_[me._sortField].toUpperCase() : a_[me._sortField] );
-			let b: any = ( typeof( b_[me._sortField] ) == 'string' ? b_[me._sortField].toUpperCase() : b_[me._sortField] );
-			if ( a < b ) {
-				return me._sortOrder == 'asc' ? -1 : 1;
-			} else if ( a > b ) {
-				return me._sortOrder == 'asc' ? 1 : -1;
-			} else {
-				return 0;
-			}
-		} );
 	};
 
 	private _slice() {

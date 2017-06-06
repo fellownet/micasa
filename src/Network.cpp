@@ -86,7 +86,8 @@ namespace micasa {
 				if ( code_ != 304 ) { // not modified
 					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
 				}
-				this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+				// NOTE connection is kept alive.
+				// this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 			}
 		};
 		if ( __unlikely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {

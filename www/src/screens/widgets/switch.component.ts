@@ -33,7 +33,8 @@ export class WidgetSwitchComponent implements OnInit, OnChanges, OnDestroy {
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'devices' ) private _devices: Observable<Device[]>;
 	@Input( 'parent' ) public parent: WidgetComponent;
-	
+	@Input( 'editable' ) public editable: boolean;
+
 	@Output() onAction = new EventEmitter<string>();
 
 	private _active: boolean = true;

@@ -31,6 +31,7 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	public startPage: number = 1;
 
 	@Input() public parent?: Hardware;
+
 	@ViewChild(GridPagingComponent) private _paging: GridPagingComponent;
 
 	public constructor(
@@ -43,6 +44,7 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
+			me.loading = false;
 			me.hardware = data_.list;
 			if ( !!me.parent ) {
 				me.startPage = me._hardwareService.lastPage[me.parent.id] || 1;
@@ -64,11 +66,8 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 
 	public selectHardware( hardware_: Hardware ) {
 		this.loading = true;
-		if ( this.parent ) {
-			this._router.navigate( [ '/hardware', this.parent.id, hardware_.id, 'edit' ] );
-		} else {
-			this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
-		}
+		this._hardwareService.returnUrl = this._router.url;
+		this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 	};
 
 	public addHardware( type_: string ) {
@@ -77,6 +76,7 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
 				function( hardware_: Hardware ) {
+					me._hardwareService.returnUrl = this._router.url;
 					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
 				function( error_: string ) {

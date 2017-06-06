@@ -9,6 +9,9 @@
 #include "../Controller.h"
 #include "../User.h"
 
+#define DEVICE_COUNTER_DEFAULT_HISTORY_RETENTION 7 // days
+#define DEVICE_COUNTER_DEFAULT_TRENDS_RETENTION 60 // months
+
 namespace micasa {
 
 	extern std::shared_ptr<Database> g_database;
@@ -32,6 +35,12 @@ namespace micasa {
 		{ Counter::Unit::M3, "M3" }
 	};
 
+	const std::map<Counter::Unit, std::string> Counter::UnitFormat = {
+		{ Counter::Unit::GENERIC, "%.3f" },
+		{ Counter::Unit::KILOWATTHOUR, "%.3f" },
+		{ Counter::Unit::M3, "%.3f" }
+	};
+
 	Counter::Counter( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( hardware_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
@@ -42,7 +51,7 @@ namespace micasa {
 			json result = g_database->getQueryRow<json>(
 				"SELECT `value`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `age` "
 				"FROM `device_counter_history` "
-				"WHERE `device_id`=%d "
+				"WHERE `device_id` = %d "
 				"ORDER BY `date` DESC "
 				"LIMIT 1",
 				this->m_id
@@ -62,7 +71,7 @@ namespace micasa {
 			this->_processTrends();
 		} );
 		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
-			this->_purgeHistory();
+			this->_purgeHistoryAndTrends();
 		} );
 	};
 
@@ -129,13 +138,17 @@ namespace micasa {
 		json result = Device::getJson( full_ );
 
 		double divider = this->m_settings->get<double>( "divider", 1 );
-		result["value"] = round( ( this->m_value / divider ) * 1000.0f ) / 1000.0f;
+		std::string unit = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+
+		result["value"] = std::stod( stringFormat( Counter::UnitFormat.at( Counter::resolveTextUnit( unit ) ), this->m_value / divider ) );
 		result["raw_value"] = this->m_value;
-		result["source"] = this->m_source;
+		result["source"] = Device::resolveUpdateSource( this->m_source );
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "counter";
 		result["subtype"] = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
-		result["unit"] = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+		result["unit"] = unit;
+		result["history_retention"] = this->m_settings->get<int>( "history_retention", DEVICE_COUNTER_DEFAULT_HISTORY_RETENTION );
+		result["trends_retention"] = this->m_settings->get<int>( "trends_retention", DEVICE_COUNTER_DEFAULT_TRENDS_RETENTION );
 		if ( this->m_settings->contains( "divider" ) ) {
 			result["divider"] = this->m_settings->get<double>( "divider" );
 		}
@@ -187,6 +200,28 @@ namespace micasa {
 		}
 
 		result += {
+			{ "name", "history_retention" },
+			{ "label", "History Retention" },
+			{ "description", "How long to keep history in the database in days. Counter devices store their value in the history database every 5 minutes." },
+			{ "type", "int" },
+			{ "minimum", 1 },
+			{ "default", DEVICE_COUNTER_DEFAULT_HISTORY_RETENTION },
+			{ "class", "advanced" },
+			{ "sort", 12 }
+		};
+
+		result += {
+			{ "name", "trends_retention" },
+			{ "label", "Trends Retention" },
+			{ "description", "How long to keep trends in the database in months. Counter device trends keep averaged data on hourly basis and are less resource hungry." },
+			{ "type", "int" },
+			{ "minimum", 1 },
+			{ "default", DEVICE_COUNTER_DEFAULT_TRENDS_RETENTION },
+			{ "class", "advanced" },
+			{ "sort", 13 }
+		};
+
+		result += {
 			{ "name", "divider" },
 			{ "label", "Divider" },
 			{ "description", "A divider to convert the value to the designated unit." },
@@ -223,11 +258,13 @@ namespace micasa {
 			return json::array();
 		}
 
+		std::string unit = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
+		std::string format = Counter::UnitFormat.at( Counter::resolveTextUnit( unit ) );
 		double divider = this->m_settings->get<double>( "divider", 1 );
 
 		std::string dateFormat = "%Y-%m-%d %H:30:00";
 		std::string groupFormat = "%Y-%m-%d-%H";
-		std::string start = "'start of day','+' || strftime('%H') || ' hours'";
+		std::string start = "'start of day','+' || strftime( '%H' ) || ' hours'";
 		if ( group_ == "day" ) {
 			dateFormat = "%Y-%m-%d 12:00:00";
 			groupFormat = "%Y-%m-%d";
@@ -242,12 +279,13 @@ namespace micasa {
 			start = "'start of year'";
 		}
 		return g_database->getQuery<json>(
-			"SELECT printf(\"%%.3f\", sum(`diff`) / %.6f ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX(`date`) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX(`date`) ) AS `date` "
+			"SELECT CAST( printf( %Q, sum( `diff` ) / %.6f ) AS REAL ) AS `value`, CAST( strftime( '%%s', strftime( %Q, MAX( `date` ) ) ) AS INTEGER ) AS `timestamp`, strftime( %Q, MAX( `date` ) ) AS `date` "
 			"FROM `device_counter_trends` "
-			"WHERE `device_id`=%d "
-			"AND `date` >= datetime('now','-%d %s',%s) "
-			"GROUP BY strftime(%Q, `date`) "
+			"WHERE `device_id` = %d "
+			"AND `date` >= datetime( 'now', '-%d %s', %s ) "
+			"GROUP BY strftime( %Q, `date` ) "
 			"ORDER BY `date` ASC ",
+			format.c_str(),
 			divider,
 			dateFormat.c_str(),
 			dateFormat.c_str(),
@@ -273,11 +311,34 @@ namespace micasa {
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
+				std::string date = "strftime( '%Y-%m-%d %H:', datetime( 'now' ) ) || CASE WHEN CAST( strftime( '%M',  datetime( 'now' ) ) AS INTEGER ) < 10 THEN '0' ELSE '' END || CAST( CAST( strftime( '%M', datetime( 'now' ) ) AS INTEGER ) / 5 * 5 AS TEXT ) || ':00'";
+
 				g_database->putQuery(
-					"INSERT INTO `device_counter_history` (`device_id`, `value`) "
-					"VALUES (%d, %.6lf)",
+					"REPLACE INTO `device_counter_history` ( `device_id`, `date`, `value`, `samples` ) "
+					"VALUES ( "
+						"%d, "
+						"%s, "
+						"COALESCE( ( "
+							"SELECT printf( '%%.6f', ( ( `value` * `samples` ) + %.6f ) / ( `samples` + 1 ) ) "
+							"FROM `device_counter_history` "
+							"WHERE `device_id` = %d "
+							"AND `date` = %s "
+						"), %.6f ), "
+						"COALESCE( ( "
+							"SELECT `samples` + 1 "
+							"FROM `device_counter_history` "
+							"WHERE `device_id` = %d "
+							"AND `date` = %s "
+						"), 1 ) "
+					")",
 					this->m_id,
-					this->m_value
+					date.c_str(),
+					this->m_value,
+					this->m_id,
+					date.c_str(),
+					this->m_value,
+					this->m_id,
+					date.c_str()
 				);
 			}
 			this->m_source = source_;
@@ -311,39 +372,41 @@ namespace micasa {
 		// the diff value is therefore incorrect.
 		for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
 			if ( trendsIt != trends.begin() ) {
-				auto value = g_database->getQueryValue<double>(
-					"SELECT `value` "
-					"FROM `device_counter_history` "
-					"WHERE rowid=%q",
-					(*trendsIt)["last_rowid"].c_str()
-				);
-				g_database->putQuery(
-					"REPLACE INTO `device_counter_trends` (`device_id`, `last`, `diff`, `date`) "
-					"VALUES (%d, %.6lf, %.6lf, %Q)",
-					this->m_id,
-					value,
-					std::stod( (*trendsIt)["diff"] ),
-					(*trendsIt)["date"].c_str()
-				);
+				try {
+					auto value = g_database->getQueryValue<double>(
+						"SELECT `value` "
+						"FROM `device_counter_history` "
+						"WHERE rowid = %q",
+						(*trendsIt)["last_rowid"].c_str()
+					);
+					g_database->putQuery(
+						"REPLACE INTO `device_counter_trends` ( `device_id`, `last`, `diff`, `date` ) "
+						"VALUES ( %d, %.6f, %.6f, %Q )",
+						this->m_id,
+						value,
+						std::stod( (*trendsIt)["diff"] ),
+						(*trendsIt)["date"].c_str()
+					);
+				} catch( const Database::NoResultsException& ex_ ) { /* ignore */ }
 			}
 		}
 	};
 
-	void Counter::_purgeHistory() const {
-#ifdef _DEBUG
+	void Counter::_purgeHistoryAndTrends() const {
 		g_database->putQuery(
 			"DELETE FROM `device_counter_history` "
-			"WHERE `Date` < datetime( 'now','-%d day' )",
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
-		);
-#else // _DEBUG
-		g_database->putQuery(
-			"DELETE FROM `device_counter_history` "
-			"WHERE `device_id`=%d AND `Date` < datetime( 'now','-%d day' )",
+			"WHERE `device_id` = %d "
+			"AND `date` < datetime( 'now','-%d day' )",
 			this->m_id,
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 7 )
+			this->m_settings->get<int>( "history_retention", DEVICE_COUNTER_DEFAULT_HISTORY_RETENTION )
 		);
-#endif // _DEBUG
+		g_database->putQuery(
+			"DELETE FROM `device_counter_trends` "
+			"WHERE `device_id` = %d "
+			"AND `date` < datetime( 'now','-%d month' )",
+			this->m_id,
+			this->m_settings->get<int>( "trends_retention", DEVICE_COUNTER_DEFAULT_TRENDS_RETENTION )
+		);
 	};
 
 }; // namespace micasa

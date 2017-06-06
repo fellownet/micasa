@@ -15,6 +15,7 @@ export class Script {
 export class ScriptsService {
 
 	public lastPage: number = NaN;
+	public returnUrl?: string;
 
 	public constructor(
 		private _sessionService: SessionService
@@ -37,10 +38,10 @@ export class ScriptsService {
 		}
 	};
 
-	public deleteScript( script_: Script ): Observable<boolean> {
+	public deleteScript( script_: Script ): Observable<Script> {
 		return this._sessionService.http<any>( 'delete', 'scripts/' + script_.id )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return script_;
 			} )
 		;
 	};

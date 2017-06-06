@@ -55,11 +55,12 @@ export class TimerEditComponent implements OnInit {
 			me.timer.device_id = me.device.id;
 			delete( me.timer.scripts );
 		}
-		this._timersService.putTimer( me.timer )
+		me._timersService.putTimer( me.timer )
 			.subscribe(
 				function( timer_: Timer ) {
-					if ( me.device ) {
-						me._router.navigate( [ '/devices', me.device.id, 'edit' ] );
+					if ( !!me._timersService.returnUrl ) {
+						me._router.navigateByUrl( me._timersService.returnUrl );
+						delete me._timersService.returnUrl;
 					} else {
 						me._router.navigate( [ '/timers' ] );
 					}
@@ -77,16 +78,12 @@ export class TimerEditComponent implements OnInit {
 		me.loading = true;
 		me._timersService.deleteTimer( me.timer )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						if ( me.device ) {
-							me._router.navigate( [ '/devices', me.device.id, 'edit' ] );
-						} else {
-							me._router.navigate( [ '/timers' ] );
-						}
+				function( timer_: Timer ) {
+					if ( !!me._timersService.returnUrl ) {
+						me._router.navigateByUrl( me._timersService.returnUrl );
+						delete me._timersService.returnUrl;
 					} else {
-						me.loading = false;
-						this.error = 'Unable to delete timer.';
+						me._router.navigate( [ '/timers' ] );
 					}
 				},
 				function( error_: string ) {
@@ -97,17 +94,17 @@ export class TimerEditComponent implements OnInit {
 		;
 	};
 
-	public updateSelectedScripts( id_: number, event_: any ) {
-		let target: any = event.target;
-		if ( target.checked ) {
-			if ( this.timer.scripts.indexOf( id_ ) < 0 ) {
-				this.timer.scripts.push( id_ );
-			}
-		} else {
-			let pos: number = this.timer.scripts.indexOf( id_ );
-			if ( pos >= 0 ) {
-				this.timer.scripts.splice( pos, 1 );
-			}
+	public addScript( script_id_: number ) {
+		if ( !! script_id_ ) {
+			this.timer.scripts.push( +script_id_ );
 		}
 	};
+
+	public removeScript( script_id_: number ) {
+		let pos: number = this.timer.scripts.indexOf( script_id_ );
+		if ( pos >= 0 ) {
+			this.timer.scripts.splice( pos, 1 );
+		}
+	};
+
 }

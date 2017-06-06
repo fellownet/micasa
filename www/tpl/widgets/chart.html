@@ -1,21 +1,21 @@
 <div class="box">
 	<div class="box-header with-border">
-		<div class="box-tools" *ngIf="!parent.editing && !loading">
-			<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
-			<button type="button" (click)="parent.editing=true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+		<div class="box-tools" *ngIf="! parent.editing && ! loading">
+			<button type="button" *ngIf="editable" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
+			<button type="button" *ngIf="editable" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			<button type="button" (click)="reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
 		</div>
-		<h3 class="box-title" [class.empty]="!widget.name">{{widget.name ? widget.name : 'Edit Widget'}}</h3>
+		<h3 class="box-title" [class.empty]="! widget.name">{{ widget.name ? widget.name : 'Edit Widget' }}</h3>
 	</div>
 
 	<!-- view -->
-	<div class="box-body no-padding chart" *ngIf="!parent.editing" #chartTarget></div>
+	<div class="box-body no-padding chart" *ngIf="! parent.editing" #chartTarget></div>
 
 	<!-- edit -->
 	<form role="form" *ngIf="parent.editing" (ngSubmit)="save()" #widgetForm="ngForm">
 
 	<div class="box-body">
-		<div class="form-group" [class.has-error]="!namefield.valid && !namefield.pristine">
+		<div class="form-group" [class.has-error]="! namefield.valid && ! namefield.pristine">
 			<label for="namefield">Name<span class="mandatory"> *</span></label>
 			<input type="text" class="form-control" id="namefield" placeholder="Name" autocomplete="off" required [(ngModel)]="widget.name" name="name" #namefield="ngModel">
 		</div>
@@ -46,7 +46,7 @@
 		</div>
 		<div class="row">
 			<div class="col-xs-12 col-sm-6 col-md-6 col-lg-6">
-				<div class="form-group" [class.has-error]="!rangefield.valid && !rangefield.pristine">
+				<div class="form-group" [class.has-error]="! rangefield.valid && ! rangefield.pristine">
 					<label for="rangefield">Range<span class="mandatory"> *</span></label>
 					<input type="number" class="form-control" id="rangefield" placeholder="Range" autocomplete="off" required [(ngModel)]="widget.range" name="range" #rangefield="ngModel">
 				</div>
@@ -79,55 +79,58 @@
 </thead>
 <tbody>
 	<tr *ngFor="let source of widget.sources">
-		<td *ngIf="!!data[source.device_id]">{{data[source.device_id][0].name}}</td>
+		<td *ngIf="!! data[source.device_id]">{{ data[source.device_id][0].name }}</td>
 		<td class="right">
-			<select class="form-control" required [(ngModel)]="source.properties.color" name="{{source.device_id + '_name'}}">
+			<select class="form-control" required [(ngModel)]="source.properties.color" name="{{ source.device_id + '_name' }}">
 				<option value="aqua">Aqua</option>
 				<option value="blue">Blue</option>
 				<option value="green">Green</option>
 				<option value="red">Red</option>
 				<option value="yellow">Yellow</option>
+				<option value="teal">Teal</option>
+				<option value="olive">Olive</option>
+				<option value="orange">Orange</option>
 				<option value="purple">Purple</option>
 				<option value="gray">Gray</option>
 			</select>
 		</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" *ngIf="widget.sources.length > 1" (click)="removeSource(source)"><i class="fa fa-times"></i></button></td>
+		<td class="minimum right tools"><button type="button" class="btn btn-xs" *ngIf="widget.sources.length > 1" (click)="removeSource( source )"><i class="fa fa-times"></i></button></td>
 	</tr>
 	<tr>
 		<td colspan="2">
 			<select class="form-control" #deviceSelect>
-				<ng-container *ngFor="let device of devices | async">
-					<option value="{{device.id}}">{{device.name}}</option>
+				<option selected disabled hidden>Select Device</option>
+				<ng-container *ngFor="let device of devices | async | sort:'name'">
+					<option value="{{ device.id }}">{{ device.name }}</option>
 				</ng-container>
 			</select>
 		</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="addSource(deviceSelect.value)"><i class="fa fa-plus"></i></button></td>
+		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="addSource( deviceSelect.value )"><i class="fa fa-plus"></i></button></td>
 	</tr>
-
 </tbody>
 </table>
 
 	</div>
 
-	<div class="box-footer" *ngIf="widget.size=='large'">
+	<div class="box-footer" *ngIf="widget.size == 'large'">
 		<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()">Delete</button>
 		</div>
 	</div>
-	<div class="box-footer" *ngIf="widget.size=='medium'">
+	<div class="box-footer" *ngIf="widget.size == 'medium'">
 		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4 col-lg-offset-4">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()">Delete</button>
 		</div>
 	</div>
-	<div class="box-footer" *ngIf="widget.size=='small'">
+	<div class="box-footer" *ngIf="widget.size == 'small'">
 		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
+			<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
 		</div>
 		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
 			<button type="button" class="btn btn-danger btn-block" (click)="delete()">Delete</button>

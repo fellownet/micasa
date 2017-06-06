@@ -42,7 +42,12 @@ export class UserEditComponent implements OnInit {
 		this._usersService.putUser( me.user )
 			.subscribe(
 				function( user_: User ) {
-					me._router.navigate( [ '/users' ] );
+					if ( !!me._usersService.returnUrl ) {
+						me._router.navigateByUrl( me._usersService.returnUrl );
+						delete me._usersService.returnUrl;
+					} else {
+						me._router.navigate( [ '/users' ] );
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;
@@ -57,12 +62,12 @@ export class UserEditComponent implements OnInit {
 		me.loading = true;
 		me._usersService.deleteUser( me.user )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						me._router.navigate( [ '/users' ] );
+				function( user_: User ) {
+					if ( !!me._usersService.returnUrl ) {
+						me._router.navigateByUrl( me._usersService.returnUrl );
+						delete me._usersService.returnUrl;
 					} else {
-						me.loading = false;
-						this.error = 'Unable to delete user.';
+						me._router.navigate( [ '/users' ] );
 					}
 				},
 				function( error_: string ) {

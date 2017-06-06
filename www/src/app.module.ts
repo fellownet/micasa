@@ -10,6 +10,7 @@ import { DevicesModule }   from './devices/devices.module';
 import { HardwareModule }  from './hardware/hardware.module';
 import { ScriptsModule }   from './scripts/scripts.module';
 import { TimersModule }    from './timers/timers.module';
+import { LinksModule }     from './links/links.module';
 import { UsersModule }     from './users/users.module';
 import { ScreensModule }   from './screens/screens.module';
 import { SessionModule }   from './session/session.module';
@@ -46,6 +47,7 @@ import 'bootstrap/dist/js/bootstrap.js'
 		HardwareModule,
 		ScriptsModule,
 		TimersModule,
+		LinksModule,
 		UsersModule,
 		ScreensModule,
 		SessionModule

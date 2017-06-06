@@ -163,6 +163,15 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
+
+		v7_def( this->m_v7_js, root, "SOURCE_HARDWARE", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_TIMER", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::TIMER ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_SCRIPT", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::SCRIPT ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_API", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::API ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_LINK", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::LINK ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_SYSTEM", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::SYSTEM ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_USER", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::USER ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_EVENT", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::EVENT ) ) );
 	};
 
 	Controller::~Controller() {
@@ -550,7 +559,6 @@ namespace micasa {
 				if ( scripts.size() > 0 ) {
 					json event;
 					event["value"] = device_->getValue();
-					event["source"] = Device::resolveUpdateSource( source_ );
 					event["device"] = device_->getJson( false );
 					this->_runScripts( "event", event, scripts );
 				}

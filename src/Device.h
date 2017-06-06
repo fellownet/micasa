@@ -12,7 +12,6 @@
 #include "Scheduler.h"
 
 #define DEVICE_SETTING_ALLOWED_UPDATE_SOURCES "_allowed_update_sources"
-#define DEVICE_SETTING_KEEP_HISTORY_PERIOD    "_keep_history_period"
 #define DEVICE_SETTING_DEFAULT_UNIT           "_default_unit"
 #define DEVICE_SETTING_ALLOW_UNIT_CHANGE      "_allow_unit_change"
 #define DEVICE_SETTING_DEFAULT_SUBTYPE        "_default_subtype"

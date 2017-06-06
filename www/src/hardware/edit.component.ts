@@ -27,6 +27,7 @@ export class HardwareEditComponent implements OnInit {
 	public error: String;
 	public hardware: Hardware;
 	public devices: Device[];
+	public children: Hardware[];
 
 	public hasAdvancedSettings: boolean = false;
 	public hasActionDevices: boolean = false;
@@ -44,8 +45,10 @@ export class HardwareEditComponent implements OnInit {
 	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
+			me.loading = false;
 			me.hardware = data_.hardware;
 			me.devices = data_.devices;
+			me.children = data_.list;
 			for ( let device of me.devices ) {
 				if ( device.subtype == 'action' ) {
 					me.hasActionDevices = true;
@@ -65,7 +68,12 @@ export class HardwareEditComponent implements OnInit {
 		this._hardwareService.putHardware( me.hardware )
 			.subscribe(
 				function( hardware_: Hardware ) {
-					me._router.navigate( [ '/hardware' ] );
+					if ( !!me._hardwareService.returnUrl ) {
+						me._router.navigateByUrl( me._hardwareService.returnUrl );
+						delete me._hardwareService.returnUrl
+					} else {
+						me._router.navigate( [ '/hardware' ] );
+					}
 				},
 				function( error_: string ) {
 					me.loading = false;
@@ -81,12 +89,12 @@ export class HardwareEditComponent implements OnInit {
 		me.loading = true;
 		me._hardwareService.deleteHardware( me.hardware )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						me._router.navigate( [ '/hardware' ] );
+				function( hardware_: Hardware ) {
+					if ( !!me._hardwareService.returnUrl ) {
+						me._router.navigateByUrl( me._hardwareService.returnUrl );
+						delete me._hardwareService.returnUrl
 					} else {
-						me.loading = false;
-						this.error = 'Unable to delete hardware.';
+						me._router.navigate( [ '/hardware' ] );
 					}
 				},
 				function( error_: string ) {

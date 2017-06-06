@@ -32,7 +32,8 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'devices' ) private _devices: Observable<Device[]>;
 	@Input( 'parent' ) public parent: WidgetComponent;
-	
+	@Input( 'editable' ) public editable: boolean;
+
 	@Output() onAction = new EventEmitter<string>();
 
 	private _active: boolean = true;
@@ -53,7 +54,7 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 		me.devices = me._devicesService.getDevices()
 			.map( function( devices_: Device[] ) {
-				return devices_.filter( device_ => device_.type == 'switch' );
+				return devices_.filter( device_ => device_.type == 'switch' || device_.type == 'text' );
 			} )
 		;
 
@@ -90,6 +91,7 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public save() {
 		this.onAction.emit( 'save' );
+		this.onAction.emit( 'reload' );
 		this.parent.editing = false;
 	};
 

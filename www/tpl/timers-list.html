@@ -1,49 +1,27 @@
-<section class="content-header">
-<h1>Timers<small *ngIf="device">{{device.name}}, {{device.hardware}}</small></h1>
+<section class="content-header" *ngIf="! device">
+<h1>Timers</h1>
 </section>
 
-<section class="content-body" *ngIf="timers.length==0 && !loading">
+<section [class.content-body]="! device">
 
-	<div class="callout callout-info" *ngIf="!error && !device">
+	<div class="callout callout-info" *ngIf="timers.length == 0 && ! error && ! device">
 		<h4>No Timers!</h4>
 		<p>There are no timers configured in your system.</p>
 	</div>
 
-	<div class="callout callout-danger" *ngIf="error">
+	<div class="callout callout-danger" *ngIf="error && ! loading">
 		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
 		<h4>Error!</h4>
-		<p>{{error}}</p>
+		<p>{{ error }}</p>
 	</div>
 
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
-				<div class="box-footer">
-					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
-					</div>
+				<div class="box-header with-border" *ngIf="!! device">
+					<h3 class="box-title">Timers</h3>
 				</div>
-
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
-			</div>
-		</div>
-	</div>
-
-</section>
-
-<section class="content-body" *ngIf="timers.length>0">
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{error}}</p>
-	</div>
-
-	<div class="row">
-		<div class="col-xs-12">
-			<div class="box">
+				<ng-container *ngIf="timers.length > 0">
 				<div class="box-body no-padding scroll">
 
 <table class="table table-hover" [gridData]="timers" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
@@ -62,7 +40,7 @@
 		<td>{{timer.name}}</td>
 		<td>
 			<span class="label label-success" *ngIf="timer.enabled">enabled</span>
-			<span class="label label-danger" *ngIf="!timer.enabled">disabled</span>
+			<span class="label label-danger" *ngIf="! timer.enabled">disabled</span>
 		</td>
 		<td>{{timer.cron}}</td>
 		<td *ngIf="device">{{timer.value}}</td>
@@ -72,14 +50,20 @@
 
 				</div>
 				<div class="box-footer">
-					<div class="col-xs-12 col-sm-8 col-sm-push-4 col-md-9 col-md-push-3 col-lg-10 col-lg-push-2 paging" *ngIf="grid.getPageCount()>1">
+					<div class="col-xs-12 col-sm-8 col-sm-push-4 col-md-9 col-md-push-3 col-lg-10 col-lg-push-2 paging" *ngIf="grid.getPageCount() > 1">
 						<grid-paging [grid]="grid"></grid-paging>
 					</div>
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
-						[class.col-sm-pull-8]="grid.getPageCount()>1"
-						[class.col-md-pull-9]="grid.getPageCount()>1"
-						[class.col-lg-pull-10]="grid.getPageCount()>1"
+						[class.col-sm-pull-8]="grid.getPageCount() > 1"
+						[class.col-md-pull-9]="grid.getPageCount() > 1"
+						[class.col-lg-pull-10]="grid.getPageCount() > 1"
 					>
+						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
+					</div>
+				</div>
+				</ng-container>
+				<div class="box-footer" *ngIf="timers.length == 0">
+					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-primary btn-block" (click)="addTimer()">Add</button>
 					</div>
 				</div>

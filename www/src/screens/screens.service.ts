@@ -25,7 +25,7 @@ export class Widget {
 export class Screen {
 	id: number;
 	name?: string; // either device name or dedicated screen name
-	device_id?: number;
+	//device_id?: number;
 	widgets: Widget[];
 };
 
@@ -47,19 +47,6 @@ export class ScreensService {
 			.map( function( screens_: Screen[] ) {
 				for ( let screen of screens_ ) {
 					if ( screen.id == id_ ) {
-						return screen;
-					}
-				}
-				throw new Error( 'invalid screen' );
-			} )
-		;
-	};
-
-	public getScreenForDevice( device_id_: number ): Observable<Screen> {
-		return this.getScreens()
-			.map( function( screens_: Screen[] ) {
-				for ( let screen of screens_ ) {
-					if ( screen.device_id == device_id_ ) {
 						return screen;
 					}
 				}
@@ -109,7 +96,6 @@ export class ScreensService {
 			case 'counter':
 				screen = {
 					id: NaN,
-					device_id: device_.id,
 					widgets: [ {
 						type: 'chart',
 						name: 'Day',
@@ -144,7 +130,10 @@ export class ScreensService {
 						sources: [ {
 							device_id: device_.id,
 							properties: {
-								color: 'blue'
+								color: 'blue',
+								range: [ 'temperature', 'humidity' ].indexOf( device_.subtype ) > -1,
+								trendline: [ 'temperature', 'power', 'energy', 'gas', 'water' ].indexOf( device_.subtype ) > -1,
+								trendline_color: 'red'
 							}
 						} ],
 						interval: 'month',
@@ -157,7 +146,10 @@ export class ScreensService {
 						sources: [ {
 							device_id: device_.id,
 							properties: {
-								color: 'blue'
+								color: 'blue',
+								range: [ 'temperature', 'humidity' ].indexOf( device_.subtype ) > -1,
+								trendline: [ 'temperature', 'power', 'energy', 'gas', 'water' ].indexOf( device_.subtype ) > -1,
+								trendline_color: 'red'
 							}
 						} ],
 						interval: 'year',
@@ -170,7 +162,6 @@ export class ScreensService {
 			case 'text':
 				screen = {
 					id: NaN,
-					device_id: device_.id,
 					widgets: [ {
 						type: 'table',
 						name: 'History',

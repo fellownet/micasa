@@ -1,13 +1,13 @@
 <section class="content-header">
-<a *ngIf="screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
-<h1>{{screen.name ? screen.name : ( device ? device.name : 'Unknown')}}
-<small *ngIf="device && screen.name && screen.name!=device.name">{{device.name}}</small>
+<a *ngIf="! device && screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<h1>{{ !! device ? device.name : ( !! screen.name ? screen.name : 'Unknown' ) }}
+	<small *ngIf="!! device">{{ device.hardware }}</small>
 </h1>
 </section>
 
-<section class="content-body" *ngIf="screen.widgets.length == 0 && !loading">
+<section class="content-body" *ngIf="screen.widgets.length == 0 && ! loading">
 
-	<div class="callout callout-info" *ngIf="!error">
+	<div class="callout callout-info" *ngIf="! error">
 		<h4>No Widgets!</h4>
 		<p>There are no widgets configured for this screen.</p>
 	</div>
@@ -15,59 +15,13 @@
 	<div class="callout callout-danger" *ngIf="error">
 		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
 		<h4>Error!</h4>
-		<p>{{error}}</p>
+		<p>{{ error }}</p>
 	</div>
 
 </section>
 
 <section class="content-body">
-
 	<div class="row">
-
 		<widget *ngFor="let widget of screen.widgets; let i = index" [screen]="screen" [device]="device" [widget]="widget"></widget>
-
 	</div>
-
 </section>
-
-<!--
-<section class="content-header">
-<a *ngIf="screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
-<h1>{{screen.name}}</h1>
-</section>
-
-<section class="content-body" *ngIf="screen.widgets.length == 0 && !loading">
-
-	<div class="callout callout-info" *ngIf="!error">
-		<h4>No Widgets!</h4>
-		<p>There are no widgets configured for this screen.</p>
-	</div>
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{error}}</p>
-	</div>
-
-</section>
-
-<section class="content-body">
-
-	<div class="row">
-
-	<ng-container *ngFor="let device of devices; let i = index">
-
-		<ng-container [ngSwitch]="device.type">
-			<counterwidget *ngSwitchCase="'counter'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></counterwidget>
-			<levelwidget *ngSwitchCase="'level'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></levelwidget>
-			<switchwidget *ngSwitchCase="'switch'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></switchwidget>
-			<textwidget *ngSwitchCase="'text'" [screen]="screen" [widget]="screen.widgets[i]" [device]="device"></textwidget>
-		</ng-container>
-
-	</ng-container>
-
-
-	</div>
-
-</section>
--->

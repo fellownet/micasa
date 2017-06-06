@@ -1,6 +1,6 @@
 <section class="content-header">
-<h1>{{screen.name ? screen.name : ( device ? device.name : 'Edit Screen')}}
-<small *ngIf="device && screen.name && screen.name!=device.name">{{device.name}}</small>
+<h1>{{ screen.name ? screen.name : ( device ? device.name : 'Edit Screen') }}
+	<small *ngIf="device && screen.name && screen.name != device.name">{{ device.name }}</small>
 </h1>
 </section>
 

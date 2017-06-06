@@ -44,7 +44,8 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'devices' ) private _devices: Observable<Device[]>;
 	@Input( 'parent' ) public parent: WidgetComponent;
-	
+	@Input( 'editable' ) public editable: boolean;
+
 	@Output() onAction = new EventEmitter<string>();
 
 	@ViewChild( 'chartTarget' ) private _chartTarget: ElementRef;
@@ -78,6 +79,12 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public ngOnInit() {
 		var me = this;
+
+		Highcharts.setOptions( {
+			lang: {
+				thousandsSep: ''
+			}
+		} );
 
 		me.devices = me._devicesService.getDevices()
 			.map( function( devices_: Device[] ) {
@@ -208,6 +215,7 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public save() {
 		this.onAction.emit( 'save' );
+		this.onAction.emit( 'reload' );
 		this.parent.editing = false;
 	};
 

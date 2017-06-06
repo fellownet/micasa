@@ -42,6 +42,7 @@ namespace micasa {
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 		
+		// NOTE: no unique key for text devices > every value needs to be inserted.
 		"CREATE INDEX IF NOT EXISTS `ix_device_text_history_device_id` ON `device_text_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_text_history_date` ON `device_text_history`( `date` )",
 		
@@ -49,8 +50,10 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` FLOAT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`samples` INTEGER DEFAULT 1 NOT NULL, "
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_counter_history_device_id_date` ON `device_counter_history` ( `device_id`, `date` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_counter_history_device_id` ON `device_counter_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_counter_history_date` ON `device_counter_history`( `date` )",
 
@@ -58,8 +61,10 @@ namespace micasa {
 		"`device_id` INTEGER NOT NULL, "
 		"`value` FLOAT NOT NULL, "
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
+		"`samples` INTEGER DEFAULT 1 NOT NULL, "
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
+		"CREATE UNIQUE INDEX IF NOT EXISTS `ix_device_level_history_device_id_date` ON `device_level_history` ( `device_id`, `date` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_history_device_id` ON `device_level_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_level_history_date` ON `device_level_history`( `date` )",
 
@@ -69,6 +74,7 @@ namespace micasa {
 		"`date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "
 		"FOREIGN KEY ( `device_id` ) REFERENCES `devices` ( `id` ) ON DELETE CASCADE ON UPDATE RESTRICT )",
 
+		// NOTE: no unique key for switch devices > every value needs to be inserted.
 		"CREATE INDEX IF NOT EXISTS `ix_device_switch_history_device_id` ON `device_switch_history`( `device_id` )",
 		"CREATE INDEX IF NOT EXISTS `ix_device_switch_history_date` ON `device_switch_history`( `date` )",
 
