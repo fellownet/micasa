@@ -14,6 +14,7 @@
 #include "Logger.h"
 #include "Database.h"
 #include "Settings.h"
+#include "WebServer.h"
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -134,8 +135,9 @@ namespace micasa {
 	using namespace std::chrono;
 	using namespace nlohmann;
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Settings<>> g_settings;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Settings<>> g_settings;
+	extern std::unique_ptr<WebServer> g_webServer;
 
 	Controller::Controller() :
 		m_running( false )
@@ -555,6 +557,15 @@ namespace micasa {
 					this->_runScripts( "event", event, scripts );
 				}
 			}
+
+			// Push this event to all listening socket connections managed by the webserver.
+			json data;
+			data["type"] = "update";
+			data["hardware_id"] = device_->getHardware()->getId();
+			data["device_id"] = device_->getId();
+			data["value"] = device_->getValue();
+			data["source"] = Device::resolveUpdateSource( source_ );
+			g_webServer->broadcast( data.dump() );
 		}
 	};
 

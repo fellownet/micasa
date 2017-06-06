@@ -51,9 +51,9 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<Settings<>> g_settings;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Controller> g_controller;
+	extern std::unique_ptr<Settings<>> g_settings;
 	
 	using namespace std::chrono;
 	using namespace nlohmann;
@@ -201,6 +201,24 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			auto now = system_clock::now();
+			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); ) {
+				if ( (*loginIt).second.start < now ) {
+					for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); connectionIt++ ) {
+						auto connection = (*connectionIt).lock();
+						if ( connection ) {
+							connection->close();
+						}
+					}
+					loginIt = this->m_logins.erase( loginIt );
+				} else {
+					loginIt++;
+				}
+			}
+		} );
+
 		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -218,6 +236,21 @@ namespace micasa {
 		this->m_resources.clear();
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
+	};
+
+	void WebServer::broadcast( const std::string& message_ ) {
+		std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+		for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); loginIt++ ) {
+			for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); ) {
+				auto connection = (*connectionIt).lock();
+				if ( connection ) {
+					connection->send( message_ );
+					connectionIt++;
+				} else {
+					connectionIt = loginIt->second.sockets.erase( connectionIt );
+				}
+			}
+		}
 	};
 
 	std::string WebServer::_hash( const std::string& data_ ) const {
@@ -241,14 +274,35 @@ namespace micasa {
 
 	inline void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
 		auto uri = connection_->getUri();
-		if ( __unlikely( uri.substr( 0, 4 ) != "/api" ) ) {
+		auto headers = connection_->getHeaders();
+
+		// A websocket connection starts of as a regular http request with an additional header requesting to upgrade
+		// the connection once the http handshake is done.
+		auto find = headers.find( "Upgrade" );
+		if ( __unlikely(
+			find != headers.end()
+			&& find->second == "websocket"
+			&& uri.substr( 0, 5 ) == "/live"
+		) ) {
+			std::string token = uri.substr( 6 );
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			auto find = this->m_logins.find( token );
+			if (
+				find != this->m_logins.end()
+				&& find->second.start > system_clock::now()
+			) {
+				find->second.sockets.push_back( connection_ );
+			}
+
+		// Serve static files for requests NOT targetting the api.
+		} else if ( __unlikely( uri.substr( 0, 4 ) != "/api" ) ) {
 
 			connection_->serve( "www" );
 
+		// Serve dynamic data for requests targettig the api.
 		} else {
 
 			auto method = WebServer::resolveTextMethod( connection_->getMethod() );
-			auto headers = connection_->getHeaders();
 			auto data = connection_->getBody();
 			auto params = connection_->getParams();
 
@@ -315,8 +369,8 @@ namespace micasa {
 						std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
 						std::string token = headers.at( "Authorization" );
 						auto login = this->m_logins.at( token );
-						if ( login.first > system_clock::now() ) {
-							user = login.second;
+						if ( login.start > system_clock::now() ) {
+							user = login.user;
 							input["_token"] = token;
 						}
 						loginsLock.unlock();
@@ -1587,17 +1641,7 @@ namespace micasa {
 			"^/api/user/(login|refresh)$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
-				std::lock_guard<std::mutex> loginsLock( this->m_loginsMutex );
-
-				auto now = system_clock::now();
-				for ( auto loginsIt = this->m_logins.begin(); loginsIt != this->m_logins.end(); ) {
-					if ( (*loginsIt).second.first < now ) {
-						loginsIt = this->m_logins.erase( loginsIt );
-					} else {
-						loginsIt++;
-					}
-				}
-
+				std::lock_guard<std::mutex> lock( this->m_loginsMutex );
 				if (
 					method_ == WebServer::Method::POST
 					&& input_["$1"].get<std::string>() == "login"

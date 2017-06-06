@@ -15,7 +15,7 @@ namespace micasa {
 
 	const char* SolarEdge::label = "SolarEdge API";
 
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Controller> g_controller;
 
 	void SolarEdge::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );

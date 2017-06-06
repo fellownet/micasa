@@ -37,8 +37,8 @@ namespace micasa {
 	using namespace std::chrono;
 	using namespace nlohmann;
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Controller> g_controller;
 
 	const char* Hardware::settingsName = "hardware";
 
