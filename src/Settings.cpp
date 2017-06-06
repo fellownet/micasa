@@ -15,7 +15,7 @@ namespace micasa {
 	
 	using namespace nlohmann;
 
-	extern std::shared_ptr<Database> g_database;
+	extern std::unique_ptr<Database> g_database;
 
 	SettingValue::SettingValue( const unsigned long& value_ ) {
 		this->assign( std::to_string( value_ ) );

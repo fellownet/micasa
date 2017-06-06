@@ -40,6 +40,7 @@ export class SessionService {
 	private _session: BehaviorSubject<Session|false|null> = new BehaviorSubject( null );
 	private _events: Subject<any> = new Subject();
 	private _forcedAuthToken: string;
+	private _socket?: WebSocket;
 
 	// All requested states are stored locally to prevent requesting the same state from
 	// the server multiple times.
@@ -91,6 +92,37 @@ export class SessionService {
 					me._session.next( false );
 				} else if ( age > 60 * 60 ) {
 					me.refresh().subscribe();
+				}
+			} )
+		;
+
+		// We ourselves are going to listen for a valid session, upon which we're openign a websocket for live updates.
+		me.session
+			.filter( session_ => session_ !== null )
+			//.map( session_ => !!session_ )
+			.subscribe( function( session_: Session|false ) {
+				if ( !!session_ ) {
+					var loc: Location = window.location;
+					var url: string = ( ( loc.protocol === 'https:' ) ? 'wss://' : 'ws://' ) + loc.hostname + ( !! loc.port ? ':' + loc.port : '' ) + '/live/' + session_.token;
+					console.log( url );
+					me._socket = new WebSocket( url );
+					me._socket.onopen = function( event_: Event ) {
+						console.log( 'open' );
+					};
+					me._socket.onclose = function( event_: Event ) {
+						console.log( 'close' );
+					};
+					me._socket.onerror = function( event_: Event ) {
+						console.log( 'error' );
+					};
+
+					me._socket.onmessage = function( event_: any ) {
+						let data: any = JSON.parse( event_.data );
+						me._events.next( data );
+					};
+				} else if ( !! me._socket ) {
+					me._socket.close();
+					delete me._socket;
 				}
 			} )
 		;

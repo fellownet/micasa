@@ -14,8 +14,8 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Controller> g_controller;
 
 	using namespace std::chrono;
 	using namespace nlohmann;

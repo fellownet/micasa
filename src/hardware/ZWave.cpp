@@ -38,7 +38,7 @@ namespace micasa {
 
 	const char* ZWave::label = "Z-Wave";
 
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Controller> g_controller;
 
 	std::timed_mutex ZWave::g_managerMutex;
 	unsigned int ZWave::g_managerWatchers = 0;

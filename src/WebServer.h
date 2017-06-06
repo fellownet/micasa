@@ -76,13 +76,20 @@ namespace micasa {
 		
 		void start();
 		void stop();
+		void broadcast( const std::string& message_ );
 
 	private:
+		struct t_login {
+			std::chrono::system_clock::time_point start;
+			std::shared_ptr<User> user;
+			std::vector<std::weak_ptr<Network::Connection>> sockets;
+		};
+
 		unsigned int m_port;
 		unsigned int m_sslport;
 		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
-		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User>>> m_logins;
+		std::map<std::string, t_login> m_logins;
 		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
 		std::shared_ptr<Network::Connection> m_sslbind;
