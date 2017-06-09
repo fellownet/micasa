@@ -14,6 +14,7 @@ import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
 import {
+	Screen,
 	Widget,
 	Source
 }                          from '../screens.service';
@@ -218,18 +219,18 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].hide();
 									}
-									//if ( !! me.screen.id ) {
-									//	me.save( false );
-									//}
+									if ( !! me.screen.id ) {
+										me.save( false );
+									}
 								},
 								show: function() {
 									source.properties.hidden = false;
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].show();
 									}
-									//if ( !! me.screen.id ) {
-									//	me.save( false );
-									//}
+									if ( !! me.screen.id ) {
+										me.save( false );
+									}
 								}
 							}
 						};

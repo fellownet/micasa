@@ -13,6 +13,7 @@ import {
 import { Observable }      from 'rxjs/Observable';
 
 import {
+	Screen,
 	Widget
 }                          from '../screens.service';
 import {

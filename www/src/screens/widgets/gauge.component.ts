@@ -14,6 +14,7 @@ import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
 import {
+	Screen,
 	Widget
 }                          from '../screens.service';
 import {
