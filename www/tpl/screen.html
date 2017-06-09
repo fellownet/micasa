@@ -1,11 +1,9 @@
 <section class="content-header">
-<a *ngIf="! device && screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
-<h1>{{ !! device ? device.name : ( !! screen.name ? screen.name : 'Unknown' ) }}
-	<small *ngIf="!! device">{{ device.hardware }}</small>
-</h1>
+<a *ngIf="!! screen.id && screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<h1>{{ screen.name }}</h1>
 </section>
 
-<section class="content-body" *ngIf="screen.widgets.length == 0 && ! loading">
+<section class="content-body" *ngIf="screen.widgets.length == 0">
 
 	<div class="callout callout-info" *ngIf="! error">
 		<h4>No Widgets!</h4>
@@ -22,6 +20,6 @@
 
 <section class="content-body">
 	<div class="row">
-		<widget *ngFor="let widget of screen.widgets; let i = index" [screen]="screen" [device]="device" [widget]="widget"></widget>
+		<widget *ngFor="let widget of screen.widgets" [screen]="screen" [widget]="widget" [devices]="devices"></widget>
 	</div>
 </section>

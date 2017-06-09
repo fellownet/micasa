@@ -6,7 +6,6 @@ import {
 	Router,
 	ActivatedRoute
 }                  from '@angular/router';
-
 import {
 	Script,
 	ScriptsService
@@ -24,9 +23,9 @@ declare var ace: any;
 
 export class ScriptEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public script: Script;
+	public title: string;
 
 	private _editor: any;
 
@@ -41,6 +40,7 @@ export class ScriptEditComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.script = data_.script;
+			me.title = me.script.name;
 
 			me._editor = ace.edit( 'script_editor_target' );
 			me._editor.setTheme( 'ace/theme/crimson_editor' );
@@ -55,7 +55,6 @@ export class ScriptEditComponent implements OnInit {
 
 	public submitScript() {
 		var me = this;
-		me.loading = true;
 		me.script.code = me._editor.getValue();
 		this._scriptsService.putScript( me.script )
 			.subscribe(
@@ -68,7 +67,6 @@ export class ScriptEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -77,7 +75,6 @@ export class ScriptEditComponent implements OnInit {
 
 	public deleteScript() {
 		var me = this;
-		me.loading = true;
 		me._scriptsService.deleteScript( me.script )
 			.subscribe(
 				function( script_: Script ) {
@@ -89,7 +86,6 @@ export class ScriptEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

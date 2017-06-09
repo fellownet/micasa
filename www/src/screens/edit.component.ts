@@ -1,7 +1,6 @@
 import {
 	Component,
 	OnInit,
-	OnDestroy,
 	ViewChild
 }                  from '@angular/core';
 import { NgForm }  from '@angular/forms';
@@ -9,7 +8,6 @@ import {
 	Router,
 	ActivatedRoute
 }                  from '@angular/router';
-import { Device }  from '../devices/devices.service';
 import {
 	Screen,
 	ScreensService
@@ -19,13 +17,12 @@ import {
 	templateUrl: 'tpl/screen-edit.html',
 } )
 
-export class ScreenEditComponent implements OnInit, OnDestroy {
+export class ScreenEditComponent implements OnInit {
 
-	public loading: boolean = false;
-	public error: string;
+	public error?: string;
 
 	public screen: Screen;
-	public device?: Device;
+	public title: string;
 
 	@ViewChild( 'screenForm' ) private _form: NgForm;
 
@@ -40,47 +37,24 @@ export class ScreenEditComponent implements OnInit, OnDestroy {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.screen = data_.payload.screen;
-			me.device = data_.payload.device;
+			me.title = me.screen.name;
 		} );
 	};
 
-	public ngOnDestroy() {
-		// TODO doesn't work :/
-		this._form.resetForm();
-	};
-
 	public submitScreen() {
-		var me = this;
-		me.loading = true;
-		this._screensService.putScreen( me.screen )
+		this._screensService.putScreen( this.screen )
 			.subscribe(
-				function( screens_: Screen[] ) {
-					me._router.navigate( [ '/screens', me.screen.id ] );
-				},
-				function( error_: string ) {
-					me.loading = false;
-					me.error = error_;
-				}
+				() => this._router.navigate( [ '/screens', this.screen.id ] ),
+				error_ => this.error = error_
 			)
 		;
 	};
 
 	public deleteScreen() {
-		var me = this;
-		me.loading = true;
-		me._screensService.deleteScreen( me.screen )
+		this._screensService.deleteScreen( this.screen )
 			.subscribe(
-				function( screens_: Screen[] ) {
-					if ( !!me.device ) {
-						me._router.navigate( [ '/devices', me.device.id ] );
-					} else {
-						me._router.navigate( [ '/dashboard' ] );
-					}
-				},
-				function( error_: string ) {
-					me.loading = false;
-					me.error = error_;
-				}
+				() => this._router.navigate( [ '/dashboard' ] ),
+				error_ => this.error = error_
 			)
 		;
 	};

@@ -21,9 +21,9 @@ import { Script }  from '../scripts/scripts.service';
 
 export class TimerEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public timer: Timer;
+	public title: string;
 
 	public scripts?: Script[];
 	public device?: Device;
@@ -45,12 +45,12 @@ export class TimerEditComponent implements OnInit {
 				me.scripts = data_.scripts;
 			}
 			me.timer = data_.timer;
+			me.title = me.timer.name;
 		} );
 	};
 
 	public submitTimer() {
 		var me = this;
-		me.loading = true;
 		if ( me.device ) {
 			me.timer.device_id = me.device.id;
 			delete( me.timer.scripts );
@@ -66,7 +66,6 @@ export class TimerEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -75,7 +74,6 @@ export class TimerEditComponent implements OnInit {
 
 	public deleteTimer() {
 		var me = this;
-		me.loading = true;
 		me._timersService.deleteTimer( me.timer )
 			.subscribe(
 				function( timer_: Timer ) {
@@ -87,7 +85,6 @@ export class TimerEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

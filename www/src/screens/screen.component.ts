@@ -9,13 +9,13 @@ import {
 import { Observable }     from 'rxjs/Observable';
 
 import {
-	Device,
-	DevicesService
-}                         from '../devices/devices.service';
-import {
 	Widget,
+	Source,
 	Screen
 }                         from './screens.service';
+import {
+	Device
+}                         from '../devices/devices.service';
 
 @Component( {
 	templateUrl: 'tpl/screen.html'
@@ -24,12 +24,11 @@ import {
 export class ScreenComponent implements OnInit {
 
 	public screen: Screen;
-	public device?: Device;
+	public devices: Device[] = [];
 
 	public constructor(
 		private _router: Router,
-		private _route: ActivatedRoute,
-		private _devicesService: DevicesService
+		private _route: ActivatedRoute
 	) {
 	};
 
@@ -38,7 +37,21 @@ export class ScreenComponent implements OnInit {
 
 		this._route.data.subscribe( function( data_: any ) {
 			me.screen = data_.payload.screen;
-			me.device = data_.payload.device;
+			me.devices = data_.payload.devices;
+
+			// Let's do some housekeeping and remove sources without valid devices and widgets without valid sources.
+			// NOTE To be able to remove items while iterating we're iterating backwards.
+			for ( var i = me.screen.widgets.length; i--; ) {
+				for ( var j = me.screen.widgets[i].sources.length; j--; ) {
+					let source: Source = me.screen.widgets[i].sources[j];
+					if ( ! me.devices[source.device_id] ) {
+						me.screen.widgets[i].sources.splice( j, 1 );
+					}
+				}
+				if ( me.screen.widgets[i].sources.length == 0 ) {
+					me.screen.widgets.splice( i, 1 );
+				}
+			}
 		} );
 	};
 

@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>{{ link.name }}</h1>
+<h1>{{ title }}</h1>
 </section>
 
 <section class="content-body">
@@ -24,7 +24,7 @@
 				</div>
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-success btn-block" [disabled]="! linkForm.form.valid || loading">Save</button>
+						<button type="submit" class="btn btn-success btn-block" [disabled]="! linkForm.form.valid">Save</button>
 					</div>
 					<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-3 col-md-offset-6 col-lg-2 col-lg-offset-8">
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteLink()">Delete</button>
@@ -32,9 +32,6 @@
 				</div>
 				</form>
 
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
 			</div>
 		</div>
 	</div>

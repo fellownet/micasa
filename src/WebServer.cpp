@@ -202,11 +202,11 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( Scheduler::Task<>& ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
 			auto now = system_clock::now();
 			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); ) {
-				if ( (*loginIt).second.start < now ) {
+				if ( (*loginIt).second.valid < now ) {
 					for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); connectionIt++ ) {
 						auto connection = (*connectionIt).lock();
 						if ( connection ) {
@@ -240,18 +240,20 @@ namespace micasa {
 	};
 
 	void WebServer::broadcast( const std::string& message_ ) {
-		std::lock_guard<std::mutex> lock( this->m_loginsMutex );
-		for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); loginIt++ ) {
-			for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); ) {
-				auto connection = (*connectionIt).lock();
-				if ( connection ) {
-					connection->send( message_ );
-					connectionIt++;
-				} else {
-					connectionIt = loginIt->second.sockets.erase( connectionIt );
+		this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); loginIt++ ) {
+				for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); ) {
+					auto connection = (*connectionIt).lock();
+					if ( connection ) {
+						connection->send( message_ );
+						connectionIt++;
+					} else {
+						connectionIt = loginIt->second.sockets.erase( connectionIt );
+					}
 				}
 			}
-		}
+		} );
 	};
 
 	std::string WebServer::_hash( const std::string& data_ ) const {
@@ -290,7 +292,7 @@ namespace micasa {
 			auto find = this->m_logins.find( token );
 			if (
 				find != this->m_logins.end()
-				&& find->second.start > system_clock::now()
+				&& find->second.valid > system_clock::now()
 			) {
 				find->second.sockets.push_back( connection_ );
 			}
@@ -370,7 +372,7 @@ namespace micasa {
 						std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
 						std::string token = headers.at( "Authorization" );
 						auto login = this->m_logins.at( token );
-						if ( login.start > system_clock::now() ) {
+						if ( login.valid > system_clock::now() ) {
 							user = login.user;
 							input["_token"] = token;
 						}
@@ -1649,7 +1651,9 @@ namespace micasa {
 					&& input_["$1"].get<std::string>() == "refresh"
 					&& user_ != nullptr
 				) {
-					this->m_logins.erase( jsonGet<std::string>( input_, "_token" ) );
+					// After a login token has been refreshed, the old token should be expired, just not immediately
+					// because there might be concurrent requests using the old token that need to be able to finish.
+					this->m_logins.at( jsonGet<std::string>( input_, "_token" ) ).valid = system_clock::now() + minutes( 1 );
 					output_["code"] = 200; // Refreshed
 					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s prolonged login.", user_->getName().c_str() );
 				} else {

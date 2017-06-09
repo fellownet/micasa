@@ -12,7 +12,7 @@
 
 #include "json.hpp"
 
-#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 30 * 24 * 60
 #define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX "_web_"
 #define WEBSERVER_SETTING_HASH_PEPPER "_hash_pepper"
 
@@ -80,7 +80,7 @@ namespace micasa {
 
 	private:
 		struct t_login {
-			std::chrono::system_clock::time_point start;
+			std::chrono::system_clock::time_point valid;
 			std::shared_ptr<User> user;
 			std::vector<std::weak_ptr<Network::Connection>> sockets;
 		};

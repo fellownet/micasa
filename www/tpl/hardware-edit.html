@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>{{ hardware.name }}
+<h1>{{ title }}
 	<small *ngIf="hardware.parent">{{ hardware.parent.name }}</small>
 </h1>
 </section>
@@ -27,7 +27,7 @@
 
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-success btn-block" [disabled]="! hardwareForm.form.valid || loading">Save</button>
+						<button type="submit" class="btn btn-success btn-block" [disabled]="! hardwareForm.form.valid">Save</button>
 					</div>
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2"
 						[class.col-md-offset-3]="hasActionDevices"
@@ -39,11 +39,11 @@
 						[class.col-md-offset-6]="! hasActionDevices"
 						[class.col-lg-offset-8]="! hasActionDevices"
 					>
-						<button type="button" class="btn btn-danger btn-block" [disabled]="loading" (click)="deleteHardware()">Delete</button>
+						<button type="button" class="btn btn-danger btn-block" (click)="deleteHardware()">Delete</button>
 					</div>
 					<div *ngIf="hasActionDevices" class="col-xs-12 col-sm-4 col-sm-pull-4 col-md-3 col-md-pull-3 col-lg-2 col-lg-pull-2">
 						<div class="dropdown">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" [disabled]="loading" data-toggle="dropdown">Actions <span class="caret"></span></button>
+						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Actions <span class="caret"></span></button>
 						<ul class="dropdown-menu">
 							<ng-container *ngFor="let device of devices">
 							<li *ngIf="device.subtype == 'action'"><a (click)="performAction( device );">{{ device.label }}</a></li>
@@ -54,9 +54,6 @@
 				</div>
 				</form>
 
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
 			</div>
 		</div>
 	</div>

@@ -87,3 +87,7 @@
 <section class="content">
 	<router-outlet></router-outlet>
 </section>
+
+<div class="loading-overlay" *ngIf="loading | async">
+	<div><i class="fa fa-spinner fa-pulse"></i></div>
+</div>

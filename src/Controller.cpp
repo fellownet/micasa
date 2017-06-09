@@ -571,7 +571,8 @@ namespace micasa {
 			data["type"] = "update";
 			data["hardware_id"] = device_->getHardware()->getId();
 			data["device_id"] = device_->getId();
-			data["value"] = device_->getValue();
+			json device = device_->getJson( false );
+			data["value"] = device["value"];
 			data["source"] = Device::resolveUpdateSource( source_ );
 			g_webServer->broadcast( data.dump() );
 		}

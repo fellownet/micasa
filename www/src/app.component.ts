@@ -50,6 +50,10 @@ export class AppComponent implements OnInit {
 		me.screens = me._screensService.getScreens();
 	};
 
+	public get loading(): Observable<boolean> {
+		return this._sessionService.loading;
+	};
+
 	public toggleMenu(): void {
 		if ( $( 'body' ).hasClass( 'sidebar-open' ) ) {
 			$( 'body' ).removeClass( 'sidebar-open' );

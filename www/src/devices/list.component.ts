@@ -9,6 +9,7 @@ import {
 	Router,
 	ActivatedRoute
 }                         from '@angular/router';
+import { Observable }     from 'rxjs/Observable';
 
 import {
 	Device,
@@ -31,7 +32,6 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 	private _active: boolean = true;
 
-	public loading: boolean = false;
 	public error: String;
 	public devices: Device[];
 	public startPage: number = 1;
@@ -51,10 +51,10 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 	public ngOnInit() {
 		var me = this;
-		this._route.data
+		me._route.data
 			.subscribe( function( data_: any ) {
 				me.devices = data_.devices;
-				if ( !!me.hardware ) {
+				if ( !! me.hardware ) {
 					me.startPage = me._devicesService.lastPage['hardware_' + me.hardware.id] || 1;
 				} else if ( !!me.script ) {
 					me.startPage = me._devicesService.lastPage['script_' + me.script.id] || 1;
@@ -63,19 +63,31 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 				}
 			} )
 		;
-		this._sessionService.events
+		me._sessionService.events
 			.takeWhile( () => this._active )
 			.subscribe( function( event_: any ) {
-				console.log( 'got an event in device list component' );
-				console.log( event_ );
+				let device: Device = me.devices.find( device_ => device_.id === event_.device_id );
+				if ( !! device ) {
+					device.value = event_.value;
+					device.age = 0;
+				}
+			} )
+		;
+
+		Observable.interval( 1000 )
+			.takeWhile( () => me._active )
+			.subscribe( function() {
+				for ( let i: number = 0; i < me.devices.length; i++ ) {
+					me.devices[i].age += 1;
+				}
 			} )
 		;
 	};
 
 	public ngOnDestroy() {
 		this._active = false;
-		if ( this._paging ) {
-			if ( !!this.hardware ) {
+		if ( !! this._paging ) {
+			if ( !! this.hardware ) {
 				this._devicesService.lastPage['hardware_' + this.hardware.id] = this._paging.getActivePage();
 			} else if ( !!this.script ) {
 				this._devicesService.lastPage['script_' + this.script.id] = this._paging.getActivePage();
@@ -86,8 +98,8 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectDevice( device_: Device ) {
-		this.loading = true;
 		this._devicesService.returnUrl = this._router.url;
 		this._router.navigate( [ '/devices', device_.id, 'edit' ] );
 	};
+
 }

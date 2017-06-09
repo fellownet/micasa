@@ -19,9 +19,9 @@ import {
 
 export class LinkEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public link: Link;
+	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
 
@@ -36,6 +36,7 @@ export class LinkEditComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.link = data_.link;
+			me.title = me.link.name;
 			for ( let setting of me.link.settings ) {
 				if ( setting.class == 'advanced' ) {
 					me.hasAdvancedSettings = true;
@@ -46,7 +47,6 @@ export class LinkEditComponent implements OnInit {
 
 	public submitLink() {
 		var me = this;
-		me.loading = true;
 		this._linksService.putLink( me.link )
 			.subscribe(
 				function( link_: Link ) {
@@ -58,7 +58,6 @@ export class LinkEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -67,7 +66,6 @@ export class LinkEditComponent implements OnInit {
 
 	public deleteLink() {
 		var me = this;
-		me.loading = true;
 		me._linksService.deleteLink( me.link )
 			.subscribe(
 				function( link_: Link ) {
@@ -79,7 +77,6 @@ export class LinkEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

@@ -28,7 +28,6 @@ import {
 
 export class LinksListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public links: Link[];
 	public startPage: number = 1;
@@ -67,7 +66,6 @@ export class LinksListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectLink( link_: Link ) {
-		this.loading = true;
 		this._linksService.returnUrl = this._router.url;
 		if ( !!this.device ) {
 			this._router.navigate( [ 'links', link_.id, 'device', this.device.id ] );
@@ -77,7 +75,6 @@ export class LinksListComponent implements OnInit, OnDestroy {
 	};
 
 	public addLink() {
-		this.loading = true;
 		this._linksService.returnUrl = this._router.url;
 		if ( !!this.device ) {
 			this._router.navigate( [ '/links', 'add', 'device', this.device.id ] );

@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>{{ script.name }}</h1>
+<h1>{{ title }}</h1>
 </section>
 
 <section class="content-body">
@@ -33,7 +33,7 @@
 				</div>
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="submit" class="btn btn-success btn-block" [disabled]="! scriptForm.form.valid || loading">Save</button>
+						<button type="submit" class="btn btn-success btn-block" [disabled]="! scriptForm.form.valid">Save</button>
 					</div>
 					<div class="col-xs-12 col-sm-offset-4 col-sm-4 col-md-offset-6 col-md-3 col-lg-offset-8 col-lg-2" *ngIf="script.id">
 						<button type="button" class="btn btn-danger btn-block" (click)="deleteScript()">Delete</button>
@@ -41,9 +41,6 @@
 				</div>
 				</form>
 
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
 			</div>
 		</div>
 	</div>

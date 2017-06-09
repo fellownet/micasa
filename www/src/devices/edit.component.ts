@@ -1,24 +1,24 @@
 import {
 	Component,
 	OnInit
-}                   from '@angular/core';
+}                         from '@angular/core';
 import {
 	Router,
 	ActivatedRoute
-}                   from '@angular/router';
-import { NgForm }   from '@angular/forms';
+}                         from '@angular/router';
+import { NgForm }         from '@angular/forms';
 
 import {
 	Device,
 	DevicesService
-}                   from './devices.service';
-import { Hardware } from '../hardware/hardware.service';
-import { Script }   from '../scripts/scripts.service';
+}                         from './devices.service';
+import { Hardware }       from '../hardware/hardware.service';
+import { Script }         from '../scripts/scripts.service';
 import {
 	Screen,
 	ScreensService,
 	Widget
-}                   from '../screens/screens.service';
+}                         from '../screens/screens.service';
 
 @Component( {
 	templateUrl: 'tpl/device-edit.html'
@@ -26,11 +26,11 @@ import {
 
 export class DeviceEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public device: Device;
 	public scripts: Script[];
 	public screens: Screen[];
+	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
 
@@ -49,6 +49,7 @@ export class DeviceEditComponent implements OnInit {
 				me.device = data_.device;
 				me.scripts = data_.scripts;
 				me.screens = data_.screens;
+				me.title = me.device.name;
 				for ( let setting of me.device.settings ) {
 					if ( setting.class == 'advanced' ) {
 						me.hasAdvancedSettings = true;
@@ -60,7 +61,6 @@ export class DeviceEditComponent implements OnInit {
 
 	public submitDevice( form_: NgForm ) {
 		var me = this;
-		me.loading = true;
 		me._devicesService.putDevice( me.device )
 			.subscribe(
 				function( device_: Device ) {
@@ -72,7 +72,6 @@ export class DeviceEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -81,7 +80,6 @@ export class DeviceEditComponent implements OnInit {
 
 	public deleteDevice() {
 		var me = this;
-		me.loading = true;
 		me._devicesService.deleteDevice( me.device )
 			.subscribe(
 				function( device_: Device ) {
@@ -93,7 +91,6 @@ export class DeviceEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

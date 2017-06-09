@@ -360,7 +360,7 @@ namespace micasa {
 		std::string groupFormat = "%Y-%m-%d-%H";
 
 		auto trends = g_database->getQuery(
-			"SELECT MAX( rowid ) AS `last_rowid`, strftime( %Q, MAX( `date` ) ) AS `date`, MAX( `value` ) - MIN( `value` ) AS `diff` "
+			"SELECT MAX( rowid ) AS `last_rowid`, strftime( %Q, MAX( `date` ) ) AS `date`, MAX( `value` ) AS `max` "
 			"FROM `device_counter_history` "
 			"WHERE `device_id`=%d AND `Date` > datetime( 'now', '-5 hour' ) "
 			"GROUP BY strftime( %Q, `date` )",
@@ -368,8 +368,11 @@ namespace micasa {
 			this->m_id,
 			groupFormat.c_str()
 		);
-		// NOTE the first group is skipped because the select query starts somewhere in the middle of the interval and
-		// the diff value is therefore incorrect.
+
+		// In order to properly calculate the diff between the beginning and ending of an hour, the maximum of the
+		// previous hour is needed, otherwise the first 5 minutes are lost. So the first record is skipped while it's
+		// maximum value is kept to calculate the diff for the next hour.
+		double max;
 		for ( auto trendsIt = trends.begin(); trendsIt != trends.end(); trendsIt++ ) {
 			if ( trendsIt != trends.begin() ) {
 				try {
@@ -384,11 +387,12 @@ namespace micasa {
 						"VALUES ( %d, %.6f, %.6f, %Q )",
 						this->m_id,
 						value,
-						std::stod( (*trendsIt)["diff"] ),
+						std::stod( (*trendsIt)["max"] ) - max,
 						(*trendsIt)["date"].c_str()
 					);
 				} catch( const Database::NoResultsException& ex_ ) { /* ignore */ }
 			}
+			max = std::stod( (*trendsIt)["max"] );
 		}
 	};
 

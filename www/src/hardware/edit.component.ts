@@ -23,11 +23,11 @@ import { DevicesListComponent } from '../devices/list.component';
 
 export class HardwareEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public hardware: Hardware;
 	public devices: Device[];
 	public children: Hardware[];
+	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
 	public hasActionDevices: boolean = false;
@@ -45,10 +45,10 @@ export class HardwareEditComponent implements OnInit {
 	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
-			me.loading = false;
 			me.hardware = data_.hardware;
 			me.devices = data_.devices;
 			me.children = data_.list;
+			me.title = me.hardware.name;
 			for ( let device of me.devices ) {
 				if ( device.subtype == 'action' ) {
 					me.hasActionDevices = true;
@@ -64,7 +64,6 @@ export class HardwareEditComponent implements OnInit {
 
 	public submitHardware() {
 		var me = this;
-		me.loading = true;
 		this._hardwareService.putHardware( me.hardware )
 			.subscribe(
 				function( hardware_: Hardware ) {
@@ -76,7 +75,6 @@ export class HardwareEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 					window.scrollTo( 0, 0 );
 				}
@@ -86,7 +84,6 @@ export class HardwareEditComponent implements OnInit {
 
 	public deleteHardware() {
 		var me = this;
-		me.loading = true;
 		me._hardwareService.deleteHardware( me.hardware )
 			.subscribe(
 				function( hardware_: Hardware ) {
@@ -98,7 +95,6 @@ export class HardwareEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -107,19 +103,9 @@ export class HardwareEditComponent implements OnInit {
 
 	public performAction( action_: Device ) {
 		var me = this;
-		me.loading = true;
-		this._hardwareService.performAction( me.hardware, action_ )
-			.mergeMap( function( success_: boolean ) {
-				me.loading = false;
-				me._devicesListComponent.loading = true;
-				return me._devicesService.getDevices( me.hardware.id );
-
-			} )
-			.delay( new Date( Date.now() + 500 ) )
+		this._devicesService.performAction( action_ )
 			.subscribe(
-				function( devices_: Device[] ) {
-					me._devicesListComponent.devices = devices_;
-					me._devicesListComponent.loading = false;
+				function( device_: Device ) {
 				},
 				function( error_: string ) {
 					me.error = error_;

@@ -23,13 +23,11 @@
 			</div>
 			<div class="row">
 				<div class="col-xs-offset-8 col-xs-4">
-					<button type="submit" class="btn btn-primary btn-block" [disabled]="! loginForm.form.valid || loginForm.form.pristine || loading">Login</button>
+					<button type="submit" class="btn btn-primary btn-block" [disabled]="! loginForm.form.valid || loginForm.form.pristine">Login</button>
 				</div>
 			</div>
 			</form>
-			<div class="box-overlay" *ngIf="loading">
-				<i class="fa fa-spinner fa-pulse"></i>
-			</div>
+
 		</div>
 	</div>
 </div>

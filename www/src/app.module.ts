@@ -28,11 +28,13 @@ import 'rxjs/add/operator/mergeMap';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/every';
 import 'rxjs/add/operator/do';
+import 'rxjs/add/operator/finally';
 import 'rxjs/add/operator/delay';
-import 'rxjs/add/operator/auditTime';
+import 'rxjs/add/operator/debounceTime';
 import 'rxjs/add/operator/catch';
 import 'rxjs/add/operator/filter';
 import 'rxjs/add/operator/takeWhile';
+import 'rxjs/add/operator/merge';
 
 import 'jquery/dist/jquery.js'
 import 'bootstrap/dist/js/bootstrap.js'

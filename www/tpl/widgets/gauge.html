@@ -1,18 +1,18 @@
 <div class="box">
 	<div class="box-header with-border">
-		<div class="box-tools" *ngIf="! parent.editing && ! loading">
-			<button type="button" *ngIf="editable" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
-			<button type="button" *ngIf="editable" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+		<div class="box-tools" *ngIf="! editing">
+			<button type="button" *ngIf="!! screen.id" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
+			<button type="button" *ngIf="!! screen.id" (click)="editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			<button type="button" (click)="reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
 		</div>
-		<h3 class="box-title" [class.empty]="! widget.name">{{ widget.name ? widget.name : 'Edit Widget' }}</h3>
+		<h3 class="box-title">{{ title }}</h3>
 	</div>
 
 	<!-- view -->
-	<div class="box-body no-padding gauge" *ngIf="! parent.editing" #chartTarget></div>
+	<div class="box-body no-padding gauge" *ngIf="! editing" #chartTarget></div>
 
 	<!-- edit -->
-	<form role="form" *ngIf="parent.editing" (ngSubmit)="save()" #widgetForm="ngForm">
+	<form role="form" *ngIf="editing" (ngSubmit)="save()" #widgetForm="ngForm">
 
 	<div class="box-body">
 		<div class="form-group" [class.has-error]="! namefield.valid && ! namefield.pristine">
@@ -23,11 +23,11 @@
 		<div class="form-group">
 			<label for="typefield">Type<span class="mandatory"> *</span></label>
 			<select class="form-control" id="typefield" required [(ngModel)]="widget.type" name="type" (change)="changeType()">
-				<option value="chart" *ngIf="device && ( device.type == 'level' || device.type == 'counter' )">Chart</option>
-				<option value="gauge" *ngIf="device && device.type == 'level'">Gauge</option>
+				<option value="chart" *ngIf="( device.type == 'level' || device.type == 'counter' )">Chart</option>
+				<option value="gauge" *ngIf="device.type == 'level'">Gauge</option>
 				<option value="latest">Latest</option>
-				<option value="switch" *ngIf="device && device.type=='switch'">Switch</option>
-				<option value="table" *ngIf="device && ! ( device.type == 'level' || device.type == 'counter' )">Table</option>
+				<option value="switch" *ngIf="device.type=='switch'">Switch</option>
+				<option value="table" *ngIf="! ( device.type == 'level' || device.type == 'counter' )">Table</option>
 			</select>
 		</div>
 		<div class="form-group">
@@ -55,7 +55,7 @@
 		<div class="form-group">
 			<label for="devicefield">Device<span class="mandatory"> *</span></label>
 			<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
-				<ng-container *ngFor="let device of devices | async | sort:'name'">
+				<ng-container *ngFor="let device of devices | sort:'name'">
 					<option value="{{ device.id }}">{{device.name}}</option>
 				</ng-container>
 			</select>
@@ -88,7 +88,4 @@
 
 	</form>
 
-	<div class="box-overlay" *ngIf="loading">
-		<i class="fa fa-spinner fa-pulse"></i>
-	</div>
 </div>

@@ -21,16 +21,16 @@ import {
 	Device,
 	DevicesService
 }                          from '../../devices/devices.service';
-import { SessionService }  from '../../session/session.service';
 import { WidgetComponent } from '../widget.component';
 
 declare var require: any;
 const Highcharts = require( 'highcharts/highcharts.src.js' );
 
 enum State {
-	CREATED = 0,
-	DATA_RECEIVED = 1,
-	VIEW_READY = 2
+	CREATED          = (1 << 0),
+	DATA_RECEIVED    = (1 << 1),
+	DEVICES_RECEIVED = (1 << 2),
+	VIEW_READY       = (1 << 3)
 };
 
 @Component( {
@@ -40,14 +40,14 @@ enum State {
 
 export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
+	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) private _devices: Observable<Device[]>;
-	@Input( 'parent' ) public parent: WidgetComponent;
-	@Input( 'editable' ) public editable: boolean;
+	@Input( 'devices' ) public sourceDevices: Device[];
 
 	@Output() onAction = new EventEmitter<string>();
 
 	@ViewChild( 'chartTarget' ) private _chartTarget: ElementRef;
+
 	private _state: BehaviorSubject<number> = new BehaviorSubject( State.CREATED );
 	private _active: boolean = true;
 	private _chart: any;
@@ -65,18 +65,22 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		gray  : '#AAAAAA'
 	}
 
-	public loading: boolean = true;
-	public devices: Observable<Device[]>; // used in the device dropdown while editing
+	public editing: boolean = false;
+	public title: string;
+	public device: Device; // the first source
+	public devices: Device[]; // used in the device dropdown while editing
 	public data: any = {}; // key = device_id, value = [Device,any[]] tuple
 
 	public constructor(
-		private _devicesService: DevicesService,
-		private _sessionService: SessionService
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
 		var me = this;
+
+		me.device = me.sourceDevices[me.widget.sources[0].device_id];
+		me.title = me.widget.name;
 
 		Highcharts.setOptions( {
 			global: {
@@ -87,13 +91,18 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 			}
 		} );
 
-		me.devices = me._devicesService.getDevices();
+		me._devicesService.getDevices()
+			.do( function() {
+				me._state.next( me._state.getValue() | State.DEVICES_RECEIVED );
+			} )
+			.subscribe( devices_ => me.devices = devices_ )
+		;
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
 		me._state.subscribe( function( state_: number ) {
-			if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
-				if ( !!me._chart ) {
+			if ( ( state_ & ( State.DATA_RECEIVED | State.DEVICES_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.DEVICES_RECEIVED | State.VIEW_READY ) ) {
+				if ( !! me._chart ) {
 					me._chart.destroy();
 				}
 
@@ -209,18 +218,18 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].hide();
 									}
-									if ( me.editable ) {
-										me.save( false );
-									}
+									//if ( !! me.screen.id ) {
+									//	me.save( false );
+									//}
 								},
 								show: function() {
 									source.properties.hidden = false;
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].show();
 									}
-									if ( me.editable ) {
-										me.save( false );
-									}
+									//if ( !! me.screen.id ) {
+									//	me.save( false );
+									//}
 								}
 							}
 						};
@@ -342,89 +351,78 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 
 				// Skip a render pass before drawing the chart.
 				setTimeout( function() {
-					if ( !!me._chartTarget ) {
+					if ( !! me._chartTarget ) {
 						me._chart = Highcharts.chart( me._chartTarget.nativeElement, config );
 					}
 				}, 1 );
 			}
 		} );
-
-		// Listen for events broadcasted from the session service.
-		me._sessionService.events
-			.takeWhile( () => me._active )
-			.subscribe( function( event_: any ) {
-				console.log( 'got an event in screen component' );
-				console.log( event_ );
-			} )
-		;
 	};
 
 	public ngOnChanges() {
 		var me = this;
-		me.loading = true;
-		me._devices.subscribe( function( devices_: Device[] ) {
-			let observables: Observable<[Device,any[]]>[] = [];
-			for ( let device of devices_ ) {
-				switch( device.type ) {
-					case 'switch':
-					case 'text':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
-					
-					case 'level':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								group:
-									[ '5min', '5min', 'hour', 'day', 'day' ][
-										[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-									],
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
+		me.device = me.sourceDevices[me.widget.sources[0].device_id];
+		let observables: Observable<[Device,any[]]>[] = [];
+		for ( let source of me.widget.sources ) {
+			let device: Device = me.sourceDevices[source.device_id];
+			switch( device.type ) {
+				case 'switch':
+				case 'text':
+					observables.push(
+						me._devicesService.getData( device.id, {
+							range: me.widget.range,
+							interval: me.widget.interval
+						} )
+						.map( function( data_: any ) {
+							return [ device, data_ ];
+						} )
+					);
+					break;
+				
+				case 'level':
+					observables.push(
+						me._devicesService.getData( device.id, {
+							group:
+								[ '5min', '5min', 'hour', 'day', 'day' ][
+									[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
+								],
+							range: me.widget.range,
+							interval: me.widget.interval
+						} )
+						.map( function( data_: any ) {
+							return [ device, data_ ];
+						} )
+					);
+					break;
 
-					case 'counter':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								group:
-									[ 'hour', 'hour', 'day', 'day', 'day' ][
-										[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-									],
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
-				}
+				case 'counter':
+					observables.push(
+						me._devicesService.getData( device.id, {
+							group:
+								[ 'hour', 'hour', 'day', 'day', 'day' ][
+									[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
+								],
+							range: me.widget.range,
+							interval: me.widget.interval
+						} )
+						.map( function( data_: any ) {
+							return [ device, data_ ];
+						} )
+					);
+					break;
 			}
-			if ( observables.length > 0 ) {
-				Observable
-					.forkJoin( observables )
-					.subscribe( function( data_: [Device,any[]][] ) {
-						for ( let data of data_ ) {
-							me.data[data[0].id] = [data[0], data[1]];
-						}
-						me.loading = false;
-						me._state.next( me._state.getValue() | State.DATA_RECEIVED );
-					} )
-				;
-			}
-		} );
+		}
+		if ( observables.length > 0 ) {
+			Observable
+				.forkJoin( observables )
+				.subscribe( function( data_: [Device,any[]][] ) {
+					for ( let data of data_ ) {
+						me.data[data[0].id] = [data[0], data[1]];
+					}
+					me._state.next( me._state.getValue() | State.DATA_RECEIVED );
+				} )
+			;
+		}
 	};
 
 	public ngAfterViewInit() {
@@ -461,10 +459,11 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public save( reload_: boolean = true ) {
 		this.onAction.emit( 'save' );
+		this.title = this.widget.name;
+		this.editing = false;
 		if ( reload_ ) {
 			this.onAction.emit( 'reload' );
 		}
-		this.parent.editing = false;
 	};
 
 	public delete() {

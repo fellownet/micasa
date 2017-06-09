@@ -25,7 +25,6 @@ import {
 
 export class HardwareListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public hardware: Hardware[];
 	public startPage: number = 1;
@@ -44,7 +43,6 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	public ngOnInit() {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
-			me.loading = false;
 			me.hardware = data_.list;
 			if ( !!me.parent ) {
 				me.startPage = me._hardwareService.lastPage[me.parent.id] || 1;
@@ -65,14 +63,12 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectHardware( hardware_: Hardware ) {
-		this.loading = true;
 		this._hardwareService.returnUrl = this._router.url;
 		this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 	};
 
 	public addHardware( type_: string ) {
 		var me = this;
-		me.loading = true;
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
 				function( hardware_: Hardware ) {
@@ -80,7 +76,6 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

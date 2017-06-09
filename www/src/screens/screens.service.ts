@@ -24,8 +24,7 @@ export class Widget {
 
 export class Screen {
 	id: number;
-	name?: string; // either device name or dedicated screen name
-	//device_id?: number;
+	name: string;
 	widgets: Widget[];
 };
 
@@ -47,12 +46,40 @@ export class ScreensService {
 			.map( function( screens_: Screen[] ) {
 				for ( let screen of screens_ ) {
 					if ( screen.id == id_ ) {
-						return screen;
+						// Make a deep clone. NOTE this is a rather ugly way of cloning, replace with a better one if
+						// available. However, json will work because the screen only contains literals and needs to
+						// be jsonified anyhow when being pushed to the server.
+						return JSON.parse( JSON.stringify( screen ) );
 					}
 				}
 				throw new Error( 'invalid screen' );
 			} )
 		;
+	};
+
+	public getDevicesOnScreen( screen_: Screen ): Observable<Device[]> {
+		let device_ids: number[] = [];
+		for ( let widget of screen_.widgets ) {
+			for ( let source of widget.sources ) {
+				if ( device_ids.indexOf( source.device_id ) > -1 ) {
+					continue;
+				}
+				device_ids.push( source.device_id );
+			}
+		}
+		if ( device_ids.length == 0 ) {
+			return Observable.of( [] );
+		} else {
+			return this._devicesService.getDevicesByIds( device_ids )
+				.map( function( devices_: Device[] ) {
+					let result: Device[] = [];
+					for ( let device of devices_ ) {
+						result[device.id] = device;
+					}
+					return result;
+				} )
+			;
+		}
 	};
 
 	public putScreen( screen_: Screen ): Observable<Screen[]> {
@@ -96,6 +123,7 @@ export class ScreensService {
 			case 'counter':
 				screen = {
 					id: NaN,
+					name: device_.name,
 					widgets: [ {
 						type: 'chart',
 						name: 'Day',
@@ -162,6 +190,7 @@ export class ScreensService {
 			case 'text':
 				screen = {
 					id: NaN,
+					name: device_.name,
 					widgets: [ {
 						type: 'table',
 						name: 'History',

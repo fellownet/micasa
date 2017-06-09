@@ -38,17 +38,20 @@ export class DevicesService {
 	) {
 	};
 
-	public getDevices( hardwareId_?: number, scriptId_?: number, deviceIds_?: number[] ): Observable<Device[]> {
+	public getDevices( hardwareId_?: number, scriptId_?: number ): Observable<Device[]> {
 		let resource: string = 'devices';
 		if ( hardwareId_ ) {
 			resource += '?hardware_id=' + hardwareId_;
 		} else if ( scriptId_ ) {
 			resource += '?enabled=1&script_id=' + scriptId_;
-		} else if ( deviceIds_ ) {
-			resource += '?enabled=1&device_ids=' + deviceIds_.join( ',' );
 		} else {
 			resource += '?enabled=1';
 		}
+		return this._sessionService.http<Device[]>( 'get', resource );
+	};
+
+	public getDevicesByIds( deviceIds_: number[] ): Observable<Device[]> {
+		let resource: string = 'devices?enabled=1&device_ids=' + deviceIds_.join( ',' );
 		return this._sessionService.http<Device[]>( 'get', resource );
 	};
 
@@ -76,6 +79,16 @@ export class DevicesService {
 				return device_;
 			} )
 		;
+	};
+
+	public performAction( device_: Device ): Observable<Device> {
+		var value: String = 'Activate';
+		if ( device_.value == 'Disabled' ) {
+			value = 'Enabled';
+		}
+		return this._sessionService.http<any>( 'patch', 'devices/' + device_.id, {
+			value: value
+		} );
 	};
 
 }

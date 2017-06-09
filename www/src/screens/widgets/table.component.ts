@@ -29,18 +29,18 @@ import { WidgetComponent } from '../widget.component';
 
 export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
+	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) private _devices: Observable<Device[]>;
-	@Input( 'parent' ) public parent: WidgetComponent;
-	@Input( 'editable' ) public editable: boolean;
+	@Input( 'devices' ) public sourceDevices: Device[];
 
 	@Output() onAction = new EventEmitter<string>();
 
 	private _active: boolean = true;
 
-	public loading: boolean = true;
-	public devices: Observable<Device[]>; // used in the device dropdown while editing
-	public device: Device;
+	public editing: boolean = false;
+	public title: string;
+	public device: Device; // the first and only source
+	public devices: Device[]; // used in the device dropdown while editing
 	public data: any[] = [];
 
 	public constructor(
@@ -52,36 +52,35 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 	public ngOnInit() {
 		var me = this;
 
-		me.devices = me._devicesService.getDevices()
+		me.device = me.sourceDevices[me.widget.sources[0].device_id];
+		me.title = me.widget.name;
+
+		me._devicesService.getDevices()
 			.map( function( devices_: Device[] ) {
 				return devices_.filter( device_ => device_.type == 'switch' || device_.type == 'text' );
 			} )
+			.subscribe( devices_ => me.devices = devices_ )
 		;
 
 		// Listen for events broadcasted from the session service.
 		me._sessionService.events
 			.takeWhile( () => me._active )
+			.filter( event_ => !! me.device && event_.device_id == me.device.id )
 			.subscribe( function( event_: any ) {
-				console.log( 'got an event in screen component' );
-				console.log( event_ );
+				me.data.push( { timestamp: Math.floor( Date.now() / 1000 ), value: event_.value } );
+				me.data = me.data.slice( 0 ); // dirty change detection
 			} )
 		;
 	};
 
 	public ngOnChanges() {
 		var me = this;
-		me.loading = true;
-		me._devices.subscribe( function( devices_: Device[] ) {
-			if ( devices_.length > 0 ) {
-				me.device = devices_[0];
-				me._devicesService.getData( devices_[0].id, {
-					range: 1,
-					interval: 'week'
-				} ).subscribe( function( data_: any[] ) {
-					me.data = data_;
-					me.loading = false;
-				} );
-			}
+		me.device = me.sourceDevices[me.widget.sources[0].device_id];
+		me._devicesService.getData( me.device.id, {
+			range: 1,
+			interval: 'week'
+		} ).subscribe( function( data_: any[] ) {
+			me.data = data_;
 		} );
 	};
 
@@ -91,8 +90,9 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public save() {
 		this.onAction.emit( 'save' );
+		this.title = this.widget.name;
+		this.editing = false;
 		this.onAction.emit( 'reload' );
-		this.parent.editing = false;
 	};
 
 	public delete() {

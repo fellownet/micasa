@@ -9,7 +9,7 @@
 		<p>There are no devices configured in your system.</p>
 	</div>
 
-	<div class="callout callout-danger" *ngIf="error && ! loading">
+	<div class="callout callout-danger" *ngIf="error">
 		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
 		<h4>Error!</h4>
 		<p>{{ error }}</p>
@@ -53,7 +53,10 @@
 	<i class="fa fa-flag" *ngSwitchCase="'fan'"></i>
 	<i class="fa fa-bell-o" *ngSwitchCase="'bell'"></i>
 	<i class="fa fa-sign-out" *ngSwitchCase="'door_contact'"></i>
-	<i class="fa fa-toggle-on" *ngSwitchDefault></i>
+	<ng-container *ngSwitchDefault>
+		<i class="fa fa-toggle-on" *ngIf="device.value!='Off'"></i>
+		<i class="fa fa-toggle-off" *ngIf="device.value=='Off'"></i>
+	</ng-container>
 </ng-container>
 <ng-container *ngSwitchCase="'level'" [ngSwitch]="device.subtype">
 	<i class="fa fa-battery" *ngSwitchCase="'battery_level'"></i>
@@ -104,9 +107,6 @@
 				</div>
 				</ng-container>
 
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
 			</div>
 		</div>
 	</div>

@@ -16,7 +16,6 @@ import {
 
 export class LoginComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: string;
 	public credentials: Credentials = { username: "", password: "", remember: false };
 
@@ -33,7 +32,6 @@ export class LoginComponent implements OnInit {
 
 	public doLogin(): void {
 		var me = this;
-		me.loading = true;
 		me.error = null; // clears any previous login failure errors
 
 		me._sessionService.login( me.credentials )
@@ -46,10 +44,7 @@ export class LoginComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					setTimeout( function() {
-						me.loading = false;
-						me.error = error_;
-					}, 500 );
+					me.error = error_;
 				}
 			)
 		;

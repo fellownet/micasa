@@ -18,9 +18,9 @@ import {
 
 export class UserEditComponent implements OnInit {
 
-	public loading: boolean = false;
 	public error: String;
 	public user: User;
+	public title: string;
 
 	public constructor(
 		private _router: Router,
@@ -33,12 +33,12 @@ export class UserEditComponent implements OnInit {
 		var me = this;
 		this._route.data.subscribe( function( data_: any ) {
 			me.user = data_.user;
+			me.title = me.user.name;
 		} );
 	};
 
 	public submitUser() {
 		var me = this;
-		me.loading = true;
 		this._usersService.putUser( me.user )
 			.subscribe(
 				function( user_: User ) {
@@ -50,7 +50,6 @@ export class UserEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
@@ -59,7 +58,6 @@ export class UserEditComponent implements OnInit {
 
 	public deleteUser() {
 		var me = this;
-		me.loading = true;
 		me._usersService.deleteUser( me.user )
 			.subscribe(
 				function( user_: User ) {
@@ -71,7 +69,6 @@ export class UserEditComponent implements OnInit {
 					}
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)
