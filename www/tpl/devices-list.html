@@ -1,12 +1,10 @@
-<section class="content-header" *ngIf="!hardware || devices.length>0">
-<h1>Devices
-<small *ngIf="hardware">{{hardware.name}}<span *ngIf="hardware.parent">, {{hardware.parent.name}}</span></small>
-</h1>
+<section class="content-header" *ngIf="! hardware && ! script">
+<h1>Devices</h1>
 </section>
 
-<section class="content-body" *ngIf="devices.length==0 && !loading && !hardware">
+<section [class.content-body]="! hardware && ! script">
 
-	<div class="callout callout-info" *ngIf="!error">
+	<div class="callout callout-info" *ngIf="devices.length == 0 && ! error">
 		<h4>No Devices!</h4>
 		<p>There are no devices configured in your system.</p>
 	</div>
@@ -14,22 +12,16 @@
 	<div class="callout callout-danger" *ngIf="error">
 		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
 		<h4>Error!</h4>
-		<p>{{error}}</p>
+		<p>{{ error }}</p>
 	</div>
 
-</section>
-
-<section class="content-body" *ngIf="devices.length>0">
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{error}}</p>
-	</div>
-
-	<div class="row">
+	<div class="row" *ngIf="devices.length > 0">
 		<div class="col-xs-12">
 			<div class="box">
+				<div class="box-header with-border" *ngIf="!! hardware || !! script">
+					<h3 class="box-title">Devices</h3>
+				</div>
+				<ng-container *ngIf="devices.length > 0">
 				<div class="box-body no-padding scroll">
 
 <table class="table table-hover" [gridData]="devices" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
@@ -45,9 +37,9 @@
 	</tr>
 </thead>
 <tbody>
-	<tr *ngFor="let device of grid.page" (click)="selectDevice(device)"
-		[class.disabled]="!device.enabled && device.subtype!='action'"
-		[class.info]="device.subtype=='action'"
+	<tr *ngFor="let device of grid.page" (click)="selectDevice( device )"
+		[class.disabled]="! device.enabled && device.subtype != 'action'"
+		[class.info]="device.subtype == 'action'"
 		[class.warning]="device.battery_level && device.battery_level >= 5 && device.battery_level < 25"
 		[class.danger]="device.battery_level && device.battery_level < 5"
 	>
@@ -61,7 +53,10 @@
 	<i class="fa fa-flag" *ngSwitchCase="'fan'"></i>
 	<i class="fa fa-bell-o" *ngSwitchCase="'bell'"></i>
 	<i class="fa fa-sign-out" *ngSwitchCase="'door_contact'"></i>
-	<i class="fa fa-toggle-on" *ngSwitchDefault></i>
+	<ng-container *ngSwitchDefault>
+		<i class="fa fa-toggle-on" *ngIf="device.value!='Off'"></i>
+		<i class="fa fa-toggle-off" *ngIf="device.value=='Off'"></i>
+	</ng-container>
 </ng-container>
 <ng-container *ngSwitchCase="'level'" [ngSwitch]="device.subtype">
 	<i class="fa fa-battery" *ngSwitchCase="'battery_level'"></i>
@@ -79,7 +74,7 @@
 	<i class="fa fa-font" *ngSwitchDefault></i>
 </ng-container>
 		</td>
-		<td>{{device.name}}</td>
+		<td>{{ device.name }}</td>
 		<td class="icon">
 			<i class="fa fa-code" *ngIf="device.total_scripts > 0"></i>
 			<i class="fa fa-calendar" *ngIf="device.total_timers > 0"></i>
@@ -90,29 +85,28 @@
 			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 5"></i>
 		</td>
 		<td><span class="label"
-			[class.label-success]="device.value=='On'||device.value=='Enabled'"
-			[class.label-danger]="device.value=='Off'||device.value=='Disabled'"
-			[class.label-primary]="device.value=='Stop'"
-			[class.label-warning]="device.value=='Idle'"
-			[class.label-info]="device.value!='On' && device.value!='Enabled' && device.value!='Off' && device.value!='Disabled' && device.value!='Stop' && device.value!='Idle'"
-			>{{device.value | truncate:15:'&hellip;'}} {{device.unit}}</span>
+			[class.label-success]="device.value == 'On'||device.value == 'Enabled'"
+			[class.label-danger]="device.value == 'Off'||device.value == 'Disabled'"
+			[class.label-primary]="device.value == 'Stop'"
+			[class.label-warning]="device.value == 'Idle'"
+			[class.label-info]="device.value != 'On' && device.value != 'Enabled' && device.value != 'Off' && device.value != 'Disabled' && device.value != 'Stop' && device.value != 'Idle'"
+			>{{ device.value | truncate:15:'&hellip;' }} {{ device.unit }}</span>
 		</td>
-		<td>{{device.hardware}}</td>
-		<td>{{device.label}}</td>
-		<td>{{-device.age | timestamp}}</td>
+		<td>{{ device.hardware }}</td>
+		<td>{{ device.label }}</td>
+		<td>{{ -device.age | timestamp }}</td>
 	</tr>
 </tbody>
 </table>
 
 				</div>
-				<div class="box-footer" *ngIf="grid.getPageCount()>1">
+				<div class="box-footer" *ngIf="grid.getPageCount() > 1">
 					<div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 paging">
 						<grid-paging [grid]="grid"></grid-paging>
 					</div>
 				</div>
-				<div class="box-overlay" *ngIf="loading">
-					<i class="fa fa-spinner fa-pulse"></i>
-				</div>
+				</ng-container>
+
 			</div>
 		</div>
 	</div>

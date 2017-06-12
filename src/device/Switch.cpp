@@ -5,10 +5,12 @@
 #include "../Hardware.h"
 #include "../Controller.h"
 
+#define DEVICE_SWITCH_DEFAULT_HISTORY_RETENTION 7 // days
+
 namespace micasa {
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Controller> g_controller;
 
 	using namespace std::chrono;
 	using namespace nlohmann;
@@ -51,7 +53,7 @@ namespace micasa {
 			json result = g_database->getQueryRow<json>(
 				"SELECT `value`, CAST( strftime( '%%s', 'now' ) AS INTEGER ) - CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `age` "
 				"FROM `device_switch_history` "
-				"WHERE `device_id`=%d "
+				"WHERE `device_id` = %d "
 				"ORDER BY `date` DESC "
 				"LIMIT 1",
 				this->m_id
@@ -161,7 +163,7 @@ namespace micasa {
 		json result = Device::getJson( full_ );
 
 		result["value"] = this->getValue();
-		result["source"] = this->m_source;
+		result["source"] = Device::resolveUpdateSource( this->m_source );
 		result["age"] = duration_cast<seconds>( system_clock::now() - this->m_updated ).count();
 		result["type"] = "switch";
 		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
@@ -169,6 +171,7 @@ namespace micasa {
 		if ( subtype == resolveTextSubType( Switch::SubType::BLINDS ) ) {
 			result["inverted"] = this->m_settings->get( "inverted", false );
 		}
+		result["history_retention"] = this->m_settings->get<int>( "history_retention", DEVICE_SWITCH_DEFAULT_HISTORY_RETENTION );
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
@@ -211,6 +214,17 @@ namespace micasa {
 		}
 
 		result += {
+			{ "name", "history_retention" },
+			{ "label", "History Retention" },
+			{ "description", "How long to keep history in the database in days. Switch devices store each collected value in the history database." },
+			{ "type", "int" },
+			{ "minimum", 1 },
+			{ "default", DEVICE_SWITCH_DEFAULT_HISTORY_RETENTION },
+			{ "class", "advanced" },
+			{ "sort", 12 }
+		};
+
+		result += {
 			{ "name", "rate_limit" },
 			{ "label", "Rate Limiter" },
 			{ "description", "Limits the number of updates to once per configured time period in seconds." },
@@ -223,7 +237,7 @@ namespace micasa {
 	};
 
 	json Switch::getData( unsigned int range_, const std::string& interval_ ) const {
-		std::vector<std::string> validIntervals = { "day", "week", "month", "year" };
+		std::vector<std::string> validIntervals = { "hour", "day", "week", "month", "year" };
 		if ( std::find( validIntervals.begin(), validIntervals.end(), interval_ ) == validIntervals.end() ) {
 			return json::array();
 		}
@@ -232,12 +246,11 @@ namespace micasa {
 			interval = "day";
 			range_ *= 7;
 		}
-
 		return g_database->getQuery<json>(
-			"SELECT `value`, CAST( strftime('%%s',`date`) AS INTEGER ) AS `timestamp` "
+			"SELECT `value`, CAST( strftime( '%%s', `date` ) AS INTEGER ) AS `timestamp` "
 			"FROM `device_switch_history` "
-			"WHERE `device_id`=%d "
-			"AND `date` >= datetime('now','-%d %s') "
+			"WHERE `device_id` = %d "
+			"AND `date` >= datetime( 'now', '-%d %s' ) "
 			"ORDER BY `date` ASC ",
 			this->m_id,
 			range_,
@@ -260,8 +273,8 @@ namespace micasa {
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
 				g_database->putQuery(
-					"INSERT INTO `device_switch_history` (`device_id`, `value`) "
-					"VALUES (%d, %Q)",
+					"INSERT INTO `device_switch_history` ( `device_id`, `value` ) "
+					"VALUES ( %d, %Q )",
 					this->m_id,
 					Switch::resolveTextOption( this->m_value ).c_str()
 				);
@@ -286,20 +299,13 @@ namespace micasa {
 	};
 
 	void Switch::_purgeHistory() const {
-#ifdef _DEBUG
 		g_database->putQuery(
 			"DELETE FROM `device_switch_history` "
-			"WHERE `Date` < datetime( 'now','-%d day' )",
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
-		);
-#else // _DEBUG
-		g_database->putQuery(
-			"DELETE FROM `device_switch_history` "
-			"WHERE `device_id`=%d AND `Date` < datetime( 'now','-%d day' )",
+			"WHERE `device_id` = %d "
+			"AND `date` < datetime( 'now','-%d day' )",
 			this->m_id,
-			this->m_settings->get<int>( DEVICE_SETTING_KEEP_HISTORY_PERIOD, 31 )
+			this->m_settings->get<int>( "history_retention", DEVICE_SWITCH_DEFAULT_HISTORY_RETENTION )
 		);
-#endif // _DEBUG
 	};
 
 }; // namespace micasa

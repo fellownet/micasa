@@ -1,137 +1,128 @@
-<!-- view -->
-<div class="box bg bg-{{widget.properties.color || 'aqua'}}" *ngIf="!parent.editing">
-	<div class="box-header with-border">
-		<div class="box-tools">
-			<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
-			<button type="button" (click)="parent.editing=true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
-		</div>
-		<h3 class="box-title" [class.empty]="!widget.name">{{widget.name ? widget.name : 'Edit Widget'}}</h3>
-	</div>
-
-	<div class="box-body no-padding switch" (click)="toggle()">
-
-<table class="table">
-<tbody>
-	<tr>
-		<td *ngIf="!device"><i class="fa fa-spinner fa-pulse"></i></td>
-		<ng-container *ngIf="!!device">
-			<td class="minimum" [ngSwitch]="device.type">
-	<ng-container *ngSwitchCase="'switch'" [ngSwitch]="device.subtype">
-		<i class="fa fa-adjust" *ngSwitchCase="'blinds'"></i>
-		<i class="fa fa-bullseye" *ngSwitchCase="'action'"></i>
-		<i class="fa fa-lightbulb-o" *ngSwitchCase="'light'"></i>
-		<i class="fa fa-eye" *ngSwitchCase="'motion_detector'"></i>
-		<i class="fa fa-fire" *ngSwitchCase="'heater'"></i>
-		<i class="fa fa-flag" *ngSwitchCase="'fan'"></i>
-		<i class="fa fa-bell-o" *ngSwitchCase="'bell'"></i>
-		<i class="fa fa-sign-out" *ngSwitchCase="'door_contact'"></i>
-		<i class="fa fa-toggle-on" *ngSwitchDefault></i>
-	</ng-container>
-	<ng-container *ngSwitchCase="'level'" [ngSwitch]="device.subtype">
-		<i class="fa fa-battery" *ngSwitchCase="'battery_level'"></i>
-		<i class="fa fa-umbrella" *ngSwitchCase="'humidity'"></i>
-		<i class="fa fa-sun-o" *ngSwitchCase="'luminance'"></i>
-		<i class="fa fa-thermometer-half" *ngSwitchCase="'temperature'"></i>
-		<i class="fa fa-bolt" *ngSwitchCase="'power'"></i>
-		<i class="fa fa-line-chart" *ngSwitchDefault></i>
-	</ng-container>
-	<ng-container *ngSwitchCase="'counter'" [ngSwitch]="device.subtype">
-		<i class="fa fa-bolt" *ngSwitchCase="'energy'"></i>
-		<i class="fa fa-bar-chart" *ngSwitchDefault></i>
-	</ng-container>
-	<ng-container *ngSwitchCase="'text'" [ngSwitch]="device.subtype">
-		<i class="fa fa-font" *ngSwitchDefault></i>
-	</ng-container>
-			</td>
-			<td>{{device.value}}</td>
-			<!-- td><i class="fa"
-				[class.fa-toggle-on]="device.value=='On'"
-				[class.fa-toggle-off]="device.value=='Off'"
-			></i></td -->
-		</ng-container>
-	</tr>
-</tbody>
-</table>
-
-	</div>
-	<div class="box-footer" *ngIf="!device">&nbsp;</div>
-	<div class="box-footer" *ngIf="!!device">Last Update: {{-device.age | timestamp}}</div>
+<div class="callout callout-danger" *ngIf="invalid">
+	<button type="button" (click)="delete()" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+	<h4>Error!</h4>
+	<p>The widget is not valid.</p>
 </div>
 
-<!-- edit -->
-<div class="box" *ngIf="parent.editing">
-	<div class="box-header with-border">
-		<h3 class="box-title" [class.empty]="!widget.name">{{widget.name ? widget.name : 'Edit Widget'}}</h3>
+<ng-container *ngIf="! invalid">
+
+	<!-- view -->
+	<div class="box bg bg-{{ widget.properties.color || 'aqua' }}" *ngIf="! parent.editing">
+		<div class="box-header with-border">
+			<div class="box-tools" *ngIf="!! screen.id">
+				<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
+				<button type="button" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+			</div>
+			<h3 class="box-title">{{ title }}</h3>
+		</div>
+
+		<div class="box-body no-padding latest" [class.switch]="! busy" (click)="toggle()">
+
+	<table class="table">
+	<tbody>
+		<tr>
+			<td class="minimum" *ngIf="busy"><i class="fa fa-spinner fa-pulse"></i></td>
+			<ng-container *ngIf="! busy">
+				<td class="minimum" [ngSwitch]="data[0].device.subtype">
+					<i class="fa fa-adjust" *ngSwitchCase="'blinds'"></i>
+					<i class="fa fa-bullseye" *ngSwitchCase="'action'"></i>
+					<i class="fa fa-lightbulb-o" *ngSwitchCase="'light'"></i>
+					<i class="fa fa-eye" *ngSwitchCase="'motion_detector'"></i>
+					<i class="fa fa-fire" *ngSwitchCase="'heater'"></i>
+					<i class="fa fa-flag" *ngSwitchCase="'fan'"></i>
+					<i class="fa fa-bell-o" *ngSwitchCase="'bell'"></i>
+					<i class="fa fa-sign-out" *ngSwitchCase="'door_contact'"></i>
+					<ng-container *ngSwitchDefault>
+						<i class="fa fa-toggle-on" *ngIf="data[0].device.value!='Off'"></i>
+						<i class="fa fa-toggle-off" *ngIf="data[0].device.value=='Off'"></i>
+					</ng-container>
+				</td>
+			</ng-container>
+			<td>{{ data[0].device.value }}</td>
+		</tr>
+	</tbody>
+	</table>
+
+		</div>
+		<div class="box-footer">Last Update: {{ -data[0].device.age | timestamp }}</div>
 	</div>
 
-	<form role="form" (ngSubmit)="save()" #widgetForm="ngForm">
+	<!-- edit -->
+	<div class="box" *ngIf="parent.editing">
+		<div class="box-header with-border">
+			<h3 class="box-title">{{ title }}</h3>
+		</div>
 
-	<div class="box-body">
-		<div class="form-group" [class.has-error]="!namefield.valid && !namefield.pristine">
-			<label for="namefield">Name<span class="mandatory"> *</span></label>
-			<input type="text" class="form-control" id="namefield" placeholder="Name" autocomplete="off" required [(ngModel)]="widget.name" name="name" #namefield="ngModel">
+		<form role="form" (ngSubmit)="save()" #widgetForm="ngForm">
+
+		<div class="box-body">
+			<div class="form-group" [class.has-error]="! namefield.valid && ! namefield.pristine">
+				<label for="namefield">Name<span class="mandatory"> *</span></label>
+				<input type="text" class="form-control" id="namefield" placeholder="Name" autocomplete="off" required [(ngModel)]="widget.name" name="name" #namefield="ngModel">
+			</div>
+			<div class="callout callout-danger" [hidden]="namefield.valid || namefield.pristine">A name is required!</div>
+			<div class="form-group">
+				<label for="typefield">Type<span class="mandatory"> *</span></label>
+				<select class="form-control" id="typefield" required [(ngModel)]="widget.type" name="type" (change)="changeType()">
+					<option value="chart" *ngIf="( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Chart</option>
+					<option value="gauge" *ngIf="data[0].device.type == 'level'">Table</option>
+					<option value="latest">Latest</option>
+					<option value="switch" *ngIf="data[0].device.type == 'switch' && ! data[0].device.readonly">Switch</option>
+					<option value="table" *ngIf="! ( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Table</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="colorfield">Color<span class="mandatory"> *</span></label>
+				<select class="form-control" id="colorfield" required [(ngModel)]="widget.properties.color" name="color">
+					<option value="aqua">Aqua</option>
+					<option value="blue">Blue</option>
+					<option value="green">Green</option>
+					<option value="red">Red</option>
+					<option value="yellow">Yellow</option>
+					<option value="teal">Teal</option>
+					<option value="olive">Olive</option>
+					<option value="orange">Orange</option>
+					<option value="purple">Purple</option>
+					<option value="gray">Gray</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="devicefield">Device<span class="mandatory"> *</span></label>
+				<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
+					<ng-container *ngFor="let device of devices | sort:'name'">
+						<option value="{{ device.id }}">{{ device.name }}</option>
+					</ng-container>
+				</select>
+			</div>
 		</div>
-		<div class="callout callout-danger" [hidden]="namefield.valid || namefield.pristine">A name is required!</div>
-		<div class="form-group">
-			<label for="typefield">Type<span class="mandatory"> *</span></label>
-			<select class="form-control" id="typefield" required [(ngModel)]="widget.type" name="type" (change)="changeType()">
-				<option value="chart" *ngIf="device && ( device.type == 'level' || device.type == 'counter' )">Chart</option>
-				<option value="gauge" *ngIf="device && device.type == 'level'">Table</option>
-				<option value="latest">Latest</option>
-				<option value="switch" *ngIf="device && device.type=='switch'">Switch</option>
-				<option value="table" *ngIf="device && ! ( device.type == 'level' || device.type == 'counter' )">Table</option>
-			</select>
+
+		<div class="box-footer" *ngIf="widget.size == 'large'">
+			<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
+				<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
+			</div>
+			<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
+				<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
+			</div>
 		</div>
-		<div class="form-group">
-			<label for="colorfield">Color<span class="mandatory"> *</span></label>
-			<select class="form-control" id="colorfield" required [(ngModel)]="widget.properties.color" name="color">
-				<option value="aqua">Aqua</option>
-				<option value="blue">Blue</option>
-				<option value="green">Green</option>
-				<option value="red">Red</option>
-				<option value="yellow">Yellow</option>
-				<option value="teal">Teal</option>
-				<option value="olive">Olive</option>
-				<option value="orange">Orange</option>
-				<option value="purple">Purple</option>
-				<option value="gray">Gray</option>
-			</select>
+		<div class="box-footer" *ngIf="widget.size == 'medium'">
+			<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4">
+				<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
+			</div>
+			<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4 col-lg-offset-4">
+				<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
+			</div>
 		</div>
-		<div class="form-group">
-			<label for="devicefield">Device<span class="mandatory"> *</span></label>
-			<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
-				<ng-container *ngFor="let device of devices | async">
-					<option value="{{device.id}}">{{device.name}}</option>
-				</ng-container>
-			</select>
+		<div class="box-footer" *ngIf="widget.size == 'small'">
+			<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
+				<button type="submit" class="btn btn-success btn-block" [disabled]="! widgetForm.form.valid">Save</button>
+			</div>
+			<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
+				<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
+			</div>
 		</div>
+
+		</form>
+
 	</div>
 
-	<div class="box-footer" *ngIf="widget.size=='large'">
-		<div class="col-xs-12 col-sm-4 col-md-4 col-lg-3">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
-		</div>
-		<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-4 col-md-offset-4 col-lg-3 col-lg-offset-6">
-			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
-		</div>
-	</div>
-	<div class="box-footer" *ngIf="widget.size=='medium'">
-		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
-		</div>
-		<div class="col-xs-12 col-sm-12 col-md-6 col-lg-4 col-lg-offset-4">
-			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
-		</div>
-	</div>
-	<div class="box-footer" *ngIf="widget.size=='small'">
-		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
-			<button type="submit" class="btn btn-success btn-block" [disabled]="!widgetForm.form.valid">Save</button>
-		</div>
-		<div class="col-xs-12 col-sm-12 col-md-12 col-lg-6">
-			<button type="button" class="btn btn-danger btn-block" (click)="delete()" [disabled]="false">Delete</button>
-		</div>
-	</div>
-
-	</form>
-
-</div>
+</ng-container>

@@ -86,7 +86,8 @@ namespace micasa {
 				if ( code_ != 304 ) { // not modified
 					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
 				}
-				this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+				// NOTE connection is kept alive.
+				// this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
 			}
 		};
 		if ( __unlikely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
@@ -102,7 +103,11 @@ namespace micasa {
 	void Network::Connection::send( const std::string& data_ ) {
 		auto task = [this,data_]() {
 			if ( this->m_mg_conn != nullptr ) {
-				mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+				if ( ( this->m_flags & NETWORK_CONNECTION_FLAG_SOCKET ) == NETWORK_CONNECTION_FLAG_SOCKET ) {
+					mg_send_websocket_frame( this->m_mg_conn, WEBSOCKET_OP_TEXT, data_.c_str(), data_.length() );
+				} else {
+					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
+				}
 			}
 		};
 		if ( __likely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
@@ -425,7 +430,8 @@ namespace micasa {
 			// During, and *only* during this event there's a http_message instance available. The serving of static
 			// files requires this, so the SERVE event is fired synchronious with the poller..
 			case MG_EV_HTTP_REQUEST:
-			case MG_EV_HTTP_REPLY: {
+			case MG_EV_HTTP_REPLY:
+			case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
 				if ( connection->m_func ) {
 					connection->m_func( connection, Connection::Event::HTTP );
 				}
@@ -433,6 +439,11 @@ namespace micasa {
 					mg_conn_->flags |= MG_F_CLOSE_IMMEDIATELY;
 					connection->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
 				}
+				break;
+			}
+
+			case MG_EV_WEBSOCKET_HANDSHAKE_DONE: {
+				connection->m_flags |= NETWORK_CONNECTION_FLAG_SOCKET;
 				break;
 			}
 

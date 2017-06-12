@@ -22,7 +22,6 @@ import {
 
 export class UsersListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public users: User[];
 	public startPage: number = 1;
@@ -51,12 +50,12 @@ export class UsersListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectUser( user_: User ) {
-		this.loading = true;
+		this._usersService.returnUrl = this._router.url;
 		this._router.navigate( [ '/users', user_.id ] );
 	};
 
 	public addUser() {
-		this.loading = true;
+		this._usersService.returnUrl = this._router.url;
 		this._router.navigate( [ '/users', 'add' ] );
 	};
 }

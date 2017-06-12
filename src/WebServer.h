@@ -12,7 +12,7 @@
 
 #include "json.hpp"
 
-#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 10080
+#define WEBSERVER_TOKEN_DEFAULT_VALID_DURATION_MINUTES 30 * 24 * 60
 #define WEBSERVER_USER_WEBCLIENT_SETTING_PREFIX "_web_"
 #define WEBSERVER_SETTING_HASH_PEPPER "_hash_pepper"
 
@@ -48,9 +48,8 @@ namespace micasa {
 		
 		class ResourceCallback {
 		public:
-			ResourceCallback( const std::string& reference_, const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : reference( reference_ ), uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
+			ResourceCallback( const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
 
-			const std::string reference;
 			const std::string uri;
 			const Method methods;
 			const t_callback callback;
@@ -77,13 +76,20 @@ namespace micasa {
 		
 		void start();
 		void stop();
+		void broadcast( const std::string& message_ );
 
 	private:
+		struct t_login {
+			std::chrono::system_clock::time_point valid;
+			std::shared_ptr<User> user;
+			std::vector<std::weak_ptr<Network::Connection>> sockets;
+		};
+
 		unsigned int m_port;
 		unsigned int m_sslport;
 		Scheduler m_scheduler;
 		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
-		std::map<std::string, std::pair<std::chrono::system_clock::time_point, std::shared_ptr<User>>> m_logins;
+		std::map<std::string, t_login> m_logins;
 		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
 		std::shared_ptr<Network::Connection> m_sslbind;
@@ -92,6 +98,7 @@ namespace micasa {
 		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
 		void _installHardwareResourceHandler();
 		void _installDeviceResourceHandler();
+		void _installLinkResourceHandler();
 		void _installScriptResourceHandler();
 		void _installTimerResourceHandler();
 		void _installUserResourceHandler();

@@ -51,9 +51,9 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Database> g_database;
-	extern std::shared_ptr<Controller> g_controller;
-	extern std::shared_ptr<Settings<>> g_settings;
+	extern std::unique_ptr<Database> g_database;
+	extern std::unique_ptr<Controller> g_controller;
+	extern std::unique_ptr<Settings<>> g_settings;
 	
 	using namespace std::chrono;
 	using namespace nlohmann;
@@ -161,6 +161,7 @@ namespace micasa {
 
 		this->_installHardwareResourceHandler();
 		this->_installDeviceResourceHandler();
+		this->_installLinkResourceHandler();
 		this->_installScriptResourceHandler();
 		this->_installTimerResourceHandler();
 		this->_installUserResourceHandler();
@@ -201,6 +202,24 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			auto now = system_clock::now();
+			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); ) {
+				if ( (*loginIt).second.valid < now ) {
+					for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); connectionIt++ ) {
+						auto connection = (*connectionIt).lock();
+						if ( connection ) {
+							connection->close();
+						}
+					}
+					loginIt = this->m_logins.erase( loginIt );
+				} else {
+					loginIt++;
+				}
+			}
+		} );
+
 		Logger::log( Logger::LogLevel::NORMAL, this, "Started." );
 	};
 	
@@ -218,6 +237,23 @@ namespace micasa {
 		this->m_resources.clear();
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
+	};
+
+	void WebServer::broadcast( const std::string& message_ ) {
+		this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); loginIt++ ) {
+				for ( auto connectionIt = loginIt->second.sockets.begin(); connectionIt != loginIt->second.sockets.end(); ) {
+					auto connection = (*connectionIt).lock();
+					if ( connection ) {
+						connection->send( message_ );
+						connectionIt++;
+					} else {
+						connectionIt = loginIt->second.sockets.erase( connectionIt );
+					}
+				}
+			}
+		} );
 	};
 
 	std::string WebServer::_hash( const std::string& data_ ) const {
@@ -241,14 +277,35 @@ namespace micasa {
 
 	inline void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
 		auto uri = connection_->getUri();
-		if ( __unlikely( uri.substr( 0, 4 ) != "/api" ) ) {
+		auto headers = connection_->getHeaders();
+
+		// A websocket connection starts of as a regular http request with an additional header requesting to upgrade
+		// the connection once the http handshake is done.
+		auto find = headers.find( "Upgrade" );
+		if ( __unlikely(
+			find != headers.end()
+			&& find->second == "websocket"
+			&& uri.substr( 0, 5 ) == "/live"
+		) ) {
+			std::string token = uri.substr( 6 );
+			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
+			auto find = this->m_logins.find( token );
+			if (
+				find != this->m_logins.end()
+				&& find->second.valid > system_clock::now()
+			) {
+				find->second.sockets.push_back( connection_ );
+			}
+
+		// Serve static files for requests NOT targetting the api.
+		} else if ( __unlikely( uri.substr( 0, 4 ) != "/api" ) ) {
 
 			connection_->serve( "www" );
 
+		// Serve dynamic data for requests targettig the api.
 		} else {
 
 			auto method = WebServer::resolveTextMethod( connection_->getMethod() );
-			auto headers = connection_->getHeaders();
 			auto data = connection_->getBody();
 			auto params = connection_->getParams();
 
@@ -315,8 +372,8 @@ namespace micasa {
 						std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
 						std::string token = headers.at( "Authorization" );
 						auto login = this->m_logins.at( token );
-						if ( login.first > system_clock::now() ) {
-							user = login.second;
+						if ( login.valid > system_clock::now() ) {
+							user = login.user;
 							input["_token"] = token;
 						}
 						loginsLock.unlock();
@@ -399,7 +456,6 @@ namespace micasa {
 
 	void WebServer::_installHardwareResourceHandler() {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/hardware(/([0-9]+|settings))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -629,7 +685,6 @@ namespace micasa {
 
 	void WebServer::_installDeviceResourceHandler() {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/devices(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -845,7 +900,6 @@ namespace micasa {
 		) );
 
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/devices/([0-9]+)/data$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -889,47 +943,38 @@ namespace micasa {
 				output_["code"] = 200;
 			} )
 		) );
-		
+	};
+
+	void WebServer::_installLinkResourceHandler() {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
-			"^/api/devices/([0-9]+)/links(/([0-9]+|settings))?$",
+			"^/api/links(/([0-9]+|settings))?$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::POST | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
 					return;
 				}
 
-				// A device id is mandatory for the url to be matched, so it can be retrieved unconditionally.
-				unsigned int deviceId = jsonGet<unsigned int>( input_, "$1" );
-				std::shared_ptr<Device> device = g_controller->getDeviceById( deviceId );
-				if ( device == nullptr ) {
-					return;
-				}
-
 				// This helper method returns a list of settings that can be used to edit a new or existing link.
-				auto fGetSettings = [device]( bool new_ ) -> json {
+				auto fGetSettings = []() -> json {
 					auto devices  = g_controller->getAllDevices();
-					json compatibleDevices = json::array();
+					json sourceDevices = json::array();
+					json targetDevices = json::array();
 					for ( auto devicesIt = devices.begin(); devicesIt != devices.end(); devicesIt++ ) {
 						auto updateSources = (*devicesIt)->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES );
-						bool readOnly = ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) == 0 );
 						if (
-							(
-								(*devicesIt)->getType() == device->getType()
-								|| ( (*devicesIt)->getType() == Device::Type::LEVEL && device->getType() == Device::Type::COUNTER )
-								|| ( (*devicesIt)->getType() == Device::Type::COUNTER && device->getType() == Device::Type::LEVEL )
-							)
-							&& (*devicesIt)->isEnabled()
-							&& (
-								device->getType() != Device::Type::SWITCH
-								|| ! readOnly
-							)
-							&& (*devicesIt) != device
+							(*devicesIt)->isEnabled()
+							&& (*devicesIt)->getType() == Device::Type::SWITCH
 						) {
-							compatibleDevices += {
+							sourceDevices += {
 								{ "value", (*devicesIt)->getId() },
 								{ "label", (*devicesIt)->getName() }
 							};
+							if ( ( updateSources & Device::UpdateSource::LINK ) == Device::UpdateSource::LINK ) {
+								targetDevices += {
+									{ "value", (*devicesIt)->getId() },
+									{ "label", (*devicesIt)->getName() }
+								};
+							}
 						}
 					}
 
@@ -960,10 +1005,11 @@ namespace micasa {
 						{ "sort", 2 }
 					};
 					settings += {
-						{ "name", "device" },
+						{ "name", "device_id" },
 						{ "label", "Source Device" },
-						{ "type", "display" },
-						{ "value", device->getName() },
+						{ "type", "list" },
+						{ "mandatory", true },
+						{ "options", sourceDevices },
 						{ "sort", 10 }
 					};
 					settings += {
@@ -971,59 +1017,58 @@ namespace micasa {
 						{ "label", "Target Device" },
 						{ "type", "list" },
 						{ "mandatory", true },
-						{ "options", compatibleDevices },
+						{ "options", targetDevices },
 						{ "sort", 11 }
 					};
-
-					if ( device->getType() == Device::Type::SWITCH ) {
-						settings += {
-							{ "name", "value" },
-							{ "label", "Value" },
-							{ "description", "The value that triggers this link." },
-							{ "default", "On" },
-							{ "type", "list" },
-							{ "options", switchOptions },
-							{ "sort", 12 }
-						};
-						settings += {
-							{ "name", "target_value" },
-							{ "label", "Target Value" },
-							{ "description", "The value to set the target device to when the link is triggered." },
-							{ "default", "On" },
-							{ "type", "list" },
-							{ "options", switchOptions },
-							{ "sort", 13 }
-						};
-						settings += {
-							{ "name", "after" },
-							{ "label", "Delay" },
-							{ "description", "Sets the delay in seconds after which the value will be set." },
-							{ "type", "double" },
-							{ "minimum", 0 },
-							{ "maximum", 86400 },
-							{ "class", "advanced" },
-							{ "sort", 20 }
-						};
-						settings += {
-							{ "name", "for" },
-							{ "label", "Duration" },
-							{ "description", "Sets the duration in seconds after which the value will be set back to it's previous value." },
-							{ "type", "double" },
-							{ "minimum", 0 },
-							{ "maximum", 86400 },
-							{ "class", "advanced" },
-							{ "sort", 21 }
-						};
-						settings += {
-							{ "name", "clear" },
-							{ "label", "Clear Queue" },
-							{ "description", "Clears the event queue of events for this device, making sure that the value to set is the only value present in the queue." },
-							{ "default", false },
-							{ "type", "boolean" },
-							{ "class", "advanced" },
-							{ "sort", 22 }
-						};
-					}
+					settings += {
+						{ "name", "value" },
+						{ "label", "Value" },
+						{ "description", "The value that triggers this link." },
+						{ "default", "On" },
+						{ "mandatory", true },
+						{ "type", "list" },
+						{ "options", switchOptions },
+						{ "sort", 12 }
+					};
+					settings += {
+						{ "name", "target_value" },
+						{ "label", "Target Value" },
+						{ "description", "The value to set the target device to when the link is triggered." },
+						{ "default", "On" },
+						{ "mandatory", true },
+						{ "type", "list" },
+						{ "options", switchOptions },
+						{ "sort", 13 }
+					};
+					settings += {
+						{ "name", "after" },
+						{ "label", "Delay" },
+						{ "description", "Sets the delay in seconds after which the value will be set." },
+						{ "type", "double" },
+						{ "minimum", 0 },
+						{ "maximum", 86400 },
+						{ "class", "advanced" },
+						{ "sort", 20 }
+					};
+					settings += {
+						{ "name", "for" },
+						{ "label", "Duration" },
+						{ "description", "Sets the duration in seconds after which the value will be set back to it's previous value." },
+						{ "type", "double" },
+						{ "minimum", 0 },
+						{ "maximum", 86400 },
+						{ "class", "advanced" },
+						{ "sort", 21 }
+					};
+					settings += {
+						{ "name", "clear" },
+						{ "label", "Clear Queue" },
+						{ "description", "Clears the event queue of events for this device, making sure that the value to set is the only value present in the queue." },
+						{ "default", false },
+						{ "type", "boolean" },
+						{ "class", "advanced" },
+						{ "sort", 22 }
+					};
 
 					return settings;
 				};
@@ -1031,14 +1076,14 @@ namespace micasa {
 				// A link identifier is optional, but if it exist it is guarantieed to be of type string.
 				json link = json::object();
 				int linkId = -1;
-				auto find = input_.find( "$3" ); // inner uri regexp match
+				auto find = input_.find( "$2" ); // inner uri regexp match
 				if ( find != input_.end() ) {
 					try {
 						if (
 							"settings" == (*find).get<std::string>()
 							&& method_ == WebServer::Method::GET
 						) {
-							output_["data"] = fGetSettings( true );
+							output_["data"] = fGetSettings();
 							output_["code"] = 200;
 							return;
 						} else {
@@ -1046,10 +1091,8 @@ namespace micasa {
 							link = g_database->getQueryRow<json>(
 								"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
 								"FROM `links` "
-								"WHERE `id`=%d "
-								"AND `device_id`=%d",
-								linkId,
-								deviceId
+								"WHERE `id`=%d ",
+								linkId
 							);
 						}
 					} catch( ... ) {
@@ -1058,25 +1101,33 @@ namespace micasa {
 				}
 
 				switch( method_ ) {
-
 					case WebServer::Method::GET: {
 						if ( linkId != -1 ) {
-							// The detailed fetch of a link contains actual device data.
 							output_["data"] = link;
-							output_["data"]["device"] = g_controller->getDeviceById( link["device_id"].get<unsigned int>() )->getJson();
-							output_["data"]["target_device"] = g_controller->getDeviceById( link["target_device_id"].get<unsigned int>() )->getJson();
-							output_["data"]["settings"] = fGetSettings( false );
+							output_["data"]["settings"] = fGetSettings();
 						} else {
-							// The overview list of links contain only names for the devices.
-							output_["data"] = g_database->getQuery<json>(
-								"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
-								"FROM `links` "
-								"WHERE `device_id`=%d "
-								"OR `target_device_id`=%d "
-								"ORDER BY `created`",
-								deviceId,
-								deviceId
-							);
+							// If a device_id was provided, only links associated with that device, either as source or
+							// destination, are returned.
+							auto find = input_.find( "device_id" );
+							if ( find != input_.end() ) {
+								output_["data"] = g_database->getQuery<json>(
+									"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
+									"FROM `links` "
+									"WHERE `device_id`=%d "
+									"OR `target_device_id`=%d "
+									"ORDER BY `name`",
+									jsonGet<int>( *find ),
+									jsonGet<int>( *find )
+								);
+							} else {
+								output_["data"] = g_database->getQuery<json>(
+									"SELECT `id`, `name`, `device_id`, `target_device_id`, `value`, `target_value`, `after`, `for`, `clear`, `enabled` "
+									"FROM `links` "
+									"ORDER BY `name`"
+								);
+							}
+							// Add the names of the devices involved to the list. This prevents a client from having to
+							// fetch the devices separately, only to show this list.
 							for ( auto dataIt = output_["data"].begin(); dataIt != output_["data"].end(); dataIt++ ) {
 								(*dataIt)["device"] = g_controller->getDeviceById( (*dataIt)["device_id"].get<unsigned int>() )->getName();
 								(*dataIt)["target_device"] = g_controller->getDeviceById( (*dataIt)["target_device_id"].get<unsigned int>() )->getName();
@@ -1085,7 +1136,6 @@ namespace micasa {
 						output_["code"] = 200;
 						break;
 					}
-
 					case WebServer::Method::DELETE: {
 						if ( linkId != -1 ) {
 							g_database->putQuery(
@@ -1097,7 +1147,6 @@ namespace micasa {
 						}
 						break;
 					}
-					
 					case WebServer::Method::PUT:
 					case WebServer::Method::POST: {
 						if (
@@ -1116,9 +1165,8 @@ namespace micasa {
 						std::vector<std::string> missing;
 						std::vector<std::string> errors;
 						json linkData = json::object();
-						validateSettings( input_, linkData, fGetSettings( linkId == -1 ), &invalid, &missing, &errors );
+						validateSettings( input_, linkData, fGetSettings(), &invalid, &missing, &errors );
 						if ( invalid.size() > 0 ) {
-							//throw WebServer::ResourceException( 400, "Link.Invalid.Fields", "Invalid value for fields " + stringJoin( invalid, ", " ) );
 							throw WebServer::ResourceException( 400, "Link.Invalid.Fields", stringJoin( errors, ", " ) );
 						} else if ( missing.size() > 0 ) {
 							throw WebServer::ResourceException( 400, "Link.Missing.Fields", "Missing value for fields " + stringJoin( missing, ", " ) );
@@ -1126,10 +1174,10 @@ namespace micasa {
 
 						if ( linkId == -1 ) {
 							linkId = g_database->putQuery(
-								"INSERT INTO `links` (`name`, `device_id`, `target_device_id`, `enabled`, `value`, `target_value`, `after`, `for`, `clear`) "
-								"VALUES (%Q, %d, %d, %d, %Q, %Q, %Q, %Q, %d) ",
+								"INSERT INTO `links` ( `name`, `device_id`, `target_device_id`, `enabled`, `value`, `target_value`, `after`, `for`, `clear` ) "
+								"VALUES ( %Q, %d, %d, %d, %Q, %Q, %Q, %Q, %d )",
 								linkData["name"].get<std::string>().c_str(),
-								deviceId,
+								linkData["device_id"].get<unsigned int>(),
 								linkData["target_device_id"].get<unsigned int>(),
 								linkData["enabled"].get<bool>() ? 1 : 0,
 								linkData["value"].is_null() ? NULL : linkData["value"].get<std::string>().c_str(),
@@ -1147,7 +1195,7 @@ namespace micasa {
 								"SET `name`=%Q, `device_id`=%d, `target_device_id`=%d, `enabled`=%d, `value`=%Q, `target_value`=%Q, `after`=%Q, `for`=%Q, `clear`=%d "
 								"WHERE `id`=%d",
 								linkData["name"].get<std::string>().c_str(),
-								deviceId,
+								linkData["device_id"].get<unsigned int>(),
 								linkData["target_device_id"].get<unsigned int>(),
 								linkData["enabled"].get<bool>() ? 1 : 0,
 								linkData["value"].is_null() ? NULL : linkData["value"].get<std::string>().c_str(),
@@ -1161,7 +1209,6 @@ namespace micasa {
 						}
 						break;
 					}
-
 					default: break;
 				}
 			} )
@@ -1170,7 +1217,6 @@ namespace micasa {
 
 	void WebServer::_installScriptResourceHandler() {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/scripts(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -1319,7 +1365,6 @@ namespace micasa {
 		// https://www.liberiangeek.net/wp-content/uploads/2013/05/gnome_schedule_ubuntu1304_1_thumb.png
 		// https://www.ghacks.net/2011/03/09/schedule-cron-jobs-with-this-easy-to-use-gui/
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/timers(/([0-9]+|new))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -1359,14 +1404,16 @@ namespace micasa {
 								} else {
 									throw WebServer::ResourceException( 400, "Timer.Invalid.Device", "The supplied device id is invalid." );
 								}
-								output_["data"]["value"] = g_database->getQueryValue<std::string>(
-									"SELECT `value` "
-									"FROM `x_timer_devices` "
-									"WHERE `timer_id`=%d "
-									"AND `device_id`=%d",
-									timerId,
-									deviceId
-								);
+								try {
+									output_["data"]["value"] = g_database->getQueryValue<std::string>(
+										"SELECT `value` "
+										"FROM `x_timer_devices` "
+										"WHERE `timer_id`=%d "
+										"AND `device_id`=%d",
+										timerId,
+										deviceId
+									);
+								} catch( const Database::NoResultsException& ex_ ) { /* ignore */ }
 							} else {
 								// Stand-alone timers can be associated with scripts. Provide a list of already associated
 								// scripts for these timers on the edit page.
@@ -1583,21 +1630,10 @@ namespace micasa {
 
 	void WebServer::_installUserResourceHandler() {
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/user/(login|refresh)$",
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
-				std::lock_guard<std::mutex> loginsLock( this->m_loginsMutex );
-
-				auto now = system_clock::now();
-				for ( auto loginsIt = this->m_logins.begin(); loginsIt != this->m_logins.end(); ) {
-					if ( (*loginsIt).second.first < now ) {
-						loginsIt = this->m_logins.erase( loginsIt );
-					} else {
-						loginsIt++;
-					}
-				}
-
+				std::lock_guard<std::mutex> lock( this->m_loginsMutex );
 				if (
 					method_ == WebServer::Method::POST
 					&& input_["$1"].get<std::string>() == "login"
@@ -1615,7 +1651,9 @@ namespace micasa {
 					&& input_["$1"].get<std::string>() == "refresh"
 					&& user_ != nullptr
 				) {
-					this->m_logins.erase( jsonGet<std::string>( input_, "_token" ) );
+					// After a login token has been refreshed, the old token should be expired, just not immediately
+					// because there might be concurrent requests using the old token that need to be able to finish.
+					this->m_logins.at( jsonGet<std::string>( input_, "_token" ) ).valid = system_clock::now() + minutes( 1 );
 					output_["code"] = 200; // Refreshed
 					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s prolonged login.", user_->getName().c_str() );
 				} else {
@@ -1640,7 +1678,6 @@ namespace micasa {
 		) );
 
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/users(/([0-9]+))?$",
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
@@ -1816,7 +1853,6 @@ namespace micasa {
 		) );
 		
 		this->m_resources.push_back( std::make_shared<ResourceCallback>(
-			"webserver",
 			"^/api/user/state/([0-9a-z_]+)$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {

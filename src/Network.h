@@ -21,6 +21,7 @@ extern "C" {
 #define NETWORK_CONNECTION_FLAG_FAILURE    (1 << 1) // a failure event has been fired
 #define NETWORK_CONNECTION_FLAG_HTTP       (1 << 2)
 #define NETWORK_CONNECTION_FLAG_BIND       (1 << 3)
+#define NETWORK_CONNECTION_FLAG_SOCKET     (1 << 4)
 
 #define NETWORK_CONNECTION_DEFAULT_TIMEOUT_SEC 10
 

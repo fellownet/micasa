@@ -171,7 +171,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-add_definitions( -DMG_ENABLE_IPV6 -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_DISABLE_HTTP_KEEP_ALIVE -DMG_ENABLE_BROADCAST )
+add_definitions( -DMG_ENABLE_IPV6 -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_ENABLE_BROADCAST )
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #

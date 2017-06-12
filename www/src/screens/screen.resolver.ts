@@ -10,6 +10,8 @@ import { Observer }        from 'rxjs/Observer';
 
 import {
 	Screen,
+	Widget,
+	SourceData,
 	ScreensService,
 }                          from './screens.service';
 import {
@@ -28,75 +30,92 @@ export class ScreenResolver implements Resolve<Screen> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<any> {
-		var me = this;
+		let me: ScreenResolver = this;
 
-		return Observable.create( function( observer_: Observer<string> ) {
-			let result: any = {};
+		let observable: Observable<Screen>;
+		if ( route_.data['dashboard'] ) {
+			observable = me._screensService.getScreen( 1 );
+		} else if ( 'device_id' in route_.params  ) {
+			observable = me._devicesService.getDevice( +route_.params['device_id'] )
+				.map( device_ => me._screensService.getDefaultScreenForDevice( device_ ) )
+			;
+		} else if ( ! ( 'screen_id' in route_.params ) ) {
+			observable = Observable.of( { id: NaN, name: 'New screen', widgets: [] } );
+		} else {
+			observable = me._screensService.getScreen( +route_.params['screen_id'] );
+		}
 
-			if ( route_.data['dashboard'] ) {
+		return observable
+			.mergeMap( function( screen_: Screen ) {
 
-				me._screensService.getScreen( 1 )
-					.subscribe( function( screen_: Screen ) {
-						result.screen = screen_;
-						observer_.next( result );
-						observer_.complete();
-					}, function( error_: string ) {
-						me._router.navigate( [ '/login' ] );
-					} )
-				;
+				// First fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then
+				// passed to the data fetchers.
+				return me._screensService.getDevicesOnScreen( screen_ )
+					.mergeMap( function( devices_: Device[] ) {
 
-			} else if ( 'device_id' in route_.params  ) {
+						let observables: Observable<[number,SourceData[]]>[]= [];
+						screen_.widgets.forEach( function( widget_: Widget, i_: number ) {
+							observables.push(
+								me._screensService.getDataForWidget( widget_, devices_ )
+								.map( data_ => [ i_, data_ ] )
+								// NOTE catch all errors to make sure the forkJoin completes.
+								.catch( () => Observable.of( null ) )
+							);
+						} );
 
-				me._devicesService.getDevice( +route_.params['device_id'] )
-					.subscribe( function( device_: Device ) {
-						result.device = device_;
-						me._screensService.getScreenForDevice( device_.id )
-							.subscribe( function( screen_: Screen ) {
-								result.screen = screen_;
-								observer_.next( result );
-								observer_.complete();
-							}, function( error_: string ) {
-								result.screen = me._screensService.getDefaultScreenForDevice( device_ );
-								me._screensService.putScreen( result.screen ).subscribe();
-								observer_.next( result );
-								observer_.complete();
-							} )
-						;
-					}, function( error_: string ) {
-						me._router.navigate( [ '/login' ] );
-					} )
-				;
-
-			} else if ( ! ( 'screen_id' in route_.params ) ) {
-
-				result.screen = { id: NaN, name: 'New screen', widgets: [] };
-				observer_.next( result );
-				observer_.complete();
-
-			} else {
-
-				me._screensService.getScreen( +route_.params['screen_id'] )
-					.subscribe( function( screen_: Screen ) {
-						result.screen = screen_;
-						if ( !!result.screen.device_id ) {
-							me._devicesService.getDevice( result.screen.device_id )
-								.subscribe( function( device_: Device ) {
-									result.device = device_;
-									observer_.next( result );
-									observer_.complete();
-								}, function( error_: string ) {
-									me._router.navigate( [ '/login' ] );
-								} )
-							;
+						let dataObservable: Observable<SourceData[][]>;
+						if ( observables.length > 0 ) {
+							dataObservable = Observable.forkJoin( observables, function( ... args ) {
+								let result: SourceData[][] = [];
+								for ( let data of args as [number, SourceData[]][] ) {
+									if ( !! data ) { // filters out null's (see catch notes)
+										result[data[0]] = data[1];
+									}
+								}
+								return result;
+							} );
 						} else {
-							observer_.next( result );
-							observer_.complete();
+							dataObservable = Observable.of( [] );
 						}
-					}, function( error_: string ) {
-						me._router.navigate( [ '/login' ] );
+						let devicesObservable: Observable<Device[]> = me._devicesService.getDevices();
+						return Observable.forkJoin( dataObservable, devicesObservable, function( data_: SourceData[][], devices_: Device[] ) {
+							return { screen: screen_, data: data_, devices: devices_ };
+						} );
 					} )
 				;
-			}
-		} );
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+				// DEBUG
+				setTimeout( function() {
+					let poe: Observable<Widget>[] = [];
+					for ( let widget of screen_.widgets ) {
+						poe.push( me._screensService.getDataForWidget( widget ) );
+					}
+					Observable.forkJoin( poe, function( ... args ) { console.log( args ); } ).subscribe();
+				}, 100 );
+*/
+/*
+				let result: any = { screen: screen_ };
+				return me._screensService.getDevicesOnScreen( screen_ )
+					.map( function( devices_: Device[] ) {
+						result.devices = devices_;
+						return result;
+					} )
+				;
+*/
+			} )
+			.catch( () => me._router.navigate( [ '/login' ] ) )
+		;
 	};
 }

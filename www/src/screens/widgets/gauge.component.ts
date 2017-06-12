@@ -14,7 +14,9 @@ import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
 import {
-	Widget
+	Screen,
+	Widget,
+	SourceData
 }                          from '../screens.service';
 import {
 	Device,
@@ -29,9 +31,9 @@ require( 'highcharts/highcharts-more.src.js' )( Highcharts );
 require( 'highcharts/modules/solid-gauge.src.js' )( Highcharts );
 
 enum State {
-	CREATED = 0,
-	DATA_RECEIVED = 1,
-	VIEW_READY = 2
+	CREATED          = (1 << 0),
+	DATA_RECEIVED    = (1 << 1),
+	VIEW_READY       = (1 << 2)
 };
 
 @Component( {
@@ -41,13 +43,16 @@ enum State {
 
 export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
+	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) private _devices: Observable<Device[]>;
+	@Input( 'data' ) public data: SourceData[];
+	@Input( 'devices' ) public devices: Device[];
 	@Input( 'parent' ) public parent: WidgetComponent;
-	
+
 	@Output() onAction = new EventEmitter<string>();
 
 	@ViewChild( 'chartTarget' ) private _chartTarget: ElementRef;
+
 	private _state: BehaviorSubject<number> = new BehaviorSubject( State.CREATED );
 	private _active: boolean = true;
 	private _chart: any;
@@ -65,10 +70,8 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 		gray  : '#AAAAAA'
 	}
 
-	public loading: boolean = true;
-	public devices: Observable<Device[]>; // used in the device dropdown while editing
-	public device: Device;
-	public data: any[] = [];
+	public invalid: boolean = false;
+	public title: string;
 
 	public constructor(
 		private _devicesService: DevicesService,
@@ -79,22 +82,25 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 	public ngOnInit() {
 		var me = this;
 
-		me.devices = me._devicesService.getDevices()
-			.map( function( devices_: Device[] ) {
-				return devices_.filter( device_ => device_.type == 'level' );
-			} )
-		;
+		me.title = me.widget.name;
+		me.devices = me.devices.filter( device_ => device_.type == 'level' );
+
+		Highcharts.setOptions( {
+			lang: {
+				thousandsSep: ''
+			}
+		} );
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
 		me._state.subscribe( function( state_: number ) {
 			if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
-				if ( !!me._chart ) {
+				if ( !! me._chart ) {
 					me._chart.destroy();
 				}
 
-				let min: number = 0, max: number = me.device.value;
-				for ( let point of me.data ) {
+				let min: number = 0, max: number = me.data[0].device.value;
+				for ( let point of me.data[0].data ) {
 					let value: number = parseFloat( point.value );
 					min = Math.min( min, value );
 					max = Math.max( max, value );
@@ -125,10 +131,10 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 						size: '150%'
 					},
 					series: [ {
-						name: me.device.name,
-						data: [ me.device.value ],
+						name: me.data[0].device.name,
+						data: [ me.data[0].device.value ],
 						dataLabels: {
-							format: '<div style="text-align:center"><span style="font-size:20px;color:black;font-weight:normal;">{y}</span><br/><span style="font-size:12px;color:gray;font-weight:normal;">' + me.device.unit + '</span></div>'
+							format: '<div style="text-align:center"><span style="font-size:20px;color:black;font-weight:normal;">{y}</span><br/><span style="font-size:12px;color:gray;font-weight:normal;">' + me.data[0].device.unit + '</span></div>'
 						}
 					} ],
 					yAxis: {
@@ -161,7 +167,7 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 				// Skip a render pass before drawing the chart.
 				setTimeout( function() {
-					if ( !!me._chartTarget ) {
+					if ( !! me._chartTarget ) {
 						me._chart = Highcharts.chart( me._chartTarget.nativeElement, config );
 					}
 				}, 1 );
@@ -171,30 +177,29 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 		// Listen for events broadcasted from the session service.
 		me._sessionService.events
 			.takeWhile( () => me._active )
+			.filter( event_ => !! me._chart && event_.device_id == me.data[0].device.id )
 			.subscribe( function( event_: any ) {
-				console.log( 'got an event in screen component' );
-				console.log( event_ );
+				let point: any = me._chart.series[0].points[0];
+				point.update( event_.value );
 			} )
 		;
 	};
 
 	public ngOnChanges() {
-		var me = this;
-		me.loading = true;
-		me._devices.subscribe( function( devices_: Device[] ) {
-			if ( devices_.length > 0 ) {
-				me.device = devices_[0];
-				me._devicesService.getData( devices_[0].id, {
-					group: '5min',
-					range: 1,
-					interval: 'day'
-				} ).subscribe( function( data_: any[] ) {
-					me.data = data_;
-					me.loading = false;
-					me._state.next( me._state.getValue() | State.DATA_RECEIVED );
-				} );
+		if (
+			!! this.data[0]
+			&& !! this.data[0].device
+			&& !! this.data[0].data
+		) {
+			this.invalid = false;
+			this._state.next( this._state.getValue() | State.DATA_RECEIVED );
+		} else {
+			if ( !! this._chart ) {
+				this._chart.destroy();
+				delete this._chart;
 			}
-		} );
+			this.invalid = true;
+		}
 	};
 
 	public ngAfterViewInit() {
@@ -208,7 +213,9 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public save() {
 		this.onAction.emit( 'save' );
+		this.title = this.widget.name;
 		this.parent.editing = false;
+		this.onAction.emit( 'reload' );
 	};
 
 	public delete() {

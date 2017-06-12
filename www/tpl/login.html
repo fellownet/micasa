@@ -4,15 +4,15 @@
 		<div class="login-box-body">
 
 			<div class="callout callout-danger" *ngIf="error">
-				<p>{{error}}</p>
+				<p>{{ error }}</p>
 			</div>
 
 			<form role="form" (ngSubmit)="doLogin()" #loginForm="ngForm" novalidate><!-- no validation by browser -->
-			<div class="form-group has-feedback" [class.has-error]="!username.valid && !username.pristine">
+			<div class="form-group has-feedback" [class.has-error]="! username.valid && ! username.pristine">
 				<input type="text" class="form-control" placeholder="Username" autocomplete="off" autocorrect="off" autocapitalize="none" required [(ngModel)]="credentials.username" name="username" #username="ngModel">
 				<span class="fa fa-user form-control-feedback"></span>
 			</div>
-			<div class="form-group has-feedback" [class.has-error]="!password.valid && !password.pristine">
+			<div class="form-group has-feedback" [class.has-error]="! password.valid && ! password.pristine">
 				<input type="password" class="form-control" placeholder="Password" autocomplete="off" required [(ngModel)]="credentials.password" name="password" #password="ngModel">
 				<span class="fa fa-key form-control-feedback"></span>
 			</div>
@@ -23,13 +23,11 @@
 			</div>
 			<div class="row">
 				<div class="col-xs-offset-8 col-xs-4">
-					<button type="submit" class="btn btn-primary btn-block" [disabled]="!loginForm.form.valid || loginForm.form.pristine || loading">Login</button>
+					<button type="submit" class="btn btn-primary btn-block" [disabled]="! loginForm.form.valid || loginForm.form.pristine">Login</button>
 				</div>
 			</div>
 			</form>
-			<div class="box-overlay" *ngIf="loading">
-				<i class="fa fa-spinner fa-pulse"></i>
-			</div>
+
 		</div>
 	</div>
 </div>

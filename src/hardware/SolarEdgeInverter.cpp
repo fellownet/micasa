@@ -17,7 +17,7 @@
 
 namespace micasa {
 	
-	extern std::shared_ptr<Database> g_database;
+	extern std::unique_ptr<Database> g_database;
 	
 	using namespace nlohmann;
 

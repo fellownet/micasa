@@ -25,7 +25,8 @@ namespace micasa {
 		}; // enum class Unit
 		static const std::map<Unit, std::string> UnitText;
 		ENUM_UTIL_W_TEXT( Unit, UnitText );
-		
+		static const std::map<Unit, std::string> UnitFormat;
+
 		typedef double t_value;
 		static const Device::Type type;
 
@@ -54,7 +55,7 @@ namespace micasa {
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void _processTrends() const;
-		void _purgeHistory() const;
+		void _purgeHistoryAndTrends() const;
 
 	}; // class Counter
 

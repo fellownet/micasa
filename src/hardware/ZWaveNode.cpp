@@ -352,6 +352,9 @@ namespace micasa {
 				if ( this->getState() == Hardware::State::INIT ) {
 					Logger::log( Logger::LogLevel::NORMAL, this, "Node ready." );
 					this->setState( Hardware::State::READY );
+					
+					// Instruct the node the report all of it's configuration parameters.
+					Manager::Get()->RequestAllConfigParams( this->m_homeId, this->m_nodeId );
 				}
 				this->_updateNames();
 				break;

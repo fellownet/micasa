@@ -22,7 +22,7 @@
 
 namespace micasa {
 
-	extern std::shared_ptr<Controller> g_controller;
+	extern std::unique_ptr<Controller> g_controller;
 	
 	const char* PiFace::label = "PiFace";
 

@@ -506,6 +506,7 @@ namespace micasa {
 			this->declareDevice<Switch>( reference, "Switch", {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
 				{ "rfx_type", "lighting2" },
 				{ "rfx_subtype", (unsigned int)packet_->LIGHTING2.subtype },

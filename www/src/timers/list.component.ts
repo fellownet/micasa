@@ -9,7 +9,6 @@ import {
 	Router,
 	ActivatedRoute
 }                  from '@angular/router';
-
 import {
 	Timer,
 	TimersService
@@ -26,12 +25,12 @@ import {
 
 export class TimersListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public timers: Timer[];
 	public startPage: number = 1;
 
 	@Input() public device?: Device; // gets set when used from the device edit component
+
 	@ViewChild(GridPagingComponent) private _paging: GridPagingComponent;
 
 	public constructor(
@@ -64,18 +63,19 @@ export class TimersListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectTimer( timer_: Timer ) {
-		this.loading = true;
-		if ( this.device ) {
-			this._router.navigate( [ '/devices', this.device.id, 'timers', timer_.id ] );
+		this._timersService.returnUrl = this._router.url;
+		if ( !!this.device ) {
+			this._router.navigate( [ '/timers', timer_.id, 'device', this.device.id ] );
 		} else {
 			this._router.navigate( [ '/timers', timer_.id ] );
 		}
+
 	};
 
 	public addTimer() {
-		this.loading = true;
+		this._timersService.returnUrl = this._router.url;
 		if ( this.device ) {
-			this._router.navigate( [ '/devices', this.device.id, 'timers', 'add' ] );
+			this._router.navigate( [ '/timers', 'add', 'device', this.device.id ] );
 		} else {
 			this._router.navigate( [ '/timers', 'add' ] );
 		}

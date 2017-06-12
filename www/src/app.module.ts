@@ -10,6 +10,7 @@ import { DevicesModule }   from './devices/devices.module';
 import { HardwareModule }  from './hardware/hardware.module';
 import { ScriptsModule }   from './scripts/scripts.module';
 import { TimersModule }    from './timers/timers.module';
+import { LinksModule }     from './links/links.module';
 import { UsersModule }     from './users/users.module';
 import { ScreensModule }   from './screens/screens.module';
 import { SessionModule }   from './session/session.module';
@@ -27,11 +28,13 @@ import 'rxjs/add/operator/mergeMap';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/every';
 import 'rxjs/add/operator/do';
+import 'rxjs/add/operator/finally';
 import 'rxjs/add/operator/delay';
-import 'rxjs/add/operator/auditTime';
+import 'rxjs/add/operator/debounceTime';
 import 'rxjs/add/operator/catch';
 import 'rxjs/add/operator/filter';
 import 'rxjs/add/operator/takeWhile';
+import 'rxjs/add/operator/merge';
 
 import 'jquery/dist/jquery.js'
 import 'bootstrap/dist/js/bootstrap.js'
@@ -46,6 +49,7 @@ import 'bootstrap/dist/js/bootstrap.js'
 		HardwareModule,
 		ScriptsModule,
 		TimersModule,
+		LinksModule,
 		UsersModule,
 		ScreensModule,
 		SessionModule

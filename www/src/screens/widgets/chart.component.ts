@@ -14,23 +14,24 @@ import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
 import {
+	Screen,
 	Widget,
-	Source
+	Source,
+	SourceData
 }                          from '../screens.service';
 import {
 	Device,
 	DevicesService
 }                          from '../../devices/devices.service';
-import { SessionService }  from '../../session/session.service';
 import { WidgetComponent } from '../widget.component';
 
 declare var require: any;
 const Highcharts = require( 'highcharts/highcharts.src.js' );
 
 enum State {
-	CREATED = 0,
-	DATA_RECEIVED = 1,
-	VIEW_READY = 2
+	CREATED          = (1 << 0),
+	DATA_RECEIVED    = (1 << 1),
+	VIEW_READY       = (1 << 2)
 };
 
 @Component( {
@@ -40,13 +41,16 @@ enum State {
 
 export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
+	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) private _devices: Observable<Device[]>;
+	@Input( 'data' ) public data: SourceData[];
+	@Input( 'devices' ) public devices: Device[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
 
 	@ViewChild( 'chartTarget' ) private _chartTarget: ElementRef;
+
 	private _state: BehaviorSubject<number> = new BehaviorSubject( State.CREATED );
 	private _active: boolean = true;
 	private _chart: any;
@@ -64,41 +68,39 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		gray  : '#AAAAAA'
 	}
 
-	public loading: boolean = true;
-	public devices: Observable<Device[]>; // used in the device dropdown while editing
-	public data: any = {}; // key = device_id, value = [Device,any[]] tuple
+	public invalid: boolean = false;
+	public title: string;
 
 	public constructor(
-		private _devicesService: DevicesService,
-		private _sessionService: SessionService
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
 		var me = this;
 
+		me.title = me.widget.name;
+
 		Highcharts.setOptions( {
 			global: {
 				timezoneOffset: new Date().getTimezoneOffset()
+			},
+			lang: {
+				thousandsSep: ''
 			}
 		} );
-
-		me.devices = me._devicesService.getDevices();
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
 		me._state.subscribe( function( state_: number ) {
 			if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
-				if ( !!me._chart ) {
+				if ( !! me._chart ) {
 					me._chart.destroy();
 				}
 
 				let animationDuration: number = 300;
 				let config: any = {
 					chart: {
-						animation: {
-							duration: animationDuration
-						},
 						style: {
 							fontFamily: 'helvetica, arial, sans-serif'
 						},
@@ -151,7 +153,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 								states: {
 									hover: {
 										enabled: true,
-										symbol: 'circle',
 										radius: 6,
 										lineWidth: 2
 									}
@@ -161,37 +162,44 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					}
 				};
 
-				// Add day series.
 				let yAxis: number = -1;
 				let lastUnit:string = null;
 				let serie:number = -1;
-				for ( let source of me.widget.sources ) {
 
-					let device: Device = me.data[source.device_id][0];
-					let data: any[] = me.data[source.device_id][1];
+				// TODO sort sources by device unit
 
-					// If the device type is 'level' or 'counter', series are added. Switch and text devices are added as
-					// plotlines instead.
+				me.widget.sources.forEach( function( source_: Source, i_: number ) {
+					let device: Device = me.data[i_].device;
+					let data: any[] = me.data[i_].data;
+
+					// If the device type is 'level' or 'counter', series are added. Switch and text devices are added
+					// as plotlines instead.
 					if (
 						device.type == 'counter'
 						|| device.type == 'level'
 					) {
 						if ( device.unit != lastUnit ) {
+							if ( ++yAxis > 1 ) {
+								return false;
+							}
 							lastUnit = device.unit;
-							yAxis++;
 							config.yAxis[yAxis].title = {
 								text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
 							};
 						}
-						if ( yAxis > 1 ) {
-							break;
-						}
+
+						let range: boolean = (
+							data.length > 0
+							&& source_.properties.range
+							&& 'minimum' in data[0]
+							&& 'maximum' in data[0]
+						);
 
 						config.series[++serie] = {
 							data: [],
-							visible: !source.properties.hidden,
+							visible: ! source_.properties.hidden,
 							name: device.name,
-							color: me._colors[source.properties.color || 'aqua'],
+							color: me._colors[source_.properties.color || 'aqua'],
 							yAxis: yAxis,
 							type: device.type == 'level' || [ 'month', 'year' ].indexOf( me.widget.interval ) > -1 ? 'spline' : 'column',
 							tooltip: {
@@ -199,17 +207,27 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							},
 							events: {
 								hide: function() {
-									source.properties.hidden = true;
-									//me.parent.save( false );
+									source_.properties.hidden = true;
+									if ( range ) {
+										this.chart.series[1 + this.chart.series.indexOf( this )].hide();
+									}
+									if ( !! me.screen.id ) {
+										me.save( false );
+									}
 								},
 								show: function() {
-									source.properties.hidden = false;
-									//me.parent.save( false );
+									source_.properties.hidden = false;
+									if ( range ) {
+										this.chart.series[1 + this.chart.series.indexOf( this )].show();
+									}
+									if ( !! me.screen.id ) {
+										me.save( false );
+									}
 								}
 							}
 						};
 						for ( let point of data ) {
-							config.series[serie].data.push( [ point.timestamp * 1000, parseFloat( point.value ) ] );
+							config.series[serie].data.push( [ point.timestamp * 1000, point.value ] );
 						}
 						if ( device.type == 'counter' ) {
 							switch( me.widget.interval ) {
@@ -220,23 +238,101 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									config.series[serie].pointRange = 24 * 3600 * 1000;
 									break;
 							}
-							config.series[serie].zIndex = 1;
+							config.series[serie].zIndex = 10;
 						} else {
-							config.series[serie].zIndex = 2;
+							config.series[serie].zIndex = 20;
 						}
+
+						// Add range.
+						if ( range ) {
+							config.series[++serie] = {
+								data: [],
+								color: me._colors[source_.properties.color || 'aqua'],
+								yAxis: yAxis,
+								type: 'areasplinerange',
+								showInLegend: false,
+								zIndex: 1,
+								animation: {
+									duration: animationDuration
+								},
+								lineWidth: 0,
+								fillOpacity: 0.13,
+								enableMouseTracking: false,
+								marker: {
+									enabled: false
+								}
+							};
+							for ( let point of data ) {
+								config.series[serie].data.push( [ point.timestamp * 1000, point.minimum, point.maximum ] );
+							}
+						}
+
+						// Add trendline.
+						if (
+							data.length > 2
+							&& source_.properties.trendline
+						) {
+							var ii = 0, x, y, x0, x1, y0, y1, dx,
+								m = 0, b = 0, cs, ns,
+								n = data.length, Sx = 0, Sy = 0, Sxy = 0, Sx2 = 0, S2x = 0;
+
+							// Do math stuff.
+							for (ii; ii < data.length; ii++) {
+								x = data[ii].timestamp;
+								y = data[ii].value;
+								Sx += x;
+								Sy += y;
+								Sxy += (x * y);
+								Sx2 += (x * x);
+							}
+
+							// Calculate slope and intercept.
+							m = (n * Sx2 - S2x) != 0 ? (n * Sxy - Sx * Sy) / (n * Sx2 - Sx * Sx) : 0;
+							b = (Sy - m * Sx) / n;
+
+							// Calculate minimal coordinates to draw the trendline.
+							dx = 0;
+							x0 = data[0].timestamp - dx;
+							y0 = m * x0 + b;
+							x1 = data[ii - 1].timestamp + dx;
+							y1 = m * x1 + b;
+
+							// Add series.
+							config.series[++serie] = {
+								data: [
+									[ x0 * 1000, y0 ],
+									[ x1 * 1000, y1 ]
+								],
+								name: 'trendline',
+								color: me._colors[source_.properties.trendline_color || 'red'],
+								yAxis: yAxis,
+								type: 'line',
+								zIndex: 2,
+								animation: {
+									duration: animationDuration * 4
+								},
+								lineWidth: 2,
+								dashStyle: 'LongDash',
+								enableMouseTracking: false,
+								marker: {
+									enabled: false
+								}
+							};
+						}
+
 					} else if (
 						device.type == 'switch'
 						|| device.type == 'text'
 					) {
 						for ( let point of data ) {
 							config.xAxis.plotLines.push( {
-								color: me._colors[source.properties.color || 'aqua'],
+								color: me._colors[source_.properties.color || 'aqua'],
 								value: point.timestamp * 1000,
 								width: 2,
 								label: {
 									text: point.value,
 									style: {
-										color: me._colors[source.properties.color || 'aqua'],
+										color: me._colors[source_.properties.color || 'aqua'],
 										fontSize: 10,
 										fontWeight: 'bold'
 									}
@@ -244,93 +340,42 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							} );
 						}
 					}
-				}
+
+					return true;
+				} );
 
 				// Skip a render pass before drawing the chart.
 				setTimeout( function() {
-					if ( !!me._chartTarget ) {
+					if ( !! me._chartTarget ) {
 						me._chart = Highcharts.chart( me._chartTarget.nativeElement, config );
 					}
 				}, 1 );
 			}
 		} );
-
-		// Listen for events broadcasted from the session service.
-		me._sessionService.events
-			.takeWhile( () => me._active )
-			.subscribe( function( event_: any ) {
-				console.log( 'got an event in screen component' );
-				console.log( event_ );
-			} )
-		;
 	};
 
 	public ngOnChanges() {
-		var me = this;
-		me.loading = true;
-		me._devices.subscribe( function( devices_: Device[] ) {
-			let observables: Observable<[Device,any[]]>[] = [];
-			for ( let device of devices_ ) {
-				switch( device.type ) {
-					case 'switch':
-					case 'text':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
-					
-					case 'level':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								group:
-									[ '5min', '5min', 'day', 'day', 'day' ][
-										[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-									],
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
-
-					case 'counter':
-						observables.push(
-							me._devicesService.getData( device.id, {
-								group:
-									[ 'hour', 'hour', 'day', 'day', 'day' ][
-										[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-									],
-								range: me.widget.range,
-								interval: me.widget.interval
-							} )
-							.map( function( data_: any ) {
-								return [ device, data_ ];
-							} )
-						);
-						break;
-				}
+		// We're doing some housekeeping here. Instead of invalidating the entire chart is a device is removed, the
+		// invalid source is removed. If there are no valid sources left, then the widget is marked invalid.
+		for ( var j = this.widget.sources.length; j--; ) {
+			let source: Source = this.widget.sources[j];
+			if (
+				! this.data[j].data
+				|| ! this.data[j].device
+			) {
+				this.widget.sources.splice( j, 1 );
 			}
-			if ( observables.length > 0 ) {
-				Observable
-					.forkJoin( observables )
-					.subscribe( function( data_: [Device,any[]][] ) {
-						for ( let data of data_ ) {
-							me.data[data[0].id] = [data[0], data[1]];
-						}
-						me.loading = false;
-						me._state.next( me._state.getValue() | State.DATA_RECEIVED );
-					} )
-				;
+		}
+		if ( this.widget.sources.length > 0 ) {
+			this.invalid = false;
+			this._state.next( this._state.getValue() | State.DATA_RECEIVED );
+		} else {
+			if ( !! this._chart ) {
+				this._chart.destroy();
+				delete this._chart;
 			}
-		} );
+			this.invalid = true;
+		}
 	};
 
 	public ngAfterViewInit() {
@@ -343,31 +388,33 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	};
 
 	public addSource( device_id_: number ) {
-		var me = this;
-		me._devicesService.getDevice( device_id_ )
-			.subscribe( function( device_: Device ) {
-				me.data[device_id_] = [device_,[]];
-				let source: Source = {
-					device_id: +device_id_,
-					properties: {
-						color: 'blue'
-					}
-				};
-				me.widget.sources.push( source );
-			} )
-		;
+		this.widget.sources.push( {
+			device_id: +device_id_,
+			properties: {
+				color: 'blue'
+			}
+		} );
+		this.data.push( {
+			device: this.devices.find( device_ => device_.id == device_id_ ),
+			data: []
+		} );
 	};
 
 	public removeSource( source_: Source ) {
 		let index: number = this.widget.sources.indexOf( source_ );
 		if ( index > -1 ) {
 			this.widget.sources.splice( index, 1 );
+			this.data.splice( index, 1 );
 		}
 	};
 
-	public save() {
+	public save( reload_: boolean = true ) {
 		this.onAction.emit( 'save' );
+		this.title = this.widget.name;
 		this.parent.editing = false;
+		if ( reload_ ) {
+			this.onAction.emit( 'reload' );
+		}
 	};
 
 	public delete() {

@@ -63,6 +63,29 @@ namespace micasa {
 		return result.str();
 	};
 
+	std::string stringFormat( const std::string format_, ... ) {
+		int size = 100;
+		std::string str;
+		va_list ap;
+		while (1) {
+			str.resize( size );
+			va_start( ap, format_ );
+			int n = vsnprintf( &str[0], size, format_.c_str(), ap );
+			va_end( ap );
+			if (
+				n > -1
+				&& n < size
+			) {
+				return str;
+			}
+			if ( n > -1 ) {
+				size = n + 1;
+			} else {
+				size *= 2;
+			}
+		}		
+	};
+
 	std::string randomString( size_t length_ ) {
 		auto randchar = []() -> char {
 			const char charset[] =

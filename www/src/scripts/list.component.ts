@@ -22,7 +22,6 @@ import {
 
 export class ScriptsListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public scripts: Script[];
 	public startPage: number = 1;
@@ -51,12 +50,12 @@ export class ScriptsListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectScript( script_: Script ) {
-		this.loading = true;
+		this._scriptsService.returnUrl = this._router.url;
 		this._router.navigate( [ '/scripts', script_.id ] );
 	};
 
 	public addScript() {
-		this.loading = true;
+		this._scriptsService.returnUrl = this._router.url;
 		this._router.navigate( [ '/scripts', 'add' ] );
 	};
 

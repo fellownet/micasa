@@ -25,12 +25,12 @@ import {
 
 export class HardwareListComponent implements OnInit, OnDestroy {
 
-	public loading: boolean = false;
 	public error: String;
 	public hardware: Hardware[];
 	public startPage: number = 1;
 
 	@Input() public parent?: Hardware;
+
 	@ViewChild(GridPagingComponent) private _paging: GridPagingComponent;
 
 	public constructor(
@@ -63,24 +63,19 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	};
 
 	public selectHardware( hardware_: Hardware ) {
-		this.loading = true;
-		if ( this.parent ) {
-			this._router.navigate( [ '/hardware', this.parent.id, hardware_.id, 'edit' ] );
-		} else {
-			this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
-		}
+		this._hardwareService.returnUrl = this._router.url;
+		this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 	};
 
 	public addHardware( type_: string ) {
 		var me = this;
-		me.loading = true;
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
 				function( hardware_: Hardware ) {
+					me._hardwareService.returnUrl = this._router.url;
 					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
 				function( error_: string ) {
-					me.loading = false;
 					me.error = error_;
 				}
 			)

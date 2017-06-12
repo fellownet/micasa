@@ -214,6 +214,36 @@ label span.mandatory {
 	margin-top: -7px;
 }
 
+.loading-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 999999;
+}
+.loading-overlay div {
+	top: 50%;
+	left: 50%;
+	margin-left: -100px;
+	margin-top: -100px;
+	width: 200px;
+	height: 200px;
+	background: rgba(0, 0, 0, 0.45);
+	position: relative;
+	border-radius: 3px;
+	border-top: 3px solid rgba(0, 0, 0, 0.2);
+}
+.loading-overlay div .fa {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	margin-left: -15px;
+	margin-top: -15px;
+	color: #FFF;
+	font-size: 35px;
+}
+
 /* content */
 
 .content {
@@ -336,10 +366,6 @@ label span.mandatory {
 	font-family: 'Helvetica Narrow', 'Arial Narrow', 'Helvetica', 'Arial', sans-serif;
 	font-weight: 500;
 }
-.content .box-header .box-title.empty {
-	color: #AAA;
-	font-style: italic;
-}
 .content .box-header button.pull-right,
 .content .box-header a.pull-right {
 	margin-left: 5px;
@@ -440,27 +466,6 @@ label span.mandatory {
 	padding-right: 5px;
 	padding-bottom: 10px;
 }
-.content .box-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-
-	z-index: 50;
-	background: rgba(255, 255, 255, 0.7);
-	border-radius: 3px;
-}
-.content .box-overlay > .fa {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	margin-left: -15px;
-	margin-top: -15px;
-	color: #000;
-	font-size: 35px;
-}
-
 .content .box.bg-aqua {
 	background-color: #00c0ef;
 }
@@ -513,7 +518,7 @@ label span.mandatory {
 
 .callout {
 	border-radius: 3px;
-	margin: 0 0 20px 0;
+	margin: 0 0 15px 0;
 	padding: 15px 15px 15px 15px;
 	border-left: 5px solid #eee;
 	color: #FFF;
@@ -691,24 +696,21 @@ form .table tr td {
 
 /* widgets */
 
-.content .box-body.switch .table td,
 .content .box-body.latest .table td {
 	border: 0;
 	text-align: center;
 	color: #FFF;
 	font-size: 30px;
 }
-.content .box-body.switch .table td i,
 .content .box-body.latest .table td i {
 	font-size: 45px;
 	color: rgba( 0, 0, 0, 0.3 );
 }
-.content .box-body.switch {
-	cursor: pointer;
-}
-.content .box-body.switch td.minimum,
 .content .box-body.latest td.minimum {
 	width: 25%;
+}
+.content .box-body.switch {
+	cursor: pointer;
 }
 
 /* script editor */

@@ -19,6 +19,7 @@ export class Hardware {
 export class HardwareService {
 
 	public lastPage: any = {};
+	public returnUrl?: string;
 
 	public constructor(
 		private _sessionService: SessionService
@@ -48,21 +49,12 @@ export class HardwareService {
 		} );
 	};
 
-	public deleteHardware( hardware_: Hardware ): Observable<boolean> {
+	public deleteHardware( hardware_: Hardware ): Observable<Hardware> {
 		return this._sessionService.http<any>( 'delete', 'hardware/' + hardware_.id )
 			.map( function( result_: any ) {
-				return true; // failures do not end up here
+				return hardware_;
 			} )
 		;
 	};
 
-	public performAction( hardware_: Hardware, device_: Device ): Observable<boolean> {
-		var value: String = 'Activate';
-		if ( device_.value == 'Disabled' ) {
-			value = 'Enabled';
-		}
-		return this._sessionService.http<any>( 'patch', 'devices/' + device_.id, {
-			value: value
-		} );
-	};
 }
