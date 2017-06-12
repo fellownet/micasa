@@ -969,7 +969,7 @@ namespace micasa {
 								{ "value", (*devicesIt)->getId() },
 								{ "label", (*devicesIt)->getName() }
 							};
-							if ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::LINK ) == Device::UpdateSource::LINK ) {
+							if ( ( updateSources & Device::UpdateSource::LINK ) == Device::UpdateSource::LINK ) {
 								targetDevices += {
 									{ "value", (*devicesIt)->getId() },
 									{ "label", (*devicesIt)->getName() }

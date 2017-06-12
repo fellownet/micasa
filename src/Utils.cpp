@@ -63,7 +63,7 @@ namespace micasa {
 		return result.str();
 	};
 
-	std::string stringFormat( const std::string& format_, ... ) {
+	std::string stringFormat( const std::string format_, ... ) {
 		int size = 100;
 		std::string str;
 		va_list ap;
