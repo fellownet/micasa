@@ -40,9 +40,9 @@ export class DevicesService {
 
 	public getDevices( hardwareId_?: number, scriptId_?: number ): Observable<Device[]> {
 		let resource: string = 'devices';
-		if ( hardwareId_ ) {
+		if ( !! hardwareId_ ) {
 			resource += '?hardware_id=' + hardwareId_;
-		} else if ( scriptId_ ) {
+		} else if ( !! scriptId_ ) {
 			resource += '?enabled=1&script_id=' + scriptId_;
 		} else {
 			resource += '?enabled=1';

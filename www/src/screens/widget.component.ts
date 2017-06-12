@@ -8,7 +8,8 @@ import { Observable }     from 'rxjs/Observable';
 import {
 	Screen,
 	ScreensService,
-	Widget
+	Widget,
+	SourceData
 }                         from './screens.service';
 import {
 	Device
@@ -19,17 +20,26 @@ import {
 	templateUrl: 'tpl/widget.html'
 } )
 
-export class WidgetComponent {
+export class WidgetComponent implements OnInit {
 
 	public error?: string;
+	public editing: boolean = false;
+	public data: SourceData[];
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
+	@Input( 'data' ) public _data: SourceData[];
 	@Input( 'devices' ) public devices: Device[];
 
 	public constructor(
 		private _screensService: ScreensService
 	) {
+	};
+
+	public ngOnInit() {
+		// The input data property does not update when, for instance, a widget is removed, causing the wrong data to
+		// be used for the widgets that are shifted in the widgets array.
+		this.data = this._data;
 	};
 
 	public get classes(): any {
@@ -42,6 +52,10 @@ export class WidgetComponent {
 			'col-lg-6': this.widget.size == 'medium',
 			'col-lg-4': this.widget.size == 'small'
 		};
+	};
+
+	public get self(): WidgetComponent {
+		return this;
 	};
 
 	public onAction( action_: string ): void {
@@ -63,9 +77,7 @@ export class WidgetComponent {
 				}
 				break;
 			case 'reload':
-				this._screensService.getDevicesOnScreen( this.screen )
-					.subscribe( devices_ => this.devices = devices_ )
-				;
+				this._screensService.getDataForWidget( this.widget ).subscribe( data_ => this.data = data_ );
 				break;
 			case 'type_change':
 				switch( this.widget.type ) {

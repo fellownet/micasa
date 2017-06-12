@@ -1,18 +1,24 @@
-<div class="box">
+<div class="callout callout-danger" *ngIf="invalid">
+	<button type="button" (click)="delete()" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
+	<h4>Error!</h4>
+	<p>The widget is not valid.</p>
+</div>
+
+<div class="box" *ngIf="! invalid">
 	<div class="box-header with-border">
-		<div class="box-tools" *ngIf="! editing">
+		<div class="box-tools" *ngIf="! parent.editing">
 			<button type="button" *ngIf="!! screen.id" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
-			<button type="button" *ngIf="!! screen.id" (click)="editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
+			<button type="button" *ngIf="!! screen.id" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			<button type="button" (click)="reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
 		</div>
 		<h3 class="box-title">{{ title }}</h3>
 	</div>
 
 	<!-- view -->
-	<div class="box-body no-padding chart" *ngIf="! editing" #chartTarget></div>
+	<div class="box-body no-padding chart" *ngIf="! parent.editing" #chartTarget></div>
 
 	<!-- edit -->
-	<form role="form" *ngIf="editing" (ngSubmit)="save()" #widgetForm="ngForm">
+	<form role="form" *ngIf="parent.editing" (ngSubmit)="save()" #widgetForm="ngForm">
 
 	<div class="box-body">
 		<div class="form-group" [class.has-error]="! namefield.valid && ! namefield.pristine">
@@ -25,11 +31,11 @@
 				<div class="form-group">
 					<label for="typefield">Type<span class="mandatory"> *</span></label>
 					<select class="form-control" id="typefield" required [(ngModel)]="widget.type" name="type" (change)="changeType()">
-						<option value="chart" *ngIf="( device.type == 'level' || device.type == 'counter' )">Chart</option>
-						<option value="gauge" *ngIf="device.type == 'level'">Gauge</option>
+						<option value="chart" *ngIf="( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Chart</option>
+						<option value="gauge" *ngIf="data[0].device.type == 'level'">Gauge</option>
 						<option value="latest">Latest</option>
-						<option value="switch" *ngIf="device.type=='switch'">Switch</option>
-						<option value="table" *ngIf="! ( device.type == 'level' || device.type == 'counter' )">Table</option>
+						<option value="switch" *ngIf="data[0].device.type == 'switch' && ! data[0].device.readonly">Switch</option>
+						<option value="table" *ngIf="! ( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Table</option>
 					</select>
 				</div>
 			</div>
@@ -78,8 +84,8 @@
 	</tr>
 </thead>
 <tbody>
-	<tr *ngFor="let source of widget.sources">
-		<td *ngIf="!! data[source.device_id]">{{ data[source.device_id][0].name }}</td>
+	<tr *ngFor="let source of widget.sources; let i = index">
+		<td>{{ data[i].device.name }}</td>
 		<td class="right">
 			<select class="form-control" required [(ngModel)]="source.properties.color" name="{{ source.device_id + '_name' }}">
 				<option value="aqua">Aqua</option>

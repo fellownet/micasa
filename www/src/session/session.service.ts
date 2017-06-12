@@ -51,7 +51,7 @@ export class SessionService {
 	public session: Observable<Session> = this._session.asObservable();
 	public events: Observable<any> = this._events.asObservable();
 	public loading: Observable<boolean> = this._loading.asObservable()
-		.debounceTime( 250 )
+		.debounceTime( 200 )
 		.merge(
 			// The value 1 is allowed to pass regardless of the debounce timer which ensures that loading indicators
 			// pop up immediately once the first http request starts.

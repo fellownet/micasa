@@ -117,7 +117,7 @@ export class DeviceEditComponent implements OnInit {
 		switch( me.device.type ) {
 			case 'switch':
 				widget = {
-					type: 'switch',
+					type: me.device.readonly ? 'latest' : 'switch',
 					size: 'small',
 					name: me.device.name,
 					properties: {
@@ -185,7 +185,7 @@ export class DeviceEditComponent implements OnInit {
 
 		screen_.widgets.push( widget );
 		me._screensService.putScreen( screen_ )
-			.subscribe( function( screens_: Screen[] ) {
+			.subscribe( function() {
 				if ( screen_.id == 1 ) {
 					me._router.navigate( [ '/dashboard' ] );
 				} else {

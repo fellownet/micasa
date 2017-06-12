@@ -13,7 +13,8 @@ import { Observable }     from 'rxjs/Observable';
 
 import {
 	Screen,
-	Widget
+	Widget,
+	SourceData
 }                         from '../screens.service';
 import {
 	WidgetComponent
@@ -33,16 +34,16 @@ export class WidgetLatestComponent implements OnInit, OnChanges, OnDestroy {
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) public sourceDevices: Device[];
+	@Input( 'data' ) public data: SourceData[];
+	@Input( 'devices' ) public devices: Device[];
+	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
 
 	private _active: boolean = true;
 
-	public editing: boolean = false;
+	public invalid: boolean = false;
 	public title: string;
-	public device: Device; // the first and only source
-	public devices: Device[]; // used in the device dropdown while editing
 
 	public constructor(
 		private _devicesService: DevicesService,
@@ -53,31 +54,31 @@ export class WidgetLatestComponent implements OnInit, OnChanges, OnDestroy {
 	public ngOnInit() {
 		var me = this;
 
-		me.device = me.sourceDevices[me.widget.sources[0].device_id];
 		me.title = me.widget.name;
-
-		me._devicesService.getDevices().subscribe( devices_ => me.devices = devices_ );
 
 		// Listen for events broadcasted from the session service.
 		me._sessionService.events
 			.takeWhile( () => me._active )
-			.filter( event_ => !! me.device && event_.device_id == me.device.id )
+			.filter( event_ => ! this.invalid && event_.device_id == me.data[0].device.id )
 			.subscribe( function( event_: any ) {
-				me.device.value = event_.value;
-				me.device.age = 0;
+				me.data[0].device.value = event_.value;
+				me.data[0].device.age = 0;
 			} )
 		;
 
 		Observable.interval( 1000 )
 			.takeWhile( () => me._active )
-			.filter( () => !! me.device )
-			.subscribe( () => me.device.age++ )
+			.filter( () => ! this.invalid )
+			.subscribe( () => this.data[0].device.age++ )
 		;
 	};
 
 	public ngOnChanges() {
 		var me = this;
-		me.device = me.sourceDevices[me.widget.sources[0].device_id];
+		this.invalid = (
+			! this.data[0]
+			|| ! this.data[0].device
+		);
 	};
 
 	public ngOnDestroy() {
@@ -87,7 +88,7 @@ export class WidgetLatestComponent implements OnInit, OnChanges, OnDestroy {
 	public save() {
 		this.onAction.emit( 'save' );
 		this.title = this.widget.name;
-		this.editing = false;
+		this.parent.editing = false;
 	};
 
 	public delete() {

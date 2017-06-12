@@ -11,6 +11,7 @@ import { Observable }     from 'rxjs/Observable';
 import {
 	Widget,
 	Source,
+	SourceData,
 	Screen
 }                         from './screens.service';
 import {
@@ -24,7 +25,8 @@ import {
 export class ScreenComponent implements OnInit {
 
 	public screen: Screen;
-	public devices: Device[] = [];
+	public devices: Device[];
+	public data: SourceData[][];
 
 	public constructor(
 		private _router: Router,
@@ -36,8 +38,15 @@ export class ScreenComponent implements OnInit {
 		var me = this;
 
 		this._route.data.subscribe( function( data_: any ) {
+
 			me.screen = data_.payload.screen;
+			me.data = data_.payload.data;
 			me.devices = data_.payload.devices;
+
+
+
+
+/*
 
 			// Let's do some housekeeping and remove sources without valid devices and widgets without valid sources.
 			// NOTE To be able to remove items while iterating we're iterating backwards.
@@ -52,6 +61,7 @@ export class ScreenComponent implements OnInit {
 					me.screen.widgets.splice( i, 1 );
 				}
 			}
+*/
 		} );
 	};
 

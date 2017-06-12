@@ -16,7 +16,8 @@ import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import {
 	Screen,
 	Widget,
-	Source
+	Source,
+	SourceData
 }                          from '../screens.service';
 import {
 	Device,
@@ -30,8 +31,7 @@ const Highcharts = require( 'highcharts/highcharts.src.js' );
 enum State {
 	CREATED          = (1 << 0),
 	DATA_RECEIVED    = (1 << 1),
-	DEVICES_RECEIVED = (1 << 2),
-	VIEW_READY       = (1 << 3)
+	VIEW_READY       = (1 << 2)
 };
 
 @Component( {
@@ -43,7 +43,9 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
-	@Input( 'devices' ) public sourceDevices: Device[];
+	@Input( 'data' ) public data: SourceData[];
+	@Input( 'devices' ) public devices: Device[];
+	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
 
@@ -66,11 +68,8 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		gray  : '#AAAAAA'
 	}
 
-	public editing: boolean = false;
+	public invalid: boolean = false;
 	public title: string;
-	public device: Device; // the first source
-	public devices: Device[]; // used in the device dropdown while editing
-	public data: any = {}; // key = device_id, value = [Device,any[]] tuple
 
 	public constructor(
 		private _devicesService: DevicesService
@@ -80,7 +79,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	public ngOnInit() {
 		var me = this;
 
-		me.device = me.sourceDevices[me.widget.sources[0].device_id];
 		me.title = me.widget.name;
 
 		Highcharts.setOptions( {
@@ -92,17 +90,10 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 			}
 		} );
 
-		me._devicesService.getDevices()
-			.do( function() {
-				me._state.next( me._state.getValue() | State.DEVICES_RECEIVED );
-			} )
-			.subscribe( devices_ => me.devices = devices_ )
-		;
-
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
 		me._state.subscribe( function( state_: number ) {
-			if ( ( state_ & ( State.DATA_RECEIVED | State.DEVICES_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.DEVICES_RECEIVED | State.VIEW_READY ) ) {
+			if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
 				if ( !! me._chart ) {
 					me._chart.destroy();
 				}
@@ -174,10 +165,12 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 				let yAxis: number = -1;
 				let lastUnit:string = null;
 				let serie:number = -1;
-				for ( let source of me.widget.sources ) {
 
-					let device: Device = me.data[source.device_id][0];
-					let data: any[] = me.data[source.device_id][1];
+				// TODO sort sources by device unit
+
+				me.widget.sources.forEach( function( source_: Source, i_: number ) {
+					let device: Device = me.data[i_].device;
+					let data: any[] = me.data[i_].data;
 
 					// If the device type is 'level' or 'counter', series are added. Switch and text devices are added
 					// as plotlines instead.
@@ -186,28 +179,27 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 						|| device.type == 'level'
 					) {
 						if ( device.unit != lastUnit ) {
+							if ( ++yAxis > 1 ) {
+								return false;
+							}
 							lastUnit = device.unit;
-							yAxis++;
 							config.yAxis[yAxis].title = {
 								text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
 							};
 						}
-						if ( yAxis > 1 ) {
-							break;
-						}
 
 						let range: boolean = (
 							data.length > 0
-							&& source.properties.range
+							&& source_.properties.range
 							&& 'minimum' in data[0]
 							&& 'maximum' in data[0]
 						);
 
 						config.series[++serie] = {
 							data: [],
-							visible: !source.properties.hidden,
+							visible: ! source_.properties.hidden,
 							name: device.name,
-							color: me._colors[source.properties.color || 'aqua'],
+							color: me._colors[source_.properties.color || 'aqua'],
 							yAxis: yAxis,
 							type: device.type == 'level' || [ 'month', 'year' ].indexOf( me.widget.interval ) > -1 ? 'spline' : 'column',
 							tooltip: {
@@ -215,7 +207,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							},
 							events: {
 								hide: function() {
-									source.properties.hidden = true;
+									source_.properties.hidden = true;
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].hide();
 									}
@@ -224,7 +216,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									}
 								},
 								show: function() {
-									source.properties.hidden = false;
+									source_.properties.hidden = false;
 									if ( range ) {
 										this.chart.series[1 + this.chart.series.indexOf( this )].show();
 									}
@@ -255,7 +247,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 						if ( range ) {
 							config.series[++serie] = {
 								data: [],
-								color: me._colors[source.properties.color || 'aqua'],
+								color: me._colors[source_.properties.color || 'aqua'],
 								yAxis: yAxis,
 								type: 'areasplinerange',
 								showInLegend: false,
@@ -278,7 +270,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 						// Add trendline.
 						if (
 							data.length > 2
-							&& source.properties.trendline
+							&& source_.properties.trendline
 						) {
 							var ii = 0, x, y, x0, x1, y0, y1, dx,
 								m = 0, b = 0, cs, ns,
@@ -312,7 +304,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									[ x1 * 1000, y1 ]
 								],
 								name: 'trendline',
-								color: me._colors[source.properties.trendline_color || 'red'],
+								color: me._colors[source_.properties.trendline_color || 'red'],
 								yAxis: yAxis,
 								type: 'line',
 								zIndex: 2,
@@ -334,13 +326,13 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					) {
 						for ( let point of data ) {
 							config.xAxis.plotLines.push( {
-								color: me._colors[source.properties.color || 'aqua'],
+								color: me._colors[source_.properties.color || 'aqua'],
 								value: point.timestamp * 1000,
 								width: 2,
 								label: {
 									text: point.value,
 									style: {
-										color: me._colors[source.properties.color || 'aqua'],
+										color: me._colors[source_.properties.color || 'aqua'],
 										fontSize: 10,
 										fontWeight: 'bold'
 									}
@@ -348,7 +340,9 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							} );
 						}
 					}
-				}
+
+					return true;
+				} );
 
 				// Skip a render pass before drawing the chart.
 				setTimeout( function() {
@@ -361,68 +355,26 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	};
 
 	public ngOnChanges() {
-		var me = this;
-		me.device = me.sourceDevices[me.widget.sources[0].device_id];
-		let observables: Observable<[Device,any[]]>[] = [];
-		for ( let source of me.widget.sources ) {
-			let device: Device = me.sourceDevices[source.device_id];
-			switch( device.type ) {
-				case 'switch':
-				case 'text':
-					observables.push(
-						me._devicesService.getData( device.id, {
-							range: me.widget.range,
-							interval: me.widget.interval
-						} )
-						.map( function( data_: any ) {
-							return [ device, data_ ];
-						} )
-					);
-					break;
-				
-				case 'level':
-					observables.push(
-						me._devicesService.getData( device.id, {
-							group:
-								[ '5min', '5min', 'hour', 'day', 'day' ][
-									[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-								],
-							range: me.widget.range,
-							interval: me.widget.interval
-						} )
-						.map( function( data_: any ) {
-							return [ device, data_ ];
-						} )
-					);
-					break;
-
-				case 'counter':
-					observables.push(
-						me._devicesService.getData( device.id, {
-							group:
-								[ 'hour', 'hour', 'day', 'day', 'day' ][
-									[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( me.widget.interval )
-								],
-							range: me.widget.range,
-							interval: me.widget.interval
-						} )
-						.map( function( data_: any ) {
-							return [ device, data_ ];
-						} )
-					);
-					break;
+		// We're doing some housekeeping here. Instead of invalidating the entire chart is a device is removed, the
+		// invalid source is removed. If there are no valid sources left, then the widget is marked invalid.
+		for ( var j = this.widget.sources.length; j--; ) {
+			let source: Source = this.widget.sources[j];
+			if (
+				! this.data[j].data
+				|| ! this.data[j].device
+			) {
+				this.widget.sources.splice( j, 1 );
 			}
 		}
-		if ( observables.length > 0 ) {
-			Observable
-				.forkJoin( observables )
-				.subscribe( function( data_: [Device,any[]][] ) {
-					for ( let data of data_ ) {
-						me.data[data[0].id] = [data[0], data[1]];
-					}
-					me._state.next( me._state.getValue() | State.DATA_RECEIVED );
-				} )
-			;
+		if ( this.widget.sources.length > 0 ) {
+			this.invalid = false;
+			this._state.next( this._state.getValue() | State.DATA_RECEIVED );
+		} else {
+			if ( !! this._chart ) {
+				this._chart.destroy();
+				delete this._chart;
+			}
+			this.invalid = true;
 		}
 	};
 
@@ -436,32 +388,30 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	};
 
 	public addSource( device_id_: number ) {
-		var me = this;
-		me._devicesService.getDevice( device_id_ )
-			.subscribe( function( device_: Device ) {
-				me.data[device_id_] = [device_,[]];
-				let source: Source = {
-					device_id: +device_id_,
-					properties: {
-						color: 'blue'
-					}
-				};
-				me.widget.sources.push( source );
-			} )
-		;
+		this.widget.sources.push( {
+			device_id: +device_id_,
+			properties: {
+				color: 'blue'
+			}
+		} );
+		this.data.push( {
+			device: this.devices.find( device_ => device_.id == device_id_ ),
+			data: []
+		} );
 	};
 
 	public removeSource( source_: Source ) {
 		let index: number = this.widget.sources.indexOf( source_ );
 		if ( index > -1 ) {
 			this.widget.sources.splice( index, 1 );
+			this.data.splice( index, 1 );
 		}
 	};
 
 	public save( reload_: boolean = true ) {
 		this.onAction.emit( 'save' );
 		this.title = this.widget.name;
-		this.editing = false;
+		this.parent.editing = false;
 		if ( reload_ ) {
 			this.onAction.emit( 'reload' );
 		}
