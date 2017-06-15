@@ -70,7 +70,7 @@
 		<div class="form-group">
 			<label for="devicefield">Device<span class="mandatory"> *</span></label>
 			<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
-				<ng-container *ngFor="let device of devices | sort:'name'">
+				<ng-container *ngFor="let device of devices | async | sort:'name'">
 					<option value="{{ device.id }}">{{ device.name }}</option>
 				</ng-container>
 			</select>

@@ -43,25 +43,6 @@ export class DevicesService {
 		return this._sessionService.http<Device[]>( 'get', resource, options_ );
 	};
 
-/*
-	public getDevices( hardwareId_?: number, scriptId_?: number ): Observable<Device[]> {
-		let resource: string = 'devices';
-		if ( !! hardwareId_ ) {
-			resource += '?hardware_id=' + hardwareId_;
-		} else if ( !! scriptId_ ) {
-			resource += '?enabled=1&script_id=' + scriptId_;
-		} else {
-			resource += '?enabled=1';
-		}
-		return this._sessionService.http<Device[]>( 'get', resource );
-	};
-
-	public getDevicesByIds( deviceIds_: number[] ): Observable<Device[]> {
-		let resource: string = 'devices?enabled=1&device_ids=' + deviceIds_.join( ',' );
-		return this._sessionService.http<Device[]>( 'get', resource );
-	};
-*/
-
 	public getDevice( id_: number ): Observable<Device> {
 		return this._sessionService.http<Device>( 'get', 'devices/' + id_ );
 	};

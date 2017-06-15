@@ -59,25 +59,19 @@ export class ScreenResolver implements Resolve<Screen> {
 									.catch( () => Observable.of( null ) )
 							);
 						} );
-
-						let dataObservable: Observable<SourceData[][]>;
 						if ( observables.length > 0 ) {
-							dataObservable = Observable.forkJoin( observables, function( ... args ) {
+							return Observable.forkJoin( observables, function( ... args ) {
 								let result: SourceData[][] = [];
 								for ( let data of args as [number, SourceData[]][] ) {
 									if ( !! data ) { // filters out null's (see catch notes)
 										result[data[0]] = data[1];
 									}
 								}
-								return result;
+								return { screen: screen_, data: result };
 							} );
 						} else {
-							dataObservable = Observable.of( [] );
+							return Observable.of( { screen: screen_, data: [] } );
 						}
-						let devicesObservable: Observable<Device[]> = this._devicesService.getDevices( { light: 1 } );
-						return Observable.forkJoin( dataObservable, devicesObservable, function( data_: SourceData[][], devices_: Device[] ) {
-							return { screen: screen_, data: data_, devices: devices_ };
-						} );
 					} )
 				;
 			} )

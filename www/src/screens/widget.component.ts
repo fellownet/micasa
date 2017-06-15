@@ -25,7 +25,6 @@ export class WidgetComponent implements OnInit {
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public _data: SourceData[];
-	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 
 	public constructor(
 		private _router: Router,

@@ -1,11 +1,11 @@
 <div [ngClass]="classes">
 
 	<ng-container [ngSwitch]="widget.type">
-		<gaugewidget *ngSwitchCase="'gauge'" [screen]="screen" [widget]="widget" [data]="data" [devices]="devices" [parent]="self" (onAction)="onAction( $event )"></gaugewidget>
-		<chartwidget *ngSwitchCase="'chart'" [screen]="screen" [widget]="widget" [data]="data" [devices]="devices" [parent]="self" (onAction)="onAction( $event )"></chartwidget>
-		<switchwidget *ngSwitchCase="'switch'" [screen]="screen" [widget]="widget" [data]="data" [devices]="devices" [parent]="self" (onAction)="onAction( $event )"></switchwidget>
-		<latestwidget *ngSwitchCase="'latest'" [screen]="screen" [widget]="widget" [data]="data" [devices]="devices" [parent]="self" (onAction)="onAction( $event )"></latestwidget>
-		<tablewidget *ngSwitchCase="'table'" [screen]="screen" [widget]="widget" [data]="data" [devices]="devices" [parent]="self" (onAction)="onAction( $event )"></tablewidget>
+		<gaugewidget *ngSwitchCase="'gauge'" [screen]="screen" [widget]="widget" [data]="data" [parent]="self" (onAction)="onAction( $event )"></gaugewidget>
+		<chartwidget *ngSwitchCase="'chart'" [screen]="screen" [widget]="widget" [data]="data" [parent]="self" (onAction)="onAction( $event )"></chartwidget>
+		<switchwidget *ngSwitchCase="'switch'" [screen]="screen" [widget]="widget" [data]="data" [parent]="self" (onAction)="onAction( $event )"></switchwidget>
+		<latestwidget *ngSwitchCase="'latest'" [screen]="screen" [widget]="widget" [data]="data" [parent]="self" (onAction)="onAction( $event )"></latestwidget>
+		<tablewidget *ngSwitchCase="'table'" [screen]="screen" [widget]="widget" [data]="data" [parent]="self" (onAction)="onAction( $event )"></tablewidget>
 	</ng-container>
 
 </div>

@@ -21,7 +21,8 @@ import {
 	Widget
 }                          from '../screens.service';
 import {
-	Device
+	Device,
+	DevicesService
 }                          from '../../devices/devices.service';
 import { SessionService }  from '../../session/session.service';
 import { WidgetComponent } from '../widget.component';
@@ -36,7 +37,6 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -45,17 +45,20 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public invalid: boolean = false;
 	public title: string;
+	public devices: Observable<{ id: number, name: string, type: string }[]>;
 
 	public constructor(
 		private _router: Router,
-		private _sessionService: SessionService
+		private _sessionService: SessionService,
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
 		this.title = this.widget.name;
-
-		this.devices = this.devices.filter( device_ => device_.type != 'level' && device_.type != 'counter' );
+		this.devices = this._devicesService.getDevices( { enabled: 1 } )
+			.map( devices_ => devices_.filter( device_ => device_.type != 'level' && device_.type != 'counter' ) )
+		;
 
 		// Listen for events broadcasted from the session service.
 		this._sessionService.events

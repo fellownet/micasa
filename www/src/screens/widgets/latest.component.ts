@@ -26,7 +26,8 @@ import {
 	WidgetComponent
 }                          from '../widget.component';
 import {
-	Device
+	Device,
+	DevicesService
 }                          from '../../devices/devices.service'
 import { SessionService }  from '../../session/session.service';
 
@@ -49,7 +50,6 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -75,16 +75,19 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 
 	public invalid: boolean = false;
 	public title: string;
+	public devices: Observable<{ id: number, name: string, type: string }[]>;
 
 	public constructor(
 		private _router: Router,
 		private _zone: NgZone,
-		private _sessionService: SessionService
+		private _sessionService: SessionService,
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
 		this.title = this.widget.name;
+		this.devices = this._devicesService.getDevices( { enabled: 1 } );
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.

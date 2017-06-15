@@ -24,7 +24,8 @@ import {
 	SourceData
 }                          from '../screens.service';
 import {
-	Device
+	Device,
+	DevicesService
 }                          from '../../devices/devices.service';
 import { WidgetComponent } from '../widget.component';
 
@@ -47,7 +48,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -73,15 +73,18 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public invalid: boolean = false;
 	public title: string;
+	public devices: Observable<{ id: number, name: string, type: string }[]>;
 
 	public constructor(
 		private _router: Router,
-		private _zone: NgZone
+		private _zone: NgZone,
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
 		this.title = this.widget.name;
+		this.devices = this._devicesService.getDevices( { enabled: 1 } );
 
 		Highcharts.setOptions( {
 			global: {
@@ -432,19 +435,21 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 	};
 
 	public addSource( device_id_: number ) {
-		this.widget.sources.push( {
-			device_id: +device_id_,
-			properties: {
-				color: 'blue'
-			}
-		} );
-		this.data.push( {
-			// NOTE we're casting the id/name pair to a real device here, which is kind-of ugly. It works because the
-			// template only uses the name.
-			device: this.devices.find( device_ => device_.id == device_id_ ) as Device,
-			data: [],
-			config: {}
-		} );
+		this._devicesService.getDevice( device_id_ )
+			.subscribe( device_ => {
+				this.widget.sources.push( {
+					device_id: +device_id_,
+					properties: {
+						color: 'blue'
+					}
+				} );
+				this.data.push( {
+					device: device_,
+					data: [],
+					config: {}
+				} );
+			} )
+		;
 	};
 
 	public removeSource( source_: Source ) {

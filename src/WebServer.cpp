@@ -727,78 +727,67 @@ namespace micasa {
 								);
 							}
 						} else {
-							auto find = input_.find( "light" );
-							if ( find != input_.end() ) {
-								output_["data"] = g_database->getQuery<json>(
-									"SELECT d.`id`, CASE WHEN s.`value` IS NULL THEN d.`label` ELSE s.`value` END AS `name`, d.`type` "
-									"FROM `devices` d LEFT JOIN `device_settings` s "
-									"ON d.`id`=s.`device_id` "
-									"WHERE d.`enabled`=1 "
-									"AND s.`key`='name'"
-								);
-							} else {
-								output_["data"] = json::array();
+							output_["data"] = json::array();
 
-								// The list of devices can be filtered using various filters. Non-installers have a
-								// mandatory filter on enabled.
-								std::shared_ptr<Hardware> hardware = nullptr;
-								bool deviceIdsFilter = false;
-								std::vector<std::string> deviceIds;
-								bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER );
-								bool enabled = true;
+							// The list of devices can be filtered using various filters. Non-installers have a
+							// mandatory filter on enabled.
+							std::shared_ptr<Hardware> hardware = nullptr;
+							bool deviceIdsFilter = false;
+							std::vector<std::string> deviceIds;
+							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER );
+							bool enabled = true;
 
-								if ( user_->getRights() >= User::Rights::INSTALLER ) {
-									try {
-										hardware = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
-										if ( hardware == nullptr ) {
-											throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
-										}
-									} catch( std::runtime_error exception_ ) { /* ignore */ }
-
-									try {
-										deviceIds = g_database->getQueryColumn<std::string>(
-											"SELECT DISTINCT `device_id` "
-											"FROM `x_device_scripts` "
-											"WHERE `script_id`=%d "
-											"ORDER BY `device_id` ASC",
-											jsonGet<unsigned int>( input_, "script_id" )
-										);
-										deviceIdsFilter = true;
-									} catch( std::runtime_error exception_ ) { /* ignore */ }
-
-									try {
-										enabled = jsonGet<bool>( input_, "enabled" );
-										enabledFilter = true;
-									} catch( std::runtime_error exception_ ) { /* ignore */ }
-								}
+							if ( user_->getRights() >= User::Rights::INSTALLER ) {
+								try {
+									hardware = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
+									if ( hardware == nullptr ) {
+										throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
+									}
+								} catch( std::runtime_error exception_ ) { /* ignore */ }
 
 								try {
-									auto additionalDeviceIds = stringSplit( jsonGet<std::string>( input_, "device_ids" ), ',' );
-									deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
+									deviceIds = g_database->getQueryColumn<std::string>(
+										"SELECT DISTINCT `device_id` "
+										"FROM `x_device_scripts` "
+										"WHERE `script_id`=%d "
+										"ORDER BY `device_id` ASC",
+										jsonGet<unsigned int>( input_, "script_id" )
+									);
 									deviceIdsFilter = true;
 								} catch( std::runtime_error exception_ ) { /* ignore */ }
-								
-								auto devices = g_controller->getAllDevices();
-								for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
-									if ( enabledFilter ) {
-										if ( enabled && ! (*deviceIt)->isEnabled() ) {
-											continue;
-										}
-										if ( ! enabled && (*deviceIt)->isEnabled() ) {
-											continue;
-										}
+
+								try {
+									enabled = jsonGet<bool>( input_, "enabled" );
+									enabledFilter = true;
+								} catch( std::runtime_error exception_ ) { /* ignore */ }
+							}
+
+							try {
+								auto additionalDeviceIds = stringSplit( jsonGet<std::string>( input_, "device_ids" ), ',' );
+								deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
+								deviceIdsFilter = true;
+							} catch( std::runtime_error exception_ ) { /* ignore */ }
+							
+							auto devices = g_controller->getAllDevices();
+							for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
+								if ( enabledFilter ) {
+									if ( enabled && ! (*deviceIt)->isEnabled() ) {
+										continue;
 									}
-									if ( deviceIdsFilter ) {
-										if ( std::find( deviceIds.begin(), deviceIds.end(), std::to_string( (*deviceIt)->getId() ) ) == deviceIds.end() ) {
-											continue;
-										}
+									if ( ! enabled && (*deviceIt)->isEnabled() ) {
+										continue;
 									}
-									if (
-										hardware == nullptr
-										|| (*deviceIt)->getHardware() == hardware
-									) {
-										output_["data"] += (*deviceIt)->getJson( false );
+								}
+								if ( deviceIdsFilter ) {
+									if ( std::find( deviceIds.begin(), deviceIds.end(), std::to_string( (*deviceIt)->getId() ) ) == deviceIds.end() ) {
+										continue;
 									}
+								}
+								if (
+									hardware == nullptr
+									|| (*deviceIt)->getHardware() == hardware
+								) {
+									output_["data"] += (*deviceIt)->getJson( false );
 								}
 							}
 						}

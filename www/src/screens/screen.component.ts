@@ -19,7 +19,6 @@ import {
 export class ScreenComponent implements OnInit {
 
 	public screen: Screen;
-	public devices: { id: number, name: string, type: string }[];
 	public data: SourceData[][];
 
 	public constructor(
@@ -34,7 +33,6 @@ export class ScreenComponent implements OnInit {
 				data_ => {
 					this.screen = data_.payload.screen;
 					this.data = data_.payload.data;
-					this.devices = data_.payload.devices;
 				}
 			)
 		;
