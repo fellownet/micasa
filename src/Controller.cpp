@@ -96,6 +96,72 @@ v7_err micasa_v7_get_device( struct v7* v7_, v7_val_t* res_ ) {
 	return V7_OK;
 };
 
+v7_err micasa_v7_get_data( struct v7* v7_, v7_val_t* res_ ) {
+	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
+
+	std::shared_ptr<micasa::Device> device = nullptr;
+	v7_val_t arg0 = v7_arg( v7_, 0 );
+	if ( v7_is_number( arg0 ) ) {
+		device = controller->getDeviceById( v7_get_int( v7_, arg0 ) );
+	} else if ( v7_is_string( arg0 ) ) {
+		device = controller->getDeviceByName( v7_get_string( v7_, &arg0, NULL ) );
+		if ( device == nullptr ) {
+			device = controller->getDeviceByLabel( v7_get_string( v7_, &arg0, NULL ) );
+		}
+	}
+	if ( device == nullptr ) {
+		return v7_throwf( v7_, "Error", "Invalid device." );
+	}
+
+	v7_val_t arg1 = v7_arg( v7_, 1 );
+	int range;
+	if ( v7_is_number( arg1 ) ) {
+		range = v7_get_int( v7_, arg1 );
+	} else {
+		return v7_throwf( v7_, "Error", "Invalid range." );
+	}
+
+	v7_val_t arg2 = v7_arg( v7_, 2 );
+	std::string interval;
+	if ( v7_is_string( arg2 ) ) {
+		interval = v7_get_string( v7_, &arg2, NULL );
+	} else {
+		return v7_throwf( v7_, "Error", "Invalid interval." );
+	}
+
+	v7_val_t arg3 = v7_arg( v7_, 3 );
+	std::string group = "day";
+	if ( v7_is_string( arg3 ) ) {
+		group = v7_get_string( v7_, &arg3, NULL );
+	}
+
+	v7_err js_error;
+	switch( device->getType() ) {
+		case micasa::Device::Type::COUNTER: {
+			js_error = v7_parse_json( v7_, std::static_pointer_cast<micasa::Counter>( device )->getData( range, interval, group ).dump().c_str(), res_ );
+			break;
+		}
+		case micasa::Device::Type::LEVEL: {
+			js_error = v7_parse_json( v7_, std::static_pointer_cast<micasa::Level>( device )->getData( range, interval, group ).dump().c_str(), res_ );
+			break;
+		}
+		case micasa::Device::Type::SWITCH: {
+			js_error = v7_parse_json( v7_, std::static_pointer_cast<micasa::Switch>( device )->getData( range, interval ).dump().c_str(), res_ );
+			break;
+		}
+		case micasa::Device::Type::TEXT: {
+			js_error = v7_parse_json( v7_, std::static_pointer_cast<micasa::Text>( device )->getData( range, interval ).dump().c_str(), res_ );
+			break;
+		}
+	}
+
+	if ( V7_OK != js_error ) {
+		return v7_throwf( v7_, "Error", "Internal error." );
+	}
+
+	return V7_OK;
+};
+
 v7_err micasa_v7_include( struct v7* v7_, v7_val_t* res_ ) {
 	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
 	
@@ -163,6 +229,7 @@ namespace micasa {
 
 		v7_set_method( this->m_v7_js, root, "updateDevice", &micasa_v7_update_device );
 		v7_set_method( this->m_v7_js, root, "getDevice", &micasa_v7_get_device );
+		v7_set_method( this->m_v7_js, root, "getData", &micasa_v7_get_data );
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
 

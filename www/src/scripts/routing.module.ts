@@ -14,8 +14,8 @@ import { DevicesListResolver }    from '../devices/list.resolver';
 import { SessionGuard }           from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'scripts',                                   component: ScriptsListComponent,   canActivate: [SessionGuard], resolve: { scripts: ScriptsListResolver } },
-	{ path: 'scripts/:script_id',                        component: ScriptEditComponent,    canActivate: [SessionGuard], resolve: { script: ScriptResolver, devices: DevicesListResolver } },
+	{ path: 'scripts',            component: ScriptsListComponent, canActivate: [SessionGuard], resolve: { scripts: ScriptsListResolver } },
+	{ path: 'scripts/:script_id', component: ScriptEditComponent,  canActivate: [SessionGuard], resolve: { script: ScriptResolver, devices: DevicesListResolver } },
 ];
 
 @NgModule( {

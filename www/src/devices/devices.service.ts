@@ -38,6 +38,12 @@ export class DevicesService {
 	) {
 	};
 
+	public getDevices( options_: any = {} ): Observable<Device[]> {
+		let resource: string = 'devices';
+		return this._sessionService.http<Device[]>( 'get', resource, options_ );
+	};
+
+/*
 	public getDevices( hardwareId_?: number, scriptId_?: number ): Observable<Device[]> {
 		let resource: string = 'devices';
 		if ( !! hardwareId_ ) {
@@ -54,6 +60,7 @@ export class DevicesService {
 		let resource: string = 'devices?enabled=1&device_ids=' + deviceIds_.join( ',' );
 		return this._sessionService.http<Device[]>( 'get', resource );
 	};
+*/
 
 	public getDevice( id_: number ): Observable<Device> {
 		return this._sessionService.http<Device>( 'get', 'devices/' + id_ );
@@ -75,9 +82,7 @@ export class DevicesService {
 
 	public deleteDevice( device_: Device ): Observable<Device> {
 		return this._sessionService.http<any>( 'delete', 'devices/' + device_.id )
-			.map( function( result_: any ) {
-				return device_;
-			} )
+			.map( () => device_ )
 		;
 	};
 

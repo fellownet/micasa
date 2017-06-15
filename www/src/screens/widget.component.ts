@@ -3,7 +3,7 @@ import {
 	Input,
 	OnInit
 }                         from '@angular/core';
-import { Observable }     from 'rxjs/Observable';
+import { Router }         from '@angular/router';
 
 import {
 	Screen,
@@ -11,9 +11,6 @@ import {
 	Widget,
 	SourceData
 }                         from './screens.service';
-import {
-	Device
-}                         from '../devices/devices.service'
 
 @Component( {
 	selector: 'widget',
@@ -22,16 +19,16 @@ import {
 
 export class WidgetComponent implements OnInit {
 
-	public error?: string;
 	public editing: boolean = false;
 	public data: SourceData[];
 
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public _data: SourceData[];
-	@Input( 'devices' ) public devices: Device[];
+	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 
 	public constructor(
+		private _router: Router,
 		private _screensService: ScreensService
 	) {
 	};
@@ -62,7 +59,7 @@ export class WidgetComponent implements OnInit {
 		switch( action_ ) {
 			case 'save':
 				this._screensService.putScreen( this.screen )
-					.catch( error_ => this.error = error_ )
+					.catch( error_ => this._router.navigate( [ '/error' ] ) )
 					.subscribe()
 				;
 				break;
@@ -71,7 +68,7 @@ export class WidgetComponent implements OnInit {
 				if ( index > -1 ) {
 					this.screen.widgets.splice( index, 1 );
 					this._screensService.putScreen( this.screen )
-						.catch( error_ => this.error = error_ )
+						.catch( error_ => this._router.navigate( [ '/error' ] ) )
 						.subscribe()
 					;
 				}

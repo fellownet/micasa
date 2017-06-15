@@ -23,10 +23,10 @@ import { DevicesListComponent } from '../devices/list.component';
 
 export class HardwareEditComponent implements OnInit {
 
-	public error: String;
 	public hardware: Hardware;
 	public devices: Device[];
 	public children: Hardware[];
+
 	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
@@ -43,74 +43,71 @@ export class HardwareEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.hardware = data_.hardware;
-			me.devices = data_.devices;
-			me.children = data_.list;
-			me.title = me.hardware.name;
-			for ( let device of me.devices ) {
-				if ( device.subtype == 'action' ) {
-					me.hasActionDevices = true;
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.hardware = data_.hardware;
+					this.devices = data_.devices;
+					this.children = data_.list;
+
+					this.title = this.hardware.name;
+
+					for ( let device of this.devices ) {
+						if ( device.subtype == 'action' ) {
+							this.hasActionDevices = true;
+							break;
+						}
+					}
+					for ( let setting of this.hardware.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
 				}
-			}
-			for ( let setting of me.hardware.settings ) {
-				if ( setting.class == 'advanced' ) {
-					me.hasAdvancedSettings = true;
-				}
-			}
-		} );
+			)
+		;
 	};
 
 	public submitHardware() {
-		var me = this;
-		this._hardwareService.putHardware( me.hardware )
+		this._hardwareService.putHardware( this.hardware )
 			.subscribe(
-				function( hardware_: Hardware ) {
-					if ( !!me._hardwareService.returnUrl ) {
-						me._router.navigateByUrl( me._hardwareService.returnUrl );
-						delete me._hardwareService.returnUrl
+				hardware_ => {
+					if ( !! this._hardwareService.returnUrl ) {
+						this._router.navigateByUrl( this._hardwareService.returnUrl );
+						delete this._hardwareService.returnUrl
 					} else {
-						me._router.navigate( [ '/hardware' ] );
+						this._router.navigate( [ '/hardware' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-					window.scrollTo( 0, 0 );
-				}
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
 
 	public deleteHardware() {
-		var me = this;
-		me._hardwareService.deleteHardware( me.hardware )
+		this._hardwareService.deleteHardware( this.hardware )
 			.subscribe(
-				function( hardware_: Hardware ) {
-					if ( !!me._hardwareService.returnUrl ) {
-						me._router.navigateByUrl( me._hardwareService.returnUrl );
-						delete me._hardwareService.returnUrl
+				hardware_ => {
+					if ( !! this._hardwareService.returnUrl ) {
+						this._router.navigateByUrl( this._hardwareService.returnUrl );
+						delete this._hardwareService.returnUrl
 					} else {
-						me._router.navigate( [ '/hardware' ] );
+						this._router.navigate( [ '/hardware' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
 
 	public performAction( action_: Device ) {
-		var me = this;
 		this._devicesService.performAction( action_ )
 			.subscribe(
-				function( device_: Device ) {
-				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				() => undefined,
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
+
 }

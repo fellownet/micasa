@@ -51,9 +51,7 @@ export class HardwareService {
 
 	public deleteHardware( hardware_: Hardware ): Observable<Hardware> {
 		return this._sessionService.http<any>( 'delete', 'hardware/' + hardware_.id )
-			.map( function( result_: any ) {
-				return hardware_;
-			} )
+			.map( () => hardware_ )
 		;
 	};
 

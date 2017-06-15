@@ -42,5 +42,4 @@ import { WidgetGaugeComponent }  from './widgets/gauge.component';
 } )
 
 export class ScreensModule {
-
 }

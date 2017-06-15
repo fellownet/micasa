@@ -21,8 +21,8 @@ import { Script }  from '../scripts/scripts.service';
 
 export class TimerEditComponent implements OnInit {
 
-	public error: String;
 	public timer: Timer;
+
 	public title: string;
 
 	public scripts?: Script[];
@@ -36,57 +36,55 @@ export class TimerEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			if ( 'device' in data_ ) {
-				me.device = data_.device;
-			}
-			if ( 'scripts' in data_ ) {
-				me.scripts = data_.scripts;
-			}
-			me.timer = data_.timer;
-			me.title = me.timer.name;
-		} );
-	};
-
-	public submitTimer() {
-		var me = this;
-		if ( me.device ) {
-			me.timer.device_id = me.device.id;
-			delete( me.timer.scripts );
-		}
-		me._timersService.putTimer( me.timer )
+		this._route.data
 			.subscribe(
-				function( timer_: Timer ) {
-					if ( !!me._timersService.returnUrl ) {
-						me._router.navigateByUrl( me._timersService.returnUrl );
-						delete me._timersService.returnUrl;
-					} else {
-						me._router.navigate( [ '/timers' ] );
+				data_ => {
+					if ( 'device' in data_ ) {
+						this.device = data_.device;
 					}
-				},
-				function( error_: string ) {
-					me.error = error_;
+					if ( 'scripts' in data_ ) {
+						this.scripts = data_.scripts;
+					}
+					this.timer = data_.timer;
+
+					this.title = this.timer.name;
 				}
 			)
 		;
 	};
 
-	public deleteTimer() {
-		var me = this;
-		me._timersService.deleteTimer( me.timer )
+	public submitTimer() {
+		if ( this.device ) {
+			this.timer.device_id = this.device.id;
+			delete this.timer.scripts;
+		}
+		this._timersService.putTimer( this.timer )
 			.subscribe(
-				function( timer_: Timer ) {
-					if ( !!me._timersService.returnUrl ) {
-						me._router.navigateByUrl( me._timersService.returnUrl );
-						delete me._timersService.returnUrl;
+				timer_ => {
+					if ( !! this._timersService.returnUrl ) {
+						this._router.navigateByUrl( this._timersService.returnUrl );
+						delete this._timersService.returnUrl;
 					} else {
-						me._router.navigate( [ '/timers' ] );
+						this._router.navigate( [ '/timers' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
+			)
+		;
+	};
+
+	public deleteTimer() {
+		this._timersService.deleteTimer( this.timer )
+			.subscribe(
+				timer_ => {
+					if ( !! this._timersService.returnUrl ) {
+						this._router.navigateByUrl( this._timersService.returnUrl );
+						delete this._timersService.returnUrl;
+					} else {
+						this._router.navigate( [ '/timers' ] );
+					}
+				},
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};

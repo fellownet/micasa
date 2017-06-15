@@ -50,9 +50,8 @@ export class TimersService {
 
 	public deleteTimer( timer_: Timer ): Observable<Timer> {
 		return this._sessionService.http<any>( 'delete', 'timers/' + timer_.id )
-			.map( function( result_: any ) {
-				return timer_;
-			} )
+			.map( () => timer_ )
 		;
 	};
+
 }

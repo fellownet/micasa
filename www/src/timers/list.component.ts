@@ -25,7 +25,6 @@ import {
 
 export class TimersListComponent implements OnInit, OnDestroy {
 
-	public error: String;
 	public timers: Timer[];
 	public startPage: number = 1;
 
@@ -41,20 +40,23 @@ export class TimersListComponent implements OnInit, OnDestroy {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.timers = data_.timers;
-			if ( !!me.device ) {
-				me.startPage = me._timersService.lastPage[me.device.id] || 1;
-			} else {
-				me.startPage = me._timersService.lastPage['global'] || 1;
-			}
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.timers = data_.timers;
+					if ( !! this.device ) {
+						this.startPage = this._timersService.lastPage[this.device.id] || 1;
+					} else {
+						this.startPage = this._timersService.lastPage['global'] || 1;
+					}
+				}
+			)
+		;
 	};
 
 	public ngOnDestroy() {
 		if ( this._paging ) {
-			if ( !!this.device ) {
+			if ( !! this.device ) {
 				this._timersService.lastPage[this.device.id] = this._paging.getActivePage();
 			} else {
 				this._timersService.lastPage['global'] = this._paging.getActivePage();
@@ -64,7 +66,7 @@ export class TimersListComponent implements OnInit, OnDestroy {
 
 	public selectTimer( timer_: Timer ) {
 		this._timersService.returnUrl = this._router.url;
-		if ( !!this.device ) {
+		if ( !! this.device ) {
 			this._router.navigate( [ '/timers', timer_.id, 'device', this.device.id ] );
 		} else {
 			this._router.navigate( [ '/timers', timer_.id ] );
@@ -80,4 +82,5 @@ export class TimersListComponent implements OnInit, OnDestroy {
 			this._router.navigate( [ '/timers', 'add' ] );
 		}
 	};
+
 }

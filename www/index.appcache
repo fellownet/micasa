@@ -1,12 +1,41 @@
 CACHE MANIFEST
 
-# v0.0008
+# v0.0028
 
 CACHE:
 index.html
 css/env.css
-
 app/app.min.js
+tpl/app.html
+tpl/device-edit.html
+tpl/devices-list.html
+tpl/hardware-edit.html
+tpl/hardware-list.html
+tpl/link-edit.html
+tpl/links-list.html
+tpl/login.html
+tpl/error.html
+tpl/screen-edit.html
+tpl/screen.html
+tpl/script-edit.html
+tpl/scripts-list.html
+tpl/settings.html
+tpl/timer-edit.html
+tpl/timers-list.html
+tpl/user-edit.html
+tpl/users-list.html
+tpl/widget.html
+tpl/widgets/chart.html
+tpl/widgets/gauge.html
+tpl/widgets/latest.html
+tpl/widgets/switch.html
+tpl/widgets/table.html
+fonts/fontawesome-webfont.eot?v=4.7.0
+fonts/fontawesome-webfont.eot?#iefix&v=4.7.0
+fonts/fontawesome-webfont.woff2?v=4.7.0
+fonts/fontawesome-webfont.woff?v=4.7.0
+fonts/fontawesome-webfont.ttf?v=4.7.0
+fonts/fontawesome-webfont.svg?v=4.7.0#fontawesomeregular
 
 NETWORK:
 *

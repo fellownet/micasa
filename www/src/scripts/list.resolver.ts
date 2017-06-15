@@ -21,12 +21,12 @@ export class ScriptsListResolver implements Resolve<Script[]> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script[]> {
-		var me = this;
 		return this._scriptsService.getScripts()
-			.catch( function( error_: string ) {
-				me._router.navigate( [ '/login' ] );
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
 				return Observable.of( null );
 			} )
 		;
 	};
+
 }

@@ -10,7 +10,7 @@
     "_environment": "echo \"/* micasa */\n\n\" > app/app.js && for f in node_modules/core-js/client/shim.min.js node_modules/zone.js/dist/zone.js node_modules/reflect-metadata/Reflect.js; do (cat \"${f}\"; printf \"\n \n\") >> app/app.js; done",
     "_browserify": "browserify -s main app/main.js >> app/app.js",
     "_uglify": "uglifyjs app/app.js --screw-ie8 --compress --mangle --output app/app.min.js",
-    "_styles": "cp -r node_modules/font-awesome/fonts/. fonts && echo \"/* micasa */\n\n\" > css/env.css && for f in node_modules/bootstrap/dist/css/bootstrap.min.css node_modules/font-awesome/css/font-awesome.min.css; do (cat \"${f}\"; printf \"\n \n\") >> css/env.css; done"
+    "_styles": "cp -r node_modules/font-awesome/fonts/. fonts && echo \"/* micasa */\n\n\" > css/env.css && for f in node_modules/bootstrap/dist/css/bootstrap.min.css node_modules/font-awesome/css/font-awesome.min.css css/app.css; do (cat \"${f}\"; printf \"\n \n\") >> css/env.css; done"
   },
   "keywords": [],
   "author": "Bob Kersten // Fellownet",
@@ -29,7 +29,7 @@
     "browserify": "^14.3.0",
     "browserify-shim": "^3.8.14",
     "core-js": "^2.4.1",
-    "font-awesome": "^4.7.0",
+    "font-awesome": "4.7.0",
     "highcharts": "^5.0.10",
     "jquery": "^3.2.1",
     "reflect-metadata": "^0.1.8",

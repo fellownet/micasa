@@ -12,10 +12,10 @@ import { DeviceResolver }         from '../devices/device.resolver';
 import { SessionGuard }           from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'dashboard',                                 component: ScreenComponent,        canActivate: [SessionGuard], resolve: { payload: ScreenResolver }, data: { dashboard: true } },
-	{ path: 'screens/add',                               component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
-	{ path: 'screens/:screen_id',                        component: ScreenComponent,        canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
-	{ path: 'screens/:screen_id/edit',                   component: ScreenEditComponent,    canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+	{ path: 'dashboard',               component: ScreenComponent,     canActivate: [SessionGuard], resolve: { payload: ScreenResolver }, data: { dashboard: true } },
+	{ path: 'screens/add',             component: ScreenEditComponent, canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+	{ path: 'screens/:screen_id',      component: ScreenComponent,     canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
+	{ path: 'screens/:screen_id/edit', component: ScreenEditComponent, canActivate: [SessionGuard], resolve: { payload: ScreenResolver } },
 ];
 
 @NgModule( {

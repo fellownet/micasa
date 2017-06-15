@@ -40,9 +40,8 @@ export class ScriptsService {
 
 	public deleteScript( script_: Script ): Observable<Script> {
 		return this._sessionService.http<any>( 'delete', 'scripts/' + script_.id )
-			.map( function( result_: any ) {
-				return script_;
-			} )
+			.map( () => script_ )
 		;
 	};
+
 }

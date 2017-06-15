@@ -25,7 +25,6 @@ import {
 
 export class HardwareListComponent implements OnInit, OnDestroy {
 
-	public error: String;
 	public hardware: Hardware[];
 	public startPage: number = 1;
 
@@ -41,20 +40,24 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.hardware = data_.list;
-			if ( !!me.parent ) {
-				me.startPage = me._hardwareService.lastPage[me.parent.id] || 1;
-			} else {
-				me.startPage = me._hardwareService.lastPage['global'] || 1;
-			}
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.hardware = data_.list;
+
+					if ( !! this.parent ) {
+						this.startPage = this._hardwareService.lastPage[this.parent.id] || 1;
+					} else {
+						this.startPage = this._hardwareService.lastPage['global'] || 1;
+					}
+				}
+			)
+		;
 	};
 
 	public ngOnDestroy() {
 		if ( this._paging ) {
-			if ( !!this.parent ) {
+			if ( !! this.parent ) {
 				this._hardwareService.lastPage[this.parent.id] = this._paging.getActivePage();
 			} else {
 				this._hardwareService.lastPage['global'] = this._paging.getActivePage();
@@ -68,16 +71,13 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 	};
 
 	public addHardware( type_: string ) {
-		var me = this;
 		this._hardwareService.addHardware( type_ )
 			.subscribe(
-				function( hardware_: Hardware ) {
-					me._hardwareService.returnUrl = this._router.url;
-					me._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
+				hardware_ => {
+					this._hardwareService.returnUrl = this._router.url;
+					this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};

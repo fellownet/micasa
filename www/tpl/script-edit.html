@@ -4,12 +4,6 @@
 
 <section class="content-body">
 
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
-	</div>
-
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -21,7 +15,7 @@
 				<form role="form" (ngSubmit)="submitScript()" #scriptForm="ngForm">
 				<div class="box-body">
 					<div class="form-group">
-						<label for="script_name">Name</label>
+						<label for="script_name">Name<span class="mandatory"> *</span></label>
 						<input type="text" class="form-control" id="script_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="script.name" name="name" #name="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>

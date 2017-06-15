@@ -4,12 +4,6 @@
 
 <section class="content-body">
 
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error = ''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
-	</div>
-
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -20,22 +14,22 @@
 				<form role="form" (ngSubmit)="submitUser()" #userForm="ngForm">
 				<div class="box-body">
 					<div class="form-group" [class.has-error]="! name.valid && ! name.pristine">
-						<label for="user_name">Name</label>
+						<label for="user_name">Name<span class="mandatory"> *</span></label>
 						<input type="text" class="form-control" id="user_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="user.name" name="name" #name="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
 					<div class="form-group" [class.has-error]="! username.valid && ! username.pristine">
-						<label for="user_username">Username</label>
+						<label for="user_username">Username<span class="mandatory"> *</span></label>
 						<input type="text" class="form-control" id="user_username" placeholder="Enter username" autocomplete="off" required [(ngModel)]="user.username" name="username" #username="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="username.valid || username.pristine">A valid username is required!</div>
 					<div class="form-group" [class.has-error]="! password.valid && ! password.pristine">
-						<label for="user_password">Password</label>
-						<input type="password" class="form-control" id="user_password" placeholder="Enter password" autocomplete="off" required [(ngModel)]="user.password" name="password" #password="ngModel">
+						<label for="user_password">Password<span *ngIf="! user.id" class="mandatory"> *</span></label>
+						<input type="password" class="form-control" id="user_password" placeholder="{{ !! user.id ? 'Enter new password or leave blank to keep old password' : 'Enter password' }}" [required]="! user.id" autocomplete="off" [(ngModel)]="user.password" name="password" #password="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="password.valid || password.pristine">A valid password is required!</div>
 					<div class="form-group">
-						<label for="user_rights">Rights</label>
+						<label for="user_rights">Rights<span class="mandatory"> *</span></label>
 						<select class="form-control" id="user_rights" required [(ngModel)]="user.rights" name="rights" #rights="ngModel">
 							<option value="1">Viewer</option>
 							<option value="2">User</option>

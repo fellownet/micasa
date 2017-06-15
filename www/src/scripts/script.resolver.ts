@@ -21,16 +21,16 @@ export class ScriptResolver implements Resolve<Script> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script> {
-		var me = this;
 		if ( route_.params['script_id'] == 'add' ) {
 			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
 		} else {
 			return this._scriptsService.getScript( +route_.params['script_id'] )
-				.catch( function( error_: string ) {
-					me._router.navigate( [ '/login' ] );
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
 					return Observable.of( null );
 				} )
 			;
 		}
 	};
+
 }

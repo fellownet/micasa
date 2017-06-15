@@ -22,7 +22,6 @@ import {
 
 export class ScriptsListComponent implements OnInit, OnDestroy {
 
-	public error: String;
 	public scripts: Script[];
 	public startPage: number = 1;
 
@@ -36,11 +35,15 @@ export class ScriptsListComponent implements OnInit, OnDestroy {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.scripts = data_.scripts;
-			me.startPage = me._scriptsService.lastPage || 1;
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.scripts = data_.scripts;
+
+					this.startPage = this._scriptsService.lastPage || 1;
+				}
+			)
+		;
 	};
 
 	public ngOnDestroy() {

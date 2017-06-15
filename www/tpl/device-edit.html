@@ -9,12 +9,6 @@
 
 <section class="content-body">
 
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
-	</div>
-
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -28,7 +22,7 @@
 					<settings [settings]="device.settings" [form]="deviceForm" [values]="device" #settingsComponent="settingsComponent"></settings>
 				</div>
 
-				<div class="box-body no-padding scroll" *ngIf="device.enabled && scripts.length > 0"><!-- && settingsComponent.showAdvancedSettings -->
+				<div class="box-body no-padding scroll" *ngIf="device.enabled && scripts.length > 0">
 
 <table class="table">
 <thead>

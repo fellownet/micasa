@@ -13,10 +13,10 @@
 				<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
 				<button type="button" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			</div>
-			<h3 class="box-title">{{ title }}</h3>
+			<h3 class="box-title click-target" (click)="open()">{{ title }}</h3>
 		</div>
 
-		<div class="box-body no-padding latest">
+		<div class="box-body no-padding latest click-target" (click)="open()">
 
 	<table class="table">
 	<tbody>
@@ -58,6 +58,7 @@
 	</table>
 
 		</div>
+		<div class="box-body no-padding inlinechart" #chartTarget *ngIf="data[0].device.type == 'level' || data[0].device.type == 'counter'"></div>
 		<div class="box-footer">Last Update: {{ -data[0].device.age | timestamp }}</div>
 	</div>
 

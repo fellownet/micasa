@@ -61,9 +61,8 @@ export class LinksService {
 	public deleteLink( link_: Link ): Observable<Link> {
 		let resource: string = 'links';
 		return this._sessionService.http<any>( 'delete', resource + '/' + link_.id )
-			.map( function( result_: any ) {
-				return link_;
-			} )
+			.map( () => link_ )
 		;
 	};
+
 }

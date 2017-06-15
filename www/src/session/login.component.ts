@@ -17,6 +17,7 @@ import {
 export class LoginComponent implements OnInit {
 
 	public error: string;
+	public visible: boolean;
 	public credentials: Credentials = { username: "", password: "", remember: false };
 
 	public constructor(
@@ -28,24 +29,19 @@ export class LoginComponent implements OnInit {
 	public ngOnInit() {
 		// This allows a redirect to /login to also be used for logging out.
 		this._sessionService.logout();
+		this.visible = true;
 	};
 
 	public doLogin(): void {
-		var me = this;
-		me.error = null; // clears any previous login failure errors
-
-		me._sessionService.login( me.credentials )
+		this.error = null; // clears any previous login failure errors
+		this._sessionService.login( this.credentials )
 			.subscribe(
-				function( success_: boolean ) {
-					if ( success_ ) {
-						me._router.navigate( [ '/dashboard' ] );
-					} else {
-						me._router.navigate( [ '/login' ] );
-					}
+				session_ => {
+					// The dashboard might take a while to load by the resolver, so hide the login window immediately.
+					this.visible = false;
+					this._router.navigate( [ '/dashboard' ] );
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this.error = error_.message
 			)
 		;
 	};

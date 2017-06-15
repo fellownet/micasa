@@ -26,10 +26,10 @@ import {
 
 export class DeviceEditComponent implements OnInit {
 
-	public error: String;
 	public device: Device;
 	public scripts: Script[];
 	public screens: Screen[];
+
 	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
@@ -43,56 +43,54 @@ export class DeviceEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
 		this._route.data
-			.subscribe( function( data_: any ) {
-				me.device = data_.device;
-				me.scripts = data_.scripts;
-				me.screens = data_.screens;
-				me.title = me.device.name;
-				for ( let setting of me.device.settings ) {
-					if ( setting.class == 'advanced' ) {
-						me.hasAdvancedSettings = true;
-					}
-				}
-			}
-		);
-	};
-
-	public submitDevice( form_: NgForm ) {
-		var me = this;
-		me._devicesService.putDevice( me.device )
 			.subscribe(
-				function( device_: Device ) {
-					if ( !!me._devicesService.returnUrl ) {
-						me._router.navigateByUrl( me._devicesService.returnUrl );
-						delete me._devicesService.returnUrl;
-					} else {
-						me._router.navigate( [ '/devices' ] );
+				data_ => {
+					this.device = data_.device;
+					this.scripts = data_.scripts;
+					this.screens = data_.screens;
+
+					this.title = this.device.name;
+
+					for ( let setting of this.device.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
 					}
-				},
-				function( error_: string ) {
-					me.error = error_;
 				}
 			)
 		;
 	};
 
-	public deleteDevice() {
-		var me = this;
-		me._devicesService.deleteDevice( me.device )
+	public submitDevice( form_: NgForm ) {
+		this._devicesService.putDevice( this.device )
 			.subscribe(
-				function( device_: Device ) {
-					if ( !!me._devicesService.returnUrl ) {
-						me._router.navigateByUrl( me._devicesService.returnUrl );
-						delete me._devicesService.returnUrl;
+				device_ => {
+					if ( !! this._devicesService.returnUrl ) {
+						this._router.navigateByUrl( this._devicesService.returnUrl );
+						delete this._devicesService.returnUrl;
 					} else {
-						me._router.navigate( [ '/devices' ] );
+						this._router.navigate( [ '/devices' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
+			)
+		;
+	};
+
+	public deleteDevice() {
+		this._devicesService.deleteDevice( this.device )
+			.subscribe(
+				device_ => {
+					if ( !! this._devicesService.returnUrl ) {
+						this._router.navigateByUrl( this._devicesService.returnUrl );
+						delete this._devicesService.returnUrl;
+					} else {
+						this._router.navigate( [ '/devices' ] );
+					}
+				},
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
@@ -111,20 +109,18 @@ export class DeviceEditComponent implements OnInit {
 	};
 
 	public addToScreen( screen_: Screen ) {
-		var me = this;
 		let widget: Widget;
-
-		switch( me.device.type ) {
+		switch( this.device.type ) {
 			case 'switch':
 				widget = {
-					type: me.device.readonly ? 'latest' : 'switch',
+					type: this.device.readonly ? 'latest' : 'switch',
 					size: 'small',
-					name: me.device.name,
+					name: this.device.name,
 					properties: {
 						color: 'aqua'
 					},
 					sources: [ {
-						device_id: me.device.id,
+						device_id: this.device.id,
 						properties: {
 						}
 					} ]
@@ -134,12 +130,12 @@ export class DeviceEditComponent implements OnInit {
 				widget = {
 					type: 'table',
 					size: 'large',
-					name: me.device.name,
+					name: this.device.name,
 					properties: {
 						color: 'aqua'
 					},
 					sources: [ {
-						device_id: me.device.id,
+						device_id: this.device.id,
 						properties: {
 						}
 					} ]
@@ -149,12 +145,12 @@ export class DeviceEditComponent implements OnInit {
 				widget = {
 					type: 'gauge',
 					size: 'small',
-					name: me.device.name,
+					name: this.device.name,
 					properties: {
 						color: 'blue'
 					},
 					sources: [ {
-						device_id: me.device.id,
+						device_id: this.device.id,
 						properties: {
 							color: 'blue'
 						}
@@ -167,12 +163,12 @@ export class DeviceEditComponent implements OnInit {
 				widget = {
 					type: 'chart',
 					size: 'large',
-					name: me.device.name,
+					name: this.device.name,
 					properties: {
 						color: 'blue'
 					},
 					sources: [ {
-						device_id: me.device.id,
+						device_id: this.device.id,
 						properties: {
 							color: 'blue'
 						}
@@ -182,16 +178,19 @@ export class DeviceEditComponent implements OnInit {
 				};
 				break;
 		}
-
 		screen_.widgets.push( widget );
-		me._screensService.putScreen( screen_ )
-			.subscribe( function() {
-				if ( screen_.id == 1 ) {
-					me._router.navigate( [ '/dashboard' ] );
-				} else {
-					me._router.navigate( [ '/screens', screen_.id ] );
-				}
-			} )
+
+		this._screensService.putScreen( screen_ )
+			.subscribe(
+				() => {
+					if ( screen_.id == 1 ) {
+						this._router.navigate( [ '/dashboard' ] );
+					} else {
+						this._router.navigate( [ '/screens', screen_.id ] );
+					}
+				},
+				error_ => this._router.navigate( [ '/error' ] )
+			)
 		;
 	};
 

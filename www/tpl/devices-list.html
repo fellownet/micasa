@@ -4,15 +4,9 @@
 
 <section [class.content-body]="! hardware && ! script">
 
-	<div class="callout callout-info" *ngIf="devices.length == 0 && ! error">
+	<div class="callout callout-info" *ngIf="devices.length == 0">
 		<h4>No Devices!</h4>
 		<p>There are no devices configured in your system.</p>
-	</div>
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
 	</div>
 
 	<div class="row" *ngIf="devices.length > 0">
@@ -38,10 +32,9 @@
 </thead>
 <tbody>
 	<tr *ngFor="let device of grid.page" (click)="selectDevice( device )"
-		[class.disabled]="! device.enabled && device.subtype != 'action'"
-		[class.info]="device.subtype == 'action'"
-		[class.warning]="device.battery_level && device.battery_level >= 5 && device.battery_level < 25"
-		[class.danger]="device.battery_level && device.battery_level < 5"
+		[class.disabled]="! device.enabled"
+		[class.warning]="device.battery_level && device.battery_level >= 20 && device.battery_level < 45"
+		[class.danger]="device.battery_level && device.battery_level < 20"
 	>
 		<td class="icon" [ngSwitch]="device.type">
 <ng-container *ngSwitchCase="'switch'" [ngSwitch]="device.subtype">
@@ -80,13 +73,13 @@
 			<i class="fa fa-calendar" *ngIf="device.total_timers > 0"></i>
 			<i class="fa fa-link" *ngIf="device.total_links > 0"></i>
 			<i class="fa fa-clock-o" *ngIf="device.scheduled"></i>
-			<i class="fa fa-battery-half" *ngIf="device.battery_level && device.battery_level >= 25 && device.battery_level < 50"></i>
-			<i class="fa fa-battery-quarter" *ngIf="device.battery_level && device.battery_level >= 5 && device.battery_level < 25"></i>
-			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 5"></i>
+			<i class="fa fa-battery-half" *ngIf="device.battery_level && device.battery_level >= 45 && device.battery_level < 75"></i>
+			<i class="fa fa-battery-quarter" *ngIf="device.battery_level && device.battery_level >= 20 && device.battery_level < 45"></i>
+			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 20"></i>
 		</td>
 		<td><span class="label"
-			[class.label-success]="device.value == 'On'||device.value == 'Enabled'"
-			[class.label-danger]="device.value == 'Off'||device.value == 'Disabled'"
+			[class.label-success]="device.value == 'On' || device.value == 'Enabled'"
+			[class.label-danger]="device.value == 'Off' || device.value == 'Disabled'"
 			[class.label-primary]="device.value == 'Stop'"
 			[class.label-warning]="device.value == 'Idle'"
 			[class.label-info]="device.value != 'On' && device.value != 'Enabled' && device.value != 'Off' && device.value != 'Disabled' && device.value != 'Stop' && device.value != 'Idle'"

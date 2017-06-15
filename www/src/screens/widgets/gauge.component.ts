@@ -8,8 +8,12 @@ import {
 	AfterViewInit,
 	ViewChild,
 	ElementRef,
-	EventEmitter
+	EventEmitter,
+	NgZone
 }                          from '@angular/core';
+import {
+	Router
+}                          from '@angular/router'; 
 import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
@@ -19,8 +23,7 @@ import {
 	SourceData
 }                          from '../screens.service';
 import {
-	Device,
-	DevicesService
+	Device
 }                          from '../../devices/devices.service';
 import { SessionService }  from '../../session/session.service';
 import { WidgetComponent } from '../widget.component';
@@ -46,7 +49,7 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: Device[];
+	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -74,16 +77,16 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 	public title: string;
 
 	public constructor(
-		private _devicesService: DevicesService,
+		private _router: Router,
+		private _zone: NgZone,
 		private _sessionService: SessionService
 	) {
 	};
 
 	public ngOnInit() {
-		var me = this;
+		this.title = this.widget.name;
 
-		me.title = me.widget.name;
-		me.devices = me.devices.filter( device_ => device_.type == 'level' );
+		this.devices = this.devices.filter( device_ => device_.type == 'level' );
 
 		Highcharts.setOptions( {
 			lang: {
@@ -93,93 +96,107 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
-		me._state.subscribe( function( state_: number ) {
-			if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
-				if ( !! me._chart ) {
-					me._chart.destroy();
-				}
+		this._state.subscribe( state_ => {
+			this._zone.runOutsideAngular( () => {
+				if ( ( state_ & ( State.DATA_RECEIVED | State.VIEW_READY ) ) == ( State.DATA_RECEIVED | State.VIEW_READY ) ) {
+					if ( !! this._chart ) {
+						this._chart.destroy();
+					}
 
-				let min: number = 0, max: number = me.data[0].device.value;
-				for ( let point of me.data[0].data ) {
-					let value: number = parseFloat( point.value );
-					min = Math.min( min, value );
-					max = Math.max( max, value );
-				}
-				max = Math.ceil( max * 1.05 );
+					let min: number = 0, max: number = this.data[0].device.value;
+					for ( let point of this.data[0].data ) {
+						let value: number = parseFloat( point.value );
+						min = Math.min( min, value );
+						max = Math.max( max, value );
+					}
+					max = Math.ceil( max * 1.05 );
 
-				let animationDuration: number = 300;
-				let config: any = {
-					chart: {
-						type: 'solidgauge',
-						animation: {
-							duration: animationDuration
-						},
-						style: {
-							fontFamily: 'helvetica, arial, sans-serif'
-						}
-					},
-					title: false,
-					credits: false,
-					tooltip: {
-						enabled: false
-					},
-					pane: {
-						startAngle: -90,
-						endAngle: 90,
-						background: false,
-						center: [ '50%', '98%' ],
-						size: '150%'
-					},
-					series: [ {
-						name: me.data[0].device.name,
-						data: [ me.data[0].device.value ],
-						dataLabels: {
-							format: '<div style="text-align:center"><span style="font-size:20px;color:black;font-weight:normal;">{y}</span><br/><span style="font-size:12px;color:gray;font-weight:normal;">' + me.data[0].device.unit + '</span></div>'
-						}
-					} ],
-					yAxis: {
-						min: min,
-						max: max,
-						labels: {
-							distance: 30
-						},
-						tickPosition: 'outside',
-						tickLength: 17,
-						minorTickPosition: 'outside',
-						stops: [
-							[ 0, me._colors[me.widget.properties.color || 'aqua' ] ]
-						]
-					},
-					plotOptions: {
-						solidgauge: {
-							outerRadius: '75%',
+					let animationDuration: number = 300;
+					let config: any = {
+						chart: {
+							type: 'solidgauge',
 							animation: {
 								duration: animationDuration
 							},
+							style: {
+								fontFamily: 'helvetica, arial, sans-serif'
+							},
+							className: 'click-target',
+							events: {
+								click: () => {
+									this.open();
+								}
+							}
+						},
+						title: false,
+						credits: false,
+						tooltip: {
+							enabled: false
+						},
+						pane: {
+							startAngle: -90,
+							endAngle: 90,
+							background: false,
+							center: [ '50%', '98%' ],
+							size: '150%'
+						},
+						series: [ {
+							name: this.data[0].device.name,
+							data: [ this.data[0].device.value ],
 							dataLabels: {
-								y: 5,
-								borderWidth: 0,
-								useHTML: true
+								format: '<div style="text-align:center"><span style="font-size:20px;color:black;font-weight:normal;">{y}</span><br/><span style="font-size:12px;color:gray;font-weight:normal;">' + this.data[0].device.unit + '</span></div>'
+							},
+							cursor: 'pointer',
+							events: {
+								click: () => {
+									this.open();
+								}
+							}
+						} ],
+						yAxis: {
+							min: min,
+							max: max,
+							labels: {
+								distance: 30
+							},
+							tickPosition: 'outside',
+							tickLength: 17,
+							minorTickPosition: 'outside',
+							stops: [
+								[ 0, this._colors[this.widget.properties.color || 'aqua' ] ]
+							]
+						},
+						plotOptions: {
+							solidgauge: {
+								outerRadius: '75%',
+								animation: {
+									duration: animationDuration
+								},
+								dataLabels: {
+									y: 5,
+									borderWidth: 0,
+									useHTML: true
+								}
 							}
 						}
-					}
-				};
+					};
 
-				// Skip a render pass before drawing the chart.
-				setTimeout( function() {
-					if ( !! me._chartTarget ) {
-						me._chart = Highcharts.chart( me._chartTarget.nativeElement, config );
-					}
-				}, 1 );
-			}
+					// Skip a render pass before drawing the chart.
+					setTimeout( () => {
+						if ( !! this._chartTarget ) {
+							this._chart = Highcharts.chart( this._chartTarget.nativeElement, config );
+						}
+					}, 1 );
+				}
+			} ); // end of runOutsideAngular
 		} );
 
 		// Listen for events broadcasted from the session service.
-		me._sessionService.events
-			.takeWhile( () => me._active )
-			.filter( event_ => !! me._chart && event_.device_id == me.data[0].device.id )
-			.subscribe( function( event_: any ) {
-				let point: any = me._chart.series[0].points[0];
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.filter( event_ => ! this.parent.editing && !! this._chart && event_.device_id == this.data[0].device.id )
+			.subscribe( event_ => {
+				let point: any = this._chart.series[0].points[0];
 				point.update( event_.value );
 			} )
 		;
@@ -209,6 +226,10 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 	public ngOnDestroy() {
 		this._active = false;
 		this._state.complete();
+	};
+
+	public open() {
+		this._router.navigate( [ '/devices', this.data[0].device.id ] );
 	};
 
 	public save() {

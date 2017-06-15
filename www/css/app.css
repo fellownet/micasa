@@ -426,6 +426,12 @@ label span.mandatory {
 	height: 300px;
 	overflow: hidden;
 }
+.content .box-body.inlinechart {
+	padding: 0;
+	height: 40px;
+	margin-top: -25px;
+	overflow: hidden;
+}
 .content .box-body.gauge {
 	height: 180px;
 }
@@ -708,9 +714,6 @@ form .table tr td {
 }
 .content .box-body.latest td.minimum {
 	width: 25%;
-}
-.content .box-body.switch {
-	cursor: pointer;
 }
 
 /* script editor */

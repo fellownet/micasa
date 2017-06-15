@@ -54,9 +54,8 @@ export class UsersService {
 
 	public deleteUser( user_: User ): Observable<User> {
 		return this._sessionService.http<any>( 'delete', 'users/' + user_.id )
-			.map( function( result_: any ) {
-				return user_;
-			} )
+			.map( () => user_ )
 		;
 	};
+
 }

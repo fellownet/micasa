@@ -19,8 +19,6 @@ import {
 
 export class ScreenEditComponent implements OnInit {
 
-	public error?: string;
-
 	public screen: Screen;
 	public title: string;
 
@@ -34,18 +32,22 @@ export class ScreenEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.screen = data_.payload.screen;
-			me.title = me.screen.name;
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.screen = data_.payload.screen;
+
+					this.title = this.screen.name;
+				}
+			)
+		;
 	};
 
 	public submitScreen() {
 		this._screensService.putScreen( this.screen )
 			.subscribe(
 				() => this._router.navigate( [ '/screens', this.screen.id ] ),
-				error_ => this.error = error_
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
@@ -54,7 +56,7 @@ export class ScreenEditComponent implements OnInit {
 		this._screensService.deleteScreen( this.screen )
 			.subscribe(
 				() => this._router.navigate( [ '/dashboard' ] ),
-				error_ => this.error = error_
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};

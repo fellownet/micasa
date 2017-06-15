@@ -460,7 +460,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				auto fGetSettings = []( std::shared_ptr<Hardware> hardware_ = nullptr ) {
@@ -689,7 +689,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				std::shared_ptr<Device> device = nullptr;
@@ -727,67 +727,78 @@ namespace micasa {
 								);
 							}
 						} else {
-							output_["data"] = json::array();
+							auto find = input_.find( "light" );
+							if ( find != input_.end() ) {
+								output_["data"] = g_database->getQuery<json>(
+									"SELECT d.`id`, CASE WHEN s.`value` IS NULL THEN d.`label` ELSE s.`value` END AS `name`, d.`type` "
+									"FROM `devices` d LEFT JOIN `device_settings` s "
+									"ON d.`id`=s.`device_id` "
+									"WHERE d.`enabled`=1 "
+									"AND s.`key`='name'"
+								);
+							} else {
+								output_["data"] = json::array();
 
-							// The list of devices can be filtered using various filters. Non-installers have a
-							// mandatory filter on enabled.
-							std::shared_ptr<Hardware> hardware = nullptr;
-							bool deviceIdsFilter = false;
-							std::vector<std::string> deviceIds;
-							bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER );
-							bool enabled = true;
+								// The list of devices can be filtered using various filters. Non-installers have a
+								// mandatory filter on enabled.
+								std::shared_ptr<Hardware> hardware = nullptr;
+								bool deviceIdsFilter = false;
+								std::vector<std::string> deviceIds;
+								bool enabledFilter = ( user_->getRights() < User::Rights::INSTALLER );
+								bool enabled = true;
 
-							if ( user_->getRights() >= User::Rights::INSTALLER ) {
+								if ( user_->getRights() >= User::Rights::INSTALLER ) {
+									try {
+										hardware = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
+										if ( hardware == nullptr ) {
+											throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
+										}
+									} catch( std::runtime_error exception_ ) { /* ignore */ }
+
+									try {
+										deviceIds = g_database->getQueryColumn<std::string>(
+											"SELECT DISTINCT `device_id` "
+											"FROM `x_device_scripts` "
+											"WHERE `script_id`=%d "
+											"ORDER BY `device_id` ASC",
+											jsonGet<unsigned int>( input_, "script_id" )
+										);
+										deviceIdsFilter = true;
+									} catch( std::runtime_error exception_ ) { /* ignore */ }
+
+									try {
+										enabled = jsonGet<bool>( input_, "enabled" );
+										enabledFilter = true;
+									} catch( std::runtime_error exception_ ) { /* ignore */ }
+								}
+
 								try {
-									hardware = g_controller->getHardwareById( jsonGet<unsigned int>( input_, "hardware_id" ) );
-									if ( hardware == nullptr ) {
-										throw WebServer::ResourceException( 400, "Hardware.Invalid.Id", "The supplied hardware id is invalid." );
-									}
-								} catch( std::runtime_error exception_ ) { /* ignore */ }
-
-								try {
-									deviceIds = g_database->getQueryColumn<std::string>(
-										"SELECT DISTINCT `device_id` "
-										"FROM `x_device_scripts` "
-										"WHERE `script_id`=%d "
-										"ORDER BY `device_id` ASC",
-										jsonGet<unsigned int>( input_, "script_id" )
-									);
+									auto additionalDeviceIds = stringSplit( jsonGet<std::string>( input_, "device_ids" ), ',' );
+									deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
 									deviceIdsFilter = true;
 								} catch( std::runtime_error exception_ ) { /* ignore */ }
-
-								try {
-									enabled = jsonGet<bool>( input_, "enabled" );
-									enabledFilter = true;
-								} catch( std::runtime_error exception_ ) { /* ignore */ }
-							}
-
-							try {
-								auto additionalDeviceIds = stringSplit( jsonGet<std::string>( input_, "device_ids" ), ',' );
-								deviceIds.insert( deviceIds.end(), additionalDeviceIds.begin(), additionalDeviceIds.end() );
-								deviceIdsFilter = true;
-							} catch( std::runtime_error exception_ ) { /* ignore */ }
-							
-							auto devices = g_controller->getAllDevices();
-							for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
-								if ( enabledFilter ) {
-									if ( enabled && ! (*deviceIt)->isEnabled() ) {
-										continue;
+								
+								auto devices = g_controller->getAllDevices();
+								for ( auto deviceIt = devices.begin(); deviceIt != devices.end(); deviceIt++ ) {
+									if ( enabledFilter ) {
+										if ( enabled && ! (*deviceIt)->isEnabled() ) {
+											continue;
+										}
+										if ( ! enabled && (*deviceIt)->isEnabled() ) {
+											continue;
+										}
 									}
-									if ( ! enabled && (*deviceIt)->isEnabled() ) {
-										continue;
+									if ( deviceIdsFilter ) {
+										if ( std::find( deviceIds.begin(), deviceIds.end(), std::to_string( (*deviceIt)->getId() ) ) == deviceIds.end() ) {
+											continue;
+										}
 									}
-								}
-								if ( deviceIdsFilter ) {
-									if ( std::find( deviceIds.begin(), deviceIds.end(), std::to_string( (*deviceIt)->getId() ) ) == deviceIds.end() ) {
-										continue;
+									if (
+										hardware == nullptr
+										|| (*deviceIt)->getHardware() == hardware
+									) {
+										output_["data"] += (*deviceIt)->getJson( false );
 									}
-								}
-								if (
-									hardware == nullptr
-									|| (*deviceIt)->getHardware() == hardware
-								) {
-									output_["data"] += (*deviceIt)->getJson( false );
 								}
 							}
 						}
@@ -802,6 +813,8 @@ namespace micasa {
 						) {
 							device->getHardware()->removeDevice( device );
 							output_["code"] = 200;
+						} else {
+							throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 						}
 						break;
 					}
@@ -861,6 +874,8 @@ namespace micasa {
 							}
 
 							output_["code"] = 200;
+						} else {
+							throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 						}
 						break;
 					}
@@ -869,26 +884,29 @@ namespace micasa {
 						if (
 							deviceId != -1
 							&& ( device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & Device::UpdateSource::API ) == Device::UpdateSource::API
-							&& user_->getRights() >= device->getSettings()->get<User::Rights>( DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::Rights::USER )
 						) {
-							try {
-								switch( device->getType() ) {
-									case Device::Type::COUNTER:
-										device->updateValue<Counter>( Device::UpdateSource::API, jsonGet<int>( input_, "value" ) );
-										break;
-									case Device::Type::LEVEL:
-										device->updateValue<Level>( Device::UpdateSource::API, jsonGet<double>( input_, "value" ) );
-										break;
-									case Device::Type::SWITCH:
-									case Device::Type::TEXT:
-										device->updateValue<Switch>( Device::UpdateSource::API, jsonGet<std::string>( input_, "value" ) );
-										break;
+							if ( user_->getRights() >= device->getSettings()->get<User::Rights>( DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::Rights::USER ) ) {
+								try {
+									switch( device->getType() ) {
+										case Device::Type::COUNTER:
+											device->updateValue<Counter>( Device::UpdateSource::API, jsonGet<int>( input_, "value" ) );
+											break;
+										case Device::Type::LEVEL:
+											device->updateValue<Level>( Device::UpdateSource::API, jsonGet<double>( input_, "value" ) );
+											break;
+										case Device::Type::SWITCH:
+										case Device::Type::TEXT:
+											device->updateValue<Switch>( Device::UpdateSource::API, jsonGet<std::string>( input_, "value" ) );
+											break;
+									}
+								} catch( std::runtime_error exception_ ) {
+									throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
 								}
-							} catch( std::runtime_error exception_ ) {
-								throw WebServer::ResourceException( 400, "Device.Invalid.Value", "The supplied value is invalid." );
-							}
 
-							output_["code"] = 200;
+								output_["code"] = 200;
+							} else {
+								throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
+							}
 						}
 						break;
 					}
@@ -904,7 +922,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::POST,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 				
 				std::shared_ptr<Device> device = nullptr;
@@ -951,7 +969,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::POST | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				// This helper method returns a list of settings that can be used to edit a new or existing link.
@@ -1221,7 +1239,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				json script = json::object();
@@ -1369,7 +1387,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::INSTALLER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				json timer = json::object();
@@ -1649,13 +1667,16 @@ namespace micasa {
 				} else if (
 					method_ == WebServer::Method::GET
 					&& input_["$1"].get<std::string>() == "refresh"
-					&& user_ != nullptr
 				) {
-					// After a login token has been refreshed, the old token should be expired, just not immediately
-					// because there might be concurrent requests using the old token that need to be able to finish.
-					this->m_logins.at( jsonGet<std::string>( input_, "_token" ) ).valid = system_clock::now() + minutes( 1 );
-					output_["code"] = 200; // Refreshed
-					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s prolonged login.", user_->getName().c_str() );
+					if ( user_ != nullptr ) {
+						// After a login token has been refreshed, the old token should be expired, just not immediately
+						// because there might be concurrent requests using the old token that need to be able to finish.
+						this->m_logins.at( jsonGet<std::string>( input_, "_token" ) ).valid = system_clock::now() + minutes( 1 );
+						output_["code"] = 200; // Refreshed
+						Logger::logr( Logger::LogLevel::NORMAL, this, "User %s prolonged login.", user_->getName().c_str() );
+					} else {
+						throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
+					}
 				} else {
 					return;
 				}
@@ -1682,7 +1703,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::POST | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::ADMIN ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 
 				json user = json::object();
@@ -1777,12 +1798,23 @@ namespace micasa {
 								&& (*find).get<std::string>().size() > 2
 								&& (*find).get<std::string>().size() <= 32
 							) {
-								user["password"] = (*find).get<std::string>();
+								std::string salt = randomString( 64 );
+								std::string pepper = g_settings->get( WEBSERVER_SETTING_HASH_PEPPER );
+								user["password"] = this->_hash( salt + pepper + (*find).get<std::string>() + WEBSERVER_HASH_MAGGI ) + '.' + salt;
 							} else {
 								throw WebServer::ResourceException( 400, "User.Invalid.Password", "The supplied password is invalid." );
 							}
 						} else if ( userId == -1 ) {
 							throw WebServer::ResourceException( 400, "User.Missing.Password", "Missing password." );
+						} else {
+							// If the user was updated without providing a new password, the old password hash is added
+							// to the user object so it can safely be stored again below.
+							user["password"] = g_database->getQueryValue<std::string>(
+								"SELECT `password` "
+								"FROM `users` "
+								"WHERE `id`=%d ",
+								userId
+							);
 						}
 						
 						find = input_.find( "rights" );
@@ -1813,16 +1845,13 @@ namespace micasa {
 							user["enabled"] = true;
 						}
 						
-						std::string salt = randomString( 64 );
-						std::string pepper = g_settings->get( WEBSERVER_SETTING_HASH_PEPPER );
-						std::string password = this->_hash( salt + pepper + user["password"].get<std::string>() + WEBSERVER_HASH_MAGGI ) + '.' + salt;
 						if ( userId == -1 ) {
 							userId = g_database->putQuery(
 								"INSERT INTO `users` (`name`, `username`, `password`, `rights`, `enabled`) "
 								"VALUES (%Q, %Q, %Q, %d, %d) ",
 								user["name"].get<std::string>().c_str(),
 								user["username"].get<std::string>().c_str(),
-								password.c_str(),
+								user["password"].get<std::string>().c_str(),
 								user["rights"].get<unsigned int>(),
 								user["enabled"].get<bool>() ? 1 : 0
 							);
@@ -1835,7 +1864,7 @@ namespace micasa {
 								"WHERE `id`=%d",
 								user["name"].get<std::string>().c_str(),
 								user["username"].get<std::string>().c_str(),
-								password.c_str(),
+								user["password"].get<std::string>().c_str(),
 								user["rights"].get<unsigned int>(),
 								user["enabled"].get<bool>() ? 1 : 0,
 								userId
@@ -1857,7 +1886,7 @@ namespace micasa {
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::DELETE,
 			WebServer::t_callback( [this]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if ( user_ == nullptr || user_->getRights() < User::Rights::VIEWER ) {
-					return;
+					throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
 				}
 			
 				switch( method_ ) {

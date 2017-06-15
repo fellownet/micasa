@@ -6,12 +6,6 @@
 
 <section class="content-body">
 
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error = ''" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
-	</div>
-
 	<div class="row">
 		<div class="col-xs-12">
 			<div class="box">
@@ -22,12 +16,12 @@
 				<form role="form" (ngSubmit)="submitTimer()" #timerForm="ngForm">
 				<div class="box-body">
 					<div class="form-group" [class.has-error]="! name.valid && ! name.pristine">
-						<label for="timer_name">Name</label>
+						<label for="timer_name">Name<span class="mandatory"> *</span></label>
 						<input type="text" class="form-control" id="timer_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="timer.name" name="name" #name="ngModel">
 					</div>
 					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
 					<div class="form-group" [class.has-error]="! cron.valid && ! cron.pristine">
-						<label for="timer_cron">Cron</label>
+						<label for="timer_cron">Cron<span class="mandatory"> *</span></label>
 						<div class="callout callout-info">To define the time you can provide concrete values for minute (m), hour (h), day of month (dom), month (mon), and day of week (dow). Use an asterisk in these fields for any. Lists (comma), ranges (dash) and steps (forward slash) are also supported.</div>
 						<input type="text" class="form-control" id="timer_cron" placeholder="m h dom mon dow" pattern="^(((([*])|(((([0-5])?[0-9])((-(([0-5])?[0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|(((([0-5])?[0-9])((-(([0-5])?[0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((([*])|(((((([0-1])?[0-9]))|(([2][0-3])))((-(((([0-1])?[0-9]))|(([2][0-3])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|(((((([0-1])?[0-9]))|(([2][0-3])))((-(((([0-1])?[0-9]))|(([2][0-3])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((((((([*])|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))((-(((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|(L)|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))W))))(,(((((([*])|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))((-(((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|(L)|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))W)))))*)|([?])) (((([*])|((((([1-9]))|(([1][0-2])))((-((([1-9]))|(([1][0-2])))))?))|((((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))((-((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|((((([1-9]))|(([1][0-2])))((-((([1-9]))|(([1][0-2])))))?))|((((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))((-((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((((((([*])|((([0-6])((-([0-6])))?))|((((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))((-((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|((([0-6])L))|(W)|(([#][1-5]))))(,(((((([*])|((([0-6])((-([0-6])))?))|((((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))((-((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|((([0-6])L))|(W)|(([#][1-5])))))*)|([?]))((( (((([*])|((([1-2][0-9][0-9][0-9])((-([1-2][0-9][0-9][0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|((([1-2][0-9][0-9][0-9])((-([1-2][0-9][0-9][0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))*))?)$" autocomplete="off" required [(ngModel)]="timer.cron" name="cron" #cron="ngModel">
 					</div>
@@ -41,28 +35,28 @@
 					<ng-container *ngIf="!! device" [ngSwitch]="device.type">
 					<ng-container *ngSwitchCase="'counter'">
 						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value</label>
+							<label for="timer_value">Value<span class="mandatory"> *</span></label>
 							<input type="number" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
 						</div>
 						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
 					</ng-container>
 					<ng-container *ngSwitchCase="'level'">
 						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value</label>
+							<label for="timer_value">Value<span class="mandatory"> *</span></label>
 							<input type="number" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
 						</div>
 						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
 					</ng-container>
 					<ng-container *ngSwitchCase="'text'">
 						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value</label>
+							<label for="timer_value">Value<span class="mandatory"> *</span></label>
 							<input type="text" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
 						</div>
 						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
 					</ng-container>
 					<ng-container *ngSwitchCase="'switch'">
 						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Action</label>
+							<label for="timer_value">Action<span class="mandatory"> *</span></label>
 							<select class="form-control" id="timer_value" required [(ngModel)]="timer.value" name="value" #value="ngModel">
 								<option value="On">On</option>
 								<option value="Off">Off</option>

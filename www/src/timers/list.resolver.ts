@@ -22,12 +22,12 @@ export class TimersListResolver implements Resolve<Timer[]> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer[]> {
-		var me = this;
 		return this._timersService.getTimers( route_.params['device_id'] )
-			.catch( function( error_: string ) {
-				me._router.navigate( [ '/login' ] );
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
 				return Observable.of( null );
 			} )
 		;
 	};
+
 }

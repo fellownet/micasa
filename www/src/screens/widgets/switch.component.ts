@@ -9,6 +9,9 @@ import {
 	ElementRef,
 	EventEmitter
 }                         from '@angular/core';
+import {
+	Router
+}                         from '@angular/router'; 
 import { Observable }     from 'rxjs/Observable';
 
 import {
@@ -35,7 +38,7 @@ export class WidgetSwitchComponent implements OnInit, OnChanges, OnDestroy {
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: Device[];
+	@Input( 'devices' ) public devices: { id: number, name: string, type: string }[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -47,39 +50,39 @@ export class WidgetSwitchComponent implements OnInit, OnChanges, OnDestroy {
 	public title: string;
 
 	public constructor(
+		private _router: Router,
 		private _devicesService: DevicesService,
 		private _sessionService: SessionService
 	) {
 	};
 
 	public ngOnInit() {
-		var me = this;
+		this.title = this.widget.name;
 
-		me.title = me.widget.name;
-		me.devices = me.devices.filter( device_ => device_.type == 'switch' );
+		this.devices = this.devices.filter( device_ => device_.type == 'switch' );
 
 		// Listen for events broadcasted from the session service.
-		me._sessionService.events
-			.takeWhile( () => me._active )
-			.filter( event_ => ! this.invalid && event_.device_id == me.data[0].device.id )
-			.subscribe( function( event_: any ) {
-				me.data[0].device.value = event_.value;
-				me.data[0].device.age = 0;
-				setTimeout( function() {
-					delete( me._busy );
-				}, Math.max( 0, 350 - ( Date.now() - me._busy ) ) );
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.filter( event_ => ! this.parent.editing && ! this.invalid && event_.device_id == this.data[0].device.id )
+			.subscribe( event_ => {
+				this.data[0].device.value = event_.value;
+				this.data[0].device.age = 0;
+				setTimeout(
+					() => delete this._busy,
+					Math.max( 0, 350 - ( Date.now() - this._busy ) )
+				);
 			} )
 		;
 
 		Observable.interval( 1000 )
-			.takeWhile( () => me._active )
+			.takeWhile( () => this._active )
 			.filter( () => ! this.invalid )
 			.subscribe( () => this.data[0].device.age++ )
 		;
 	};
 
 	public ngOnChanges() {
-		var me = this;
 		this.invalid = (
 			! this.data[0]
 			|| ! this.data[0].device
@@ -95,26 +98,29 @@ export class WidgetSwitchComponent implements OnInit, OnChanges, OnDestroy {
 	};
 
 	public toggle() {
-		var me = this;
 		if (
-			! me.invalid
-			&& ! me._busy
+			! this.invalid
+			&& ! this._busy
 		) {
 			let value: string;
-			if ( me.data[0].device.value == 'On' ) {
+			if ( this.data[0].device.value == 'On' ) {
 				value = 'Off';
 			} else {
 				value = 'On';
 			}
 			let now: number = Date.now();
-			me._busy = now;
-			setTimeout( function() {
-				if ( me._busy == now ) {
-					delete( me._busy );
+			this._busy = now;
+			setTimeout( () => {
+				if ( this._busy == now ) {
+					delete( this._busy );
 				}
 			}, 5000 );
-			me._devicesService.patchDevice( me.data[0].device, value ).subscribe();
+			this._devicesService.patchDevice( this.data[0].device, value ).subscribe();
 		}
+	};
+
+	public open() {
+		this._router.navigate( [ '/devices', this.data[0].device.id ] );
 	};
 
 	public save() {
