@@ -101,7 +101,7 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 	public selectDevice( device_: Device ) {
 		this._devicesService.returnUrl = this._router.url;
-		this._router.navigate( [ '/devices', device_.id, 'edit' ] );
+		this._router.navigate( [ '/devices', device_.id ] );
 	};
 
 }

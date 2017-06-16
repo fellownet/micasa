@@ -67,7 +67,7 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 
 	public selectHardware( hardware_: Hardware ) {
 		this._hardwareService.returnUrl = this._router.url;
-		this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
+		this._router.navigate( [ '/hardware', hardware_.id ] );
 	};
 
 	public addHardware( type_: string ) {
@@ -75,7 +75,7 @@ export class HardwareListComponent implements OnInit, OnDestroy {
 			.subscribe(
 				hardware_ => {
 					this._hardwareService.returnUrl = this._router.url;
-					this._router.navigate( [ '/hardware', hardware_.id, 'edit' ] );
+					this._router.navigate( [ '/hardware', hardware_.id ] );
 				},
 				error_ => this._router.navigate( [ '/error' ] )
 			)

@@ -14,8 +14,8 @@ import { DevicesListResolver }   from '../devices/list.resolver';
 import { SessionGuard }          from '../session/session.guard';
 
 const routes: Routes = [
-	{ path: 'hardware',                   component: HardwareListComponent,  canActivate: [SessionGuard], resolve: { list: HardwareListResolver } },
-	{ path: 'hardware/:hardware_id/edit', component: HardwareEditComponent,  canActivate: [SessionGuard], resolve: { list: HardwareListResolver, hardware: HardwareResolver, devices: DevicesListResolver } },
+	{ path: 'hardware',              component: HardwareListComponent, canActivate: [SessionGuard], resolve: { list: HardwareListResolver } },
+	{ path: 'hardware/:hardware_id', component: HardwareEditComponent, canActivate: [SessionGuard], resolve: { list: HardwareListResolver, hardware: HardwareResolver, devices: DevicesListResolver } }
 ];
 
 @NgModule( {

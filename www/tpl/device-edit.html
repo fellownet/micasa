@@ -1,5 +1,5 @@
 <section class="content-header">
-<a *ngIf="device.enabled" routerLink="/devices/{{ device.id }}" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
+<a *ngIf="device.enabled" routerLink="/devices/{{ device.id }}/details" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
 <h1>{{ title }}
 	<small *ngIf="script">{{ script.name }}</small>
 	<small *ngIf="hardware">{{ hardware.name }}<span *ngIf="hardware.parent">, {{ hardware.parent.name }}</span></small>

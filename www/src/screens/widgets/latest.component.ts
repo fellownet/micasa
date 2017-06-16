@@ -236,7 +236,7 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 	};
 
 	public open() {
-		this._router.navigate( [ '/devices', this.data[0].device.id ] );
+		this._router.navigate( [ '/devices', this.data[0].device.id, 'details' ] );
 	};
 
 	public save() {

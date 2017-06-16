@@ -237,7 +237,7 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 								cursor: 'pointer',
 								events: {
 									click: ( event_: any ) => {
-										this._router.navigate( [ '/devices', device.id ] );
+										this._router.navigate( [ '/devices', device.id, 'details' ] );
 									},
 									hide: ( event_: any ) => {
 										let serie: any = event_.target;
