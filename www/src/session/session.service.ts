@@ -131,9 +131,9 @@ export class SessionService {
 		;
 	};
 
-	public refresh(): Observable<boolean> {
+	public refresh(): Observable<Session> {
 		return this.http<Session>( 'get', 'user/refresh' )
-			.map( session_ => {
+			.do( session_ => {
 				let now: number = new Date().getTime() / 1000;
 				session_.diff = now - session_.created;
 				session_.remember = ( this.get() as Session ).remember;
@@ -142,10 +142,6 @@ export class SessionService {
 				storage.setItem( 'session', JSON.stringify( session_ ) );
 
 				this._session.next( session_ );
-				return true;
-			} )
-			.catch( error_ => {
-				return Observable.throw( error_ );
 			} )
 		;
 	};
@@ -169,10 +165,9 @@ export class SessionService {
 				this._busy = true;
 				return this.refresh()
 					.mergeMap( () => {
-						return this.http<T>( method_, resource_, params_ )
-							.do( () => this._busy = false )
-						;
+						return this.http<T>( method_, resource_, params_ );
 					} )
+					.finally( () => this._busy = false )
 				;
 			}
 		}
@@ -284,7 +279,10 @@ export class SessionService {
 							subject.complete();
 						 } )
 						.catch( error_ => {
-							if ( default_ ) {
+							if (
+								error_.code == 404 // not found
+								&& !! default_
+							) {
 								return this.store<T>( key_, default_ )
 									.do( data_ => {
 										subject.next( data_ );

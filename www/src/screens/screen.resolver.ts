@@ -55,8 +55,15 @@ export class ScreenResolver implements Resolve<Screen> {
 							observables.push(
 								this._screensService.getDataForWidget( widget_, devices_ )
 									.map( data_ => [ i_, data_ ] )
-									// NOTE catch all errors to make sure the forkJoin completes.
-									.catch( () => Observable.of( null ) )
+									// NOTE catch all 404 not found errors to make sure the forkJoin completes if a
+									// device was deleted.
+									.catch( error_ => {
+										if ( error_.code == 404 ) {
+											return Observable.of( null );
+										} else {
+											return Observable.throw( error_ );
+										}
+									 } )
 							);
 						} );
 						if ( observables.length > 0 ) {

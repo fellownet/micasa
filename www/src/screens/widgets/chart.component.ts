@@ -434,22 +434,25 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		this._state.complete();
 	};
 
-	public addSource( device_id_: number ) {
-		this._devicesService.getDevice( device_id_ )
-			.subscribe( device_ => {
-				this.widget.sources.push( {
-					device_id: +device_id_,
-					properties: {
-						color: 'blue'
-					}
-				} );
-				this.data.push( {
-					device: device_,
-					data: [],
-					config: {}
-				} );
-			} )
-		;
+	public addSource( device_id_: string ) {
+		let device_id: number = parseInt( device_id_ );
+		if ( device_id > 0 ) {
+			this._devicesService.getDevice( device_id )
+				.subscribe( device_ => {
+					this.widget.sources.push( {
+						device_id: +device_id_,
+						properties: {
+							color: 'blue'
+						}
+					} );
+					this.data.push( {
+						device: device_,
+						data: [],
+						config: {}
+					} );
+				} )
+			;
+		}
 	};
 
 	public removeSource( source_: Source ) {

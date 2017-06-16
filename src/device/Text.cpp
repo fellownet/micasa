@@ -4,6 +4,7 @@
 #include "../Database.h"
 #include "../Hardware.h"
 #include "../Controller.h"
+#include "../Utils.h"
 
 #define DEVICE_TEXT_DEFAULT_HISTORY_RETENTION 7 // days
 
@@ -50,7 +51,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			this->_purgeHistory();
 		} );
 

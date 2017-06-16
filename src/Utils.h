@@ -17,6 +17,8 @@ namespace micasa {
 	std::string stringJoin( const std::vector<std::string>& input_, const std::string& glue_ );
 	std::string stringFormat( const std::string format_, ... );
 	std::string randomString( size_t length_ );
+	int randomNumber( int min_, int max_ );
+
 	bool validateSettings( const nlohmann::json& input_, nlohmann::json& output_, const nlohmann::json& settings_, std::vector<std::string>* invalid_, std::vector<std::string>* missing_, std::vector<std::string>* errors_ );
 	const std::map<std::string, std::string> getSerialPorts();
 

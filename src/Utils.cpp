@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iostream>
 #include <iterator>
+#include <random>
 
 #ifdef _DEBUG
 	#include <cassert>
@@ -98,6 +99,13 @@ namespace micasa {
 		std::string str( length_,0 );
 		std::generate_n( str.begin(), length_, randchar );
 		return str;
+	};
+
+	int randomNumber( int min_, int max_ ) {
+		std::random_device rd; // only used once to initialise (seed) engine
+		std::mt19937 rng( rd() ); // random-number engine used (Mersenne-Twister in this case)
+		std::uniform_int_distribution<int> uni( min_, max_ ); // guaranteed unbiased
+		return uni( rng );
 	};
 
 	bool validateSettings( const json& input_, json& output_, const json& settings_, std::vector<std::string>* invalid_, std::vector<std::string>* missing_, std::vector<std::string>* errors_ ) {
