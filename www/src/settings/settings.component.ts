@@ -1,10 +1,13 @@
 import {
 	Component,
 	Input
-}                  from '@angular/core';
-import { NgForm }  from '@angular/forms';
+}                      from '@angular/core';
+import {
+	NgForm,
+	NgModel,
+	ValidationErrors } from '@angular/forms';
 
-import { Setting } from './settings.service';
+import { Setting }     from './settings.service';
 
 @Component( {
 	selector: 'settings',
@@ -23,4 +26,5 @@ export class SettingsComponent {
 	public toggleAdvancedSettings() {
 		this.showAdvancedSettings = ! this.showAdvancedSettings;
 	};
+
 }

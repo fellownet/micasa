@@ -1,10 +1,11 @@
-import { NgModule }          from '@angular/core';
-import { CommonModule }      from '@angular/common';
-import { FormsModule }       from '@angular/forms';
+import { NgModule }                   from '@angular/core';
+import { CommonModule }               from '@angular/common';
+import { FormsModule }                from '@angular/forms';
 
-import { UtilsModule }       from '../utils/utils.module';
+import { UtilsModule }                from '../utils/utils.module';
 
-import { SettingsComponent } from './settings.component';
+import { SettingsComponent }          from './settings.component';
+import { RegisterFormModelDirective } from './register.directive';
 
 @NgModule( {
 	imports: [
@@ -13,7 +14,8 @@ import { SettingsComponent } from './settings.component';
 		UtilsModule
 	],
 	declarations: [
-		SettingsComponent
+		SettingsComponent,
+		RegisterFormModelDirective
 	],
 	exports: [
 		SettingsComponent
