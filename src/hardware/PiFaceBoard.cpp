@@ -13,7 +13,7 @@ namespace micasa {
 
 	using namespace std::chrono;
 	using namespace nlohmann;
-	
+
 	const char* PiFaceBoard::label = "PiFace Board";
 
 	void PiFaceBoard::start() {
@@ -79,7 +79,7 @@ namespace micasa {
 			}
 		} );
 	};
-	
+
 	void PiFaceBoard::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		this->m_shutdown = true;
@@ -102,7 +102,7 @@ namespace micasa {
 		assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
 		assert( port.second == PIFACEBOARD_PORT_OUTPUT && "Device should be an output port." );
 #endif // _DEBUG
-			
+
 		if ( this->_queuePendingUpdate( device->getReference(), source_, PIFACEBOARD_BUSY_BLOCK_MSEC, PIFACEBOARD_BUSY_WAIT_MSEC ) ) {
 			unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_OLATA );
 			int mask = 0x01;
@@ -187,7 +187,7 @@ namespace micasa {
 				bool state = ( ( portState & mask ) == mask );
 				if ( this->m_outputs[i] != state ) {
 					this->m_outputs[i] = state;
-					
+
 					std::string reference = this->_createReference( i, PIFACEBOARD_PORT_OUTPUT );
 					auto device = std::static_pointer_cast<Switch>( this->getDevice( reference ) );
 					Switch::Option value = ( state ? Switch::Option::ON : Switch::Option::OFF );
@@ -225,22 +225,28 @@ namespace micasa {
 							}
 						} else {
 							if ( value == Switch::Option::ON ) {
-								this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
-									{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
-									{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
-									{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-									{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-								} )->incrementValue( Device::UpdateSource::HARDWARE );
-								if ( iteration_ > 2 ) {
-									unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
-									this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+								unsigned long interval = duration_cast<milliseconds>( system_clock::now() - this->m_lastPulse[i] ).count();
+								this->m_lastPulse[i] = system_clock::now();
+
+								// Declaring and updating devices is done by the schedular outside of the main piface
+								// thread because it potentially takes an excessive amount of time to complete due to
+								// the database calls and associated locking mechanisms.
+								this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
+									this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
 										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
 										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
-									} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
-								}
-								this->m_lastPulse[i] = system_clock::now();
+									} )->incrementValue( Device::UpdateSource::HARDWARE );
+									if ( iteration_ > 2 ) {
+										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
+											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
+										} )->updateValue( Device::UpdateSource::HARDWARE, 1000.0f / interval );
+									}
+								} );
 							}
 						}
 
