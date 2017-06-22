@@ -12,6 +12,7 @@ import {
 	Link,
 	LinksService
 }                  from './links.service';
+import { Device }  from '../devices/devices.service';
 
 @Component( {
 	templateUrl: 'tpl/link-edit.html'
@@ -20,10 +21,12 @@ import {
 export class LinkEditComponent implements OnInit {
 
 	public link: Link;
-	
+
 	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
+
+	public device?: Device;
 
 	public constructor(
 		private _router: Router,
@@ -37,6 +40,9 @@ export class LinkEditComponent implements OnInit {
 			.subscribe(
 				data_ => {
 					this.link = data_.link;
+					if ( 'device' in data_ ) {
+						this.device = data_.device;
+					}
 
 					this.title = this.link.name;
 
@@ -52,7 +58,7 @@ export class LinkEditComponent implements OnInit {
 	};
 
 	public submitLink() {
-		this._linksService.putLink( this.link )
+		this._linksService.putLink( this.link, ( !! this.device ) ? this.device.id : undefined )
 			.subscribe(
 				link_ => {
 					if ( !! this._linksService.returnUrl ) {
@@ -68,7 +74,7 @@ export class LinkEditComponent implements OnInit {
 	};
 
 	public deleteLink() {
-		this._linksService.deleteLink( this.link )
+		this._linksService.deleteLink( this.link, ( !! this.device ) ? this.device.id : undefined )
 			.subscribe(
 				link_ => {
 					if ( !! this._linksService.returnUrl ) {

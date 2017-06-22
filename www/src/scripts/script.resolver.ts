@@ -21,16 +21,20 @@ export class ScriptResolver implements Resolve<Script> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Script> {
-		if ( route_.params['script_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New script', code: '// enter code here', enabled: true } );
+		let observable: Observable<Script>;
+		if ( 'script_id' in route_.params ) {
+			observable = this._scriptsService.getScript( route_.params['script_id'] );
 		} else {
-			return this._scriptsService.getScript( +route_.params['script_id'] )
-				.catch( () => {
-					this._router.navigate( [ '/error' ] );
-					return Observable.of( null );
-				} )
+			observable = this._scriptsService.getScriptSettings()
+				.mergeMap( settings_ => Observable.of( { id: NaN, name: 'New Script', code: '// enter code here', enabled: false, settings: settings_ } ) )
 			;
 		}
+		return observable
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
+				return Observable.of( null );
+			} )
+		;
 	};
 
 }

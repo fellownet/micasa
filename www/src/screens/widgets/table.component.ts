@@ -12,7 +12,7 @@ import {
 }                          from '@angular/core';
 import {
 	Router
-}                          from '@angular/router'; 
+}                          from '@angular/router';
 import { Observable }      from 'rxjs/Observable';
 
 import {
@@ -56,7 +56,7 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public ngOnInit() {
 		this.title = this.widget.name;
-		this.devices = this._devicesService.getDevices( { enabled: 1 } )
+		this.devices = this._devicesService.getDevices()
 			.map( devices_ => devices_.filter( device_ => device_.type != 'level' && device_.type != 'counter' ) )
 		;
 

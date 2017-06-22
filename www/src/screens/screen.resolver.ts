@@ -47,8 +47,16 @@ export class ScreenResolver implements Resolve<Screen> {
 			.mergeMap( screen_ => {
 
 				// First fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then
-				// passed to the data fetchers.
+				// passed to the data fetchers which in turn will not fetch these devices again.
 				return this._screensService.getDevicesOnScreen( screen_ )
+					// Catch 404 errors if a device was removed but is still present in one of the widgets.
+					.catch( error_ => {
+						if ( error_.code == 404 ) {
+							return Observable.of( [] );
+						} else {
+							return Observable.throw( error_ );
+						}
+					} )
 					.mergeMap( devices_ => {
 						let observables: Observable<[number,SourceData[]]>[]= [];
 						screen_.widgets.forEach( ( widget_: Widget, i_: number ) => {

@@ -4,6 +4,7 @@ import {
 	Directive,
 	Input,
 	OnInit,
+	OnDestroy
 }                 from '@angular/core';
 
 import {
@@ -15,7 +16,7 @@ import {
 	selector: '[registerForm]'
 } )
 
-export class RegisterFormModelDirective implements OnInit {
+export class RegisterFormModelDirective implements OnInit, OnDestroy {
 
 	@Input( "registerForm" ) private _form: NgForm;
 	@Input( "registerModel" ) private _model: NgModel;
@@ -25,9 +26,20 @@ export class RegisterFormModelDirective implements OnInit {
 			!! this._form
 			&& !! this._model
 		) {
-			this._form.form.registerControl( this._model.name, this._model.control );
+			//this._form.form.registerControl( this._model.name, this._model.control );
 			this._form.addControl( this._model );
 		}
+	};
+
+	public ngOnDestroy() {
+		if (
+			!! this._form
+			&& !! this._model
+		) {
+			//this._form.form.registerControl( this._model.name, this._model.control );
+			this._form.removeControl( this._model );
+		}
+
 	};
 
 }

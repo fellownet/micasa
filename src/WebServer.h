@@ -23,6 +23,21 @@ namespace micasa {
 	class WebServer final {
 
 	public:
+		WebServer( unsigned int port_, unsigned int sslport_ );
+		~WebServer();
+
+		WebServer( const WebServer& ) = delete; // do not copy
+		WebServer& operator=( const WebServer& ) = delete; // do not copy-assign
+		WebServer( const WebServer&& ) = delete; // do not move
+		WebServer& operator=( WebServer&& ) = delete; // do not move-assign
+
+		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
+
+		void start();
+		void stop();
+		void broadcast( const std::string& message_ );
+
+	private:
 		enum class Method: unsigned short {
 			// v Retrieve all resources in a collection
 			// v Retrieve a single resource
@@ -43,65 +58,51 @@ namespace micasa {
 		}; // enum class Method
 		static const std::map<Method, std::string> MethodText;
 		ENUM_UTIL_W_TEXT( Method, MethodText );
-		
-		typedef std::function<void( std::shared_ptr<User> user_, const nlohmann::json& input_, const Method& method_, nlohmann::json& output_ )> t_callback;
-		
-		class ResourceCallback {
-		public:
-			ResourceCallback( const std::string& uri_, const Method& methods_, const t_callback& callback_ ) : uri( uri_ ), methods( methods_ ), callback( callback_ ) { };
 
-			const std::string uri;
-			const Method methods;
-			const t_callback callback;
-		}; // class ResourceCallback
-		
+		struct t_login {
+			std::chrono::system_clock::time_point valid;
+			std::shared_ptr<User> user;
+			std::vector<std::weak_ptr<Network::Connection>> sockets;
+		}; // struct t_login
+
+		struct t_resource {
+			std::string uri;
+			Method methods;
+			std::function<void( std::shared_ptr<User>, const nlohmann::json&, const Method&, nlohmann::json& )> callback;
+		}; // struct t_resource
+
 		class ResourceException: public std::runtime_error {
 		public:
 			ResourceException( unsigned int code_, std::string error_, std::string message_ ) : runtime_error( message_ ), code( code_ ), error( error_ ), message( message_ ) { };
-			
+
 			const unsigned int code;
 			const std::string error;
 			const std::string message;
 		}; // class ResourceException
 
-		WebServer( unsigned int port_, unsigned int sslport_ );
-		~WebServer();
-
-		WebServer( const WebServer& ) = delete; // Do not copy!
-		WebServer& operator=( const WebServer& ) = delete; // Do not copy-assign!
-		WebServer( const WebServer&& ) = delete; // do not move
-		WebServer& operator=( WebServer&& ) = delete; // do not move-assign
-
-		friend std::ostream& operator<<( std::ostream& out_, const WebServer* ) { out_ << "WebServer"; return out_; }
-		
-		void start();
-		void stop();
-		void broadcast( const std::string& message_ );
-
-	private:
-		struct t_login {
-			std::chrono::system_clock::time_point valid;
-			std::shared_ptr<User> user;
-			std::vector<std::weak_ptr<Network::Connection>> sockets;
-		};
-
 		unsigned int m_port;
 		unsigned int m_sslport;
-		Scheduler m_scheduler;
-		std::vector<std::shared_ptr<ResourceCallback>> m_resources;
-		std::map<std::string, t_login> m_logins;
-		mutable std::mutex m_loginsMutex;
 		std::shared_ptr<Network::Connection> m_bind;
 		std::shared_ptr<Network::Connection> m_sslbind;
 
+		Scheduler m_scheduler;
+
+		std::map<std::string, t_login> m_logins;
+		mutable std::mutex m_loginsMutex;
+
+		std::vector<t_resource> m_resources;
+
 		std::string _hash( const std::string& data_ ) const;
 		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
-		void _installHardwareResourceHandler();
+
+		void _installPluginResourceHandler();
 		void _installDeviceResourceHandler();
 		void _installLinkResourceHandler();
 		void _installScriptResourceHandler();
 		void _installTimerResourceHandler();
 		void _installUserResourceHandler();
+
+		static bool _validateSettings( const nlohmann::json&, nlohmann::json&, const nlohmann::json&, std::vector<std::string>*, std::vector<std::string>*, std::vector<std::string>* );
 
 	}; // class WebServer
 

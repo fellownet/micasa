@@ -12,7 +12,7 @@
 #include "Scheduler.h"
 
 namespace micasa {
-	
+
 	std::unique_ptr<Database> g_database;
 	std::unique_ptr<Settings<>> g_settings;
 	std::unique_ptr<WebServer> g_webServer;

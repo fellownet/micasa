@@ -1,6 +1,3 @@
-// v7
-// https://docs.cesanta.com/v7/master/
-
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -88,7 +85,7 @@ v7_err micasa_v7_get_device( struct v7* v7_, v7_val_t* res_ ) {
 		return v7_throwf( v7_, "Error", "Invalid device." );
 	}
 
-	v7_err js_error = v7_parse_json( v7_, device->getJson( false ).dump().c_str(), res_ );
+	v7_err js_error = v7_parse_json( v7_, device->getJson().dump().c_str(), res_ );
 	if ( V7_OK != js_error ) {
 		return v7_throwf( v7_, "Error", "Internal error." );
 	}
@@ -164,7 +161,7 @@ v7_err micasa_v7_get_data( struct v7* v7_, v7_val_t* res_ ) {
 
 v7_err micasa_v7_include( struct v7* v7_, v7_val_t* res_ ) {
 	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
-	
+
 	v7_val_t arg0 = v7_arg( v7_, 0 );
 	std::string script;
 	if (
@@ -180,7 +177,7 @@ v7_err micasa_v7_include( struct v7* v7_, v7_val_t* res_ ) {
 
 v7_err micasa_v7_log( struct v7* v7_, v7_val_t* res_ ) {
 	micasa::Controller* controller = static_cast<micasa::Controller*>( v7_get_user_data( v7_, v7_get_global( v7_ ) ) );
-	
+
 	v7_val_t arg0 = v7_arg( v7_, 0 );
 	char buffer[100], *p;
 	if ( v7_is_object( arg0 ) ) {
@@ -233,7 +230,7 @@ namespace micasa {
 		v7_set_method( this->m_v7_js, root, "include", &micasa_v7_include );
 		v7_set_method( this->m_v7_js, root, "log", &micasa_v7_log );
 
-		v7_def( this->m_v7_js, root, "SOURCE_HARDWARE", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::HARDWARE ) ) );
+		v7_def( this->m_v7_js, root, "SOURCE_PLUGIN", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) ) );
 		v7_def( this->m_v7_js, root, "SOURCE_TIMER", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::TIMER ) ) );
 		v7_def( this->m_v7_js, root, "SOURCE_SCRIPT", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::SCRIPT ) ) );
 		v7_def( this->m_v7_js, root, "SOURCE_API", ~0, V7_PROPERTY_NON_CONFIGURABLE, v7_mk_number( this->m_v7_js, Device::resolveUpdateSource( Device::UpdateSource::API ) ) );
@@ -258,51 +255,45 @@ namespace micasa {
 	void Controller::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
-		// Fetch all the hardware from the database to initialize our local map of hardware instances. NOTE parents
+		// Fetch all the plugins from the database to initialize our local map of plugin instances. NOTE parents
 		// always have a higher id than clients, so the query order should make sure parents are created first and are
 		// present when childs are created.
-		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
-		std::vector<std::map<std::string, std::string>> hardwareData = g_database->getQuery(
-			"SELECT `id`, `hardware_id`, `reference`, `type`, `enabled` "
-			"FROM `hardware` "
+		std::unique_lock<std::recursive_mutex> pluginsLock( this->m_pluginsMutex );
+		std::vector<std::map<std::string, std::string>> pluginsData = g_database->getQuery(
+			"SELECT `id`, `plugin_id`, `reference`, `type`, `enabled` "
+			"FROM `plugins` "
 			"ORDER BY `id` ASC"
 		);
-		for ( auto const &hardwareDataIt : hardwareData ) {
-			unsigned int parentId = atoi( hardwareDataIt.at( "hardware_id" ).c_str() );
-			std::shared_ptr<Hardware> parent = nullptr;
-			if ( parentId > 0 ) {
-				for ( auto const &hardwareIt : this->m_hardware ) {
-					if ( hardwareIt.second->getId() == parentId ) {
-						parent = hardwareIt.second;
-						break;
-					}
-				}
+		for ( auto& pluginData : pluginsData ) {
+			std::shared_ptr<Plugin> parent;
+			if ( pluginData["plugin_id"].size() > 0 ) {
+				parent = this->getPluginById( std::stoi( pluginData["plugin_id"] ) );
 			}
 
-			// The hardware is then created and immeidately initialized. NOTE the init method is necessary because the
-			// hardware cannot initialize it's devices if it's not already wrapped in a shared pointer.
-			std::shared_ptr<Hardware> hardware = Hardware::factory(
-				Hardware::resolveTextType( hardwareDataIt.at( "type" ) ),
-				std::stoi( hardwareDataIt.at( "id" ) ),
-				hardwareDataIt.at( "reference" ),
+			// The plugin is then created and immeidately initialized. NOTE the init method is necessary because the
+			// plugin cannot initialize it's devices if it's not already wrapped in a shared pointer.
+			std::shared_ptr<Plugin> plugin = Plugin::factory(
+				Plugin::resolveTextType( pluginData["type"] ),
+				std::stoi( pluginData["id"] ),
+				pluginData["reference"],
 				parent
 			);
-			hardware->init();
-			this->m_hardware[hardwareDataIt.at( "reference" )] = hardware;
-			
-			// Only parent hardware is started automatically. The hardware itself should take care of starting it's
-			// children (for instance, right after declareHardware). Starting the hardware is done in a separate thread
-			// to work around the hardwareMutex being locked.
+			plugin->init();
+			this->m_plugins[pluginData["reference"]] = plugin;
+
+			// Only parent plugin is started automatically. The plugin itself should take care of starting it's
+			// children (for instance, right after declarePlugin). Starting the plugin is done in a separate thread
+			// to work around the pluginsMutex being locked.
 			if (
-				hardwareDataIt.at( "enabled" ) == "1"
+				pluginData["enabled"] == "1"
 				&& parent == nullptr
 			) {
-				this->m_scheduler.schedule( 0, 1, this, [hardware]( std::shared_ptr<Scheduler::Task<>> ) {
-					hardware->start();
+				this->m_scheduler.schedule( 0, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
+					plugin->start();
 				} );
 			}
 		}
-		hardwareLock.unlock();
+		pluginsLock.unlock();
 
 		// Start a task that runs at every whole minute that processes the configured timers. The 5ms is a safe margin
 		// to make sure the whole minute has passed.
@@ -363,171 +354,154 @@ namespace micasa {
 		}
 #endif // _WITH_LIBUDEV
 
-		// Stopping the hardware is done asynchroniously. First all hardware instances are ordered to stop in a separate
-		// separate thread...
-		std::unique_lock<std::mutex> hardwareLock( this->m_hardwareMutex );
+		// Stopping the plugins is done asynchroniously. First all plugin instances are ordered to stop in a separate
+		// thread...
+		std::unique_lock<std::recursive_mutex> pluginsLock( this->m_pluginsMutex );
 		std::map<std::string, std::future<void>> futures;
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto hardware = hardwareIt.second;
-			if ( hardware->getState() != Hardware::State::DISABLED ) {
-				futures[hardware->getName()] = std::async( std::launch::async, [hardware] {
-					hardware->stop();
+		for ( auto& pluginPair : this->m_plugins ) {
+			auto plugin = pluginPair.second;
+			if ( plugin->getState() != Plugin::State::DISABLED ) {
+				futures[plugin->getName()] = std::async( std::launch::async, [plugin] {
+					plugin->stop();
 				} );
 			}
 		}
-		this->m_hardware.clear();
+		this->m_plugins.clear();
 
-		// ... then all threads are waited for to complete, skipping over hardware threads that take too long to stop.
+		// ... then all threads are waited for to complete, skipping over plugin threads that take too long to stop.
 		for ( auto const &futuresIt : futures ) {
 			std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
 			if ( status == std::future_status::timeout ) {
 				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
 			}
 #ifdef _DEBUG
-			assert( status == std::future_status::ready && "Hardware should stop properly." );
+			assert( status == std::future_status::ready && "Plugin should stop properly." );
 #endif // _DEBUG
 		}
-		hardwareLock.unlock();
+		pluginsLock.unlock();
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
 
-	std::shared_ptr<Hardware> Controller::getHardware( const std::string& reference_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+
+
+
+// HIER GEBLEVEN :/
+
+
+	std::shared_ptr<Plugin> Controller::getPlugin( const std::string& reference_ ) const {
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
 		try {
-			return this->m_hardware.at( reference_ );
+			return this->m_plugins.at( reference_ );
 		} catch( std::out_of_range ex_ ) {
 			return nullptr;
 		}
 	};
 
-	std::shared_ptr<Hardware> Controller::getHardwareById( const unsigned int& id_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			if ( hardwareIt.second->getId() == id_ ) {
-				return hardwareIt.second;
+	std::shared_ptr<Plugin> Controller::getPluginById( const unsigned int& id_ ) const {
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		for ( auto const &pluginIt : this->m_plugins ) {
+			if ( pluginIt.second->getId() == id_ ) {
+				return pluginIt.second;
 			}
 		}
 		return nullptr;
 	};
 
-	std::vector<std::shared_ptr<Hardware>> Controller::getChildrenOfHardware( const Hardware& hardware_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Hardware>> children;
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto parent = hardwareIt.second->getParent();
-			if (
-				parent != nullptr
-				&& parent.get() == &hardware_
-			) {
-				children.push_back( hardwareIt.second );
-			}
-		}
-		return children;
-	};
-	
-	std::vector<std::shared_ptr<Hardware>> Controller::getAllHardware() const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		std::vector<std::shared_ptr<Hardware>> all;
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			all.push_back( hardwareIt.second );
+	std::vector<std::shared_ptr<Plugin>> Controller::getAllPlugins() const {
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		std::vector<std::shared_ptr<Plugin>> all;
+		for ( auto const &pluginIt : this->m_plugins ) {
+			all.push_back( pluginIt.second );
 		}
 		return all;
 	};
-	
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ ) {
-		return this->declareHardware( type_, reference_, nullptr, settings_, enabled_ );
+
+	std::shared_ptr<Plugin> Controller::declarePlugin( const Plugin::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ ) {
+		return this->declarePlugin( type_, reference_, nullptr, settings_, enabled_ );
 	};
 
-	std::shared_ptr<Hardware> Controller::declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ ) {
-		std::unique_lock<std::mutex> lock( this->m_hardwareMutex );
+	std::shared_ptr<Plugin> Controller::declarePlugin( const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_, const std::vector<Setting>& settings_, bool enabled_ ) {
+		std::unique_lock<std::recursive_mutex> lock( this->m_pluginsMutex );
 		try {
-			return this->m_hardware.at( reference_ );
+			return this->m_plugins.at( reference_ );
 		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id;
 		if ( parent_ ) {
 			id = g_database->putQuery(
-				"INSERT INTO `hardware` ( `hardware_id`, `reference`, `type`, `enabled` ) "
+				"INSERT INTO `plugins` ( `plugin_id`, `reference`, `type`, `enabled` ) "
 				"VALUES ( %d, %Q, %Q, %d )",
 				parent_->getId(),
 				reference_.c_str(),
-				Hardware::resolveTextType( type_ ).c_str(),
+				Plugin::resolveTextType( type_ ).c_str(),
 				enabled_ ? 1 : 0
 			);
 		} else {
 			id = g_database->putQuery(
-				"INSERT INTO `hardware` ( `reference`, `type`, `enabled` ) "
+				"INSERT INTO `plugins` ( `reference`, `type`, `enabled` ) "
 				"VALUES ( %Q, %Q, %d )",
 				reference_.c_str(),
-				Hardware::resolveTextType( type_ ).c_str(),
+				Plugin::resolveTextType( type_ ).c_str(),
 				enabled_ ? 1 : 0
 			);
 		}
 
-		// The lock is released while instantiating hardware because some hardware need to lookup their parent with
-		// the getHardware* methods which also use the lock.
-		lock.unlock();
+		std::shared_ptr<Plugin> plugin = Plugin::factory( type_, id, reference_, parent_ );
+		this->m_plugins[reference_] = plugin;
 
-		std::shared_ptr<Hardware> hardware = Hardware::factory( type_, id, reference_, parent_ );
-
-		auto settings = hardware->getSettings();
+		auto settings = plugin->getSettings();
 		settings->insert( settings_ );
 		if ( settings->isDirty() ) {
 			settings->commit();
 		}
 
-		// Reacquire lock when adding to the map to make it thread safe.
-		lock = std::unique_lock<std::mutex>( this->m_hardwareMutex );
-		this->m_hardware[reference_] = hardware;
-		lock.unlock();
-
-		return hardware;
+		return plugin;
 	};
-	
-	void Controller::removeHardware( const std::shared_ptr<Hardware> hardware_ ) {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
 
-		// First all the children of this hardware are stopped and removed from the list. NOTE the futures which we're
-		// using to watch the proper stopping of hardware, are created on the heap to allow them to be passed into the
+	void Controller::removePlugin( const std::shared_ptr<Plugin> plugin_ ) {
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+
+		// First all the children of this plugin are stopped and removed from the list. NOTE the futures which we're
+		// using to watch the proper stopping of plugins, are created on the heap to allow them to be passed into the
 		// scheduler by pointer.
 		auto* futures = new std::map<std::string, std::future<void>>();
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			auto hardware = hardwareIt->second;
-			if ( hardware->getParent() == hardware_ ) {
-				if ( hardware->getState() != Hardware::State::DISABLED ) {
-					(*futures)[hardware->getName()] = std::async( std::launch::async, [hardware] {
-						hardware->stop();
+		for ( auto pluginsIt = this->m_plugins.begin(); pluginsIt != this->m_plugins.end(); ) {
+			auto plugin = pluginsIt->second;
+			if ( plugin->getParent() == plugin_ ) {
+				if ( plugin->getState() != Plugin::State::DISABLED ) {
+					(*futures)[plugin->getName()] = std::async( std::launch::async, [plugin] {
+						plugin->stop();
 					} );
 				}
-				hardwareIt = this->m_hardware.erase( hardwareIt );
+				pluginsIt = this->m_plugins.erase( pluginsIt );
 			} else {
-				hardwareIt++;
+				pluginsIt++;
 			}
 		}
 
-		// Then the hardware itself is stopped and removed. NOTE all the children records in the database will be
+		// Then the plugin itself is stopped and removed. NOTE all the children records in the database will be
 		// removed automatically due to foreign key constraints.
-		for ( auto hardwareIt = this->m_hardware.begin(); hardwareIt != this->m_hardware.end(); ) {
-			if ( hardwareIt->second == hardware_ ) {
-				if ( hardware_->getState() != Hardware::State::DISABLED ) {
-					(*futures)[hardware_->getName()] = std::async( std::launch::async, [hardware_] {
-						hardware_->stop();
+		for ( auto pluginsIt = this->m_plugins.begin(); pluginsIt != this->m_plugins.end(); ) {
+			if ( pluginsIt->second == plugin_ ) {
+				if ( plugin_->getState() != Plugin::State::DISABLED ) {
+					(*futures)[plugin_->getName()] = std::async( std::launch::async, [plugin_] {
+						plugin_->stop();
 					} );
 				}
 				g_database->putQuery(
-					"DELETE FROM `hardware` "
+					"DELETE FROM `plugins` "
 					"WHERE `id`=%d",
-					hardware_->getId()
+					plugin_->getId()
 				);
-				this->m_hardware.erase( hardwareIt );
+				this->m_plugins.erase( pluginsIt );
 				break;
 			} else {
-				hardwareIt++;
+				pluginsIt++;
 			}
 		}
 
-		// Waiting for the proper stopping of the hardware is done in a separate thread to allow the webserver to return
+		// Waiting for the proper stopping of the plugin is done in a separate thread to allow the webserver to return
 		// the removal results immediately.
 		this->m_scheduler.schedule( 0, 1, this, [this,futures]( std::shared_ptr<Scheduler::Task<>> ) {
 			for ( auto const &futuresIt : *futures ) {
@@ -536,7 +510,7 @@ namespace micasa {
 					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
 				}
 #ifdef _DEBUG
-				assert( status == std::future_status::ready && "Hardware should stop properly." );
+				assert( status == std::future_status::ready && "Plugin should stop properly." );
 #endif // _DEBUG
 			}
 			delete futures;
@@ -544,9 +518,9 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto device = hardwareIt.second->getDevice( reference_ );
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		for ( auto const &pluginsIt : this->m_plugins ) {
+			auto device = pluginsIt.second->getDevice( reference_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -555,9 +529,9 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Controller::getDeviceById( const unsigned int& id_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto device = hardwareIt.second->getDeviceById( id_ );
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		for ( auto const &pluginsIt : this->m_plugins ) {
+			auto device = pluginsIt.second->getDeviceById( id_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -566,9 +540,9 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Controller::getDeviceByName( const std::string& name_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto device = hardwareIt.second->getDeviceByName( name_ );
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		for ( auto const &pluginsIt : this->m_plugins ) {
+			auto device = pluginsIt.second->getDeviceByName( name_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -577,9 +551,9 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Controller::getDeviceByLabel( const std::string& label_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto device = hardwareIt.second->getDeviceByLabel( label_ );
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
+		for ( auto const &pluginsIt : this->m_plugins ) {
+			auto device = pluginsIt.second->getDeviceByLabel( label_ );
 			if ( device != nullptr ) {
 				return device;
 			}
@@ -588,10 +562,10 @@ namespace micasa {
 	};
 
 	std::vector<std::shared_ptr<Device>> Controller::getAllDevices() const {
-		std::lock_guard<std::mutex> lock( this->m_hardwareMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
 		std::vector<std::shared_ptr<Device>> result;
-		for ( auto const &hardwareIt : this->m_hardware ) {
-			auto devices = hardwareIt.second->getAllDevices();
+		for ( auto const &pluginsIt : this->m_plugins ) {
+			auto devices = pluginsIt.second->getAllDevices();
 			result.insert( result.end(), devices.begin(), devices.end() );
 		}
 		return result;
@@ -628,7 +602,7 @@ namespace micasa {
 				if ( scripts.size() > 0 ) {
 					json event;
 					event["value"] = device_->getValue();
-					event["device"] = device_->getJson( false );
+					event["device"] = device_->getJson();
 					this->_runScripts( "event", event, scripts );
 				}
 			}
@@ -636,9 +610,9 @@ namespace micasa {
 			// Push this event to all listening socket connections managed by the webserver.
 			json data;
 			data["type"] = "update";
-			data["hardware_id"] = device_->getHardware()->getId();
+			data["plugin_id"] = device_->getPlugin()->getId();
 			data["device_id"] = device_->getId();
-			json device = device_->getJson( false );
+			json device = device_->getJson();
 			data["value"] = device["value"];
 			data["source"] = Device::resolveUpdateSource( source_ );
 			g_webServer->broadcast( data.dump() );
@@ -772,7 +746,7 @@ namespace micasa {
 						Logger::logr( Logger::LogLevel::NORMAL, this, "Script %s \"%s\" executed.", key_.c_str(), (*scriptsIt).at( "name" ).c_str() );
 						break;
 				}
-				
+
 				if ( ! success ) {
 					g_database->putQuery(
 						"UPDATE `scripts` "
@@ -899,7 +873,7 @@ namespace micasa {
 				}
 
 				if ( run ) {
-					
+
 					// First run the scripts that are associated with this timer.
 					json data = (*timerIt);
 					auto scripts = g_database->getQuery(
@@ -914,7 +888,7 @@ namespace micasa {
 					if ( scripts.size() > 0 ) {
 						this->_runScripts( "timer", data, scripts );
 					}
-					
+
 					// Then update the devices that are associated with this timer.
 					auto devices = g_database->getQuery(
 						"SELECT x.`device_id`, x.`value` "

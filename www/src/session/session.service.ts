@@ -11,6 +11,7 @@ import { Subject }         from 'rxjs/Subject';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import { Observable }      from 'rxjs/Observable';
 import { Subscriber }      from 'rxjs/Subscriber';
+import { TimeoutError }    from 'rxjs/util/TimeoutError';
 
 import { User }            from '../users/users.service';
 
@@ -202,6 +203,7 @@ export class SessionService {
 			observable = observable.mergeMap( () => this._http[method_]( 'api/' + resource_, params_, options ) );
 		}
 		return observable
+			.timeout( 5000 )
 			.map( response_ => {
 				let body = response_.json();
 				return body.data || null;
@@ -212,7 +214,10 @@ export class SessionService {
 					error: 'Unknown',
 					message: 'An unknown error has occured.'
 				};
-				if ( response_ instanceof Response ) {
+				if ( response_ instanceof TimeoutError ) {
+					this.error.error = 'Connection.Timeout';
+					this.error.message = 'The connection timed out.';
+				} else if ( response_ instanceof Response ) {
 					if ( response_.status == 0 ) {
 						this.error.error = 'Connection.Offline';
 						this.error.message = 'The connection appears to be offline.';

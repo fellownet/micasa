@@ -23,10 +23,10 @@
 
 namespace micasa {
 
-	class Hardware;
+	class Plugin;
 
 	class Device : public std::enable_shared_from_this<Device> {
-		
+
 	public:
 		enum class Type: unsigned short {
 			COUNTER = 1,
@@ -36,9 +36,9 @@ namespace micasa {
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
-		
+
 		enum class UpdateSource: unsigned short {
-			HARDWARE = (1 << 0),
+			PLUGIN   = (1 << 0),
 			TIMER    = (1 << 1),
 			SCRIPT   = (1 << 2),
 			API      = (1 << 3),
@@ -47,9 +47,9 @@ namespace micasa {
 
 			USER     = TIMER | SCRIPT | API | LINK,
 			EVENT    = TIMER | SCRIPT | LINK,
-			ANY      = HARDWARE | TIMER | SCRIPT | API | LINK | SYSTEM,
+			ANY      = PLUGIN | TIMER | SCRIPT | API | LINK | SYSTEM,
 
-			INTERNAL = (1 << 6) // should always be filtered out by hardware
+			INTERNAL = (1 << 6) // should always be filtered out by plugin
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 
@@ -64,7 +64,7 @@ namespace micasa {
 		friend std::ostream& operator<<( std::ostream& out_, const Device* device_ );
 
 		// This is the preferred way to create a device of specific type (hence the protected constructor).
-		static std::shared_ptr<Device> factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+		static std::shared_ptr<Device> factory( std::weak_ptr<Plugin> plugin_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		unsigned int getId() const { return this->m_id; };
 		std::string getReference() const { return this->m_reference; };
@@ -74,20 +74,20 @@ namespace micasa {
 		template<class T> void updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ );
 		template<class T> typename T::t_value getValue() const;
 		std::shared_ptr<Settings<Device>> getSettings() const { return this->m_settings; };
-		std::shared_ptr<Hardware> getHardware() const;
+		std::shared_ptr<Plugin> getPlugin() const;
 		void setScripts( std::vector<unsigned int>& scriptIds_ );
 		bool isEnabled() const { return this->m_enabled; };
 		void setEnabled( bool enabled_ = true );
 
 		virtual void start() = 0;
 		virtual void stop() = 0;
-		virtual nlohmann::json getJson( bool full_ = false ) const;
+		virtual nlohmann::json getJson() const;
 		virtual nlohmann::json getSettingsJson() const;
 		virtual void putSettingsJson( const nlohmann::json& settings_ );
 		virtual Type getType() const =0;
-	
+
 	protected:
-		std::weak_ptr<Hardware> m_hardware;
+		std::weak_ptr<Plugin> m_plugin;
 		const unsigned int m_id;
 		const std::string m_reference;
 		bool m_enabled;
@@ -95,7 +95,7 @@ namespace micasa {
 		Scheduler m_scheduler;
 		std::shared_ptr<Settings<Device>> m_settings;
 
-		Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+		Device( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 	}; // class Device
 

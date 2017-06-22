@@ -13,7 +13,7 @@ import {
 }                          from '@angular/core';
 import {
 	Router
-}                          from '@angular/router'; 
+}                          from '@angular/router';
 import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
@@ -87,7 +87,7 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 
 	public ngOnInit() {
 		this.title = this.widget.name;
-		this.devices = this._devicesService.getDevices( { enabled: 1 } )
+		this.devices = this._devicesService.getDevices()
 			.map( devices_ => devices_.filter( device_ => device_.type == 'level' ) )
 		;
 

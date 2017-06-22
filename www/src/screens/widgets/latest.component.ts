@@ -13,7 +13,7 @@ import {
 }                          from '@angular/core';
 import {
 	Router
-}                          from '@angular/router'; 
+}                          from '@angular/router';
 import { Observable }      from 'rxjs/Observable';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 
@@ -87,7 +87,7 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 
 	public ngOnInit() {
 		this.title = this.widget.name;
-		this.devices = this._devicesService.getDevices( { enabled: 1 } );
+		this.devices = this._devicesService.getDevices();
 
 		// Render the chart when there's data received *and* thew view is ready. The data received state can happen
 		// more than once, so the chart needs to be destroyed first.
@@ -179,7 +179,7 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 							}
 						}
 					};
-					
+
 					// Skip a render pass before drawing the chart.
 					setTimeout( () => {
 						if ( !! this._chartTarget ) {

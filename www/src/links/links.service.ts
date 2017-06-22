@@ -33,24 +33,33 @@ export class LinksService {
 
 	public getLinks( device_id_?: number ): Observable<Link[]> {
 		let resource: string = 'links';
-		if ( device_id_ ) {
-			resource += '?device_id=' + device_id_;
+		if ( !! device_id_ ) {
+			resource = 'devices/' + device_id_ + '/' + resource;
 		}
 		return this._sessionService.http<Link[]>( 'get', resource );
 	};
 
-	public getLink( link_id_: number ): Observable<Link> {
+	public getLink( link_id_: number, device_id_?: number ): Observable<Link> {
 		let resource: string = 'links/' + link_id_;
+		if ( !! device_id_ ) {
+			resource = 'devices/' + device_id_ + '/' + resource;
+		}
 		return this._sessionService.http<Link>( 'get', resource );
 	};
 
-	public getLinkSettings(): Observable<Setting[]> {
+	public getLinkSettings( device_id_?: number ): Observable<Setting[]> {
 		let resource: string = 'links/settings';
+		if ( !! device_id_ ) {
+			resource = 'devices/' + device_id_ + '/' + resource;
+		}
 		return this._sessionService.http<Setting[]>( 'get', resource );
 	};
 
-	public putLink( link_: Link ): Observable<Link> {
+	public putLink( link_: Link, device_id_?: number ): Observable<Link> {
 		let resource: string = 'links';
+		if ( !! device_id_ ) {
+			resource = 'devices/' + device_id_ + '/' + resource;
+		}
 		if ( link_.id ) {
 			return this._sessionService.http<Link>( 'put', resource + '/' + link_.id, link_ );
 		} else {
@@ -58,8 +67,11 @@ export class LinksService {
 		}
 	};
 
-	public deleteLink( link_: Link ): Observable<Link> {
+	public deleteLink( link_: Link, device_id_?: number ): Observable<Link> {
 		let resource: string = 'links';
+		if ( !! device_id_ ) {
+			resource = 'devices/' + device_id_ + '/' + resource;
+		}
 		return this._sessionService.http<any>( 'delete', resource + '/' + link_.id )
 			.map( () => link_ )
 		;

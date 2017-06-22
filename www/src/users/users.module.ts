@@ -3,6 +3,7 @@ import { CommonModule }       from '@angular/common';
 import { FormsModule }        from '@angular/forms';
 import { GridModule }         from '../grid/grid.module';
 
+import { SettingsModule }     from '../settings/settings.module';
 import { UsersListComponent } from './list.component';
 import { UserEditComponent }  from './edit.component';
 import { UsersService }       from './users.service';
@@ -15,7 +16,8 @@ import { UsersListResolver }  from './list.resolver';
 		CommonModule,
 		FormsModule,
 		UsersRoutingModule,
-		GridModule
+		GridModule,
+		SettingsModule
 	],
 	declarations: [
 		UsersListComponent,

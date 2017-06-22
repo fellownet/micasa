@@ -7,8 +7,8 @@ export class Device {
 	id: number;
 	label: string;
 	name: string;
-	hardware: string;
-	hardware_id: number;
+	plugin: string;
+	plugin_id: number;
 	type: string;
 	subtype: string;
 	enabled: boolean;
@@ -38,9 +38,19 @@ export class DevicesService {
 	) {
 	};
 
-	public getDevices( options_: any = {} ): Observable<Device[]> {
+	public getDevices( pluginId_?: number ): Observable<Device[]> {
 		let resource: string = 'devices';
-		return this._sessionService.http<Device[]>( 'get', resource, options_ );
+		if ( !! pluginId_ ) {
+			resource = 'plugins/' + pluginId_ + '/' + resource;
+		}
+		return this._sessionService.http<Device[]>( 'get', resource );
+	};
+
+	public getDevicesById( deviceIds_: number[] ): Observable<Device[]> {
+		let resource: string = 'devices/' + deviceIds_.join( ',' );
+		return this._sessionService.http<any>( 'get', resource )
+			.map( devices_ => Array.isArray( devices_ ) ? devices_ : [ devices_ ] );
+		;
 	};
 
 	public getDevice( id_: number ): Observable<Device> {

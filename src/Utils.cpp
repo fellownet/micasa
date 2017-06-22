@@ -38,11 +38,11 @@ namespace micasa {
 	bool stringIsolate( const std::string& haystack_, const std::string& start_, const std::string& end_, std::string& result_ ) {
 		return stringIsolate( haystack_, start_, end_, true, result_ );
 	};
-	
+
 	bool stringStartsWith( const std::string& haystack_, const std::string& search_ ) {
 		return std::equal( search_.begin(), search_.end(), haystack_.begin() );
 	};
-	
+
 	std::vector<std::string> stringSplit( const std::string& input_, const char delim_ ) {
 		std::vector<std::string> results;
 		std::string token = "";
@@ -52,7 +52,7 @@ namespace micasa {
 		}
 		return results;
 	};
-	
+
 	std::string stringJoin( const std::vector<std::string>& input_, const std::string& glue_ ) {
 		std::ostringstream result;
 		for ( const auto& i : input_ ) {
@@ -84,7 +84,7 @@ namespace micasa {
 			} else {
 				size *= 2;
 			}
-		}		
+		}
 	};
 
 	std::string randomString( size_t length_ ) {
@@ -106,203 +106,6 @@ namespace micasa {
 		std::mt19937 rng( rd() ); // random-number engine used (Mersenne-Twister in this case)
 		std::uniform_int_distribution<int> uni( min_, max_ ); // guaranteed unbiased
 		return uni( rng );
-	};
-
-	bool validateSettings( const json& input_, json& output_, const json& settings_, std::vector<std::string>* invalid_, std::vector<std::string>* missing_, std::vector<std::string>* errors_ ) {
-		bool result = true;
-
-		for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
-			auto setting = *settingsIt;
-			const std::string& name = setting["name"].get<std::string>();
-			const std::string& label = setting["label"].get<std::string>();
-			const std::string& type = setting["type"].get<std::string>();
-
-			// Search for the setting name in the input parameters. The name in the defenition should
-			// me used as the key when submitting settings.
-			auto find = input_.find( name );
-			if (
-				find != input_.end()
-				&& ! (*find).is_null()
-				&& (
-					! (*find).is_string()
-					|| (*find).get<std::string>().size() > 0
-				)
-			) {
-
-				// Then the submitted value is validated depending on the type defined in the setting.
-				try {
-					if ( type == "double" ) {
-
-						double value = jsonGet<double>( *find );
-						if (
-							( find = setting.find( "minimum" ) ) != setting.end()
-							&& value < (*find).get<double>()
-						) {
-							throw std::runtime_error( "value too low" );
-						}
-						if (
-							( find = setting.find( "maximum" ) ) != setting.end()
-							&& value > (*find).get<double>()
-						) {
-							throw std::runtime_error( "value too high" );
-						}
-						output_[name] = value;
-
-					} else if ( type == "boolean" ) {
-
-						bool value = jsonGet<bool>( *find );
-						output_[name] = value;
-
-						// If this boolean property was set additional settings might be available which also  need to
-						// be  stored in the settings object.
-						if (
-							value
-							&& ( find = setting.find( "settings" ) ) != setting.end()
-						) {
-							result = result && validateSettings( input_, output_, *find, invalid_, missing_, errors_ );
-						}
-
-					} else if ( type == "byte" ) {
-
-						unsigned int value = jsonGet<unsigned int>( *find );
-						if (
-							( find = setting.find( "minimum" ) ) != setting.end()
-							&& value < (*find).get<unsigned int>()
-						) {
-							throw std::runtime_error( "value too low" );
-						}
-						if (
-							( find = setting.find( "maximum" ) ) != setting.end()
-							&& value > (*find).get<unsigned int>()
-						) {
-							throw std::runtime_error( "value too high" );
-						}
-						output_[name] = value;
-
-					} else if ( type == "short" ) {
-						
-						short value = jsonGet<short>( *find );
-						if (
-							( find = setting.find( "minimum" ) ) != setting.end()
-							&& value < (*find).get<int>()
-						) {
-							throw std::runtime_error( "value too low" );
-						}
-						if (
-							( find = setting.find( "maximum" ) ) != setting.end()
-							&& value > (*find).get<int>()
-						) {
-							throw std::runtime_error( "value too high" );
-						}
-						output_[name] = value;
-					
-					} else if ( type == "int" ) {
-
-						int value = jsonGet<int>( *find );
-						if (
-							( find = setting.find( "minimum" ) ) != setting.end()
-							&& value < (*find).get<int>()
-						) {
-							throw std::runtime_error( "value too low" );
-						}
-						if (
-							( find = setting.find( "maximum" ) ) != setting.end()
-							&& value > (*find).get<int>()
-						) {
-							throw std::runtime_error( "value too high" );
-						}
-						output_[name] = value;
-					
-					} else if ( type == "list" ) {
-
-						std::string value = jsonGet<std::string>( *find );
-
-						bool exists = false;
-						bool hasSettings = false;
-						json::iterator optionsIt;
-						for ( optionsIt = setting["options"].begin(); optionsIt != setting["options"].end(); optionsIt++ ) {
-							std::string option;
-							if ( (*optionsIt)["value"].is_number() ) {
-								option = std::to_string( (*optionsIt)["value"].get<int>() );
-							} else if ( (*optionsIt)["value"].is_string() ) {
-								option = (*optionsIt)["value"].get<std::string>();
-							} else {
-								continue;
-							}
-							if ( option == value ) {
-								exists = true;
-								if ( ( find = (*optionsIt).find( "settings" ) ) != (*optionsIt).end() ) {
-									hasSettings = true;
-								}
-								break;
-							}
-						}
-						if ( ! exists ) {
-							throw std::runtime_error( "value not a valid option" );
-						}
-						output_[name] = (*optionsIt)["value"];
-						
-						// If a certain list option is selected that has it's own additional settings then these
-						// settings need to be stored aswell.
-						if ( hasSettings ) {
-							result = result && validateSettings( input_, output_, *find, invalid_, missing_, errors_ );
-						}
-
-					} else if ( type == "string" ) {
-
-						std::string value = jsonGet<std::string>( *find );
-						if (
-							( find = setting.find( "maxlength" ) ) != setting.end()
-							&& value.size() > (*find).get<unsigned int>()
-						) {
-							throw std::runtime_error( "value too long" );
-						}
-						if (
-							( find = setting.find( "minlength" ) ) != setting.end()
-							&& value.size() < (*find).get<unsigned int>()
-						) {
-							throw std::runtime_error( "value too short" );
-						}
-						output_[name] = value;
-					
-					} else if ( type == "display" ) {
-						/* nothing to validate here */
-					} else {
-						throw std::logic_error( "invalid type " + type );
-					}
-
-				} catch( std::runtime_error exception_ ) { // thrown by jsonGet if conversion fails
-					if ( invalid_ ) invalid_->push_back( name );
-					if ( errors_ ) errors_->push_back( "invalid value for " + label + " (" + exception_.what() + ")" );
-					result = false;
-				} catch( ... ) {
-					if ( invalid_ ) invalid_->push_back( name );
-					result = false;
-				}
-			
-			// The setting is missing from the input. See if the setting is mandatory, which would cause a problem if
-			// there's no default specified.
-			} else if (
-				( find = setting.find( "mandatory" ) ) != setting.end()
-				&& (*find).get<bool>()
-			) {
-
-				// If there was a default specified than the field will be set to that value and no error is reported.
-				if ( ( find = setting.find( "default" ) ) != setting.end() ) {
-					output_[name] = *find;
-				} else {
-					if ( missing_ ) missing_->push_back( name );
-					result = false;
-				}
-
-			// If the setting was not found and also was not mandatory, a null value is passed along. This can be used
-			// to reset a value.
-			} else {
-				output_[name] = nullptr;
-			}
-		}
-
-		return result;
 	};
 
 	// http://stackoverflow.com/questions/2530096/how-to-find-all-serial-devices-ttys-ttyusb-on-linux-without-opening-them
@@ -353,7 +156,7 @@ namespace micasa {
 			udev_unref( udev );
 		}
 #endif // _WITH_LIBUDEV
-		
+
 		return results;
 	};
 

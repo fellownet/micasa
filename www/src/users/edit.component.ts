@@ -19,7 +19,10 @@ import {
 export class UserEditComponent implements OnInit {
 
 	public user: User;
+
 	public title: string;
+
+	public hasAdvancedSettings: boolean = false;
 
 	public constructor(
 		private _router: Router,
@@ -35,6 +38,13 @@ export class UserEditComponent implements OnInit {
 					this.user = data_.user;
 
 					this.title = this.user.name;
+
+					for ( let setting of this.user.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
 				}
 			)
 		;

@@ -1,6 +1,11 @@
 <section class="content-header">
-<a *ngIf="!! screen.id && screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
-<h1>{{ screen.name }}</h1>
+<a *ngIf="screen?.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<h1>
+	<i class="fa fa-laptop" *ngIf="screen?.id > 1"></i>
+	<i class="fa fa-dashboard" *ngIf="screen?.id == 1"></i>
+	<i class="fa fa-info-circle" *ngIf="! screen.id"></i>
+	{{ screen.name }}
+</h1>
 </section>
 
 <section class="content-body" *ngIf="screen.widgets.length == 0">

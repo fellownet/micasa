@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>{{ title }}
+<h1><i class="fa fa-pencil"></i> {{ title }}
 	<small *ngIf="device">{{ device.name }}</small>
 </h1>
 </section>
@@ -15,95 +15,8 @@
 
 				<form role="form" (ngSubmit)="submitTimer()" #timerForm="ngForm">
 				<div class="box-body">
-					<div class="form-group" [class.has-error]="! name.valid && ! name.pristine">
-						<label for="timer_name">Name<span class="mandatory"> *</span></label>
-						<input type="text" class="form-control" id="timer_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="timer.name" name="name" #name="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
-					<div class="form-group" [class.has-error]="! cron.valid && ! cron.pristine">
-						<label for="timer_cron">Cron<span class="mandatory"> *</span></label>
-						<div class="callout callout-info">To define the time you can provide concrete values for minute (m), hour (h), day of month (dom), month (mon), and day of week (dow). Use an asterisk in these fields for any. Lists (comma), ranges (dash) and steps (forward slash) are also supported.</div>
-						<input type="text" class="form-control" id="timer_cron" placeholder="m h dom mon dow" pattern="^(((([*])|(((([0-5])?[0-9])((-(([0-5])?[0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|(((([0-5])?[0-9])((-(([0-5])?[0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((([*])|(((((([0-1])?[0-9]))|(([2][0-3])))((-(((([0-1])?[0-9]))|(([2][0-3])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|(((((([0-1])?[0-9]))|(([2][0-3])))((-(((([0-1])?[0-9]))|(([2][0-3])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((((((([*])|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))((-(((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|(L)|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))W))))(,(((((([*])|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))((-(((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|(L)|(((((([1-2])?[0-9]))|(([3][0-1]))|(([1-9])))W)))))*)|([?])) (((([*])|((((([1-9]))|(([1][0-2])))((-((([1-9]))|(([1][0-2])))))?))|((((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))((-((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|((((([1-9]))|(([1][0-2])))((-((([1-9]))|(([1][0-2])))))?))|((((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))((-((JAN)|(FEB)|(MAR)|(APR)|(MAY)|(JUN)|(JUL)|(AUG)|(SEP)|(OKT)|(NOV)|(DEC))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))* (((((((([*])|((([0-6])((-([0-6])))?))|((((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))((-((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|((([0-6])L))|(W)|(([#][1-5]))))(,(((((([*])|((([0-6])((-([0-6])))?))|((((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))((-((SUN)|(MON)|(TUE)|(WED)|(THU)|(FRI)|(SAT))))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))|((([0-6])L))|(W)|(([#][1-5])))))*)|([?]))((( (((([*])|((([1-2][0-9][0-9][0-9])((-([1-2][0-9][0-9][0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?))(,(((([*])|((([1-2][0-9][0-9][0-9])((-([1-2][0-9][0-9][0-9])))?)))((/(([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?([0-9])?[0-9])))?)))*))?)$" autocomplete="off" required [(ngModel)]="timer.cron" name="cron" #cron="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="cron.valid || cron.pristine">A valid cron is required!</div>
-					<div class="form-group">
-						<div class="checkbox">
-							<label><input type="checkbox" value="1" [(ngModel)]="timer.enabled" name="enabled">Enabled</label>
-						</div>
-					</div>
-
-					<ng-container *ngIf="!! device" [ngSwitch]="device.type">
-					<ng-container *ngSwitchCase="'counter'">
-						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value<span class="mandatory"> *</span></label>
-							<input type="number" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
-						</div>
-						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
-					</ng-container>
-					<ng-container *ngSwitchCase="'level'">
-						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value<span class="mandatory"> *</span></label>
-							<input type="number" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
-						</div>
-						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
-					</ng-container>
-					<ng-container *ngSwitchCase="'text'">
-						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Value<span class="mandatory"> *</span></label>
-							<input type="text" class="form-control" id="timer_value" placeholder="Enter value" autocomplete="off" required [(ngModel)]="timer.value" name="value" #value="ngModel">
-						</div>
-						<div class="callout callout-danger" [hidden]="value.valid || value.pristine">A value is required!</div>
-					</ng-container>
-					<ng-container *ngSwitchCase="'switch'">
-						<div class="form-group" [class.has-error]="! value.valid && ! value.pristine">
-							<label for="timer_value">Action<span class="mandatory"> *</span></label>
-							<select class="form-control" id="timer_value" required [(ngModel)]="timer.value" name="value" #value="ngModel">
-								<option value="On">On</option>
-								<option value="Off">Off</option>
-								<option value="Open">Open</option>
-								<option value="Close">Close</option>
-								<option value="Start">Start</option>
-								<option value="Stop">Stop</option>
-								<option value="Activate">Activate</option>
-								<option value="Idle">Deactivate</option>
-							</select>
-						</div>
-					</ng-container>
-					</ng-container>
+					<settings [settings]="timer.settings" [form]="timerForm" [values]="timer" #settingsComponent="settingsComponent"></settings>
 				</div>
-
-				<div class="box-body no-padding scroll" *ngIf="! device && scripts.length > 0">
-
-<table class="table">
-<thead>
-	<tr>
-		<th><label>Scripts</label></th>
-		<th class="minimum right">&nbsp;</th>
-	</tr>
-</thead>
-<tbody>
-	<ng-container *ngFor="let script of scripts">
-	<tr *ngIf="timer.scripts.indexOf( script.id ) >= 0">
-		<td>{{ script.name }}</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="removeScript( script.id )"><i class="fa fa-times"></i></button></td>
-	</tr>
-	</ng-container>
-	<tr>
-		<td>
-			<select class="form-control" #scriptSelect>
-				<option selected disabled hidden>Select Script</option>
-				<ng-container *ngFor="let script of scripts">
-					<option value="{{ script.id }}">{{ script.name }}</option>
-				</ng-container>
-			</select>
-		</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="addScript( scriptSelect.value )"><i class="fa fa-plus"></i></button></td>
-	</tr>
-</tbody>
-</table>
-
-				</div>
-
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="! timerForm.form.valid">Save</button>

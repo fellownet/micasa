@@ -1,5 +1,5 @@
 <section class="content-header">
-<h1>{{ title }}</h1>
+<h1><i class="fa fa-pencil"></i> {{ title }}</h1>
 </section>
 
 <section class="content-body">
@@ -14,16 +14,7 @@
 
 				<form role="form" (ngSubmit)="submitScript()" #scriptForm="ngForm">
 				<div class="box-body">
-					<div class="form-group">
-						<label for="script_name">Name<span class="mandatory"> *</span></label>
-						<input type="text" class="form-control" id="script_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="script.name" name="name" #name="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
-					<div class="form-group">
-						<div class="checkbox">
-							<label><input type="checkbox" value="1" [(ngModel)]="script.enabled" name="enabled">Enabled</label>
-						</div>
-					</div>
+					<settings [settings]="script.settings" [form]="scriptForm" [values]="script" #settingsComponent="settingsComponent"></settings>
 				</div>
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">

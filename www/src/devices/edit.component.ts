@@ -12,8 +12,6 @@ import {
 	Device,
 	DevicesService
 }                         from './devices.service';
-import { Hardware }       from '../hardware/hardware.service';
-import { Script }         from '../scripts/scripts.service';
 import {
 	Screen,
 	ScreensService,
@@ -27,7 +25,6 @@ import {
 export class DeviceEditComponent implements OnInit {
 
 	public device: Device;
-	public scripts: Script[];
 	public screens: Screen[];
 
 	public title: string;
@@ -47,7 +44,6 @@ export class DeviceEditComponent implements OnInit {
 			.subscribe(
 				data_ => {
 					this.device = data_.device;
-					this.scripts = data_.scripts;
 					this.screens = data_.screens;
 
 					this.title = this.device.name;
@@ -93,19 +89,6 @@ export class DeviceEditComponent implements OnInit {
 				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
-	};
-
-	public addScript( script_id_: number ) {
-		if ( !! script_id_ ) {
-			this.device.scripts.push( +script_id_ );
-		}
-	};
-
-	public removeScript( script_id_: number ) {
-		let pos: number = this.device.scripts.indexOf( script_id_ );
-		if ( pos >= 0 ) {
-			this.device.scripts.splice( pos, 1 );
-		}
 	};
 
 	public addToScreen( screen_: Screen ) {

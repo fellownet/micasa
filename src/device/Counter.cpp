@@ -5,7 +5,7 @@
 
 #include "../Logger.h"
 #include "../Database.h"
-#include "../Hardware.h"
+#include "../Plugin.h"
 #include "../Controller.h"
 #include "../User.h"
 #include "../Utils.h"
@@ -42,8 +42,8 @@ namespace micasa {
 		{ Counter::Unit::M3, "%.3f" }
 	};
 
-	Counter::Counter( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
-		Device( hardware_, id_, reference_, label_, enabled_ ),
+	Counter::Counter( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		Device( plugin_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
 		m_updated( system_clock::now() ),
 		m_rateLimiter( { 0, Device::resolveUpdateSource( 0 ) } )
@@ -88,7 +88,7 @@ namespace micasa {
 	void Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		if (
 			! this->m_enabled
-			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
+			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
 		) {
 			return;
 		}
@@ -97,11 +97,11 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid update source." );
 			return;
 		}
-		
+
 		if (
 			this->getSettings()->get<bool>( "ignore_duplicates", false )
 			&& this->m_value == value_
-			&& this->getHardware()->getState() >= Hardware::State::READY
+			&& this->getPlugin()->getState() >= Plugin::State::READY
 		) {
 			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
@@ -109,7 +109,7 @@ namespace micasa {
 
 		if (
 			this->m_settings->contains( "rate_limit" )
-			&& this->getHardware()->getState() >= Hardware::State::READY
+			&& this->getPlugin()->getState() >= Plugin::State::READY
 		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();
@@ -134,9 +134,9 @@ namespace micasa {
 	void Counter::incrementValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		this->updateValue( source_, std::max( this->m_value, this->m_rateLimiter.value ) + value_ );
 	};
-	
-	json Counter::getJson( bool full_ ) const {
-		json result = Device::getJson( full_ );
+
+	json Counter::getJson() const {
+		json result = Device::getJson();
 
 		double divider = this->m_settings->get<double>( "divider", 1 );
 		std::string unit = this->m_settings->get( "unit", this->m_settings->get( DEVICE_SETTING_DEFAULT_UNIT, "" ) );
@@ -156,10 +156,7 @@ namespace micasa {
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
-		if ( full_ ) {
-			result["settings"] = this->getSettingsJson();
-		}
-		
+
 		return result;
 	};
 
@@ -300,15 +297,15 @@ namespace micasa {
 
 	void Counter::_processValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 
-		// Make a local backup of the original value (the hardware might want to revert it).
+		// Make a local backup of the original value (the plugin might want to revert it).
 		t_value previous = this->m_value;
 		this->m_value = value_;
-		
-		// If the update originates from the hardware it is not send back to the hardware again.
+
+		// If the update originates from the plugin it is not send back to the plugin again.
 		bool success = true;
 		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
-			success = this->getHardware()->updateDevice( source_, this->shared_from_this(), apply );
+		if ( ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN ) {
+			success = this->getPlugin()->updateDevice( source_, this->shared_from_this(), apply );
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
@@ -346,7 +343,7 @@ namespace micasa {
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled
-				&& this->getHardware()->getState() >= Hardware::State::READY
+				&& this->getPlugin()->getState() >= Plugin::State::READY
 			) {
 				g_controller->newEvent<Counter>( std::static_pointer_cast<Counter>( this->shared_from_this() ), source_ );
 			}

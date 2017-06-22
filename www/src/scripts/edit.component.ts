@@ -27,6 +27,8 @@ export class ScriptEditComponent implements OnInit {
 
 	public title: string;
 
+	public hasAdvancedSettings: boolean = false;
+
 	private _editor: any;
 
 	public constructor(
@@ -43,6 +45,13 @@ export class ScriptEditComponent implements OnInit {
 					this.script = data_.script;
 
 					this.title = this.script.name;
+
+					for ( let setting of this.script.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
 
 					this._editor = ace.edit( 'script_editor_target' );
 					this._editor.setTheme( 'ace/theme/crimson_editor' );

@@ -1,10 +1,6 @@
 <section class="content-header">
 <a *ngIf="device.enabled" routerLink="/devices/{{ device.id }}/details" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
-<h1>{{ title }}
-	<small *ngIf="script">{{ script.name }}</small>
-	<small *ngIf="hardware">{{ hardware.name }}<span *ngIf="hardware.parent">, {{ hardware.parent.name }}</span></small>
-	<small *ngIf="! script && ! hardware">{{ device.hardware }}</small>
-</h1>
+<h1><i class="fa fa-pencil"></i> {{ title }}<small>{{ device.plugin }}</small></h1>
 </section>
 
 <section class="content-body">
@@ -21,39 +17,6 @@
 				<div class="box-body">
 					<settings [settings]="device.settings" [form]="deviceForm" [values]="device" #settingsComponent="settingsComponent"></settings>
 				</div>
-
-				<div class="box-body no-padding scroll" *ngIf="device.enabled && scripts.length > 0">
-
-<table class="table">
-<thead>
-	<tr>
-		<th><label>Scripts</label></th>
-		<th class="minimum right">&nbsp;</th>
-	</tr>
-</thead>
-<tbody>
-	<ng-container *ngFor="let script of scripts | sort:'name'">
-	<tr *ngIf="device.scripts.indexOf( script.id ) >= 0">
-		<td>{{ script.name }}</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="removeScript( script.id )"><i class="fa fa-times"></i></button></td>
-	</tr>
-	</ng-container>
-	<tr>
-		<td>
-			<select class="form-control" #scriptSelect>
-				<option selected disabled hidden>Select Script</option>
-				<ng-container *ngFor="let script of scripts | sort:'name'">
-					<option value="{{ script.id }}">{{ script.name }}</option>
-				</ng-container>
-			</select>
-		</td>
-		<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="addScript( scriptSelect.value )"><i class="fa fa-plus"></i></button></td>
-	</tr>
-</tbody>
-</table>
-
-				</div>
-
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="! deviceForm.form.valid">Save</button>

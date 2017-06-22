@@ -13,7 +13,6 @@ import {
 	TimersService
 }                  from './timers.service';
 import { Device }  from '../devices/devices.service';
-import { Script }  from '../scripts/scripts.service';
 
 @Component( {
 	templateUrl: 'tpl/timer-edit.html'
@@ -25,7 +24,8 @@ export class TimerEditComponent implements OnInit {
 
 	public title: string;
 
-	public scripts?: Script[];
+	public hasAdvancedSettings: boolean = false;
+
 	public device?: Device;
 
 	public constructor(
@@ -39,26 +39,26 @@ export class TimerEditComponent implements OnInit {
 		this._route.data
 			.subscribe(
 				data_ => {
+					this.timer = data_.timer;
 					if ( 'device' in data_ ) {
 						this.device = data_.device;
 					}
-					if ( 'scripts' in data_ ) {
-						this.scripts = data_.scripts;
-					}
-					this.timer = data_.timer;
 
 					this.title = this.timer.name;
+
+					for ( let setting of this.timer.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
 				}
 			)
 		;
 	};
 
 	public submitTimer() {
-		if ( this.device ) {
-			this.timer.device_id = this.device.id;
-			delete this.timer.scripts;
-		}
-		this._timersService.putTimer( this.timer )
+		this._timersService.putTimer( this.timer, ( !! this.device ) ? this.device.id : undefined )
 			.subscribe(
 				timer_ => {
 					if ( !! this._timersService.returnUrl ) {
@@ -74,7 +74,7 @@ export class TimerEditComponent implements OnInit {
 	};
 
 	public deleteTimer() {
-		this._timersService.deleteTimer( this.timer )
+		this._timersService.deleteTimer( this.timer, ( !! this.device ) ? this.device.id : undefined )
 			.subscribe(
 				timer_ => {
 					if ( !! this._timersService.returnUrl ) {
@@ -87,19 +87,6 @@ export class TimerEditComponent implements OnInit {
 				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
-	};
-
-	public addScript( script_id_: number ) {
-		if ( !! script_id_ ) {
-			this.timer.scripts.push( +script_id_ );
-		}
-	};
-
-	public removeScript( script_id_: number ) {
-		let pos: number = this.timer.scripts.indexOf( script_id_ );
-		if ( pos >= 0 ) {
-			this.timer.scripts.splice( pos, 1 );
-		}
 	};
 
 }

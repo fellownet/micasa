@@ -23,11 +23,14 @@ export class TimerResolver implements Resolve<Timer> {
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Timer> {
 		if ( route_.params['timer_id'] == 'add' ) {
-			if ( 'device_id' in route_.params ) {
-				return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, device_id: route_.params['device_id'] } );
-			} else {
-				return Observable.of( { id: NaN, name: 'New timer', cron: '* * * * *', enabled: false, scripts: [] } );
-			}
+			let device_id: number = route_.params['device_id'];
+			return this._timersService.getTimerSettings( device_id )
+				.mergeMap( settings_ => Observable.of( { id: NaN, name: 'New Timer', cron: '* * * * *', device_id: device_id || NaN, enabled: false, scripts: [], settings: settings_ } ) )
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
+					return Observable.of( null );
+				} )
+			;
 		} else {
 			return this._timersService.getTimer( +route_.params['timer_id'], route_.params['device_id'] )
 				.catch( () => {

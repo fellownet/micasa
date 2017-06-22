@@ -112,7 +112,7 @@ export class ScreensService {
 		if ( device_ids.length == 0 ) {
 			return Observable.of( [] );
 		} else {
-			return this._devicesService.getDevices( { device_ids: device_ids.join( ',' ), enabled: 1 } )
+			return this._devicesService.getDevicesById( device_ids )
 				.map( devices_ => {
 					let result: Device[] = [];
 					for ( let device of devices_ ) {
@@ -185,7 +185,7 @@ export class ScreensService {
 										.catch( () => Observable.of( null ) )
 								);
 								break;
-							
+
 							case 'level':
 								config = {
 									group:

@@ -15,6 +15,8 @@ import { SessionGuard }           from '../session/session.guard';
 
 const routes: Routes = [
 	{ path: 'scripts',            component: ScriptsListComponent, canActivate: [SessionGuard], resolve: { scripts: ScriptsListResolver } },
+	// NOTE a separate route is used to prevent fetching a list of devices for new scripts
+	{ path: 'scripts/add',        component: ScriptEditComponent,  canActivate: [SessionGuard], resolve: { script: ScriptResolver } },
 	{ path: 'scripts/:script_id', component: ScriptEditComponent,  canActivate: [SessionGuard], resolve: { script: ScriptResolver, devices: DevicesListResolver } },
 ];
 

@@ -7,7 +7,7 @@
 #include <iostream>
 #include <list>
 
-#include "Hardware.h"
+#include "Plugin.h"
 #include "Settings.h"
 #include "Scheduler.h"
 
@@ -26,7 +26,7 @@
 
 extern "C" {
 	#include "v7.h"
-	
+
 	v7_err micasa_v7_update_device( struct v7*, v7_val_t* );
 	v7_err micasa_v7_get_device( struct v7*, v7_val_t* );
 	v7_err micasa_v7_include( struct v7*, v7_val_t* );
@@ -65,14 +65,13 @@ namespace micasa {
 
 		void start();
 		void stop();
-		
-		std::shared_ptr<Hardware> getHardware( const std::string& reference_ ) const;
-		std::shared_ptr<Hardware> getHardwareById( const unsigned int& id_ ) const;
-		std::vector<std::shared_ptr<Hardware>> getChildrenOfHardware( const Hardware& hardware_ ) const;
-		std::vector<std::shared_ptr<Hardware>> getAllHardware() const;
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ );
-		std::shared_ptr<Hardware> declareHardware( const Hardware::Type type_, const std::string reference_, const std::shared_ptr<Hardware> parent_, const std::vector<Setting>& settings_, bool enabled_ );
-		void removeHardware( const std::shared_ptr<Hardware> hardware_ );
+
+		std::shared_ptr<Plugin> getPlugin( const std::string& reference_ ) const;
+		std::shared_ptr<Plugin> getPluginById( const unsigned int& id_ ) const;
+		std::vector<std::shared_ptr<Plugin>> getAllPlugins() const;
+		std::shared_ptr<Plugin> declarePlugin( const Plugin::Type type_, const std::string reference_, const std::vector<Setting>& settings_, bool enabled_ );
+		std::shared_ptr<Plugin> declarePlugin( const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_, const std::vector<Setting>& settings_, bool enabled_ );
+		void removePlugin( const std::shared_ptr<Plugin> plugin_ );
 
 		std::shared_ptr<Device> getDevice( const std::string& reference_ ) const;
 		std::shared_ptr<Device> getDeviceById( const unsigned int& id_ ) const;
@@ -90,12 +89,12 @@ namespace micasa {
 
 	private:
 		volatile bool m_running;
-		std::unordered_map<std::string, std::shared_ptr<Hardware>> m_hardware;
-		mutable std::mutex m_hardwareMutex;
+		std::unordered_map<std::string, std::shared_ptr<Plugin>> m_plugins;
+		mutable std::recursive_mutex m_pluginsMutex;
 		Scheduler m_scheduler;
 		v7* m_v7_js;
 		mutable std::mutex m_jsMutex;
-		
+
 #ifdef _WITH_LIBUDEV
 		std::map<std::string, t_serialPortCallback> m_serialPortCallbacks;
 		mutable std::mutex m_serialPortCallbacksMutex;
@@ -103,7 +102,7 @@ namespace micasa {
 		udev_monitor* m_udevMonitor;
 		std::thread m_udevWorker;
 #endif // _WITH_LIBUDEV
-		
+
 		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
 		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ );
 		void _runTimers();
@@ -112,7 +111,7 @@ namespace micasa {
 
 		template<class D> void _js_updateDevice( const std::shared_ptr<D> device_, const typename D::t_value& value_, const std::string& options_ = "" );
 		bool _js_include( const std::string& name_, std::string& script_ );
-		
+
 	}; // class Controller
 
 }; // namespace micasa

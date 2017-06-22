@@ -23,7 +23,7 @@ import { SessionGuard }           from '../session/session.guard';
 
 const routes: Routes = [
 	{ path: 'devices',                    component: DevicesListComponent, canActivate: [SessionGuard], resolve: { devices: DevicesListResolver } },
-	{ path: 'devices/:device_id',         component: DeviceEditComponent,  canActivate: [SessionGuard], resolve: { device: DeviceResolver, scripts: ScriptsListResolver, timers: TimersListResolver, screens: ScreensListResolver, links: LinksListResolver } },
+	{ path: 'devices/:device_id',         component: DeviceEditComponent,  canActivate: [SessionGuard], resolve: { device: DeviceResolver, timers: TimersListResolver, screens: ScreensListResolver, links: LinksListResolver } },
 	{ path: 'devices/:device_id/details', component: ScreenComponent,      canActivate: [SessionGuard], resolve: { payload: ScreenResolver } }
 ];
 

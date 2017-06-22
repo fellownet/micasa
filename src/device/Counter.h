@@ -30,8 +30,8 @@ namespace micasa {
 		typedef double t_value;
 		static const Device::Type type;
 
-		Counter( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
-	
+		Counter( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );
 		t_value getValue() const { return this->m_value; };
@@ -40,7 +40,7 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		Device::Type getType() const override { return Counter::type; };
-		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 
 	private:

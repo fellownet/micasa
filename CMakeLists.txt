@@ -8,7 +8,7 @@ include( CheckIncludeFiles )
 
 #
 # Set sources directory.
-# NOTE: for optional hardware or plugin support sources are added together later on.
+# NOTE: for optional plugin support sources are added together later on.
 #
 set( SRC
 	# libraries
@@ -25,20 +25,20 @@ set( SRC
 	src/Network.cpp
 	src/Serial.cpp
 	src/WebServer.cpp
-	src/Hardware.cpp
+	src/Plugin.cpp
 	src/Device.cpp
 	src/User.cpp
 	src/Settings.cpp
 	src/Database.cpp
 
-	# hardware
-	src/hardware/RFXCom.cpp
-	src/hardware/SolarEdge.cpp
-	src/hardware/SolarEdgeInverter.cpp
-	src/hardware/WeatherUnderground.cpp
-	src/hardware/HarmonyHub.cpp
-	src/hardware/Dummy.cpp
-	src/hardware/Telegram.cpp
+	# plugins
+	src/plugins/RFXCom.cpp
+	src/plugins/SolarEdge.cpp
+	src/plugins/SolarEdgeInverter.cpp
+	src/plugins/WeatherUnderground.cpp
+	src/plugins/HarmonyHub.cpp
+	src/plugins/Dummy.cpp
+	src/plugins/Telegram.cpp
 
 	# devices
 	src/device/Switch.cpp
@@ -91,8 +91,8 @@ if( INCLUDE_SPI )
 		add_definitions( -D_WITH_LINUX_SPI )
 
 		set( SRC ${SRC}
-			src/hardware/PiFace.cpp
-			src/hardware/PiFaceBoard.cpp
+			src/plugins/PiFace.cpp
+			src/plugins/PiFaceBoard.cpp
 		)
 	else()
 		message(WARNING "SPI support disabled: headers not found!")
@@ -156,8 +156,8 @@ if( WITH_OPENZWAVE )
 	add_definitions( -D_WITH_OPENZWAVE )
 
 	set( SRC ${SRC}
-		src/hardware/ZWave.cpp
-		src/hardware/ZWaveNode.cpp
+		src/plugins/ZWave.cpp
+		src/plugins/ZWaveNode.cpp
 	)
 endif()
 

@@ -1,6 +1,6 @@
 CACHE MANIFEST
 
-# v0.0029
+# v0.0031
 
 CACHE:
 index.html
@@ -9,8 +9,8 @@ app/app.min.js
 tpl/app.html
 tpl/device-edit.html
 tpl/devices-list.html
-tpl/hardware-edit.html
-tpl/hardware-list.html
+tpl/plugin-edit.html
+tpl/plugins-list.html
 tpl/link-edit.html
 tpl/links-list.html
 tpl/login.html

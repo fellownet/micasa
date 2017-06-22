@@ -15,7 +15,7 @@ import {
 	Device,
 	DevicesService
 }                         from './devices.service';
-import { Hardware }       from '../hardware/hardware.service';
+import { Plugin }         from '../plugins/plugins.service';
 import { Script }         from '../scripts/scripts.service';
 import { SessionService } from '../session/session.service';
 import {
@@ -24,8 +24,7 @@ import {
 
 @Component( {
 	selector: 'devices',
-	templateUrl: 'tpl/devices-list.html',
-	exportAs: 'listComponent'
+	templateUrl: 'tpl/devices-list.html'
 } )
 
 export class DevicesListComponent implements OnInit, OnDestroy {
@@ -34,8 +33,8 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 	public devices: Device[];
 	public startPage: number = 1;
-	
-	@Input() public hardware?: Hardware;
+
+	@Input() public plugin?: Plugin;
 	@Input() public script?: Script;
 
 	@ViewChild(GridPagingComponent) private _paging: GridPagingComponent;
@@ -54,8 +53,8 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 				data_ => {
 					this.devices = data_.devices;
 
-					if ( !! this.hardware ) {
-						this.startPage = this._devicesService.lastPage['hardware_' + this.hardware.id] || 1;
+					if ( !! this.plugin ) {
+						this.startPage = this._devicesService.lastPage['plugin_' + this.plugin.id] || 1;
 					} else if ( !! this.script ) {
 						this.startPage = this._devicesService.lastPage['script_' + this.script.id] || 1;
 					} else {
@@ -67,11 +66,18 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 		this._sessionService.events
 			.takeWhile( () => this._active )
+			.filter( event_ => ! this.plugin || this.plugin.id == event_.plugin_id )
+			.do( event_ => console.log( event_ ) )
 			.subscribe( event_ => {
 				let device: Device = this.devices.find( device_ => device_.id === event_.device_id );
 				if ( !! device ) {
 					device.value = event_.value;
 					device.age = 0;
+				} else {
+					if ( !! this.plugin ) {
+						this._devicesService.returnUrl = this._router.url;
+						this._router.navigate( [ '/devices', event_.device_id ] );
+					}
 				}
 			} )
 		;
@@ -89,8 +95,8 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 	public ngOnDestroy() {
 		this._active = false;
 		if ( !! this._paging ) {
-			if ( !! this.hardware ) {
-				this._devicesService.lastPage['hardware_' + this.hardware.id] = this._paging.getActivePage();
+			if ( !! this.plugin ) {
+				this._devicesService.lastPage['plugin_' + this.plugin.id] = this._paging.getActivePage();
 			} else if ( !!this.script ) {
 				this._devicesService.lastPage['script_' + this.script.id] = this._paging.getActivePage();
 			} else {
