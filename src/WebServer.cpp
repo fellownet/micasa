@@ -2235,7 +2235,10 @@ namespace micasa {
 						}
 						output_[name] = values;
 
-					} else if ( type == "string" ) {
+					} else if (
+						type == "string"
+						|| type == "password"
+					) {
 
 						std::string value = jsonGet<std::string>( *find );
 						if (
