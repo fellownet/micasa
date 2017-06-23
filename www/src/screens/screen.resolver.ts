@@ -45,10 +45,30 @@ export class ScreenResolver implements Resolve<Screen> {
 
 		return observable
 			.mergeMap( screen_ => {
+				return this._screensService.getScreenSettings()
+					.map( settings_ => {
+						screen_.settings = settings_;
+						return screen_;
+					} )
+				;
+			} )
+			.mergeMap( screen_ => {
+				let observable: Observable<Device[]>;
 
-				// First fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then
-				// passed to the data fetchers which in turn will not fetch these devices again.
-				return this._screensService.getDevicesOnScreen( screen_ )
+				// If the screen holds a device, it is the details screen for a device and is guaranteed not to hold
+				// any other devices.
+				if ( !! screen_.device ) {
+					let devices: Device[] = [];
+					devices[screen_.device.id] = screen_.device;
+					observable = Observable.of( devices );
+
+				// Fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then passed
+				// along to the data fetchers which in turn will not fetch these devices again.
+				} else {
+					observable = this._screensService.getDevicesOnScreen( screen_ );
+				}
+
+				return observable
 					// Catch 404 errors if a device was removed but is still present in one of the widgets.
 					.catch( error_ => {
 						if ( error_.code == 404 ) {
@@ -71,7 +91,7 @@ export class ScreenResolver implements Resolve<Screen> {
 										} else {
 											return Observable.throw( error_ );
 										}
-									 } )
+									} )
 							);
 						} );
 						if ( observables.length > 0 ) {
@@ -89,6 +109,7 @@ export class ScreenResolver implements Resolve<Screen> {
 						}
 					} )
 				;
+
 			} )
 			.catch( () => {
 				this._router.navigate( [ '/error' ] );

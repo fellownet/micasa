@@ -2,6 +2,7 @@ import { Injectable }     from '@angular/core';
 import { Observable }     from 'rxjs/Observable';
 
 import { SessionService } from '../session/session.service';
+import { Setting }        from '../settings/settings.service';
 import {
 	Device,
 	DevicesService
@@ -32,6 +33,8 @@ export class Screen {
 	id: number;
 	name: string;
 	widgets: Widget[];
+	device?: Device;
+	settings?: Setting[];
 };
 
 @Injectable()
@@ -61,6 +64,19 @@ export class ScreensService {
 				throw new Error( 'invalid screen' );
 			} )
 		;
+	};
+
+	public getScreenSettings(): Observable<Setting[]> {
+		return Observable.of( [
+			{
+				name: 'name',
+				label: 'Name',
+				type: 'string',
+				maxlength: 64,
+				minlength: 3,
+				mandatory: true
+			}
+		] );
 	};
 
 	public putScreen( screen_: Screen ): Observable<Screen> {
@@ -395,6 +411,7 @@ export class ScreensService {
 				break;
 
 		}
+		screen.device = device_;
 		return screen;
 	};
 

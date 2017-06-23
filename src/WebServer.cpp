@@ -1834,7 +1834,7 @@ namespace micasa {
 						settings += {
 							{ "name", "password" },
 							{ "label", "Password" },
-							{ "type", "string" },
+							{ "type", "password" },
 							{ "maxlength", 64 },
 							{ "minlength", 3 },
 							{ "mandatory", true },
@@ -1845,7 +1845,7 @@ namespace micasa {
 							{ "name", "password" },
 							{ "label", "Password" },
 							{ "placeholder", "Enter new password or leave blank to keep old password" },
-							{ "type", "string" },
+							{ "type", "password" },
 							{ "maxlength", 64 },
 							{ "minlength", 3 },
 							{ "sort", 3 }

@@ -15,7 +15,7 @@
 	</div>
 
 	<!-- view -->
-	<ng-container *ngIf="! parent.editing && data[0].data.length > 0">
+	<ng-container *ngIf="! parent.editing">
 	<div class="box-body no-padding scroll">
 
 <table class="table" [gridData]="data[0].data" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">

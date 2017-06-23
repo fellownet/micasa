@@ -1,29 +1,30 @@
-import { NgModule }               from '@angular/core';
+import { NgModule }             from '@angular/core';
 import {
 	RouterModule,
 	Routes
-}                                 from '@angular/router';
+}                               from '@angular/router';
 
-import { DevicesListComponent }   from './list.component';
-import { DeviceEditComponent }    from './edit.component';
-import { DeviceResolver }         from './device.resolver';
-import { DevicesListResolver }    from './list.resolver';
+import { DevicesListComponent } from './list.component';
+import { DeviceEditComponent }  from './edit.component';
+import { DeviceResolver }       from './device.resolver';
+import { DevicesListResolver }  from './list.resolver';
 
-import { ScreenComponent }        from '../screens/screen.component';
-import { ScreenResolver }         from '../screens/screen.resolver';
-import { ScreensListResolver }    from '../screens/list.resolver';
+import { ScreenComponent }      from '../screens/screen.component';
+import { ScreenResolver }       from '../screens/screen.resolver';
+import { ScreensListResolver }  from '../screens/list.resolver';
 
-import { ScriptsListResolver }    from '../scripts/list.resolver';
+import { ScriptsListResolver }  from '../scripts/list.resolver';
 
-import { LinksListResolver }      from '../links/list.resolver';
+import { LinksListResolver }    from '../links/list.resolver';
 
-import { TimersListResolver }     from '../timers/list.resolver';
+import { TimersListResolver }   from '../timers/list.resolver';
 
-import { SessionGuard }           from '../session/session.guard';
+import { SessionGuard }         from '../session/session.guard';
+import { ACL }                  from '../users/users.service';
 
 const routes: Routes = [
 	{ path: 'devices',                    component: DevicesListComponent, canActivate: [SessionGuard], resolve: { devices: DevicesListResolver } },
-	{ path: 'devices/:device_id',         component: DeviceEditComponent,  canActivate: [SessionGuard], resolve: { device: DeviceResolver, timers: TimersListResolver, screens: ScreensListResolver, links: LinksListResolver } },
+	{ path: 'devices/:device_id',         component: DeviceEditComponent,  canActivate: [SessionGuard], resolve: { device: DeviceResolver, timers: TimersListResolver, links: LinksListResolver, screens: ScreensListResolver }, data: { acl: ACL.Installer, alt: 'devices/:device_id/details' } },
 	{ path: 'devices/:device_id/details', component: ScreenComponent,      canActivate: [SessionGuard], resolve: { payload: ScreenResolver } }
 ];
 

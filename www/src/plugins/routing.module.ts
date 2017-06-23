@@ -12,12 +12,13 @@ import { PluginResolver }       from './plugin.resolver';
 import { DevicesListResolver }  from '../devices/list.resolver';
 
 import { SessionGuard }         from '../session/session.guard';
+import { ACL }                  from '../users/users.service';
 
 const routes: Routes = [
-	{ path: 'plugins',            component: PluginsListComponent, canActivate: [SessionGuard], resolve: { plugins: PluginsListResolver } },
+	{ path: 'plugins',            component: PluginsListComponent, canActivate: [SessionGuard], resolve: { plugins: PluginsListResolver }, data: { acl: ACL.Installer } },
 	// NOTE a separate route is used to prevent fetching a list of devices for new plugins
-	{ path: 'plugins/add',        component: PluginEditComponent,  canActivate: [SessionGuard], resolve: { plugin: PluginResolver } },
-	{ path: 'plugins/:plugin_id', component: PluginEditComponent,  canActivate: [SessionGuard], resolve: { plugin: PluginResolver, devices: DevicesListResolver } }
+	{ path: 'plugins/add',        component: PluginEditComponent,  canActivate: [SessionGuard], resolve: { plugin: PluginResolver }, data: { acl: ACL.Installer } },
+	{ path: 'plugins/:plugin_id', component: PluginEditComponent,  canActivate: [SessionGuard], resolve: { plugin: PluginResolver, devices: DevicesListResolver }, data: { acl: ACL.Installer } }
 ];
 
 @NgModule( {

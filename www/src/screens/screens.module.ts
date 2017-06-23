@@ -10,6 +10,7 @@ import { GridModule }            from '../grid/grid.module';
 import { UtilsModule }           from '../utils/utils.module';
 import { ScreenResolver }        from './screen.resolver';
 import { ScreensListResolver }   from './list.resolver';
+import { SettingsModule }        from '../settings/settings.module';
 
 import { WidgetChartComponent }  from './widgets/chart.component';
 import { WidgetLatestComponent } from './widgets/latest.component';
@@ -23,7 +24,8 @@ import { WidgetGaugeComponent }  from './widgets/gauge.component';
 		FormsModule,
 		ScreensRoutingModule,
 		GridModule,
-		UtilsModule
+		UtilsModule,
+		SettingsModule
 	],
 	declarations: [
 		ScreenComponent,

@@ -67,7 +67,6 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 		this._sessionService.events
 			.takeWhile( () => this._active )
 			.filter( event_ => ! this.plugin || this.plugin.id == event_.plugin_id )
-			.do( event_ => console.log( event_ ) )
 			.subscribe( event_ => {
 				let device: Device = this.devices.find( device_ => device_.id === event_.device_id );
 				if ( !! device ) {

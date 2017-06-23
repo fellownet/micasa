@@ -13,11 +13,7 @@
 
 				<form role="form" (ngSubmit)="submitScreen()" #screenForm="ngForm">
 				<div class="box-body">
-					<div class="form-group" [class.has-error]="! name.valid && ! name.pristine">
-						<label for="screen_name">Name<span class="mandatory"> *</span></label>
-						<input type="text" class="form-control" id="screen_name" placeholder="Enter name" autocomplete="off" required [(ngModel)]="screen.name" name="name" #name="ngModel">
-					</div>
-					<div class="callout callout-danger" [hidden]="name.valid || name.pristine">A name is required!</div>
+					<settings [settings]="screen.settings" [form]="screenForm" [values]="screen" #settingsComponent="settingsComponent"></settings>
 				</div>
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
