@@ -723,7 +723,7 @@ namespace micasa {
 
 	void WebServer::_installDeviceResourceHandler() {
 		this->m_resources[1] = {
-			"^/api(/plugins/([0-9]+))?/devices(/([0-9,]+))?$",
+			"^/api(/(plugins|scripts)/([0-9]+))?/devices(/([0-9,]+))?$",
 			WebServer::Method::GET | WebServer::Method::PUT | WebServer::Method::PATCH | WebServer::Method::DELETE,
 			[&]( std::shared_ptr<User> user_, const json& input_, const WebServer::Method& method_, json& output_ ) {
 				if (
@@ -734,19 +734,33 @@ namespace micasa {
 				}
 
 				std::shared_ptr<Plugin> plugin = nullptr;
+				int scriptId = -1;
 				auto find = input_.find( "$2" );
 				if ( find != input_.end() ) {
-					if ( nullptr == ( plugin = g_controller->getPluginById( jsonGet<int>( *find ) ) ) ) {
-						return;
-					} else if ( user_->getRights() < User::Rights::INSTALLER ) {
-						throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
+					if ( jsonGet<>( *find ) == "plugins" ) {
+						find = input_.find( "$3" );
+						if ( __unlikely( nullptr == ( plugin = g_controller->getPluginById( jsonGet<int>( *find ) ) ) ) ) {
+							return;
+						} else if ( user_->getRights() < User::Rights::INSTALLER ) {
+							throw WebServer::ResourceException( 403, "Access.Denied", "Access to the requested resource was denied." );
+						}
+					} else {
+						find = input_.find( "$3" );
+						if ( __unlikely( g_database->getQueryValue<unsigned int>( "SELECT COUNT(*) FROM `scripts` WHERE `id`=%d", jsonGet<unsigned int>( *find ) ) == 0 ) ) {
+							return;
+						} else {
+							scriptId = jsonGet<unsigned int>( *find );
+						}
 					}
 				}
 
 				switch( method_ ) {
 					case WebServer::Method::GET: {
-						auto find = input_.find( "$4" );
+						auto find = input_.find( "$5" );
 						if ( __unlikely( find != input_.end() ) ) {
+							if ( scriptId > -1 ) {
+								return;
+							}
 							auto deviceIds = stringSplit( jsonGet<>( *find ), ',' );
 							if ( deviceIds.size() == 1 ) {
 								std::shared_ptr<Device> device = nullptr;
@@ -802,6 +816,17 @@ namespace micasa {
 								for ( auto& device : plugin->getAllDevices() ) {
 									output_["data"] += device->getJson();
 								}
+							} else if ( scriptId > -1 ) {
+								auto deviceIds = g_database->getQueryColumn<unsigned int>(
+									"SELECT DISTINCT `device_id` "
+									"FROM `x_device_scripts` "
+									"WHERE `script_id`=%d "
+									"ORDER BY `device_id` ASC",
+									scriptId
+								);
+								for ( auto& deviceId : deviceIds ) {
+									output_["data"] += g_controller->getDeviceById( deviceId )->getJson();
+								}
 							} else {
 								for ( auto& device : g_controller->getAllDevices() ) {
 									if ( device->isEnabled() ) {
@@ -815,7 +840,7 @@ namespace micasa {
 					}
 
 					case WebServer::Method::DELETE: {
-						auto find = input_.find( "$4" );
+						auto find = input_.find( "$5" );
 						if ( __likely( find != input_.end() ) ) {
 							auto deviceIds = stringSplit( jsonGet<>( *find ), ',' );
 							std::vector<std::shared_ptr<Device>> devices;
@@ -841,7 +866,7 @@ namespace micasa {
 					}
 
 					case WebServer::Method::PUT: {
-						auto find = input_.find( "$4" );
+						auto find = input_.find( "$5" );
 						if (
 							user_->getRights() >= User::Rights::INSTALLER
 							&& find != input_.end()
@@ -913,7 +938,7 @@ namespace micasa {
 					}
 
 					case WebServer::Method::PATCH: {
-						auto find = input_.find( "$4" );
+						auto find = input_.find( "$5" );
 						if ( find != input_.end() ) {
 							std::shared_ptr<Device> device = nullptr;
 							auto deviceIds = stringSplit( jsonGet<>( *find ), ',' );

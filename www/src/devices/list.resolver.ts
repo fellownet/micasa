@@ -32,7 +32,7 @@ export class DevicesListResolver implements Resolve<Device[]> {
 				} )
 			;
 		} else if ( 'script_id' in route_.params ) {
-			return this._devicesService.getDevices()
+			return this._devicesService.getDevicesForScript( route_.params['script_id'] )
 				.catch( () => {
 					this._router.navigate( [ '/error' ] );
 					return Observable.of( null );

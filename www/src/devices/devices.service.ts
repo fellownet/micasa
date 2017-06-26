@@ -46,6 +46,11 @@ export class DevicesService {
 		return this._sessionService.http<Device[]>( 'get', resource );
 	};
 
+	public getDevicesForScript( scriptId_?: number ): Observable<Device[]> {
+		let resource: string = 'scripts/' + scriptId_ + '/devices';
+		return this._sessionService.http<Device[]>( 'get', resource );
+	};
+
 	public getDevicesById( deviceIds_: number[] ): Observable<Device[]> {
 		let resource: string = 'devices/' + deviceIds_.join( ',' );
 		return this._sessionService.http<any>( 'get', resource )
