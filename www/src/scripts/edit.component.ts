@@ -23,9 +23,11 @@ declare var ace: any;
 
 export class ScriptEditComponent implements OnInit {
 
-	public error: String;
 	public script: Script;
+
 	public title: string;
+
+	public hasAdvancedSettings: boolean = false;
 
 	private _editor: any;
 
@@ -37,57 +39,62 @@ export class ScriptEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.script = data_.script;
-			me.title = me.script.name;
-
-			me._editor = ace.edit( 'script_editor_target' );
-			me._editor.setTheme( 'ace/theme/crimson_editor' );
-			me._editor.$blockScrolling = Infinity;
-			me._editor.session.setUseSoftTabs( false );
-			me._editor.session.setUseWorker( false );
-			me._editor.session.setMode( 'ace/mode/javascript' );
-			me._editor.session.setValue( me.script.code, -1 );
-			me._editor.focus();
-		} );
-	};
-
-	public submitScript() {
-		var me = this;
-		me.script.code = me._editor.getValue();
-		this._scriptsService.putScript( me.script )
+		this._route.data
 			.subscribe(
-				function( script_: Script ) {
-					if ( !!me._scriptsService.returnUrl ) {
-						me._router.navigateByUrl( me._scriptsService.returnUrl );
-						delete me._scriptsService.returnUrl;
-					} else {
-						me._router.navigate( [ '/scripts' ] );
+				data_ => {
+					this.script = data_.script;
+
+					this.title = this.script.name;
+
+					for ( let setting of this.script.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
 					}
-				},
-				function( error_: string ) {
-					me.error = error_;
+
+					this._editor = ace.edit( 'script_editor_target' );
+					this._editor.setTheme( 'ace/theme/crimson_editor' );
+					this._editor.$blockScrolling = Infinity;
+					this._editor.session.setUseSoftTabs( false );
+					this._editor.session.setUseWorker( false );
+					this._editor.session.setMode( 'ace/mode/javascript' );
+					this._editor.session.setValue( this.script.code, -1 );
+					this._editor.focus();
 				}
 			)
 		;
 	};
 
-	public deleteScript() {
-		var me = this;
-		me._scriptsService.deleteScript( me.script )
+	public submitScript() {
+		this.script.code = this._editor.getValue();
+		this._scriptsService.putScript( this.script )
 			.subscribe(
-				function( script_: Script ) {
-					if ( !!me._scriptsService.returnUrl ) {
-						me._router.navigateByUrl( me._scriptsService.returnUrl );
-						delete me._scriptsService.returnUrl;
+				script_ => {
+					if ( !! this._scriptsService.returnUrl ) {
+						this._router.navigateByUrl( this._scriptsService.returnUrl );
+						delete this._scriptsService.returnUrl;
 					} else {
-						me._router.navigate( [ '/scripts' ] );
+						this._router.navigate( [ '/scripts' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
+			)
+		;
+	};
+
+	public deleteScript() {
+		this._scriptsService.deleteScript( this.script )
+			.subscribe(
+				script_ => {
+					if ( !! this._scriptsService.returnUrl ) {
+						this._router.navigateByUrl( this._scriptsService.returnUrl );
+						delete this._scriptsService.returnUrl;
+					} else {
+						this._router.navigate( [ '/scripts' ] );
+					}
+				},
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};

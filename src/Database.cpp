@@ -64,7 +64,7 @@ namespace micasa {
 
 	template<> nlohmann::json Database::getQuery( const std::string query_, ... ) const {
 		json result = json::array();
-		
+
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
@@ -133,7 +133,7 @@ namespace micasa {
 
 	template<> nlohmann::json Database::getQueryRow( const std::string query_, ... ) const {
 		json result = json::object();
-		
+
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
@@ -165,13 +165,13 @@ namespace micasa {
 			}
 		} );
 		va_end( arguments );
-		
+
 		return result;
 	};
 
 	template<typename T> std::vector<T> Database::getQueryColumn( const std::string query_, ... ) const {
 		std::vector<T> result;
-		
+
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
@@ -206,7 +206,7 @@ namespace micasa {
 	// specialized implementation.
 	template<> std::vector<std::string> Database::getQueryColumn( const std::string query_, ... ) const {
 		std::vector<std::string> result;
-		
+
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
@@ -225,7 +225,7 @@ namespace micasa {
 			}
 		} );
 		va_end( arguments );
-		
+
 		return result;
 	};
 
@@ -283,7 +283,7 @@ namespace micasa {
 		std::istringstream( result ) >> value;
 		return value;
 	};
-	
+
 	// The above template is specialized for the types listed below.
 	template int Database::getQueryValue( const std::string query_, ... ) const;
 	template unsigned int Database::getQueryValue( const std::string query_, ... ) const;
@@ -294,7 +294,7 @@ namespace micasa {
 	// specialized implementation.
 	template<> std::string Database::getQueryValue<std::string>( const std::string query_, ... ) const {
 		std::string result;
-		
+
 		va_list arguments;
 		va_start( arguments, query_ );
 		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
@@ -311,10 +311,10 @@ namespace micasa {
 			}
 		} );
 		va_end( arguments );
-		
+
 		return result;
 	};
-	
+
 	long Database::putQuery( const std::string query_, ... ) const {
 		va_list arguments;
 		va_start( arguments, query_ );
@@ -336,12 +336,14 @@ namespace micasa {
 	};
 
 	void Database::_init() const {
-		this->putQuery( "PRAGMA synchronous=NORMAL" );
+		// OFF = safe from crashes, not from system failures
+		// NORMAL = ok
+		this->putQuery( "PRAGMA synchronous=NORMAL" ); // TODO make backups!
 		this->putQuery( "PRAGMA foreign_keys=ON" );
-		
+
 		Logger::log( Logger::LogLevel::NORMAL, this, "Optimizing database." );
 		this->putQuery( "VACUUM" );
-		
+
 		unsigned int version = this->getQueryValue<unsigned int>( "PRAGMA user_version" );
 		if ( version < c_queries.size() ) {
 			for ( auto queryIt = c_queries.begin() + version; queryIt != c_queries.end(); queryIt++ ) {
@@ -350,13 +352,13 @@ namespace micasa {
 			this->putQuery( "PRAGMA user_version=%d", c_queries.size() );
 		}
 	};
-	
+
 	void Database::_wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>&& process_ ) const {
 		if ( ! this->m_connection ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Database not open." );
 			return;
 		}
-		
+
 		char* query = sqlite3_vmprintf( query_.c_str(), arguments_ );
 		if ( ! query ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Out of memory or invalid printf style query." );
@@ -384,5 +386,5 @@ namespace micasa {
 
 		sqlite3_free( query );
 	};
-	
+
 } // namespace micasa

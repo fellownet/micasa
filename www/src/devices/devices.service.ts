@@ -7,8 +7,8 @@ export class Device {
 	id: number;
 	label: string;
 	name: string;
-	hardware: string;
-	hardware_id: number;
+	plugin: string;
+	plugin_id: number;
 	type: string;
 	subtype: string;
 	enabled: boolean;
@@ -38,21 +38,24 @@ export class DevicesService {
 	) {
 	};
 
-	public getDevices( hardwareId_?: number, scriptId_?: number ): Observable<Device[]> {
+	public getDevices( pluginId_?: number ): Observable<Device[]> {
 		let resource: string = 'devices';
-		if ( !! hardwareId_ ) {
-			resource += '?hardware_id=' + hardwareId_;
-		} else if ( !! scriptId_ ) {
-			resource += '?enabled=1&script_id=' + scriptId_;
-		} else {
-			resource += '?enabled=1';
+		if ( !! pluginId_ ) {
+			resource = 'plugins/' + pluginId_ + '/' + resource;
 		}
 		return this._sessionService.http<Device[]>( 'get', resource );
 	};
 
-	public getDevicesByIds( deviceIds_: number[] ): Observable<Device[]> {
-		let resource: string = 'devices?enabled=1&device_ids=' + deviceIds_.join( ',' );
+	public getDevicesForScript( scriptId_?: number ): Observable<Device[]> {
+		let resource: string = 'scripts/' + scriptId_ + '/devices';
 		return this._sessionService.http<Device[]>( 'get', resource );
+	};
+
+	public getDevicesById( deviceIds_: number[] ): Observable<Device[]> {
+		let resource: string = 'devices/' + deviceIds_.join( ',' );
+		return this._sessionService.http<any>( 'get', resource )
+			.map( devices_ => Array.isArray( devices_ ) ? devices_ : [ devices_ ] );
+		;
 	};
 
 	public getDevice( id_: number ): Observable<Device> {
@@ -75,9 +78,7 @@ export class DevicesService {
 
 	public deleteDevice( device_: Device ): Observable<Device> {
 		return this._sessionService.http<any>( 'delete', 'devices/' + device_.id )
-			.map( function( result_: any ) {
-				return device_;
-			} )
+			.map( () => device_ )
 		;
 	};
 

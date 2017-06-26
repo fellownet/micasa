@@ -3,6 +3,7 @@ import { CommonModule }         from '@angular/common';
 import { FormsModule }          from '@angular/forms';
 import { GridModule }           from '../grid/grid.module';
 
+import { SettingsModule }       from '../settings/settings.module';
 import { ScriptsListComponent } from './list.component';
 import { ScriptEditComponent }  from './edit.component';
 import { ScriptsService }       from './scripts.service';
@@ -18,7 +19,8 @@ import { DevicesModule }        from '../devices/devices.module';
 		FormsModule,
 		ScriptsRoutingModule,
 		DevicesModule,
-		GridModule
+		GridModule,
+		SettingsModule
 	],
 	declarations: [
 		ScriptsListComponent,

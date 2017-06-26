@@ -21,7 +21,7 @@ namespace micasa {
 			HEATER,
 			BELL,
 			SCENE,
-			ACTION = 99 // reserved for hardware actions such as network healing or adding devices
+			ACTION = 99 // reserved for plugin actions such as network healing or adding devices
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
 		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
@@ -43,8 +43,8 @@ namespace micasa {
 
 		typedef std::string t_value;
 		static const Device::Type type;
-		
-		Switch( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+
+		Switch( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		void updateValue( const Device::UpdateSource& source_, const Option& value_ );
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
@@ -57,7 +57,7 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		Device::Type getType() const override { return Switch::type; };
-		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 
 	private:

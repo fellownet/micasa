@@ -22,16 +22,30 @@ export class DevicesListResolver implements Resolve<Device[]> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Device[]> {
-		var me = this;
 		if ( route_.params['script_id'] == 'add' ) {
 			return Observable.of( [] );
+		} else if ( 'plugin_id' in route_.params ) {
+			return this._devicesService.getDevices( route_.params['plugin_id'] )
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
+					return Observable.of( null );
+				} )
+			;
+		} else if ( 'script_id' in route_.params ) {
+			return this._devicesService.getDevicesForScript( route_.params['script_id'] )
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
+					return Observable.of( null );
+				} )
+			;
 		} else {
-			return me._devicesService.getDevices( route_.params['hardware_id'], route_.params['script_id'] )
-				.catch( function( error_: string ) {
-					me._router.navigate( [ '/login' ] );
+			return this._devicesService.getDevices()
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
 					return Observable.of( null );
 				} )
 			;
 		}
 	};
+
 }

@@ -22,11 +22,12 @@ export class LinksListResolver implements Resolve<Link[]> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<Link[]> {
-		var me = this;
-		return me._linksService.getLinks( route_.params['device_id'] )
-			.catch( function( error_: string ) {
-				return Observable.of( [] );
+		return this._linksService.getLinks( route_.params['device_id'] )
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
+				return Observable.of( null );
 			} )
 		;
 	};
+
 }

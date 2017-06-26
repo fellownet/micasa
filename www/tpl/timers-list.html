@@ -1,18 +1,12 @@
 <section class="content-header" *ngIf="! device">
-<h1>Timers</h1>
+<h1><i class="fa fa-clock-o"></i> Timers</h1>
 </section>
 
 <section [class.content-body]="! device">
 
-	<div class="callout callout-info" *ngIf="timers.length == 0 && ! error && ! device">
+	<div class="callout callout-info" *ngIf="timers.length == 0 && ! device">
 		<h4>No Timers!</h4>
 		<p>There are no timers configured in your system.</p>
-	</div>
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
 	</div>
 
 	<div class="row">

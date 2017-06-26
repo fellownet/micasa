@@ -3,7 +3,7 @@
 #include "Device.h"
 
 #include "Logger.h"
-#include "Hardware.h"
+#include "Plugin.h"
 #include "Database.h"
 #include "Controller.h"
 
@@ -28,8 +28,8 @@ namespace micasa {
 		{ Device::Type::TEXT, "text" },
 	};
 
-	Device::Device( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
-		m_hardware( hardware_ ),
+	Device::Device( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		m_plugin( plugin_ ),
 		m_id( id_ ),
 		m_reference( reference_ ),
 		m_enabled( enabled_ ),
@@ -50,7 +50,7 @@ namespace micasa {
 	};
 
 	std::ostream& operator<<( std::ostream& out_, const Device* device_ ) {
-		out_ << device_->getHardware()->getName() << " / " << device_->getName(); return out_;
+		out_ << device_->getPlugin()->getName() << " / " << device_->getName(); return out_;
 	};
 
 	std::string Device::getName() const {
@@ -69,12 +69,12 @@ namespace micasa {
 		}
 	};
 
-	std::shared_ptr<Hardware> Device::getHardware() const {
-		auto hardware = this->m_hardware.lock();
+	std::shared_ptr<Plugin> Device::getPlugin() const {
+		auto plugin = this->m_plugin.lock();
 #ifdef _DEBUG
-		assert( !!hardware && "Hardware should not be destroyed before device." );
+		assert( !! plugin && "Plugin should not be destroyed before device." );
 #endif // _DEBUG
-		return hardware;
+		return plugin;
 	};
 
 	template<class T> void Device::updateValue( const Device::UpdateSource& source_, const typename T::t_value& value_ ) {
@@ -101,36 +101,36 @@ namespace micasa {
 	template Switch::t_value Device::getValue<Switch>() const;
 	template Text::t_value Device::getValue<Text>() const;
 
-	std::shared_ptr<Device> Device::factory( std::weak_ptr<Hardware> hardware_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
+	std::shared_ptr<Device> Device::factory( std::weak_ptr<Plugin> plugin_, const Type type_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) {
 		switch( type_ ) {
 			case Type::COUNTER:
-				return std::make_shared<Counter>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Counter>( plugin_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::LEVEL:
-				return std::make_shared<Level>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Level>( plugin_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::SWITCH:
-				return std::make_shared<Switch>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Switch>( plugin_, id_, reference_, label_, enabled_ );
 				break;
 			case Type::TEXT:
-				return std::make_shared<Text>( hardware_, id_, reference_, label_, enabled_ );
+				return std::make_shared<Text>( plugin_, id_, reference_, label_, enabled_ );
 				break;
 		}
 		return nullptr;
 	};
 
-	json Device::getJson( bool full_ ) const {
-		auto hardware = this->getHardware();
+	json Device::getJson() const {
+		auto plugin = this->getPlugin();
 
-		json result = hardware->getDeviceJson( this->shared_from_this() );
+		json result = plugin->getDeviceJson( this->shared_from_this() );
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
 		result["enabled"] = this->isEnabled();
-		result["hardware"] = hardware->getName();
-		result["hardware_id"] = hardware->getId();
+		result["plugin"] = plugin->getName();
+		result["plugin_id"] = plugin->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
-		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT );
+		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", false );
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
 		}
@@ -166,9 +166,9 @@ namespace micasa {
 	};
 
 	json Device::getSettingsJson() const {
-		auto hardware = this->getHardware();
+		auto plugin = this->getPlugin();
 
-		json result = hardware->getDeviceSettingsJson( this->shared_from_this() );
+		json result = plugin->getDeviceSettingsJson( this->shared_from_this() );
 		json setting = {
 			{ "name", "name" },
 			{ "label", "Name" },
@@ -200,11 +200,36 @@ namespace micasa {
 		};
 		result += setting;
 
+		json scriptOptions = json::array();
+		auto scripts = g_database->getQuery(
+			"SELECT s.`id`, s.`name` "
+			"FROM `scripts` s LEFT JOIN `x_timer_scripts` x "
+			"ON s.`id`=x.`script_id` "
+			"WHERE s.`enabled`=1 "
+			"OR x.`timer_id` IS NOT NULL "
+			"ORDER BY s.`name`"
+		);
+		for ( auto &script : scripts ) {
+			scriptOptions += {
+				{ "value", std::stoi( script["id"] ) },
+				{ "label", script["name"] }
+			};
+		}
+		if ( scriptOptions.size() > 0 ) {
+			result += {
+				{ "name", "scripts" },
+				{ "label", "Scripts" },
+				{ "type", "multiselect" },
+				{ "options", scriptOptions },
+				{ "sort", 9999 }
+			};
+		}
+
 		return result;
 	};
 
 	void Device::putSettingsJson( const json& settings_ ) {
-		this->getHardware()->putDeviceSettingsJson( this->shared_from_this(), settings_ );
+		this->getPlugin()->putDeviceSettingsJson( this->shared_from_this(), settings_ );
 	};
 
 	void Device::setEnabled( bool enabled_ ) {

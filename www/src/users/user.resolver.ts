@@ -23,16 +23,22 @@ export class UserResolver implements Resolve<User> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<User> {
-		var me = this;
 		if ( route_.params['user_id'] == 'add' ) {
-			return Observable.of( { id: NaN, name: 'New user', username: '', rights: ACL.Viewer, enabled: false } );
+			return this._usersService.getUserSettings()
+				.mergeMap( settings_ => Observable.of( { id: NaN, name: 'New User', username: '', rights: ACL.Viewer, enabled: false, settings: settings_ } ) )
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
+					return Observable.of( null );
+				} )
+			;
 		} else {
 			return this._usersService.getUser( +route_.params['user_id'] )
-				.catch( function( error_: string ) {
-					me._router.navigate( [ '/login' ] );
+				.catch( () => {
+					this._router.navigate( [ '/error' ] );
 					return Observable.of( null );
 				} )
 			;
 		}
 	};
+
 }

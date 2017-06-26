@@ -8,10 +8,11 @@ export class Option {
 export class Setting {
 	label: string;
 	description?: string;
+	placeholder?: string;
 	name: string;
 	type: string;
 	mandatory: boolean;
-	class: string;
+	class?: string;
 	value?: any;
 	minimum?: number;
 	maximum?: number;

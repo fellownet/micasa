@@ -37,7 +37,6 @@ import { LinksModule }            from '../links/links.module';
 		DevicesListResolver
 	],
 	exports: [
-		// The devices components are also used in the hardware edit component
 		DevicesListComponent,
 		DeviceEditComponent
 	]

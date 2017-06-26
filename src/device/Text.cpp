@@ -2,8 +2,9 @@
 
 #include "../Logger.h"
 #include "../Database.h"
-#include "../Hardware.h"
+#include "../Plugin.h"
 #include "../Controller.h"
+#include "../Utils.h"
 
 #define DEVICE_TEXT_DEFAULT_HISTORY_RETENTION 7 // days
 
@@ -23,8 +24,8 @@ namespace micasa {
 		{ Text::SubType::NOTIFICATION, "notification" }
 	};
 
-	Text::Text( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
-		Device( hardware_, id_, reference_, label_, enabled_ ),
+	Text::Text( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
+		Device( plugin_, id_, reference_, label_, enabled_ ),
 		m_value( "" ),
 		m_updated( system_clock::now() ),
 		m_rateLimiter( { "", Device::resolveUpdateSource( 0 ) } ),
@@ -50,7 +51,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_HOUR, SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			this->_purgeHistory();
 		} );
 
@@ -75,7 +76,7 @@ namespace micasa {
 	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 		if (
 			! this->m_enabled
-			&& ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE
+			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
 		) {
 			return;
 		}
@@ -86,17 +87,17 @@ namespace micasa {
 		}
 
 		if (
-			this->getSettings()->get<bool>( "ignore_duplicates", true )
+			this->getSettings()->get<bool>( "ignore_duplicates", false )
 			&& this->m_value == value_
-			&& this->getHardware()->getState() >= Hardware::State::READY
+			&& this->getPlugin()->getState() >= Plugin::State::READY
 		) {
 			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
 			return;
 		}
-		
+
 		if (
 			this->m_settings->contains( "rate_limit" )
-			&& this->getHardware()->getState() >= Hardware::State::READY
+			&& this->getPlugin()->getState() >= Plugin::State::READY
 		) {
 			unsigned long rateLimit = 1000 * this->m_settings->get<double>( "rate_limit" );
 			system_clock::time_point now = system_clock::now();
@@ -118,8 +119,8 @@ namespace micasa {
 		}
 	};
 
-	json Text::getJson( bool full_ ) const {
-		json result = Device::getJson( full_ );
+	json Text::getJson() const {
+		json result = Device::getJson();
 
 		result["value"] = this->m_value;
 		result["source"] = Device::resolveUpdateSource( this->m_source );
@@ -136,9 +137,6 @@ namespace micasa {
 			if ( sendLog ) {
 				result["send_log_level"] = this->m_settings->get<int>( "send_log_level", Logger::resolveLogLevel( Logger::LogLevel::ERROR ) );
 			}
-		}
-		if ( full_ ) {
-			result["settings"] = this->getSettingsJson();
 		}
 
 		return result;
@@ -183,7 +181,7 @@ namespace micasa {
 			{ "class", "advanced" },
 			{ "sort", 998 }
 		};
-		
+
 		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & UpdateSource::SYSTEM ) == UpdateSource::SYSTEM ) {
 			result += {
 				{ "name", "send_log" },
@@ -220,7 +218,7 @@ namespace micasa {
 
 		return result;
 	};
-	
+
 	void Text::putSettingsJson( const nlohmann::json& settings_ ) {
 		Logger::removeReceiver( std::static_pointer_cast<Text>( this->shared_from_this() ) );
 		if ( jsonGet<bool>( settings_, "send_log" ) ) {
@@ -290,15 +288,15 @@ namespace micasa {
 
 	void Text::_processValue( const Device::UpdateSource& source_, const t_value& value_ ) {
 
-		// Make a local backup of the original value (the hardware might want to revert it).
+		// Make a local backup of the original value (the plugin might want to revert it).
 		t_value previous = this->m_value;
 		this->m_value = value_;
 
-		// If the update originates from the hardware it is not send back to the hardware again.
+		// If the update originates from the plugin it is not send back to the plugin again.
 		bool success = true;
 		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::HARDWARE ) != Device::UpdateSource::HARDWARE ) {
-			success = this->getHardware()->updateDevice( source_, this->shared_from_this(), apply );
+		if ( ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN ) {
+			success = this->getPlugin()->updateDevice( source_, this->shared_from_this(), apply );
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
@@ -313,7 +311,7 @@ namespace micasa {
 			this->m_updated = system_clock::now();
 			if (
 				this->m_enabled
-				&& this->getHardware()->getState() >= Hardware::State::READY
+				&& this->getPlugin()->getState() >= Plugin::State::READY
 			) {
 				g_controller->newEvent<Text>( std::static_pointer_cast<Text>( this->shared_from_this() ), source_ );
 			}
@@ -332,5 +330,5 @@ namespace micasa {
 			this->m_settings->get<int>( "history_retention", DEVICE_TEXT_DEFAULT_HISTORY_RETENTION )
 		);
 	};
-	
+
 }; // namespace micasa

@@ -106,7 +106,7 @@
 		<td colspan="2">
 			<select class="form-control" #deviceSelect>
 				<option selected disabled hidden>Select Device</option>
-				<ng-container *ngFor="let device of devices | sort:'name'">
+				<ng-container *ngFor="let device of devices | async | sort:'name'">
 					<option value="{{ device.id }}">{{ device.name }}</option>
 				</ng-container>
 			</select>

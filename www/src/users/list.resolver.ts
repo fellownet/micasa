@@ -22,12 +22,12 @@ export class UsersListResolver implements Resolve<User[]> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<User[]> {
-		var me = this;
 		return this._usersService.getUsers()
-			.catch( function( error_: string ) {
-				me._router.navigate( [ '/login' ] );
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
 				return Observable.of( null );
 			} )
 		;
 	};
+
 }

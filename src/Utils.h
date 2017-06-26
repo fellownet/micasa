@@ -17,10 +17,11 @@ namespace micasa {
 	std::string stringJoin( const std::vector<std::string>& input_, const std::string& glue_ );
 	std::string stringFormat( const std::string format_, ... );
 	std::string randomString( size_t length_ );
-	bool validateSettings( const nlohmann::json& input_, nlohmann::json& output_, const nlohmann::json& settings_, std::vector<std::string>* invalid_, std::vector<std::string>* missing_, std::vector<std::string>* errors_ );
+	int randomNumber( int min_, int max_ );
+
 	const std::map<std::string, std::string> getSerialPorts();
 
-	template<typename T> inline T jsonGet( const nlohmann::basic_json<>::value_type& input_ ) {
+	template<typename T> inline T jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, T* ) {
 		T value;
 		if ( input_.is_string() ) {
 			std::istringstream( input_.get<std::string>() ) >> std::fixed >> std::setprecision( 3 ) >> value;
@@ -31,20 +32,24 @@ namespace micasa {
 		} else if ( input_.is_boolean() ) {
 			std::istringstream( input_.get<bool>() ? "1" : "0" ) >> value;
 		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json scalar" );
 		}
 		return value;
 	};
-	template<typename T> inline T jsonGet( const nlohmann::json& input_, const std::string& key_ ) {
-		auto find = input_.find( key_ );
-		if ( find != input_.end() ) {
-			return jsonGet<T>( find.value() );
+
+	template<typename T> inline std::vector<T> jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, std::vector<T>* ) {
+		if ( input_.is_array() ) {
+			std::vector<T> value;
+			for ( auto &el : input_ ) {
+				value.push_back( jsonGetImpl( el, static_cast<T*>( 0 ) ) );
+			}
+			return value;
 		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json array" );
 		}
 	};
 
-	template<> inline std::string jsonGet<std::string>( const nlohmann::basic_json<>::value_type& input_ ) {
+	inline std::string jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, std::string* ) {
 		if ( input_.is_string() ) {
 			return input_.get<std::string>();
 		} else if ( input_.is_number_float() ) {
@@ -53,20 +58,14 @@ namespace micasa {
 			return std::to_string( input_.get<long>() );
 		} else if ( input_.is_boolean() ) {
 			return input_.get<bool>() ? "true" : "false";
+		} else if ( input_.is_array() ) {
+			return stringJoin( jsonGetImpl( input_, static_cast<std::vector<std::string>*>( 0 ) ), "," );
 		} else {
-			throw std::runtime_error( "invalid type" );
-		}
-	};
-	template<> inline std::string jsonGet<std::string>( const nlohmann::json& input_, const std::string& key_ ) {
-		auto find = input_.find( key_ );
-		if ( find != input_.end() ) {
-			return jsonGet<std::string>( find.value() );
-		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json string" );
 		}
 	};
 
-	template<> inline bool jsonGet<bool>( const nlohmann::basic_json<>::value_type& input_ ) {
+	inline bool jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, bool* ) {
 		if ( input_.is_string() ) {
 			return ( input_.get<std::string>() == "1" || input_.get<std::string>() == "true" || input_.get<std::string>() == "yes" );
 		} else if ( input_.is_number_float() ) {
@@ -76,33 +75,30 @@ namespace micasa {
 		} else if ( input_.is_boolean() ) {
 			return input_.get<bool>();
 		} else {
-			throw std::runtime_error( "invalid type" );
-		}
-	};
-	template<> inline bool jsonGet<bool>( const nlohmann::json& input_, const std::string& key_ ) {
-		auto find = input_.find( key_ );
-		if ( find != input_.end() ) {
-			return jsonGet<bool>( find.value() );
-		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json bool" );
 		}
 	};
 
-	template<> inline nlohmann::json jsonGet<nlohmann::json>( const nlohmann::basic_json<>::value_type& input_ ) {
-		if ( input_.is_array() ) {
-			return input_;
-		} else if ( input_.is_object() ) {
+	inline nlohmann::json jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, nlohmann::json* ) {
+		if (
+			input_.is_array()
+			|| input_.is_object()
+		) {
 			return input_;
 		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json array or object" );
 		}
 	};
-	template<> inline nlohmann::json jsonGet<nlohmann::json>( const nlohmann::json& input_, const std::string& key_ ) {
+
+	template<typename T = std::string> inline T jsonGet( const nlohmann::basic_json<>::value_type& input_ ) {
+		return jsonGetImpl( input_, static_cast<T*>( 0 ) );
+	};
+	template<typename T = std::string> inline T jsonGet( const nlohmann::json& input_, const std::string& key_ ) {
 		auto find = input_.find( key_ );
 		if ( find != input_.end() ) {
-			return jsonGet<nlohmann::json>( find.value() );
+			return jsonGetImpl( *find, static_cast<T*>( 0 ) );
 		} else {
-			throw std::runtime_error( "invalid type" );
+			throw std::runtime_error( "invalid json key" );
 		}
 	};
 

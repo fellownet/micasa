@@ -22,7 +22,6 @@ import {
 
 export class UsersListComponent implements OnInit, OnDestroy {
 
-	public error: String;
 	public users: User[];
 	public startPage: number = 1;
 
@@ -36,11 +35,15 @@ export class UsersListComponent implements OnInit, OnDestroy {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.users = data_.users;
-			me.startPage = me._usersService.lastPage || 1;
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.users = data_.users;
+
+					this.startPage = this._usersService.lastPage || 1;
+				}
+			)
+		;
 	};
 
 	public ngOnDestroy() {
@@ -58,4 +61,5 @@ export class UsersListComponent implements OnInit, OnDestroy {
 		this._usersService.returnUrl = this._router.url;
 		this._router.navigate( [ '/users', 'add' ] );
 	};
+
 }

@@ -13,10 +13,10 @@
 				<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
 				<button type="button" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			</div>
-			<h3 class="box-title">{{ title }}</h3>
+			<h3 class="box-title click-target" (click)="open()">{{ title }}</h3>
 		</div>
 
-		<div class="box-body no-padding latest" [class.switch]="! busy" (click)="toggle()">
+		<div class="box-body no-padding latest" [class.click-target]="! busy" (click)="toggle()">
 
 	<table class="table">
 	<tbody>
@@ -89,7 +89,7 @@
 			<div class="form-group">
 				<label for="devicefield">Device<span class="mandatory"> *</span></label>
 				<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
-					<ng-container *ngFor="let device of devices | sort:'name'">
+					<ng-container *ngFor="let device of devices | async | sort:'name'">
 						<option value="{{ device.id }}">{{ device.name }}</option>
 					</ng-container>
 				</select>

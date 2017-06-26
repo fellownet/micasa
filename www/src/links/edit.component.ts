@@ -12,6 +12,7 @@ import {
 	Link,
 	LinksService
 }                  from './links.service';
+import { Device }  from '../devices/devices.service';
 
 @Component( {
 	templateUrl: 'tpl/link-edit.html'
@@ -19,11 +20,13 @@ import {
 
 export class LinkEditComponent implements OnInit {
 
-	public error: String;
 	public link: Link;
+
 	public title: string;
 
 	public hasAdvancedSettings: boolean = false;
+
+	public device?: Device;
 
 	public constructor(
 		private _router: Router,
@@ -33,52 +36,55 @@ export class LinkEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.link = data_.link;
-			me.title = me.link.name;
-			for ( let setting of me.link.settings ) {
-				if ( setting.class == 'advanced' ) {
-					me.hasAdvancedSettings = true;
-				}
-			}
-		} );
-	};
-
-	public submitLink() {
-		var me = this;
-		this._linksService.putLink( me.link )
+		this._route.data
 			.subscribe(
-				function( link_: Link ) {
-					if ( !!me._linksService.returnUrl ) {
-						me._router.navigateByUrl( me._linksService.returnUrl );
-						delete me._linksService.returnUrl;
-					} else {
-						me._router.navigate( [ '/links' ] );
+				data_ => {
+					this.link = data_.link;
+					if ( 'device' in data_ ) {
+						this.device = data_.device;
 					}
-				},
-				function( error_: string ) {
-					me.error = error_;
+
+					this.title = this.link.name;
+
+					for ( let setting of this.link.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
 				}
 			)
 		;
 	};
 
-	public deleteLink() {
-		var me = this;
-		me._linksService.deleteLink( me.link )
+	public submitLink() {
+		this._linksService.putLink( this.link, ( !! this.device ) ? this.device.id : undefined )
 			.subscribe(
-				function( link_: Link ) {
-					if ( !!me._linksService.returnUrl ) {
-						me._router.navigateByUrl( me._linksService.returnUrl );
-						delete me._linksService.returnUrl;
+				link_ => {
+					if ( !! this._linksService.returnUrl ) {
+						this._router.navigateByUrl( this._linksService.returnUrl );
+						delete this._linksService.returnUrl;
 					} else {
-						me._router.navigate( [ '/links' ] );
+						this._router.navigate( [ '/links' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
+			)
+		;
+	};
+
+	public deleteLink() {
+		this._linksService.deleteLink( this.link, ( !! this.device ) ? this.device.id : undefined )
+			.subscribe(
+				link_ => {
+					if ( !! this._linksService.returnUrl ) {
+						this._router.navigateByUrl( this._linksService.returnUrl );
+						delete this._linksService.returnUrl;
+					} else {
+						this._router.navigate( [ '/links' ] );
+					}
+				},
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};

@@ -1,25 +1,24 @@
 <section class="content-header">
-<a *ngIf="!! screen.id && screen.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
-<h1>{{ screen.name }}</h1>
+<a *ngIf="screen?.id > 1" routerLink="/screens/{{screen.id}}/edit" class="btn btn-primary btn-xs pull-right"><i class="fa fa-pencil"></i> Edit</a>
+<h1>
+	<i class="fa fa-laptop" *ngIf="screen?.id > 1"></i>
+	<i class="fa fa-dashboard" *ngIf="screen?.id == 1"></i>
+	<i class="fa fa-info-circle" *ngIf="! screen.id"></i>
+	{{ screen.name }}
+</h1>
 </section>
 
 <section class="content-body" *ngIf="screen.widgets.length == 0">
 
-	<div class="callout callout-info" *ngIf="! error">
+	<div class="callout callout-info">
 		<h4>No Widgets!</h4>
 		<p>There are no widgets configured for this screen.</p>
-	</div>
-
-	<div class="callout callout-danger" *ngIf="error">
-		<button type="button" (click)="error=null" class="pull-right"><i class="fa fa-times fa-2x"></i></button>
-		<h4>Error!</h4>
-		<p>{{ error }}</p>
 	</div>
 
 </section>
 
 <section class="content-body">
 	<div class="row">
-		<widget *ngFor="let widget of screen.widgets; let i = index;" [screen]="screen" [widget]="widget" [data]="data[i]" [devices]="devices"></widget>
+		<widget *ngFor="let widget of screen.widgets; let i = index;" [screen]="screen" [widget]="widget" [data]="data[i]"></widget>
 	</div>
 </section>

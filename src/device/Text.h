@@ -20,8 +20,8 @@ namespace micasa {
 
 		typedef std::string t_value;
 		static const Device::Type type;
-		
-		Text( std::weak_ptr<Hardware> hardware_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
+
+		Text( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
 		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
 		t_value getValue() const { return this->m_value; };
@@ -30,7 +30,7 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		Device::Type getType() const override { return Text::type; };
-		nlohmann::json getJson( bool full_ = false ) const override;
+		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 		void putSettingsJson( const nlohmann::json& settings_ ) override;
 		void log( const Logger::LogLevel& logLevel_, const std::string& message_ ) override;

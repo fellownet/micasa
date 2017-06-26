@@ -18,9 +18,11 @@ import {
 
 export class UserEditComponent implements OnInit {
 
-	public error: String;
 	public user: User;
+
 	public title: string;
+
+	public hasAdvancedSettings: boolean = false;
 
 	public constructor(
 		private _router: Router,
@@ -30,48 +32,54 @@ export class UserEditComponent implements OnInit {
 	};
 
 	public ngOnInit() {
-		var me = this;
-		this._route.data.subscribe( function( data_: any ) {
-			me.user = data_.user;
-			me.title = me.user.name;
-		} );
+		this._route.data
+			.subscribe(
+				data_ => {
+					this.user = data_.user;
+
+					this.title = this.user.name;
+
+					for ( let setting of this.user.settings ) {
+						if ( setting.class == 'advanced' ) {
+							this.hasAdvancedSettings = true;
+							break;
+						}
+					}
+				}
+			)
+		;
 	};
 
 	public submitUser() {
-		var me = this;
-		this._usersService.putUser( me.user )
+		this._usersService.putUser( this.user )
 			.subscribe(
-				function( user_: User ) {
-					if ( !!me._usersService.returnUrl ) {
-						me._router.navigateByUrl( me._usersService.returnUrl );
-						delete me._usersService.returnUrl;
+				user_ => {
+					if ( !! this._usersService.returnUrl ) {
+						this._router.navigateByUrl( this._usersService.returnUrl );
+						delete this._usersService.returnUrl;
 					} else {
-						me._router.navigate( [ '/users' ] );
+						this._router.navigate( [ '/users' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
 
 	public deleteUser() {
-		var me = this;
-		me._usersService.deleteUser( me.user )
+		this._usersService.deleteUser( this.user )
 			.subscribe(
-				function( user_: User ) {
-					if ( !!me._usersService.returnUrl ) {
-						me._router.navigateByUrl( me._usersService.returnUrl );
-						delete me._usersService.returnUrl;
+				user_ => {
+					if ( !! this._usersService.returnUrl ) {
+						this._router.navigateByUrl( this._usersService.returnUrl );
+						delete this._usersService.returnUrl;
 					} else {
-						me._router.navigate( [ '/users' ] );
+						this._router.navigate( [ '/users' ] );
 					}
 				},
-				function( error_: string ) {
-					me.error = error_;
-				}
+				error_ => this._router.navigate( [ '/error' ] )
 			)
 		;
 	};
+
 }

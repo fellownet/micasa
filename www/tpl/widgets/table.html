@@ -11,11 +11,11 @@
 			<button type="button" (click)="parent.editing = true" class="btn btn-primary btn-xs"><i class="fa fa-pencil"></i></button>
 			<button type="button" (click)="reload()" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i></button>
 		</div>
-		<h3 class="box-title">{{ title }}</h3>
+		<h3 class="box-title click-target" (click)="open()">{{ title }}</h3>
 	</div>
 
 	<!-- view -->
-	<ng-container *ngIf="! parent.editing && data[0].data.length > 0">
+	<ng-container *ngIf="! parent.editing">
 	<div class="box-body no-padding scroll">
 
 <table class="table" [gridData]="data[0].data" [gridSort]="'timestamp'" [gridOrder]="'desc'" #grid="GridDirective">
@@ -70,7 +70,7 @@
 		<div class="form-group">
 			<label for="devicefield">Device<span class="mandatory"> *</span></label>
 			<select class="form-control" id="devicefield" required [(ngModel)]="widget.sources[0].device_id" name="device">
-				<ng-container *ngFor="let device of devices | sort:'name'">
+				<ng-container *ngFor="let device of devices | async | sort:'name'">
 					<option value="{{ device.id }}">{{ device.name }}</option>
 				</ng-container>
 			</select>

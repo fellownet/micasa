@@ -1,11 +1,11 @@
 # Micasa
 
-Micasa is a software home automation controller designed to interconnect various types of hardware.
+Micasa is a software home automation controller designed to interconnect various types of hardware and software.
 
 [![Build Status](https://travis-ci.org/fellownet/micasa.svg?branch=master)](https://travis-ci.org/fellownet/micasa)
 [![Code Climate](https://codeclimate.com/github/fellownet/micasa/badges/gpa.svg)](https://codeclimate.com/github/fellownet/micasa)
 
-## Hardware
+## Hardware Support
 
 - RFXCOM Transceiver
 - Z-Wave

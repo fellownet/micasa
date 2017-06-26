@@ -10,6 +10,9 @@ import {
 	ElementRef,
 	EventEmitter
 }                          from '@angular/core';
+import {
+	Router
+}                          from '@angular/router';
 import { Observable }      from 'rxjs/Observable';
 
 import {
@@ -34,7 +37,6 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 	@Input( 'screen' ) public screen: Screen;
 	@Input( 'widget' ) public widget: Widget;
 	@Input( 'data' ) public data: SourceData[];
-	@Input( 'devices' ) public devices: Device[];
 	@Input( 'parent' ) public parent: WidgetComponent;
 
 	@Output() onAction = new EventEmitter<string>();
@@ -43,32 +45,33 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public invalid: boolean = false;
 	public title: string;
+	public devices: Observable<{ id: number, name: string, type: string }[]>;
 
 	public constructor(
-		private _devicesService: DevicesService,
-		private _sessionService: SessionService
+		private _router: Router,
+		private _sessionService: SessionService,
+		private _devicesService: DevicesService
 	) {
 	};
 
 	public ngOnInit() {
-		var me = this;
-
-		me.title = me.widget.name;
-		me.devices = me.devices.filter( device_ => device_.type != 'level' && device_.type != 'counter' );
+		this.title = this.widget.name;
+		this.devices = this._devicesService.getDevices()
+			.map( devices_ => devices_.filter( device_ => device_.type != 'level' && device_.type != 'counter' ) )
+		;
 
 		// Listen for events broadcasted from the session service.
-		me._sessionService.events
-			.takeWhile( () => me._active )
-			.filter( event_ => ! this.invalid && event_.device_id == me.data[0].device.id )
-			.subscribe( function( event_: any ) {
-				me.data[0].data.push( { timestamp: Math.floor( Date.now() / 1000 ), value: event_.value } );
-				me.data[0].data = me.data[0].data.slice( 0 ); // dirty change detection
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.filter( event_ => ! this.parent.editing && ! this.invalid && event_.device_id == this.data[0].device.id )
+			.subscribe( event_ => {
+				this.data[0].data.push( { timestamp: Math.floor( Date.now() / 1000 ), value: event_.value } );
+				this.data[0].data = this.data[0].data.slice( 0 ); // dirty change detection
 			} )
 		;
 	};
 
 	public ngOnChanges() {
-		var me = this;
 		this.invalid = (
 			! this.data[0]
 			|| ! this.data[0].device
@@ -78,6 +81,10 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 
 	public ngOnDestroy() {
 		this._active = false;
+	};
+
+	public open() {
+		this._router.navigate( [ '/devices', this.data[0].device.id, 'details' ] );
 	};
 
 	public save() {

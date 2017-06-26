@@ -30,92 +30,92 @@ export class ScreenResolver implements Resolve<Screen> {
 	};
 
 	public resolve( route_: ActivatedRouteSnapshot, state_: RouterStateSnapshot ): Observable<any> {
-		let me: ScreenResolver = this;
-
 		let observable: Observable<Screen>;
 		if ( route_.data['dashboard'] ) {
-			observable = me._screensService.getScreen( 1 );
+			observable = this._screensService.getScreen( 1 );
 		} else if ( 'device_id' in route_.params  ) {
-			observable = me._devicesService.getDevice( +route_.params['device_id'] )
-				.map( device_ => me._screensService.getDefaultScreenForDevice( device_ ) )
+			observable = this._devicesService.getDevice( +route_.params['device_id'] )
+				.map( device_ => this._screensService.getDefaultScreenForDevice( device_ ) )
 			;
 		} else if ( ! ( 'screen_id' in route_.params ) ) {
 			observable = Observable.of( { id: NaN, name: 'New screen', widgets: [] } );
 		} else {
-			observable = me._screensService.getScreen( +route_.params['screen_id'] );
+			observable = this._screensService.getScreen( +route_.params['screen_id'] );
 		}
 
 		return observable
-			.mergeMap( function( screen_: Screen ) {
+			.mergeMap( screen_ => {
+				return this._screensService.getScreenSettings()
+					.map( settings_ => {
+						screen_.settings = settings_;
+						return screen_;
+					} )
+				;
+			} )
+			.mergeMap( screen_ => {
+				let observable: Observable<Device[]>;
 
-				// First fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then
-				// passed to the data fetchers.
-				return me._screensService.getDevicesOnScreen( screen_ )
-					.mergeMap( function( devices_: Device[] ) {
+				// If the screen holds a device, it is the details screen for a device and is guaranteed not to hold
+				// any other devices.
+				if ( !! screen_.device ) {
+					let devices: Device[] = [];
+					devices[screen_.device.id] = screen_.device;
+					observable = Observable.of( devices );
 
+				// Fetch *all* the devices that are used *anywhere* on the screen. This list of devices is then passed
+				// along to the data fetchers which in turn will not fetch these devices again.
+				} else {
+					observable = this._screensService.getDevicesOnScreen( screen_ );
+				}
+
+				return observable
+					// Catch 404 errors if a device was removed but is still present in one of the widgets.
+					.catch( error_ => {
+						if ( error_.code == 404 ) {
+							return Observable.of( [] );
+						} else {
+							return Observable.throw( error_ );
+						}
+					} )
+					.mergeMap( devices_ => {
 						let observables: Observable<[number,SourceData[]]>[]= [];
-						screen_.widgets.forEach( function( widget_: Widget, i_: number ) {
+						screen_.widgets.forEach( ( widget_: Widget, i_: number ) => {
 							observables.push(
-								me._screensService.getDataForWidget( widget_, devices_ )
-								.map( data_ => [ i_, data_ ] )
-								// NOTE catch all errors to make sure the forkJoin completes.
-								.catch( () => Observable.of( null ) )
+								this._screensService.getDataForWidget( widget_, devices_ )
+									.map( data_ => [ i_, data_ ] )
+									// NOTE catch all 404 not found errors to make sure the forkJoin completes if a
+									// device was deleted.
+									.catch( error_ => {
+										if ( error_.code == 404 ) {
+											return Observable.of( null );
+										} else {
+											return Observable.throw( error_ );
+										}
+									} )
 							);
 						} );
-
-						let dataObservable: Observable<SourceData[][]>;
 						if ( observables.length > 0 ) {
-							dataObservable = Observable.forkJoin( observables, function( ... args ) {
+							return Observable.forkJoin( observables, function( ... args ) {
 								let result: SourceData[][] = [];
 								for ( let data of args as [number, SourceData[]][] ) {
 									if ( !! data ) { // filters out null's (see catch notes)
 										result[data[0]] = data[1];
 									}
 								}
-								return result;
+								return { screen: screen_, data: result };
 							} );
 						} else {
-							dataObservable = Observable.of( [] );
+							return Observable.of( { screen: screen_, data: [] } );
 						}
-						let devicesObservable: Observable<Device[]> = me._devicesService.getDevices();
-						return Observable.forkJoin( dataObservable, devicesObservable, function( data_: SourceData[][], devices_: Device[] ) {
-							return { screen: screen_, data: data_, devices: devices_ };
-						} );
 					} )
 				;
 
-
-
-
-
-
-
-
-
-
-
-
-/*
-				// DEBUG
-				setTimeout( function() {
-					let poe: Observable<Widget>[] = [];
-					for ( let widget of screen_.widgets ) {
-						poe.push( me._screensService.getDataForWidget( widget ) );
-					}
-					Observable.forkJoin( poe, function( ... args ) { console.log( args ); } ).subscribe();
-				}, 100 );
-*/
-/*
-				let result: any = { screen: screen_ };
-				return me._screensService.getDevicesOnScreen( screen_ )
-					.map( function( devices_: Device[] ) {
-						result.devices = devices_;
-						return result;
-					} )
-				;
-*/
 			} )
-			.catch( () => me._router.navigate( [ '/login' ] ) )
+			.catch( () => {
+				this._router.navigate( [ '/error' ] );
+				return Observable.of( null );
+			} )
 		;
 	};
+
 }

@@ -7,12 +7,12 @@
 #include "Settings.h"
 
 #include "Database.h"
-#include "Hardware.h"
+#include "Plugin.h"
 #include "Device.h"
 #include "User.h"
 
 namespace micasa {
-	
+
 	using namespace nlohmann;
 
 	extern std::unique_ptr<Database> g_database;
@@ -20,15 +20,15 @@ namespace micasa {
 	SettingValue::SettingValue( const unsigned long& value_ ) {
 		this->assign( std::to_string( value_ ) );
 	};
-	
+
 	SettingValue::SettingValue( const long& value_ ) {
 		this->assign( std::to_string( value_ ) );
 	};
-	
+
 	SettingValue::SettingValue( const unsigned int& value_ ) {
 		this->assign( std::to_string( value_ ) );
 	};
-	
+
 	SettingValue::SettingValue( const int& value_ ) {
 		this->assign( std::to_string( value_ ) );
 	};
@@ -38,13 +38,13 @@ namespace micasa {
 		ss << std::fixed << std::setprecision( 6 ) << value_;
 		this->assign( ss.str() );
 	};
-	
+
 	SettingValue::SettingValue( const bool& value_ ) {
 		std::stringstream ss;
 		ss << std::boolalpha << value_;
 		this->assign( ss.str() );
 	};
-	
+
 	SettingValue::SettingValue( const std::string& value_ ) {
 		this->assign( value_ );
 	};
@@ -154,7 +154,7 @@ namespace micasa {
 	};
 
 	template class SettingsHelper<void>;
-	template class SettingsHelper<Hardware>;
+	template class SettingsHelper<Plugin>;
 	template class SettingsHelper<Device>;
 	template class SettingsHelper<User>;
 
@@ -174,7 +174,7 @@ namespace micasa {
 			this->m_dirty.push_back( settingsIt->first );
 		}
 	};
-	
+
 	template<class T> bool Settings<T>::contains( const std::initializer_list<std::string>& settings_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_settingsMutex );
 		this->_populateOnce();
@@ -251,7 +251,7 @@ namespace micasa {
 			} else if ( (*dataIt).is_null() ) {
 				this->remove( dataIt.key() );
 			} else {
-				throw std::runtime_error( "invalid type" );
+				throw std::runtime_error( "invalid type for key " + dataIt.key() );
 			}
 		}
 	};
@@ -277,7 +277,7 @@ namespace micasa {
 	};
 
 	template class Settings<void>;
-	template class Settings<Hardware>;
+	template class Settings<Plugin>;
 	template class Settings<Device>;
 	template class Settings<User>;
 

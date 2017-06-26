@@ -23,7 +23,7 @@ namespace micasa {
 	class Scheduler final {
 
 		class ThreadPool; // forward declaration for friend clause of BaseTask
-	
+
 	public:
 
 		// ========
@@ -32,7 +32,7 @@ namespace micasa {
 
 		class BaseTask: public std::enable_shared_from_this<BaseTask> {
 			friend class ThreadPool;
-		
+
 		public:
 			typedef std::function<bool(const BaseTask&)> t_compareFunc;
 

@@ -267,6 +267,12 @@ label span.mandatory {
 	font-family: 'Helvetica Narrow', 'Arial Narrow', 'Helvetica', 'Arial', sans-serif;
 	font-weight: 500;
 }
+.content .content-header > h1 > .fa {
+	color: #777;
+	font-weight: 100;
+	width: 25px;
+	font-size: 0.8em;
+}
 .content .content-header > h1 > small {
 	font-size: 15px;
 	display: inline-block;
@@ -426,6 +432,12 @@ label span.mandatory {
 	height: 300px;
 	overflow: hidden;
 }
+.content .box-body.inlinechart {
+	padding: 0;
+	height: 40px;
+	margin-top: -25px;
+	overflow: hidden;
+}
 .content .box-body.gauge {
 	height: 180px;
 }
@@ -453,6 +465,12 @@ label span.mandatory {
 .content form .tools .btn .fa {
 	margin: 0;
 }
+.content form .multiselect {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	margin: -8px -10px 0 -10px;
+}
+
 .content .bg .box-footer {
 	border-top: 0;
 	background-color: rgba( 0, 0, 0, 0.2 );
@@ -708,9 +726,6 @@ form .table tr td {
 }
 .content .box-body.latest td.minimum {
 	width: 25%;
-}
-.content .box-body.switch {
-	cursor: pointer;
 }
 
 /* script editor */

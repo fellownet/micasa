@@ -2,6 +2,7 @@ import { Injectable }     from '@angular/core';
 import { Observable }     from 'rxjs/Observable';
 
 import { SessionService } from '../session/session.service';
+import { Setting }        from '../settings/settings.service';
 import {
 	Device,
 	DevicesService
@@ -14,7 +15,8 @@ export class Source {
 
 export class SourceData {
 	device: Device;
-	data: any;
+	data: any[];
+	config: any;
 };
 
 export class Widget {
@@ -31,6 +33,8 @@ export class Screen {
 	id: number;
 	name: string;
 	widgets: Widget[];
+	device?: Device;
+	settings?: Setting[];
 };
 
 @Injectable()
@@ -43,12 +47,12 @@ export class ScreensService {
 	};
 
 	public getScreens(): Observable<Screen[]> {
-		return this._sessionService.retrieve<Screen[]>( 'screens' );
+		return this._sessionService.retrieve<Screen[]>( 'screens', [ { id: 1, name: 'Dashboard', widgets: [] } ] );
 	};
 
 	public getScreen( id_: number ): Observable<Screen> {
 		return this.getScreens()
-			.map( function( screens_: Screen[] ) {
+			.map( screens_ => {
 				for ( let screen of screens_ ) {
 					if ( screen.id == id_ ) {
 						// Make a deep clone. NOTE this is a rather ugly way of cloning, replace with a better one if
@@ -62,10 +66,22 @@ export class ScreensService {
 		;
 	};
 
+	public getScreenSettings(): Observable<Setting[]> {
+		return Observable.of( [
+			{
+				name: 'name',
+				label: 'Name',
+				type: 'string',
+				maxlength: 64,
+				minlength: 3,
+				mandatory: true
+			}
+		] );
+	};
+
 	public putScreen( screen_: Screen ): Observable<Screen> {
-		var me = this;
-		return me.getScreens()
-			.mergeMap( function( screens_: Screen[] ) {
+		return this.getScreens()
+			.mergeMap( screens_ => {
 				let id: number = 0;
 				let updated: boolean = false;
 				for ( let i: number = 0; i < screens_.length; i++ ) {
@@ -79,23 +95,22 @@ export class ScreensService {
 					screen_.id = ++id;
 					screens_.push( screen_ );
 				}
-				return me._sessionService.store( 'screens', screens_ );
+				return this._sessionService.store( 'screens', screens_ );
 			} )
 			.map( () => screen_ )
 		;
 	};
 
 	public deleteScreen( screen_: Screen ): Observable<Screen[]> {
-		var me = this;
-		return me.getScreens()
-			.mergeMap( function( screens_: Screen[] ) {
+		return this.getScreens()
+			.mergeMap( screens_ => {
 				for ( let i: number = 0; i < screens_.length; i++ ) {
 					if ( screens_[i].id == screen_.id ) {
 						screens_.splice( i, 1 );
 						break;
 					}
 				}
-				return me._sessionService.store( 'screens', screens_ );
+				return this._sessionService.store( 'screens', screens_ );
 			} )
 		;
 	};
@@ -113,8 +128,8 @@ export class ScreensService {
 		if ( device_ids.length == 0 ) {
 			return Observable.of( [] );
 		} else {
-			return this._devicesService.getDevicesByIds( device_ids )
-				.map( function( devices_: Device[] ) {
+			return this._devicesService.getDevicesById( device_ids )
+				.map( devices_ => {
 					let result: Device[] = [];
 					for ( let device of devices_ ) {
 						result[device.id] = device;
@@ -129,7 +144,6 @@ export class ScreensService {
 
 		// First all the devices that are used for the widget sources are fetched. If such a device is already present
 		// in the optionally provided devices array it is not fetched again.
-		let me: ScreensService = this;
 		let observables: Observable<Device>[] = [];
 		for ( let source of widget_.sources ) {
 			if (
@@ -146,6 +160,9 @@ export class ScreensService {
 			}
 		}
 
+		if ( observables.length == 0 ) {
+			observables.push( Observable.of( null ) );
+		}
 		return Observable.forkJoin( observables, function( ... args ) {
 			let result: Device[] = [];
 			for ( let device of args as Device[] ) {
@@ -154,15 +171,18 @@ export class ScreensService {
 				}
 			}
 			return result;
-		} ).mergeMap( function( devices_: Device[] ) {
+		} ).mergeMap( devices_ => {
 
 			// At this point we shoud have all the devices required for all the sources of the widget. The devices are
 			// stored as device_id => device in the devices array.
-			let observables: Observable<[number, Device, any]>[] = [];
-			widget_.sources.forEach( function( source_: Source, i_: number ) {
-
-				// Depending on the type of the widget, the data observables are gathered.
+			let observables: Observable<[number, Device, any[], any]>[] = [];
+			widget_.sources.forEach( ( source_, i_ ) => {
 				let device: Device = devices_[source_.device_id];
+				if ( ! device ) {
+					return;
+				}
+
+				let config: any;
 				switch( widget_.type ) {
 					case 'chart':
 
@@ -170,108 +190,134 @@ export class ScreensService {
 						switch( device.type ) {
 							case 'switch':
 							case 'text':
+								config = {
+									range: widget_.range,
+									interval: widget_.interval
+								};
 								observables.push(
-									me._devicesService.getData( device.id, {
-										range: widget_.range,
-										interval: widget_.interval
-									} )
-									.map( data_ => [ i_, device, data_ ] )
-									// NOTE catch all errors to make sure the forkJoin completes.
-									.catch( () => Observable.of( null ) )
+									this._devicesService.getData( device.id, config )
+										.map( data_ => [ i_, device, data_, config ] )
+										// NOTE catch all errors to make sure the forkJoin completes.
+										.catch( () => Observable.of( null ) )
 								);
 								break;
-							
+
 							case 'level':
+								config = {
+									group:
+										[ '5min', '5min', 'hour', 'day', 'day' ][
+											[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( widget_.interval )
+										],
+									range: widget_.range,
+									interval: widget_.interval
+								};
 								observables.push(
-									me._devicesService.getData( device.id, {
-										group:
-											[ '5min', '5min', 'hour', 'day', 'day' ][
-												[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( widget_.interval )
-											],
-										range: widget_.range,
-										interval: widget_.interval
-									} )
-									.map( data_ => [ i_, device, data_ ] )
-									// NOTE catch all errors to make sure the forkJoin completes.
-									.catch( () => Observable.of( null ) )
+									this._devicesService.getData( device.id, config )
+										.map( data_ => [ i_, device, data_, config ] )
+										// NOTE catch all errors to make sure the forkJoin completes.
+										.catch( () => Observable.of( null ) )
 								);
 								break;
 
 							case 'counter':
+								config = {
+									group:
+										[ 'hour', 'hour', 'day', 'day', 'day' ][
+											[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( widget_.interval )
+										],
+									range: widget_.range,
+									interval: widget_.interval
+								};
 								observables.push(
-									me._devicesService.getData( device.id, {
-										group:
-											[ 'hour', 'hour', 'day', 'day', 'day' ][
-												[ 'hour', 'day', 'week', 'month', 'year' ].indexOf( widget_.interval )
-											],
-										range: widget_.range,
-										interval: widget_.interval
-									} )
-									.map( data_ => [ i_, device, data_ ] )
-									// NOTE catch all errors to make sure the forkJoin completes.
-									.catch( () => Observable.of( null ) )
+									this._devicesService.getData( device.id, config )
+										.map( data_ => [ i_, device, data_, config ] )
+										// NOTE catch all errors to make sure the forkJoin completes.
+										.catch( () => Observable.of( null ) )
 								);
 								break;
 						}
 						break;
 
 					case 'gauge':
+						config = {
+							group: '5min',
+							range: 1,
+							interval: 'day'
+						};
 						observables.push(
-							me._devicesService.getData( device.id, {
-								group: '5min',
-								range: 1,
-								interval: 'day'
-							} )
-							.map( data_ => [ i_, device, data_ ] )
-							// NOTE catch all errors to make sure the forkJoin completes.
-							.catch( () => Observable.of( null ) )
+							this._devicesService.getData( device.id, config )
+								.map( data_ => [ i_, device, data_, config ] )
+								// NOTE catch all errors to make sure the forkJoin completes.
+								.catch( () => Observable.of( null ) )
 						);
 						break;
 
 					case 'table':
+						config = {
+							range: 1,
+							interval: 'week'
+						};
 						observables.push(
-							me._devicesService.getData( device.id, {
-								range: 1,
-								interval: 'week'
-							} )
-							.map( data_ => [ i_, device, data_ ] )
-							// NOTE catch all errors to make sure the forkJoin completes.
-							.catch( () => Observable.of( null ) )
+							this._devicesService.getData( device.id, config )
+								.map( data_ => [ i_, device, data_, config ] )
+								// NOTE catch all errors to make sure the forkJoin completes.
+								.catch( () => Observable.of( null ) )
 						);
 						break;
-					
+
+					case 'latest':
+						switch( device.type ) {
+							case 'level':
+								config = {
+									group: '5min',
+									range: 12,
+									interval: 'hour'
+								};
+								observables.push(
+									this._devicesService.getData( device.id, config )
+										.map( data_ => [ i_, device, data_, config ] )
+										// NOTE catch all errors to make sure the forkJoin completes.
+										.catch( () => Observable.of( null ) )
+								);
+								break;
+							case 'counter':
+								config = {
+									group: 'hour',
+									range: 1,
+									interval: 'day'
+								};
+								observables.push(
+									this._devicesService.getData( device.id, config )
+										.map( data_ => [ i_, device, data_, config ] )
+										// NOTE catch all errors to make sure the forkJoin completes.
+										.catch( () => Observable.of( null ) )
+								);
+								break;
+							default:
+								observables.push( Observable.of( [ i_, device, [], {} ] ) );
+								break;
+						}
+						break;
+
 					default:
-						observables.push( Observable.of( [ i_, device, [] ] ) );
+						observables.push( Observable.of( [ i_, device, [], {} ] ) );
 						break;
 				}
 			} );
 
+			if ( observables.length == 0 ) {
+				observables.push( Observable.of( null ) );
+			}
 			return Observable.forkJoin( observables, function( ... args ) {
 				let result: SourceData[] = [];
-				for ( let data of args as [number, Device, any][] ) {
+				for ( let data of args as [number, Device, any[], any][] ) {
 					if ( !! data ) { // filters out null's (see catch notes)
-						result[data[0]] = { device: data[1], data: data[2] };
+						result[data[0]] = { device: data[1], data: data[2], config: data[3] };
 					}
 				}
 				return result;
 			} );
 		} );
-
-
-
-
-		// TODO
-		// see if the device is in devices_ and use it instead of fetching a new one
-		// get the data for the widget and add it to the widget along with the device.
-		// the data fetches from each individual component (none for latest or switch) should be here
-		// in the screen.tpl pass the data instead of the widgets, change the components accordingly.
-		// on reload, get new data and update the data property of the widget which will trigger ngChanges in the
-		// widgets.
-
-		// optionally remove the widget input properties that aren't needed
-
-
-
 	};
 
 	public getDefaultScreenForDevice( device_: Device ) {
@@ -365,6 +411,7 @@ export class ScreensService {
 				break;
 
 		}
+		screen.device = device_;
 		return screen;
 	};
 

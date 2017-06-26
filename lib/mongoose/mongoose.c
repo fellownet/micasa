@@ -5182,6 +5182,7 @@ static const struct {
     MIME_ENTRY("asf", "video/x-ms-asf"),
     MIME_ENTRY("avi", "video/x-msvideo"),
     MIME_ENTRY("bmp", "image/bmp"),
+    MIME_ENTRY("appcache", "text/cache-manifest"),
     {NULL, 0, NULL}};
 
 static struct mg_str mg_get_mime_type(const char *path, const char *dflt,
