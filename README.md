@@ -5,13 +5,17 @@ Micasa is a software home automation controller designed to interconnect various
 [![Build Status](https://travis-ci.org/fellownet/micasa.svg?branch=master)](https://travis-ci.org/fellownet/micasa)
 [![Code Climate](https://codeclimate.com/github/fellownet/micasa/badges/gpa.svg)](https://codeclimate.com/github/fellownet/micasa)
 
-## Hardware Support
+## Plugins
 
-- RFXCOM Transceiver
 - Z-Wave
-- P1 Smart Meter
+- RFXcom
+- Harmony Hub
+- PiFace
+- SolarEdge API
+- Weather Underground
+- Telegram
 
-... and many more.
+... and more coming soon.
 
 ## Contributing
 
