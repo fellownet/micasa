@@ -515,7 +515,7 @@ label span.mandatory {
 	background-color: #AAAAAA;
 }
 
-/* table pagination */
+/* table pagination and search */
 
 .paging ul {
 	margin: 0;
@@ -726,6 +726,31 @@ form .table tr td {
 }
 .content .box-body.latest td.minimum {
 	width: 25%;
+}
+.content .box-body.latest div.slider {
+	position: relative;
+	margin-right: 25px;
+}
+.content .box-body.latest div.slider-track {
+	background-color: rgba( 0, 0, 0, 0.3 );
+	height: 10px;
+	border-radius: 5px;
+}
+.content .box-body.latest div.slider-handle {
+	background-color:#FFF;
+	width: 30px;
+	height: 30px;
+	border-radius: 15px;
+	position: absolute;
+	top:-10px;
+	cursor: pointer;
+	margin-left: -15px;
+}
+.content .box-body.latest div.slider-animate {
+	-webkit-transition: left 0.3s ease-in-out;
+	-moz-transition: left 0.3s ease-in-out;
+	-o-transition: left 0.3s ease-in-out;
+	transition: left 0.3s ease-in-out;
 }
 
 /* script editor */

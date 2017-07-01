@@ -10,6 +10,7 @@
 #include "Logger.h"
 #include "Database.h"
 #include "Controller.h"
+#include "WebServer.h"
 
 #include "device/Level.h"
 #include "device/Counter.h"
@@ -39,6 +40,7 @@ namespace micasa {
 
 	extern std::unique_ptr<Database> g_database;
 	extern std::unique_ptr<Controller> g_controller;
+	extern std::unique_ptr<WebServer> g_webServer;
 
 	const char* Plugin::settingsName = "plugin";
 
@@ -195,6 +197,11 @@ namespace micasa {
 				child->setState( state_ );
 			}
 		}
+
+		json data = json::object();
+		data["event"] = "plugin_update";
+		data["data"] = this->getJson();
+		g_webServer->broadcast( data.dump() );
 	};
 
 	json Plugin::getJson() const {
@@ -328,6 +335,14 @@ namespace micasa {
 					"WHERE `id`=%d",
 					device_->getId()
 				);
+
+				json data = json::object();
+				data["event"] = "device_remove";
+				data["data"] = {
+					{ "id", device_->getId() }
+				};
+				g_webServer->broadcast( data.dump() );
+
 				this->m_devices.erase( devicesIt );
 				break;
 			}
@@ -370,6 +385,11 @@ namespace micasa {
 		}
 
 		this->m_devices[reference_] = device;
+
+		json data = json::object();
+		data["event"] = "device_add";
+		data["data"] = device->getJson();
+		g_webServer->broadcast( data.dump() );
 
 		return device;
 	};

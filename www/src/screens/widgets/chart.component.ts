@@ -394,7 +394,10 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 		// Instead of listening for broadcasted data for devices we're going to refresh the chart every 5 minutes.
 		Observable.interval( 1000 * 60 * 5 )
 			.takeWhile( () => this._active )
-			.filter( () => ! this.parent.editing && !! this._chart )
+			.filter( () =>
+				! this.parent.editing
+				&& !! this._chart
+			)
 			.subscribe( () => {
 				this.onAction.emit( 'reload' );
 			} )

@@ -633,7 +633,9 @@ namespace micasa {
 							{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
 							{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) },
 							{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( subtype ) },
-							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true }
+							{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+							{ "minimum",                             0 },
+							{ "maximum",                             100 }
 						} );
 						if ( "Unknown" != label ) {
 							device->setLabel( label );

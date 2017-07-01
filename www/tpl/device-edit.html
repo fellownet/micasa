@@ -1,11 +1,11 @@
 <section class="content-header">
-<a *ngIf="device.enabled" routerLink="/devices/{{ device.id }}/details" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
+<a *ngIf="device.enabled && ! showDeleteWarning" routerLink="/devices/{{ device.id }}/details" class="btn btn-primary btn-xs pull-right"><i class="fa fa-database"></i> Details</a>
 <h1><i class="fa fa-pencil"></i> {{ title }}<small>{{ device.plugin }}</small></h1>
 </section>
 
 <section class="content-body">
 
-	<div class="row">
+	<div class="row" [hidden]="showDeleteWarning">
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
@@ -17,14 +17,15 @@
 				<div class="box-body">
 					<settings [settings]="device.settings" [form]="deviceForm" [values]="device" #settingsComponent="settingsComponent"></settings>
 				</div>
+
 				<div class="box-footer">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="! deviceForm.form.valid">Save</button>
 					</div>
-					<div class="col-xs-12 col-sm-4 col-sm-push-4 col-md-offset-3 col-md-3 col-md-push-3 col-lg-offset-6 col-lg-2 col-lg-push-2">
-						<button type="button" class="btn btn-danger btn-block" (click)="deleteDevice()">Delete</button>
+					<div class="col-xs-12 col-sm-4 col-sm-push-4 col-md-offset-3 col-md-3 col-md-push-3 col-lg-offset-6 col-lg-2 col-lg-push-2" *ngIf="device.subtype != 'action'">
+						<button type="button" class="btn btn-danger btn-block" (click)="showDeleteWarning = true">Delete</button>
 					</div>
-					<div class="col-xs-12 col-sm-4 col-sm-pull-4 col-md-3 col-md-pull-3 col-lg-2 col-lg-pull-2">
+					<div class="col-xs-12 col-sm-4 col-sm-pull-4 col-md-3 col-md-pull-3 col-lg-2 col-lg-pull-2" *ngIf="device.subtype != 'action'">
 						<div class="dropdown">
 						<button type="button" class="btn btn-primary btn-block dropdown-toggle" data-toggle="dropdown">Add to Screen <span class="caret"></span></button>
 						<ul class="dropdown-menu">
@@ -41,8 +42,30 @@
 		</div>
 	</div>
 
-	<timers *ngIf="device.enabled && ! device.readonly" [device]="device"></timers>
-	<links *ngIf="device.enabled && device.type == 'switch'" [device]="device"></links>
+	<ng-container *ngIf="! showDeleteWarning">
+		<timers *ngIf="device.enabled && ! device.readonly" [device]="device"></timers>
+		<links *ngIf="device.enabled && device.type == 'switch'" [device]="device"></links>
+	</ng-container>
+
+	<ng-container *ngIf="showDeleteWarning">
+		<div class="callout callout-danger">
+			<button type="button" class="pull-right" (click)="showDeleteWarning = false"><i class="fa fa-times fa-2x"></i></button>
+			<h4>Warning!</h4>
+			<p>Are you sure that you want to delete this device?</p>
+		</div>
+
+		<div class="row">
+			<div class="col-xs-12">
+				<div class="box">
+					<div class="box-footer">
+						<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+							<button type="button" class="btn btn-primary btn-block" (click)="deleteDevice()">Proceed</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</ng-container>
 
 </section>
 

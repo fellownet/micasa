@@ -20,7 +20,10 @@ import {
 export class ScreenEditComponent implements OnInit {
 
 	public screen: Screen;
+
 	public title: string;
+
+	public showDeleteWarning: boolean = false;
 
 	@ViewChild( 'screenForm' ) private _form: NgForm;
 
@@ -38,6 +41,8 @@ export class ScreenEditComponent implements OnInit {
 					this.screen = data_.payload.screen;
 
 					this.title = this.screen.name;
+
+					this.showDeleteWarning = false;
 				}
 			)
 		;

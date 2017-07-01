@@ -85,6 +85,7 @@ export class WidgetComponent implements OnInit {
 						this.widget.size = 'medium';
 						break;
 					case 'switch':
+					case 'slider':
 						this.widget.size = 'small';
 						break;
 				}

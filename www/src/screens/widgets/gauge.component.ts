@@ -197,10 +197,15 @@ export class WidgetGaugeComponent implements OnInit, AfterViewInit, OnChanges, O
 		// Listen for events broadcasted from the session service.
 		this._sessionService.events
 			.takeWhile( () => this._active )
-			.filter( event_ => ! this.parent.editing && !! this._chart && event_.device_id == this.data[0].device.id )
+			.filter( event_ => event_.event == 'device_update' )
+			.filter( event_ =>
+				! this.parent.editing
+				&& !! this._chart
+				&& event_.data.id == this.data[0].device.id
+			)
 			.subscribe( event_ => {
 				let point: any = this._chart.series[0].points[0];
-				point.update( event_.value );
+				point.update( event_.data.value );
 			} )
 		;
 	};

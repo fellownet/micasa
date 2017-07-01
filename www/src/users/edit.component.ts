@@ -22,6 +22,7 @@ export class UserEditComponent implements OnInit {
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 
 	public constructor(
@@ -39,6 +40,7 @@ export class UserEditComponent implements OnInit {
 
 					this.title = this.user.name;
 
+					this.showDeleteWarning = false;
 					for ( let setting of this.user.settings ) {
 						if ( setting.class == 'advanced' ) {
 							this.hasAdvancedSettings = true;

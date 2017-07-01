@@ -4,19 +4,20 @@ import {
 	OnDestroy,
 	Input,
 	ViewChild
-}                   from '@angular/core';
+}                         from '@angular/core';
 import {
 	Router,
 	ActivatedRoute
-}                   from '@angular/router';
+}                         from '@angular/router';
 
 import {
 	Plugin,
 	PluginsService
-}                   from './plugins.service';
+}                         from './plugins.service';
+import { SessionService } from '../session/session.service';
 import {
 	GridPagingComponent
-}                   from '../grid/paging.component'
+}                         from '../grid/paging.component'
 
 @Component( {
 	selector: 'plugins',
@@ -24,6 +25,8 @@ import {
 } )
 
 export class PluginsListComponent implements OnInit, OnDestroy {
+
+	private _active: boolean = true;
 
 	public plugins: Plugin[];
 	public startPage: number = 1;
@@ -35,7 +38,8 @@ export class PluginsListComponent implements OnInit, OnDestroy {
 	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
-		private _pluginsService: PluginsService
+		private _pluginsService: PluginsService,
+		private _sessionService: SessionService
 	) {
 	};
 
@@ -60,9 +64,22 @@ export class PluginsListComponent implements OnInit, OnDestroy {
 				}
 			)
 		;
+
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.filter( event_ => event_.event == 'plugin_update' )
+			.subscribe( event_ => {
+				let plugin: Plugin = this.plugins.find( plugin_ => plugin_.id === event_.data.id );
+				if ( !! plugin ) {
+					plugin.state = event_.data.state;
+					plugin.enabled = event_.data.enabled;
+				}
+			} )
+		;
 	};
 
 	public ngOnDestroy() {
+		this._active = false;
 		if ( this._paging ) {
 			if ( !! this.parent ) {
 				this._pluginsService.lastPage[this.parent.id] = this._paging.getActivePage();

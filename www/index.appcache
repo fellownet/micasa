@@ -30,6 +30,7 @@ tpl/widgets/gauge.html
 tpl/widgets/latest.html
 tpl/widgets/switch.html
 tpl/widgets/table.html
+tpl/widgets/slider.html
 fonts/fontawesome-webfont.eot?v=4.7.0
 fonts/fontawesome-webfont.eot?#iefix&v=4.7.0
 fonts/fontawesome-webfont.woff2?v=4.7.0

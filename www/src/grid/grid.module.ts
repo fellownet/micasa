@@ -5,6 +5,7 @@ import { FormsModule }         from '@angular/forms';
 import { GridDirective }       from './grid.directive';
 import { GridColumnComponent } from './column.component';
 import { GridPagingComponent } from './paging.component';
+import { GridSearchComponent } from './search.component';
 
 @NgModule( {
 	imports: [
@@ -14,12 +15,14 @@ import { GridPagingComponent } from './paging.component';
 	declarations: [
 		GridDirective,
 		GridColumnComponent,
-		GridPagingComponent
+		GridPagingComponent,
+		GridSearchComponent
 	],
 	exports: [
 		GridDirective,
 		GridColumnComponent,
-		GridPagingComponent
+		GridPagingComponent,
+		GridSearchComponent
 	]
 } )
 

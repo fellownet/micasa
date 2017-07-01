@@ -24,6 +24,7 @@ export class LinkEditComponent implements OnInit {
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 
 	public device?: Device;
@@ -46,6 +47,7 @@ export class LinkEditComponent implements OnInit {
 
 					this.title = this.link.name;
 
+					this.showDeleteWarning = false;
 					for ( let setting of this.link.settings ) {
 						if ( setting.class == 'advanced' ) {
 							this.hasAdvancedSettings = true;

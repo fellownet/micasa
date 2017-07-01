@@ -66,17 +66,13 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 
 		this._sessionService.events
 			.takeWhile( () => this._active )
-			.filter( event_ => ! this.plugin || this.plugin.id == event_.plugin_id )
+			.filter( event_ => event_.event == 'device_update' )
+			.filter( event_ => ! this.plugin || this.plugin.id == event_.data.plugin_id )
 			.subscribe( event_ => {
-				let device: Device = this.devices.find( device_ => device_.id === event_.device_id );
+				let device: Device = this.devices.find( device_ => device_.id === event_.data.id );
 				if ( !! device ) {
-					device.value = event_.value;
+					device.value = event_.data.value;
 					device.age = 0;
-				} else {
-					if ( !! this.plugin ) {
-						this._devicesService.returnUrl = this._router.url;
-						this._router.navigate( [ '/devices', event_.device_id ] );
-					}
 				}
 			} )
 		;

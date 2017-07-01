@@ -193,13 +193,19 @@ export class WidgetLatestComponent implements OnInit, AfterViewInit, OnChanges, 
 		// Listen for events broadcasted from the session service.
 		this._sessionService.events
 			.takeWhile( () => this._active )
-			.filter( event_ => ! this.parent.editing && !! this._chart && ! this.invalid && event_.device_id == this.data[0].device.id )
+			.filter( event_ => event_.event == 'device_update' )
+			.filter( event_ =>
+				! this.parent.editing &&
+				!! this._chart
+				&& ! this.invalid
+				&& event_.data.id == this.data[0].device.id
+			)
 			.subscribe( event_ => {
-				this.data[0].device.value = event_.value;
+				this.data[0].device.value = event_.data.value;
 				this.data[0].device.age = 0;
 
 				let serie: any = this._chart.series[0];
-				serie.addPoint( { x: Date.now(), y: event_.value }, true, true, false );
+				serie.addPoint( { x: Date.now(), y: event_.data.value }, true, true, false );
 			} )
 		;
 

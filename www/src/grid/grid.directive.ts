@@ -23,9 +23,11 @@ export class GridDirective implements OnInit, OnChanges {
 	@Input( "gridOrder" ) private _defaultSortOrder: string;
 	@Input( "gridPage" ) private _page: number = 1;
 	@Input( "gridPageSize" ) private _pageSize: number = 15;
+	@Input( "gridSearch" ) private _search: string = '';
 
 	private _sortField: string = '';
 	private _sortOrder: string = 'asc';
+	private _searchData: any[] = [];
 
 	public page: any[] = [];
 
@@ -81,15 +83,37 @@ export class GridDirective implements OnInit, OnChanges {
 	};
 
 	public getPageCount(): number {
-		return Math.ceil( this.data.length / this._pageSize );
+		if ( this._searchData.length > 0 ) {
+			return Math.ceil( this._searchData.length / this._pageSize );
+		} else {
+			return 1;
+		}
+	};
+
+	public setSearch( search_: string ) {
+		this._search = search_;
+		this._slice();
 	};
 
 	private _slice() {
+		if ( this._search.length > 0 ) {
+			this._searchData = this.data.filter( entity_ => {
+				for ( var key in entity_ ) {
+					if ( String( entity_[key] ).indexOf( this._search ) > -1 ) {
+						return true;
+					}
+
+				}
+				return false;
+			} );
+		} else {
+			this._searchData = this.data;
+		}
 		if ( this._page > this.getPageCount() ) {
 			this._page = this.getPageCount();
 		}
 		let offset: number = ( this._page - 1 ) * this._pageSize;
-		this.page = this.data.slice( offset, offset + this._pageSize );
+		this.page = this._searchData.slice( offset, offset + this._pageSize );
 	};
 
 }

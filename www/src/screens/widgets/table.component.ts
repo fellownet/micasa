@@ -63,9 +63,14 @@ export class WidgetTableComponent implements OnInit, OnChanges, OnDestroy {
 		// Listen for events broadcasted from the session service.
 		this._sessionService.events
 			.takeWhile( () => this._active )
-			.filter( event_ => ! this.parent.editing && ! this.invalid && event_.device_id == this.data[0].device.id )
+			.filter( event_ => event_.event == 'device_update' )
+			.filter( event_ =>
+				! this.parent.editing
+				&& ! this.invalid
+				&& event_.data.id == this.data[0].device.id
+			)
 			.subscribe( event_ => {
-				this.data[0].data.push( { timestamp: Math.floor( Date.now() / 1000 ), value: event_.value } );
+				this.data[0].data.push( { timestamp: Math.floor( Date.now() / 1000 ), value: event_.data.value } );
 				this.data[0].data = this.data[0].data.slice( 0 ); // dirty change detection
 			} )
 		;
