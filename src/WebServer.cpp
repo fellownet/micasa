@@ -279,7 +279,6 @@ namespace micasa {
 		auto find = headers.find( "Upgrade" );
 		if ( __unlikely(
 			find != headers.end()
-			&& find->second == "websocket"
 			&& uri.substr( 0, 5 ) == "/live"
 		) ) {
 			std::string token = uri.substr( 6 );
