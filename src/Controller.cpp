@@ -456,6 +456,11 @@ namespace micasa {
 			settings->commit();
 		}
 
+		json data = json::object();
+		data["event"] = "plugin_add";
+		data["data"] = plugin->getJson();
+		g_webServer->broadcast( data.dump() );
+
 		return plugin;
 	};
 
@@ -474,6 +479,14 @@ namespace micasa {
 						plugin->stop();
 					} );
 				}
+
+				json data = json::object();
+				data["event"] = "plugin_remove";
+				data["data"] = {
+					{ "id", plugin->getId() }
+				};
+				g_webServer->broadcast( data.dump() );
+
 				pluginsIt = this->m_plugins.erase( pluginsIt );
 			} else {
 				pluginsIt++;
@@ -494,6 +507,14 @@ namespace micasa {
 					"WHERE `id`=%d",
 					plugin_->getId()
 				);
+
+				json data = json::object();
+				data["event"] = "plugin_remove";
+				data["data"] = {
+					{ "id", plugin_->getId() }
+				};
+				g_webServer->broadcast( data.dump() );
+
 				this->m_plugins.erase( pluginsIt );
 				break;
 			} else {
@@ -607,14 +628,15 @@ namespace micasa {
 				}
 			}
 
-			// Push this event to all listening socket connections managed by the webserver.
-			json data;
-			data["type"] = "update";
-			data["plugin_id"] = device_->getPlugin()->getId();
-			data["device_id"] = device_->getId();
 			json device = device_->getJson();
-			data["value"] = device["value"];
-			data["source"] = Device::resolveUpdateSource( source_ );
+			json data = json::object();
+			data["event"] = "device_update";
+			data["data"] = {
+				{ "id", device_->getId() },
+				{ "plugin_id", device_->getPlugin()->getId() },
+				{ "value", device["value"] },
+				{ "source", Device::resolveUpdateSource( source_ ) }
+			};
 			g_webServer->broadcast( data.dump() );
 		}
 	};

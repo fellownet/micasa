@@ -29,6 +29,7 @@ export class DeviceEditComponent implements OnInit {
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 
 	public constructor(
@@ -48,6 +49,7 @@ export class DeviceEditComponent implements OnInit {
 
 					this.title = this.device.name;
 
+					this.showDeleteWarning = false;
 					for ( let setting of this.device.settings ) {
 						if ( setting.class == 'advanced' ) {
 							this.hasAdvancedSettings = true;
@@ -125,22 +127,38 @@ export class DeviceEditComponent implements OnInit {
 				};
 				break;
 			case 'level':
-				widget = {
-					type: 'gauge',
-					size: 'small',
-					name: this.device.name,
-					properties: {
-						color: 'blue'
-					},
-					sources: [ {
-						device_id: this.device.id,
+				if ( this.device.readonly ) {
+					widget = {
+						type: 'gauge',
+						size: 'small',
+						name: this.device.name,
 						properties: {
 							color: 'blue'
-						}
-					} ],
-					interval: 'week',
-					range: 1
-				};
+						},
+						sources: [ {
+							device_id: this.device.id,
+							properties: {
+								color: 'blue'
+							}
+						} ],
+						interval: 'week',
+						range: 1
+					};
+				} else {
+					widget = {
+						type: 'slider',
+						size: 'small',
+						name: this.device.name,
+						properties: {
+							color: 'aqua'
+						},
+						sources: [ {
+							device_id: this.device.id,
+							properties: {
+							}
+						} ]
+					};
+				}
 				break;
 			case 'counter':
 				widget = {

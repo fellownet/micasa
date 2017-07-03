@@ -279,7 +279,6 @@ namespace micasa {
 		auto find = headers.find( "Upgrade" );
 		if ( __unlikely(
 			find != headers.end()
-			&& find->second == "websocket"
 			&& uri.substr( 0, 5 ) == "/live"
 		) ) {
 			std::string token = uri.substr( 6 );
@@ -550,7 +549,7 @@ namespace micasa {
 										}
 										auto parent = plugin->getParent();
 										if ( parent != nullptr ) {
-											output_["data"]["parent"] += parent->getJson();
+											output_["data"]["parent"] = parent->getJson();
 										}
 									} else {
 										return; // 404
@@ -686,7 +685,7 @@ namespace micasa {
 								}
 							}
 
-							this->m_scheduler.schedule( 0, 1, this, [plugin,enabled,restart]( std::shared_ptr<Scheduler::Task<>> ) {
+							this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
 								auto plugins = g_controller->getAllPlugins();
 								if (
 									! enabled
@@ -705,9 +704,11 @@ namespace micasa {
 									}
 								}
 								if ( enabled ) {
-									if ( plugin->getState() == Plugin::State::DISABLED ) {
-										plugin->start();
-									}
+									this->m_scheduler.schedule( SCHEDULER_INTERVAL_5SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
+										if ( plugin->getState() == Plugin::State::DISABLED ) {
+											plugin->start();
+										}
+									} );
 								}
 							} );
 							output_["code"] = 200;

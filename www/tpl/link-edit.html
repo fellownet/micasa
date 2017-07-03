@@ -4,7 +4,7 @@
 
 <section class="content-body">
 
-	<div class="row">
+	<div class="row" [hidden]="showDeleteWarning">
 		<div class="col-xs-12">
 			<div class="box">
 				<div class="box-header with-border">
@@ -20,8 +20,8 @@
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
 						<button type="submit" class="btn btn-success btn-block" [disabled]="! linkForm.form.valid">Save</button>
 					</div>
-					<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-3 col-md-offset-6 col-lg-2 col-lg-offset-8">
-						<button type="button" class="btn btn-danger btn-block" (click)="deleteLink()">Delete</button>
+					<div class="col-xs-12 col-sm-4 col-sm-offset-4 col-md-3 col-md-offset-6 col-lg-2 col-lg-offset-8" *ngIf="!! link.id">
+						<button type="button" class="btn btn-danger btn-block" (click)="showDeleteWarning = true">Delete</button>
 					</div>
 				</div>
 				</form>
@@ -29,5 +29,25 @@
 			</div>
 		</div>
 	</div>
+
+	<ng-container *ngIf="showDeleteWarning">
+		<div class="callout callout-danger">
+			<button type="button" class="pull-right" (click)="showDeleteWarning = false"><i class="fa fa-times fa-2x"></i></button>
+			<h4>Warning!</h4>
+			<p>Are you sure that you want to delete this link?</p>
+		</div>
+
+		<div class="row">
+			<div class="col-xs-12">
+				<div class="box">
+					<div class="box-footer">
+						<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+							<button type="button" class="btn btn-primary btn-block" (click)="deleteLink()">Proceed</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</ng-container>
 
 </section>

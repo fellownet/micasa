@@ -61,8 +61,9 @@
 			<label for="typefield">Type<span class="mandatory"> *</span></label>
 			<select class="form-control" id="typefield" required [(ngModel)]="widget.type" name="type" (change)="changeType()">
 				<option value="chart" *ngIf="( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Chart</option>
-				<option value="gauge" *ngIf="data[0].device.type == 'level'">Table</option>
+				<option value="gauge" *ngIf="data[0].device.type == 'level'">Gauge</option>
 				<option value="latest">Latest</option>
+				<option value="slider" *ngIf="data[0].device.type == 'level' && ! data[0].device.readonly">Slider</option>
 				<option value="switch" *ngIf="data[0].device.type == 'switch' && ! data[0].device.readonly">Switch</option>
 				<option value="table" *ngIf="! ( data[0].device.type == 'level' || data[0].device.type == 'counter' )">Table</option>
 			</select>

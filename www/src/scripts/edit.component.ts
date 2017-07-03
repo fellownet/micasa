@@ -27,6 +27,7 @@ export class ScriptEditComponent implements OnInit {
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 
 	private _editor: any;
@@ -46,6 +47,7 @@ export class ScriptEditComponent implements OnInit {
 
 					this.title = this.script.name;
 
+					this.showDeleteWarning = false;
 					for ( let setting of this.script.settings ) {
 						if ( setting.class == 'advanced' ) {
 							this.hasAdvancedSettings = true;

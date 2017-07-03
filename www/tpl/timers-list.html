@@ -16,12 +16,16 @@
 					<h3 class="box-title">Timers</h3>
 				</div>
 				<ng-container *ngIf="timers.length > 0">
+				<div class="box-body" *ngIf="timers.length > 9">
+					<grid-search [grid]="grid"></grid-search>
+				</div>
 				<div class="box-body no-padding scroll">
 
-<table class="table table-hover" [gridData]="timers" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
+<table class="table" [gridData]="timers" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective"
+	[class.table-hover]="grid.page.length > 0"
+>
 <thead>
 	<tr>
-		<!-- th [gridField]="'id'">Id</th -->
 		<th [gridField]="'name'">Name</th>
 		<th [gridField]="'enabled'">State</th>
 		<th [gridField]="'cron'">Cron</th>
@@ -29,8 +33,10 @@
 	</tr>
 </thead>
 <tbody>
+	<tr *ngIf="grid.page.length == 0">
+		<td colspan="4" class="center">No search results.</td>
+	</tr>
 	<tr *ngFor="let timer of grid.page" (click)="selectTimer(timer)">
-		<!-- td>{{timer.id}}</td -->
 		<td>{{timer.name}}</td>
 		<td>
 			<span class="label label-success" *ngIf="timer.enabled">enabled</span>

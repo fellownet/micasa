@@ -2,42 +2,46 @@ import {
 	Component,
 	OnInit,
 	ViewChild,
-	Renderer2
-}                               from '@angular/core';
+	OnDestroy
+}                          from '@angular/core';
 import {
 	Router,
 	ActivatedRoute,
 	NavigationEnd
-}                               from '@angular/router';
+}                          from '@angular/router';
 
 import {
 	Plugin,
 	PluginsService
-}                               from './plugins.service';
+}                          from './plugins.service';
+import { SessionService }  from '../session/session.service';
 import {
 	Device, DevicesService
-}                               from '../devices/devices.service';
+}                          from '../devices/devices.service';
 
 @Component( {
 	templateUrl: 'tpl/plugin-edit.html'
 } )
 
-export class PluginEditComponent implements OnInit {
+export class PluginEditComponent implements OnInit, OnDestroy {
+
+	private _active: boolean = true;
 
 	public plugin: Plugin;
 	public devices: Device[];
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 	public hasActionDevices: boolean = false;
 
 	public constructor(
 		private _router: Router,
 		private _route: ActivatedRoute,
-		private _renderer: Renderer2,
 		private _pluginsService: PluginsService,
-		private _devicesService: DevicesService
+		private _devicesService: DevicesService,
+		private _sessionService: SessionService
 	) {
 	};
 
@@ -50,6 +54,7 @@ export class PluginEditComponent implements OnInit {
 
 					this.title = this.plugin.name || 'New Plugin';
 
+					this.showDeleteWarning = false;
 					if ( !! this.devices ) {
 						for ( let device of this.devices ) {
 							if ( device.subtype == 'action' ) {
@@ -67,10 +72,10 @@ export class PluginEditComponent implements OnInit {
 				}
 			)
 		;
-		this._router.events
-			.filter( event_ => event_ instanceof NavigationEnd )
-			.subscribe( () => this._renderer.setProperty( document.body, 'scrollTop', 0 ) )
-		;
+	};
+
+	public ngOnDestroy() {
+		this._active = false;
 	};
 
 	public submitPlugin() {
@@ -106,6 +111,14 @@ export class PluginEditComponent implements OnInit {
 	};
 
 	public performAction( action_: Device ) {
+		this._sessionService.events
+			.takeWhile( () => this._active )
+			.filter( event_ => event_.event == 'device_add' )
+			.subscribe( event_ => {
+				this._devicesService.returnUrl = this._router.url;
+				this._router.navigate( [ '/devices', event_.data.id ] );
+			} )
+		;
 		this._devicesService.performAction( action_ )
 			.subscribe(
 				() => undefined,

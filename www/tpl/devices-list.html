@@ -16,9 +16,14 @@
 					<h3 class="box-title">Devices</h3>
 				</div>
 				<ng-container *ngIf="devices.length > 0">
+				<div class="box-body" *ngIf="devices.length > 9">
+					<grid-search [grid]="grid"></grid-search>
+				</div>
 				<div class="box-body no-padding scroll">
 
-<table class="table table-hover" [gridData]="devices" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
+<table class="table" [gridData]="devices" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective"
+	[class.table-hover]="grid.page.length > 0"
+>
 <thead>
 	<tr>
 		<th class="icon"></th>
@@ -31,6 +36,9 @@
 	</tr>
 </thead>
 <tbody>
+	<tr *ngIf="grid.page.length == 0">
+		<td colspan="7" class="center">No search results.</td>
+	</tr>
 	<tr *ngFor="let device of grid.page" (click)="selectDevice( device )"
 		[class.disabled]="! device.enabled"
 		[class.warning]="device.battery_level && device.battery_level >= 20 && device.battery_level < 45"

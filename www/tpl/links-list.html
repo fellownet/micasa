@@ -16,9 +16,14 @@
 					<h3 class="box-title">Links</h3>
 				</div>
 				<ng-container *ngIf="links.length > 0">
+				<div class="box-body" *ngIf="links.length > 9">
+					<grid-search [grid]="grid"></grid-search>
+				</div>
 				<div class="box-body no-padding scroll">
 
-<table class="table table-hover" [gridData]="links" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
+<table class="table" [gridData]="links" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective"
+	[class.table-hover]="grid.page.length > 0"
+>
 <thead>
 	<tr>
 		<!-- th [gridField]="'id'">Id</th -->
@@ -31,6 +36,9 @@
 	</tr>
 </thead>
 <tbody>
+	<tr *ngIf="grid.page.length == 0">
+		<td colspan="6" class="center">No search results.</td>
+	</tr>
 	<tr *ngFor="let link of grid.page" (click)="selectLink( link )">
 		<td>{{ link.name }}</td>
 		<td>

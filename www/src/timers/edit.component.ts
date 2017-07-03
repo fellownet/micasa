@@ -24,6 +24,7 @@ export class TimerEditComponent implements OnInit {
 
 	public title: string;
 
+	public showDeleteWarning: boolean = false;
 	public hasAdvancedSettings: boolean = false;
 
 	public device?: Device;
@@ -46,6 +47,7 @@ export class TimerEditComponent implements OnInit {
 
 					this.title = this.timer.name;
 
+					this.showDeleteWarning = false;
 					for ( let setting of this.timer.settings ) {
 						if ( setting.class == 'advanced' ) {
 							this.hasAdvancedSettings = true;

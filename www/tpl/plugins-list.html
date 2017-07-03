@@ -17,9 +17,14 @@
 				</div>
 
 				<ng-container *ngIf="plugins.length > 0">
+				<div class="box-body" *ngIf="plugins.length > 9">
+					<grid-search [grid]="grid"></grid-search>
+				</div>
 				<div class="box-body no-padding scroll">
 
-<table class="table table-hover" [gridData]="plugins" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective">
+<table class="table" [gridData]="plugins" [gridSort]="'name'" [gridPage]="startPage" #grid="GridDirective"
+	[class.table-hover]="grid.page.length > 0"
+>
 <thead>
 	<tr>
 		<th [gridField]="'name'">Name</th>
@@ -29,6 +34,9 @@
 	</tr>
 </thead>
 <tbody>
+	<tr *ngIf="grid.page.length == 0">
+		<td colspan="4" class="center">No search results.</td>
+	</tr>
 	<tr *ngFor="let item of grid.page" (click)="selectPlugin(item)"
 		[class.danger]="!item.enabled"
 	>
@@ -56,7 +64,7 @@
 						[class.col-md-pull-9]="grid.getPageCount() > 1"
 						[class.col-lg-pull-10]="grid.getPageCount() > 1"
 					>
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" (click)="addPlugin()">Add</button>
+						<button type="button" class="btn btn-primary btn-block" (click)="addPlugin()">Add</button>
 					</div>
 				</div>
 				<div class="box-footer" *ngIf="!! parent && grid.getPageCount() > 1">
@@ -68,7 +76,7 @@
 
 				<div class="box-footer" *ngIf="plugins.length == 0">
 					<div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-						<button type="button" class="btn btn-primary btn-block dropdown-toggle" (click)="addPlugin()">Add</button>
+						<button type="button" class="btn btn-primary btn-block" (click)="addPlugin()">Add</button>
 					</div>
 				</div>
 

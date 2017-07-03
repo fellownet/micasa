@@ -91,8 +91,8 @@ namespace micasa {
 						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
 					} );
-					device->start();
 					device->setEnabled( true );
+					device->start();
 					device->updateValue( Device::UpdateSource::PLUGIN, "" );
 				}
 			}
