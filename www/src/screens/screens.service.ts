@@ -299,6 +299,20 @@ export class ScreensService {
 						}
 						break;
 
+					case 'slider':
+						config = {
+							range: 1,
+							interval: 'day',
+							group: 'hour'
+						};
+						observables.push(
+							this._devicesService.getData( device.id, config )
+								.map( data_ => [ i_, device, data_, config ] )
+								// NOTE catch all errors to make sure the forkJoin completes.
+								.catch( () => Observable.of( null ) )
+						);
+						break;
+
 					default:
 						observables.push( Observable.of( [ i_, device, [], {} ] ) );
 						break;

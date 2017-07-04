@@ -48,7 +48,7 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 
 	private _active: boolean = true;
 	private _busy?: number;
-	private _sliding: Subject<MouseEvent> = new Subject();
+	private _sliding: Subject<MouseEvent|TouchEvent> = new Subject();
 
 	public invalid: boolean = false;
 	public title: string;
@@ -92,8 +92,15 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 			.throttleTime( 20 )
 			.subscribe( event_ => {
 				if ( !! this.sliding ) {
-					let diff: number = event_.clientX - this.sliding.mouse_x;
-					let perc: number = ( 100 / this.sliding.track_width ) * diff;
+					let x: number;
+					if ( event_ instanceof TouchEvent ) {
+						x = event_.touches[0].clientX;
+					} else {
+						x = event_.clientX;
+					}
+
+					let diff: number = x - this.sliding.x;
+					let perc: number = ( 100 / this.sliding.width ) * diff;
 					this.data[0].device.value = Math.max( 0, Math.min( 100, Math.round( this.sliding.value + perc ) ) );
 				}
 			} )
@@ -117,10 +124,16 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 		this._active = false;
 	};
 
-	public mouseDown( event_: MouseEvent ) {
+	public mouseDown( event_: TouchEvent|MouseEvent ) {
+		let x: number;
+		if ( event_ instanceof TouchEvent ) {
+			x = event_.touches[0].clientX;
+		} else {
+			x = event_.clientX;
+		}
 		this.sliding = {
-			mouse_x: event_.clientX,
-			track_width: this._track.nativeElement.offsetWidth,
+			x,
+			width: this._track.nativeElement.offsetWidth,
 			value: this.data[0].device.value
 		};
 
@@ -157,7 +170,26 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 				}
 			}, 5000 );
 			this._devicesService.patchDevice( this.data[0].device, this.data[0].device.value ).subscribe();
+		} else if (
+			event_.target == this._track.nativeElement
+			|| event_.target == this._track.nativeElement.parentNode
+		) {
+			let x: number = event_.offsetX || event_.layerX;
+			let width: number = this._track.nativeElement.offsetWidth;
+			let perc: number = ( 100 / width ) * x;
+			let value: number = Math.max( 0, Math.min( 100, Math.round( perc ) ) )
+			this._devicesService.patchDevice( this.data[0].device, value ).subscribe();
 		}
+	};
+
+	public toggle() {
+		let value: number = 0;
+		if ( Math.floor( this.data[0].device.value ) == 0 ) {
+			this.data[0].data.forEach( data_ => {
+				value = Math.max( data_.maximum, value );
+			} );
+		}
+		this._devicesService.patchDevice( this.data[0].device, value ).subscribe();
 	};
 
 	public get busy() {

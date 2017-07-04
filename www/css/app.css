@@ -730,27 +730,49 @@ form .table tr td {
 .content .box-body.latest div.slider {
 	position: relative;
 	margin-right: 25px;
+	padding-top: 10px;
+	padding-bottom: 10px;
 }
 .content .box-body.latest div.slider-track {
 	background-color: rgba( 0, 0, 0, 0.3 );
-	height: 10px;
+	height: 6px;
 	border-radius: 5px;
 }
 .content .box-body.latest div.slider-handle {
+	-webkit-transition: all 0.1s ease-in-out;
+	-moz-transition: all 0.1s ease-in-out;
+	-o-transition: all 0.1s ease-in-out;
+	transition: all 0.1s ease-in-out;
+
+	-webkit-transition-property: width, height, border-radius, margin-left, top;
+	-moz-transition-property: width, height, border-radius, margin-left, top;
+	-o-transition-property: width, height, border-radius, margin-left, top;
+	transition-property: width, height, border-radius, margin-left, top;
+
 	background-color:#FFF;
-	width: 30px;
-	height: 30px;
-	border-radius: 15px;
+	width: 32px;
+	height: 32px;
+	border-radius: 16px;
 	position: absolute;
-	top:-10px;
-	cursor: pointer;
-	margin-left: -15px;
+	top:-3px;
+	margin-left: -16px;
 }
-.content .box-body.latest div.slider-animate {
-	-webkit-transition: left 0.3s ease-in-out;
-	-moz-transition: left 0.3s ease-in-out;
-	-o-transition: left 0.3s ease-in-out;
-	transition: left 0.3s ease-in-out;
+.content .box-body.latest div.slider-handle.slider-animate {
+	-webkit-transition: all 0.3s ease-in-out;
+	-moz-transition: all 0.3s ease-in-out;
+	-o-transition: all 0.3s ease-in-out;
+	transition: all 0.3s ease-in-out;
+
+	-webkit-transition-property: all;
+	-moz-transition-property: all;
+	-o-transition-property: all;
+	transition-property: all;
+
+	width: 24px;
+	height: 24px;
+	border-radius: 12px;
+	margin-left: -12px;
+	top:1px;
 }
 
 /* script editor */
