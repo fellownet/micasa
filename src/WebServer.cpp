@@ -252,6 +252,7 @@ namespace micasa {
 	};
 
 	std::string WebServer::_hash( const std::string& data_ ) const {
+#ifdef _WITH_OPENSSL
 		SHA256_CTX context;
 		if ( ! SHA256_Init( &context ) ) {
 			throw std::runtime_error( "sha256 init failure" );
@@ -268,6 +269,10 @@ namespace micasa {
 			ss << std::hex << std::setw( 2 ) << std::setfill( '0' ) << (int)hash[i];
 		}
 		return ss.str();
+#else
+		// NOTE do not use in production :) don't ignore the cmake warning.
+		return data_ + "#HASHED";
+#endif
 	};
 
 	inline void WebServer::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
@@ -704,7 +709,7 @@ namespace micasa {
 									}
 								}
 								if ( enabled ) {
-									this->m_scheduler.schedule( SCHEDULER_INTERVAL_5SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
+									this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
 										if ( plugin->getState() == Plugin::State::DISABLED ) {
 											plugin->start();
 										}

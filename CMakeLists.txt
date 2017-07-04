@@ -70,6 +70,17 @@ message( STATUS "Using ${DATADIR} as datadir" )
 add_definitions( -D_DATADIR="${DATADIR}" )
 
 #
+# Enable or disable IPv6
+#
+option( ENABLE_IPV6 "Build with IPv6 support" YES )
+if( ENABLE_IPV6 )
+	add_definitions( -D_IPV6_ENABLED -DMG_ENABLE_IPV6 )
+else()
+	message( STATUS "Building without IPv6 support" )
+	add_definitions( -DMG_ENABLE_IPV6=0 )
+endif()
+
+#
 # Raspberry Pi options.
 #
 option( INCLUDE_LINUX_I2C "Include I2C support" YES )
@@ -110,7 +121,6 @@ if( WITH_OPENZWAVE )
 			OpenZWave
 
 			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-			# just fetch the most recent configs
 			#GIT_TAG "v1.4"
 
 			UPDATE_COMMAND ""
@@ -130,7 +140,6 @@ if( WITH_OPENZWAVE )
 			OpenZWave
 
 			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-			# just fetch the most recent configs
 			#GIT_TAG "v1.4"
 
 			UPDATE_COMMAND ""
@@ -171,7 +180,7 @@ include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
-add_definitions( -DMG_ENABLE_IPV6 -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_ENABLE_BROADCAST )
+add_definitions( -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_ENABLE_BROADCAST )
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
