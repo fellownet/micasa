@@ -15,7 +15,7 @@ void micasa_mg_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
 namespace micasa {
 
 	using namespace nlohmann;
-	
+
 	// ==========
 	// Connection
 	// ==========
@@ -217,7 +217,7 @@ namespace micasa {
 		std::regex pattern( "([\\w+%]+)=([^&]*)" );
 		for ( auto paramsIt = std::sregex_iterator( query.begin(), query.end(), pattern ); paramsIt != std::sregex_iterator(); paramsIt++ ) {
 			std::string key = (*paramsIt)[1].str();
-		
+
 			unsigned int size = 1024;
 			int length;
 			std::string value;
@@ -233,7 +233,7 @@ namespace micasa {
 					break;
 				}
 			} while( length == -1 );
-			
+
 			params[key] = value;
 		}
 		return params;
@@ -262,7 +262,7 @@ namespace micasa {
 
 		this->m_shutdown = true;
 		this->m_worker.join();
-		
+
 		mg_mgr_free( &this->m_manager );
 
 #ifdef _DEBUG
@@ -276,7 +276,7 @@ namespace micasa {
 		return Network::_bind( port_, options, std::move( func_ ) );
 	};
 
-#ifdef _WITH_OPENSSL	
+#ifdef _WITH_OPENSSL
 	std::shared_ptr<Network::Connection> Network::bind( const std::string& port_, const std::string& cert_, const std::string& key_, Connection::t_eventFunc&& func_ ) {
 		mg_bind_opts options;
 		memset( &options, 0, sizeof( options ) );
@@ -301,11 +301,17 @@ namespace micasa {
 
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
-		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, port_.c_str(), micasa_mg_handler, options_ );
+		std::string address;
+#ifdef _IPV6_ENABLED
+		address = "[::]:" + port_;
+#else
+		address = "0.0.0.0:" + port_;
+#endif
+		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, address.c_str(), micasa_mg_handler, options_ );
 		if ( mg_conn ) {
 			mg_set_protocol_http_websocket( mg_conn );
-			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to port %s.", port_.c_str() );
-			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, "::" + port_, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", address.c_str() );
+			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, address, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
 			network.m_connections[mg_conn] = connection;
 			return connection;
@@ -313,7 +319,7 @@ namespace micasa {
 			return nullptr;
 		}
 	};
-	
+
 	std::shared_ptr<Network::Connection> Network::_connect( const std::string& uri_, const nlohmann::json& data_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
 		mg_connect_opts options;
