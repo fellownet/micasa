@@ -7,7 +7,7 @@
 <ng-container *ngIf="! invalid">
 
 	<!-- view -->
-	<div class="box bg bg-{{ widget.properties.color || 'aqua' }}" *ngIf="! parent.editing" (mousemove)="mouseMove( $event )" (window:mouseup)="mouseUp( $event )">
+	<div class="box bg bg-{{ widget.properties.color || 'aqua' }}" *ngIf="! parent.editing" (mousemove)="mouseMove( $event )" (touchmove)="mouseMove( $event )" (window:mouseup)="mouseUp( $event )" (window:touchend)="mouseUp( $event )">
 		<div class="box-header with-border">
 			<div class="box-tools" *ngIf="!! screen.id">
 				<button type="button" (click)="delete()" class="btn btn-primary btn-xs"><i class="fa fa-times"></i></button>
@@ -23,7 +23,7 @@
 		<tr>
 			<td class="minimum" *ngIf="busy"><i class="fa fa-spinner fa-pulse"></i></td>
 			<ng-container *ngIf="! busy">
-				<td class="minimum" [ngSwitch]="data[0].device.subtype">
+				<td class="minimum click-target" (click)="toggle()" [ngSwitch]="data[0].device.subtype">
 					<i class="fa fa-lightbulb-o" *ngSwitchCase="'dimmer'"></i>
 					<i class="fa fa-thermometer-three-quarters" *ngSwitchCase="'thermostat_setpoint'"></i>
 					<i class="fa fa-sliders" *ngSwitchDefault></i>
@@ -31,8 +31,8 @@
 			</ng-container>
 			<td>
 				<div class="slider">
-					<div class="slider-track" #sliderTrack></div>
-					<div class="slider-handle" #sliderHandle (mousedown)="mouseDown( $event )" [style.left]="data[0].device.value + '%'"
+					<div class="slider-track click-target" #sliderTrack></div>
+					<div class="slider-handle click-target" #sliderHandle (mousedown)="mouseDown( $event )" (touchstart)="mouseDown( $event )" [style.left]="data[0].device.value + '%'"
 						[class.slider-animate]="! sliding"
 					></div>
 				</div>

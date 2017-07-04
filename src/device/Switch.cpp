@@ -138,6 +138,7 @@ namespace micasa {
 				return this->updateValue( source_, optionsIt->first );
 			}
 		}
+		Logger::logr( Logger::LogLevel::ERROR, this, "Invalid value %s.", value_.c_str() );
 	};
 
 	Switch::Option Switch::getOppositeValueOption( const Switch::Option& value_ ) {
