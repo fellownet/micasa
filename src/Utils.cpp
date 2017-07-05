@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iterator>
 #include <random>
+#include <cstdarg>
 
 #ifdef _DEBUG
 	#include <cassert>
