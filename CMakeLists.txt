@@ -120,8 +120,8 @@ if( WITH_OPENZWAVE )
 		ExternalProject_Add(
 			OpenZWave
 
-			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-			#GIT_TAG "v1.4"
+			GIT_REPOSITORY "https://github.com/fellownet/open-zwave.git"
+			GIT_TAG "remotes/origin/micasa-adjustments"
 
 			UPDATE_COMMAND ""
 			PATCH_COMMAND ""
@@ -139,8 +139,8 @@ if( WITH_OPENZWAVE )
 		ExternalProject_Add(
 			OpenZWave
 
-			GIT_REPOSITORY "https://github.com/OpenZWave/open-zwave.git"
-			#GIT_TAG "v1.4"
+			GIT_REPOSITORY "https://github.com/fellownet/open-zwave.git"
+			GIT_TAG "remotes/origin/micasa-adjustments"
 
 			UPDATE_COMMAND ""
 			PATCH_COMMAND ""
@@ -213,51 +213,35 @@ add_executable( micasa ${SRC} )
 target_link_libraries( micasa ${PThreadLib})
 
 #
-# Check for Libudev.
-#
-find_path( LIBUDEV_INCLUDE_DIR NAMES libudev.h )
-find_library( LIBUDEV_LIBRARY NAMES udev )
-find_package_handle_standard_args( Libudev "Libudev not found" LIBUDEV_LIBRARY LIBUDEV_INCLUDE_DIR )
-if( LIBUDEV_FOUND )
-	include_directories( ${LIBUDEV_INCLUDE_DIR} )
-	target_link_libraries( micasa ${LIBUDEV_LIBRARY} )
-	add_definitions( -D_WITH_LIBUDEV )
-endif( LIBUDEV_FOUND )
-
-#
-# OpenZWave needs libudev. While it is optional for micasa, it is not for OpenZWave.
+# Configure OpenZWave.
 #
 if( WITH_OPENZWAVE )
-	if( NOT LIBUDEV_FOUND )
-		if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
-			message( STATUS "Building on FreeBSD or Darwin, libudev not needed for OpenZWave." )
-			include_directories( ${OPENZWAVE_INCLUDE_DIR} )
-			add_dependencies( micasa OpenZWave )
+	if( CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+		message( STATUS "Building on FreeBSD or Darwin." )
+		include_directories( ${OPENZWAVE_INCLUDE_DIR} )
+		add_dependencies( micasa OpenZWave )
 
-			#
-			# Check for Libusb.
-			#
-			find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
-			find_library( LIBUSB_LIBRARY NAMES usb )
-			find_package_handle_standard_args( Libusb "Libusb not found" LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
-			if( LIBUSB_FOUND )
-				include_directories( ${LIBUSB_INCLUDE_DIR} )
-				target_link_libraries( micasa OpenZWaveLib ${LIBUSB_LIBRARY} )
-			else()
-				message( FATAL_ERROR "Libusb not found on your system." )
-			endif()
-
-			if( CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-				set( IOKIT_LIBRARY "-framework IOKit -framework CoreFoundation" CACHE FILEPATH "IOKit framework" FORCE )
-				target_link_libraries( micasa ${IOKIT_LIBRARY} )
-			endif()
+		#
+		# Check for Libusb.
+		#
+		find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
+		find_library( LIBUSB_LIBRARY NAMES usb )
+		find_package_handle_standard_args( Libusb "Libusb not found" LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+		if( LIBUSB_FOUND )
+			include_directories( ${LIBUSB_INCLUDE_DIR} )
+			target_link_libraries( micasa OpenZWaveLib ${LIBUSB_LIBRARY} )
 		else()
-			message( FATAL_ERROR "Libudev not found on your system." )
+			message( FATAL_ERROR "Libusb not found on your system." )
+		endif()
+
+		if( CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+			set( IOKIT_LIBRARY "-framework IOKit -framework CoreFoundation" CACHE FILEPATH "IOKit framework" FORCE )
+			target_link_libraries( micasa ${IOKIT_LIBRARY} )
 		endif()
 	else()
 		include_directories( ${OPENZWAVE_INCLUDE_DIR} )
 		add_dependencies( micasa OpenZWave )
-		target_link_libraries( micasa OpenZWaveLib ${LIBUDEV_LIBRARY} )
+		target_link_libraries( micasa OpenZWaveLib )
 	endif()
 endif()
 
@@ -278,6 +262,22 @@ if( WITH_OPENSSL )
 else()
 	message( STATUS "WARNING: Building without OpenSSL is for debugging purposes only." )
 endif()
+
+#
+# Check for libudev
+#
+option( WITH_LIBUDEV "Build with libudev support" NO )
+if( WITH_LIBUDEV )
+	message( STATUS "Build with libudev support" )
+	find_path( LIBUDEV_INCLUDE_DIR NAMES libudev.h )
+	find_library( LIBUDEV_LIBRARY NAMES udev )
+	find_package_handle_standard_args( Libudev "Libudev not found" LIBUDEV_LIBRARY LIBUDEV_INCLUDE_DIR )
+	if( LIBUDEV_FOUND )
+		include_directories( ${LIBUDEV_INCLUDE_DIR} )
+		target_link_libraries( micasa ${LIBUDEV_LIBRARY} )
+		add_definitions( -D_WITH_LIBUDEV )
+	endif( LIBUDEV_FOUND )
+endif( WITH_LIBUDEV )
 
 #
 # Check for SQLite3
