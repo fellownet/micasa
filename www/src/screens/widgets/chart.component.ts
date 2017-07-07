@@ -172,8 +172,6 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					let lastUnit:string = null;
 					let serie:number = -1;
 
-					// TODO sort sources by device unit
-
 					this.widget.sources.forEach( ( source_, i_ ) => {
 						let device: Device = this.data[i_].device;
 						let data: any[] = this.data[i_].data;
