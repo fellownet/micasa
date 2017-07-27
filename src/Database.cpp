@@ -338,7 +338,7 @@ namespace micasa {
 	void Database::_init() const {
 		// OFF = safe from crashes, not from system failures
 		// NORMAL = ok
-		this->putQuery( "PRAGMA synchronous=NORMAL" ); // TODO make backups!
+		this->putQuery( "PRAGMA synchronous=NORMAL" );
 		this->putQuery( "PRAGMA foreign_keys=ON" );
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Optimizing database." );

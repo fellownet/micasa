@@ -12,7 +12,7 @@ import { GridDirective } from "./grid.directive";
 	template: `
 		<div class="input-group">
 			<div class="input-group-addon"><i class="fa fa-search"></i></div>
-			<input type="search" class="form-control" placeholder="Search" (keyup)="updateSearch( $event.target.value )">
+			<input type="search" class="form-control" placeholder="Search" autocorrect="off" autocapitalize="none" (keyup)="updateSearch( $event.target.value )">
 		</div>
 		`
 } )

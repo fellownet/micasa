@@ -313,7 +313,7 @@ namespace micasa {
 			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", address.c_str() );
 			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, address, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
-			network.m_connections[mg_conn] = connection;
+			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
 			return nullptr;
@@ -343,7 +343,7 @@ namespace micasa {
 			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Connecting to %s.", uri_.c_str() );
 			mg_set_timer( mg_conn, mg_time() + NETWORK_CONNECTION_DEFAULT_TIMEOUT_SEC );
 			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, uri_, flags, std::move( func_ ) );
-			network.m_connections[mg_conn] = connection;
+			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
 			return nullptr;
@@ -362,7 +362,7 @@ namespace micasa {
 
 			std::shared_ptr<Connection> bind = network.m_connections.at( (mg_connection*)mg_conn_->user_data );
 			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn_, addr, bind->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, bind->m_func );
-			network.m_connections[mg_conn_] = connection;
+			network.m_connections.insert( { mg_conn_, connection } );
 		}
 
 		auto find = network.m_connections.find( mg_conn_ );

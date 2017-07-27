@@ -99,10 +99,9 @@ export class GridDirective implements OnInit, OnChanges {
 		if ( this._search.length > 0 ) {
 			this._searchData = this.data.filter( entity_ => {
 				for ( var key in entity_ ) {
-					if ( String( entity_[key] ).indexOf( this._search ) > -1 ) {
+					if ( String( entity_[key] ).search( new RegExp( this._search, 'i' ) ) > -1 ) {
 						return true;
 					}
-
 				}
 				return false;
 			} );
