@@ -26,7 +26,7 @@ a:focus, button:focus {
 #resize_target {
 	overflow: auto;
 }
-label span.mandatory {
+label .mandatory {
 	color:#FF0000;
 }
 
@@ -229,10 +229,12 @@ label span.mandatory {
 	margin-top: -100px;
 	width: 200px;
 	height: 200px;
-	background: rgba(0, 0, 0, 0.45);
 	position: relative;
-	border-radius: 3px;
+	background: black;
+	background: rgba(0, 0, 0, 0.45);
+	border-top: 3px solid #444;
 	border-top: 3px solid rgba(0, 0, 0, 0.2);
+	border-radius: 3px;
 }
 .loading-overlay div .fa {
 	position: absolute;
@@ -291,9 +293,6 @@ label span.mandatory {
 	padding-left: 15px;
 	padding-right: 15px;
 }
-.content .content-body {
-
-}
 .content .content-body [class*='col-'] {
 	padding-left: 7px;
 	padding-right: 8px;
@@ -327,6 +326,7 @@ label span.mandatory {
 	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 .content .box.bg {
+	border-top-color: #444;
 	border-top-color: rgba( 0, 0, 0, 0.16 );
 }
 .content .box-header:before,
@@ -357,6 +357,7 @@ label span.mandatory {
 	border-bottom: 1px solid #f4f4f4;
 }
 .content .bg .box-header.with-border {
+	border-bottom: 1px solid #444;
 	border-bottom: 1px solid rgba( 0, 0, 0, 0.2 );
 }
 
@@ -401,6 +402,7 @@ label span.mandatory {
 }
 .content .bg .box-header .box-tools .btn:hover,
 .content .bg .box-header .box-tools .btn:active {
+	color: black;
 	color: rgba( 0, 0, 0, 0.3 );
 }
 .content .box-body {
@@ -473,7 +475,9 @@ label span.mandatory {
 
 .content .bg .box-footer {
 	border-top: 0;
+	background-color: #444;
 	background-color: rgba( 0, 0, 0, 0.2 );
+	color: white;
 	color: rgba( 0, 0, 0, 0.5 );
 	text-align: center;
 	font-size: 13px;
@@ -722,6 +726,7 @@ form .table tr td {
 }
 .content .box-body.latest .table td i {
 	font-size: 45px;
+	color: white;
 	color: rgba( 0, 0, 0, 0.3 );
 }
 .content .box-body.latest td.minimum {
