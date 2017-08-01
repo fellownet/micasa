@@ -38,12 +38,12 @@ namespace micasa {
 		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::IDLE );
 
 		this->setState( Plugin::State::READY );
-	}
+	};
 
 	void Dummy::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
 		Plugin::stop();
-	}
+	};
 
 	bool Dummy::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
 		if ( device_->getType() == Device::Type::SWITCH ) {

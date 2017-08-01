@@ -32,18 +32,21 @@
 #include "Settings.h"
 #include "User.h"
 
+#ifdef _DEBUG
+	#include "plugins/Debug.h"
+#endif // _DEBUG
 #include "plugins/Dummy.h"
 #include "plugins/HarmonyHub.h"
-#include "plugins/SolarEdge.h"
-#include "plugins/WeatherUnderground.h"
-#include "plugins/RFXCom.h"
-#include "plugins/Telegram.h"
-#ifdef _WITH_OPENZWAVE
-	#include "plugins/ZWave.h"
-#endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 	#include "plugins/PiFace.h"
 #endif // _WITH_LINUX_SPI
+#include "plugins/RFXCom.h"
+#include "plugins/SolarEdge.h"
+#include "plugins/Telegram.h"
+#include "plugins/WeatherUnderground.h"
+#ifdef _WITH_OPENZWAVE
+	#include "plugins/ZWave.h"
+#endif // _WITH_OPENZWAVE
 
 #include "json.hpp"
 
@@ -481,6 +484,12 @@ namespace micasa {
 							{ "type", "list" },
 							{ "mandatory", true },
 							{ "options", {
+#ifdef _DEBUG
+								{
+									{ "value", "debug" },
+									{ "label", Debug::label }
+								},
+#endif // _DEBUG
 								{
 									{ "value", "dummy" },
 									{ "label", Dummy::label }
@@ -490,13 +499,6 @@ namespace micasa {
 									{ "label", HarmonyHub::label },
 									{ "settings", HarmonyHub::getEmptySettingsJson() }
 								},
-#ifdef _WITH_OPENZWAVE
-								{
-									{ "value", "zwave" },
-									{ "label", ZWave::label },
-									{ "settings", ZWave::getEmptySettingsJson() }
-								},
-#endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 								{
 									{ "value", "piface" },
@@ -504,25 +506,32 @@ namespace micasa {
 								},
 #endif // _WITH_LINUX_SPI
 								{
+									{ "value", "rfxcom" },
+									{ "label", RFXCom::label },
+									{ "settings", RFXCom::getEmptySettingsJson() }
+								},
+								{
 									{ "value", "solaredge" },
 									{ "label", SolarEdge::label },
 									{ "settings", SolarEdge::getEmptySettingsJson() }
+								},
+								{
+									{ "value", "telegram" },
+									{ "label", Telegram::label },
+									{ "settings", Telegram::getEmptySettingsJson() }
 								},
 								{
 									{ "value", "weather_underground" },
 									{ "label", WeatherUnderground::label },
 									{ "settings", WeatherUnderground::getEmptySettingsJson() }
 								},
+#ifdef _WITH_OPENZWAVE
 								{
-									{ "value", "rfxcom" },
-									{ "label", RFXCom::label },
-									{ "settings", RFXCom::getEmptySettingsJson() }
+									{ "value", "zwave" },
+									{ "label", ZWave::label },
+									{ "settings", ZWave::getEmptySettingsJson() }
 								},
-								{
-									{ "value", "telegram" },
-									{ "label", Telegram::label },
-									{ "settings", Telegram::getEmptySettingsJson() }
-								}
+#endif // _WITH_OPENZWAVE
 							} },
 							{ "sort", 1 }
 						};
