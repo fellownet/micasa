@@ -30,7 +30,8 @@ namespace micasa {
 		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_10SEC, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			static auto start = system_clock::now();
 			this->declareDevice<Level>( "uptime", "Uptime", {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) }
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
+				{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::SECONDS ) }
 			} )->updateValue( Device::UpdateSource::PLUGIN, duration_cast<seconds>( system_clock::now() - start ).count() );
 			this->declareDevice<Level>( "tasks", "Scheduled Tasks", {
 				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) }
