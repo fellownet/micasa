@@ -33,6 +33,12 @@ namespace micasa {
 		Scheduler::ThreadPool::get().proceed( this, wait_, task_ );
 	};
 
+#ifdef _DEBUG
+	unsigned int Scheduler::count() {
+		return Scheduler::ThreadPool::get().count();
+	};
+#endif // _DEBUG
+
 	// ==========
 	// ThreadPool
 	// ==========
@@ -71,7 +77,7 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		
+
 		// The linked list is circular and because it's modified while iterating we're cannot detect when the invariant
 		// is looping. Instead, we're going to just investigate as many of the tasks as there are in the task queue and
 		// remove them if the condition matches.
@@ -122,13 +128,29 @@ namespace micasa {
 		} while( position != this->m_start );
 		return nullptr;
 	};
-	
+
 	void Scheduler::ThreadPool::proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ ) {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
 		this->_erase( task_ );
 		task_->time = system_clock::now() + milliseconds( wait_ );
 		this->_insert( task_ );
 	};
+
+#ifdef _DEBUG
+	unsigned int Scheduler::ThreadPool::count() const {
+		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		if ( this->m_start == nullptr ) {
+			return 0;
+		}
+		unsigned int count = 1;
+		auto current = this->m_start;
+		while( current->m_next != this->m_start ) {
+			count++;
+			current = current->m_next;
+		}
+		return count;
+	};
+#endif // _DEBUG
 
 	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
@@ -141,7 +163,7 @@ namespace micasa {
 				this->_erase( task );
 				this->m_activeTasks.push_back( task );
 				tasksLock.unlock();
-				
+
 				task->iteration++;
 				task->execute();
 
@@ -183,7 +205,7 @@ namespace micasa {
 			conditionLock.unlock();
 		}
 	};
-	
+
 	inline void Scheduler::ThreadPool::_insert( std::shared_ptr<BaseTask> task_ ) {
 		if (
 			task_->m_previous == nullptr

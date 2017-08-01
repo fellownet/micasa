@@ -299,6 +299,13 @@ namespace micasa {
 		return Network::_connect( uri_, nullptr, std::move( func_ ) );
 	};
 
+#ifdef _DEBUG
+	unsigned int Network::count() {
+		Network& network = Network::get();
+		return network.m_connections.size();
+	};
+#endif // _DEBUG
+
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
 		std::string address;

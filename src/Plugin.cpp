@@ -17,21 +17,24 @@
 #include "device/Text.h"
 #include "device/Switch.h"
 
-#include "plugins/WeatherUnderground.h"
-#include "plugins/HarmonyHub.h"
-#include "plugins/RFXCom.h"
-#include "plugins/SolarEdge.h"
-#include "plugins/SolarEdgeInverter.h"
+#ifdef _DEBUG
+	#include "plugins/Debug.h"
+#endif // _DEBUG
 #include "plugins/Dummy.h"
-#include "plugins/Telegram.h"
-#ifdef _WITH_OPENZWAVE
-	#include "plugins/ZWave.h"
-	#include "plugins/ZWaveNode.h"
-#endif // _WITH_OPENZWAVE
+#include "plugins/HarmonyHub.h"
 #ifdef _WITH_LINUX_SPI
 	#include "plugins/PiFace.h"
 	#include "plugins/PiFaceBoard.h"
 #endif // _WITH_LINUX_SPI
+#include "plugins/RFXCom.h"
+#include "plugins/SolarEdge.h"
+#include "plugins/SolarEdgeInverter.h"
+#include "plugins/Telegram.h"
+#include "plugins/WeatherUnderground.h"
+#ifdef _WITH_OPENZWAVE
+	#include "plugins/ZWave.h"
+	#include "plugins/ZWaveNode.h"
+#endif // _WITH_OPENZWAVE
 
 namespace micasa {
 
@@ -45,21 +48,24 @@ namespace micasa {
 	const char* Plugin::settingsName = "plugin";
 
 	const std::map<Plugin::Type, std::string> Plugin::TypeText = {
+#ifdef _DEBUG
+		{ Plugin::Type::DEBUG, "debug" },
+#endif // _DEBUG
+		{ Plugin::Type::DUMMY, "dummy" },
 		{ Plugin::Type::HARMONY_HUB, "harmony_hub" },
+#ifdef _WITH_LINUX_SPI
+		{ Plugin::Type::PIFACE, "piface" },
+		{ Plugin::Type::PIFACE_BOARD, "piface_board" },
+#endif // _WITH_LINUX_SPI
 		{ Plugin::Type::RFXCOM, "rfxcom" },
 		{ Plugin::Type::SOLAREDGE, "solaredge" },
 		{ Plugin::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
-		{ Plugin::Type::WEATHER_UNDERGROUND, "weather_underground" },
-		{ Plugin::Type::DUMMY, "dummy" },
 		{ Plugin::Type::TELEGRAM, "telegram" },
+		{ Plugin::Type::WEATHER_UNDERGROUND, "weather_underground" },
 #ifdef _WITH_OPENZWAVE
 		{ Plugin::Type::ZWAVE, "zwave" },
 		{ Plugin::Type::ZWAVE_NODE, "zwave_node" },
 #endif // _WITH_OPENZWAVE
-#ifdef _WITH_LINUX_SPI
-		{ Plugin::Type::PIFACE, "piface" },
-		{ Plugin::Type::PIFACE_BOARD, "piface_board" }
-#endif // _WITH_LINUX_SPI
 	};
 
 	const std::map<Plugin::State, std::string> Plugin::StateText = {
@@ -89,17 +95,17 @@ namespace micasa {
 
 	std::shared_ptr<Plugin> Plugin::factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) {
 		switch( type_ ) {
+#ifdef _DEBUG
+			case Type::DEBUG:
+				return std::make_shared<Debug>( id_, type_, reference_, parent_ );
+				break;
+#endif // _DEBUG
+			case Type::DUMMY:
+				return std::make_shared<Dummy>( id_, type_, reference_, parent_ );
+				break;
 			case Type::HARMONY_HUB:
 				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_ );
 				break;
-#ifdef _WITH_OPENZWAVE
-			case Type::ZWAVE:
-				return std::make_shared<ZWave>( id_, type_, reference_, parent_ );
-				break;
-			case Type::ZWAVE_NODE:
-				return std::make_shared<ZWaveNode>( id_, type_, reference_, parent_ );
-				break;
-#endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 			case Type::PIFACE:
 				return std::make_shared<PiFace>( id_, type_, reference_, parent_ );
@@ -117,15 +123,20 @@ namespace micasa {
 			case Type::SOLAREDGE_INVERTER:
 				return std::make_shared<SolarEdgeInverter>( id_, type_, reference_, parent_ );
 				break;
-			case Type::WEATHER_UNDERGROUND:
-				return std::make_shared<WeatherUnderground>( id_, type_, reference_, parent_ );
-				break;
-			case Type::DUMMY:
-				return std::make_shared<Dummy>( id_, type_, reference_, parent_ );
-				break;
 			case Type::TELEGRAM:
 				return std::make_shared<Telegram>( id_, type_, reference_, parent_ );
 				break;
+			case Type::WEATHER_UNDERGROUND:
+				return std::make_shared<WeatherUnderground>( id_, type_, reference_, parent_ );
+				break;
+#ifdef _WITH_OPENZWAVE
+			case Type::ZWAVE:
+				return std::make_shared<ZWave>( id_, type_, reference_, parent_ );
+				break;
+			case Type::ZWAVE_NODE:
+				return std::make_shared<ZWaveNode>( id_, type_, reference_, parent_ );
+				break;
+#endif // _WITH_OPENZWAVE
 		}
 		return nullptr;
 	}
