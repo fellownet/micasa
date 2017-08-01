@@ -48,7 +48,7 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 
 	private _active: boolean = true;
 	private _busy?: number;
-	private _sliding: Subject<MouseEvent|TouchEvent> = new Subject();
+	private _sliding: Subject<any> = new Subject();
 
 	public invalid: boolean = false;
 	public title: string;
@@ -93,7 +93,7 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 			.subscribe( event_ => {
 				if ( !! this.sliding ) {
 					let x: number;
-					if ( event_ instanceof TouchEvent ) {
+					if ( event_.touches ) {
 						x = event_.touches[0].clientX;
 					} else {
 						x = event_.clientX;
@@ -124,9 +124,9 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 		this._active = false;
 	};
 
-	public mouseDown( event_: TouchEvent|MouseEvent ) {
+	public mouseDown( event_: any ) {
 		let x: number;
-		if ( event_ instanceof TouchEvent ) {
+		if ( event_.touches ) {
 			x = event_.touches[0].clientX;
 		} else {
 			x = event_.clientX;
@@ -144,7 +144,7 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 		return false;
 	};
 
-	public mouseMove( event_: MouseEvent ) {
+	public mouseMove( event_: any ) {
 		if ( !! this.sliding ) {
 			this._sliding.next( event_ );
 
@@ -158,7 +158,7 @@ export class WidgetSliderComponent implements OnInit, OnChanges, OnDestroy {
 		}
 	};
 
-	public mouseUp( event_: MouseEvent ) {
+	public mouseUp( event_: any ) {
 		if ( !! this.sliding ) {
 			delete this.sliding;
 
