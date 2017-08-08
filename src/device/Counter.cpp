@@ -85,7 +85,7 @@ namespace micasa {
 		} );
 	};
 
-	void Counter::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Counter::updateValue( Device::UpdateSource source_, t_value value_ ) {
 		if (
 			! this->m_enabled
 			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
@@ -131,7 +131,7 @@ namespace micasa {
 		}
 	};
 
-	void Counter::incrementValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Counter::incrementValue( Device::UpdateSource source_, t_value value_ ) {
 		this->updateValue( source_, std::max( this->m_value, this->m_rateLimiter.value ) + value_ );
 	};
 

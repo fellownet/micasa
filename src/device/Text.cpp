@@ -73,7 +73,7 @@ namespace micasa {
 		} );
 	};
 
-	void Text::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Text::updateValue( Device::UpdateSource source_, t_value value_ ) {
 		if (
 			! this->m_enabled
 			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
@@ -274,15 +274,13 @@ namespace micasa {
 		// The actual updating of the value with the log is done in a separate task because the action itself might
 		// generate a log and would then cause a deadlock by the logger.
 		this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
-			std::string text = message_;
 			if ( logLevel_ == Logger::LogLevel::ERROR ) {
-				text = "Error: " + text;
+				this->updateValue( UpdateSource::SYSTEM, "Error: " + message_ );
 			} else if ( logLevel_ == Logger::LogLevel::WARNING ) {
-				text = "Warning: " + text;
+				this->updateValue( UpdateSource::SYSTEM, "Warning: " + message_ );
 			} else if ( logLevel_ == Logger::LogLevel::SCRIPT ) {
-				text = "Script: " + text;
+				this->updateValue( UpdateSource::SYSTEM, "Script: " + message_ );
 			}
-			this->updateValue( UpdateSource::SYSTEM, text );
 		} );
 	};
 
