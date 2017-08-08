@@ -46,8 +46,8 @@ namespace micasa {
 
 		Switch( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		void updateValue( const Device::UpdateSource& source_, const Option& value_ );
-		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
+		void updateValue( Device::UpdateSource source_, Option value_ );
+		void updateValue( Device::UpdateSource source_, t_value value_ );
 		Option getValueOption() const { return this->m_value; };
 		static Option getOppositeValueOption( const Option& value_ );
 		t_value getValue() const { return OptionText.at( this->m_value ); };
