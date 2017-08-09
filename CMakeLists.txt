@@ -171,6 +171,21 @@ if( WITH_OPENZWAVE )
 endif()
 
 #
+# Add homekit support.
+#
+option( WITH_HOMEKIT "Build with HomeKit support" YES )
+if( WITH_HOMEKIT )
+	message( STATUS "Build with HomeKit support" )
+
+	add_definitions( -D_WITH_HOMEKIT -DMG_ENABLE_DNS_SERVER )
+
+	set( SRC ${SRC}
+		src/plugins/HomeKit.cpp
+		src/plugins/HomeKit/Manager.cpp
+	)
+endif()
+
+#
 # Add JSON.
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )

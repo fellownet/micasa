@@ -17,13 +17,7 @@
 #include "device/Text.h"
 #include "device/Switch.h"
 
-#include "plugins/WeatherUnderground.h"
 #include "plugins/HarmonyHub.h"
-#include "plugins/RFXCom.h"
-#include "plugins/SolarEdge.h"
-#include "plugins/SolarEdgeInverter.h"
-#include "plugins/Dummy.h"
-#include "plugins/Telegram.h"
 #ifdef _WITH_OPENZWAVE
 	#include "plugins/ZWave.h"
 	#include "plugins/ZWaveNode.h"
@@ -32,6 +26,15 @@
 	#include "plugins/PiFace.h"
 	#include "plugins/PiFaceBoard.h"
 #endif // _WITH_LINUX_SPI
+#include "plugins/RFXCom.h"
+#include "plugins/SolarEdge.h"
+#include "plugins/SolarEdgeInverter.h"
+#include "plugins/WeatherUnderground.h"
+#include "plugins/Dummy.h"
+#include "plugins/Telegram.h"
+#ifdef _WITH_HOMEKIT
+	#include "plugins/HomeKit.h"
+#endif // _WITH_HOMEKIT
 
 namespace micasa {
 
@@ -46,19 +49,22 @@ namespace micasa {
 
 	const std::map<Plugin::Type, std::string> Plugin::TypeText = {
 		{ Plugin::Type::HARMONY_HUB, "harmony_hub" },
-		{ Plugin::Type::RFXCOM, "rfxcom" },
-		{ Plugin::Type::SOLAREDGE, "solaredge" },
-		{ Plugin::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
-		{ Plugin::Type::WEATHER_UNDERGROUND, "weather_underground" },
-		{ Plugin::Type::DUMMY, "dummy" },
-		{ Plugin::Type::TELEGRAM, "telegram" },
 #ifdef _WITH_OPENZWAVE
 		{ Plugin::Type::ZWAVE, "zwave" },
 		{ Plugin::Type::ZWAVE_NODE, "zwave_node" },
 #endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
 		{ Plugin::Type::PIFACE, "piface" },
-		{ Plugin::Type::PIFACE_BOARD, "piface_board" }
+		{ Plugin::Type::PIFACE_BOARD, "piface_board" },
+#endif // _WITH_LINUX_SPI
+		{ Plugin::Type::RFXCOM, "rfxcom" },
+		{ Plugin::Type::SOLAREDGE, "solaredge" },
+		{ Plugin::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
+		{ Plugin::Type::WEATHER_UNDERGROUND, "weather_underground" },
+		{ Plugin::Type::DUMMY, "dummy" },
+		{ Plugin::Type::TELEGRAM, "telegram" },
+#ifdef _WITH_HOMEKIT
+		{ Plugin::Type::HOMEKIT, "homekit" },
 #endif // _WITH_LINUX_SPI
 	};
 
@@ -126,6 +132,11 @@ namespace micasa {
 			case Type::TELEGRAM:
 				return std::make_shared<Telegram>( id_, type_, reference_, parent_ );
 				break;
+#ifdef _WITH_HOMEKIT
+			case Type::HOMEKIT:
+				return std::make_shared<HomeKit>( id_, type_, reference_, parent_ );
+				break;
+#endif // _WITH_HOMEKIT
 		}
 		return nullptr;
 	}

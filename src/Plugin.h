@@ -30,7 +30,10 @@ namespace micasa {
 			SOLAREDGE_INVERTER,
 			WEATHER_UNDERGROUND,
 			DUMMY,
-			TELEGRAM
+			TELEGRAM,
+#ifdef _WITH_HOMEKIT
+			HOMEKIT,
+#endif // _WITH_LINUX_SPI
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );

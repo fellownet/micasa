@@ -248,7 +248,7 @@ namespace micasa {
 		this->m_shutdown = false;
 		this->m_worker = std::thread( [this]() -> void {
 			do {
-				mg_mgr_poll( &this->m_manager, 100 );
+				mg_mgr_poll( &this->m_manager, 1000 );
 			} while( ! this->m_shutdown );
 		} );
 	};
@@ -301,17 +301,18 @@ namespace micasa {
 
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
-		std::string address;
-#ifdef _IPV6_ENABLED
-		address = "[::]:" + port_;
-#else
-		address = "0.0.0.0:" + port_;
-#endif
-		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, address.c_str(), micasa_mg_handler, options_ );
+		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, port_.c_str(), micasa_mg_handler, options_ );
+		Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", port_.c_str() );
+		std::shared_ptr<Connection> connection;
 		if ( mg_conn ) {
-			mg_set_protocol_http_websocket( mg_conn );
-			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", address.c_str() );
-			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, address, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			// NOTE forcing dns when udp > needs some improvements
+			if ( __unlikely( port_.substr( 0, 3 ) == "udp" ) ) {
+				mg_set_protocol_dns( mg_conn );
+				connection = std::make_shared<Connection>( mg_conn, port_, NETWORK_CONNECTION_FLAG_DNS | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			} else {
+				mg_set_protocol_http_websocket( mg_conn );
+				connection = std::make_shared<Connection>( mg_conn, port_, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			}
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
 			network.m_connections[mg_conn] = connection;
 			return connection;
@@ -336,6 +337,10 @@ namespace micasa {
 				mg_set_protocol_http_websocket( mg_conn );
 				flags |= NETWORK_CONNECTION_FLAG_HTTP;
 			}
+		} else if ( uri_.substr( 0, 3 ) == "udp" ) {
+			// NOTE forcing broadcast when udp > needs some improvements
+			options.flags = options.flags | MG_F_ENABLE_BROADCAST;
+			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		} else {
 			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		}
@@ -358,11 +363,18 @@ namespace micasa {
 		if ( event_ == MG_EV_ACCEPT ) {
 			char addr[64];
 			mg_sock_addr_to_str( (const socket_address*)data_, addr, sizeof( addr ), MG_SOCK_STRINGIFY_IP );
-			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accept connection from %s.", addr );
 
-			std::shared_ptr<Connection> bind = network.m_connections.at( (mg_connection*)mg_conn_->user_data );
-			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn_, addr, bind->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, bind->m_func );
-			network.m_connections[mg_conn_] = connection;
+			std::cout << (mg_connection*)mg_conn_->user_data << "\n";
+
+			auto find = network.m_connections.find( (mg_connection*)mg_conn_->user_data );
+			if ( find != network.m_connections.end() ) {
+				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accept connection from %s.", addr );
+				std::shared_ptr<Connection> bind = find->second;
+				std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn_, addr, bind->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, bind->m_func );
+				network.m_connections[mg_conn_] = connection;
+			} else {
+				Logger::logr( Logger::LogLevel::ERROR, &network, "Rejected connection from %s.", addr );
+			}
 		}
 
 		auto find = network.m_connections.find( mg_conn_ );
@@ -432,12 +444,52 @@ namespace micasa {
 				break;
 			}
 
-			// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
-			// During, and *only* during this event there's a http_message instance available. The serving of static
-			// files requires this, so the SERVE event is fired synchronious with the poller..
-			case MG_EV_HTTP_REQUEST:
+			case MG_EV_HTTP_REQUEST: // MG_DNS_MESSAGE
+				if ( connection->m_flags & NETWORK_CONNECTION_FLAG_DNS ) {
+
+
+
+
+struct mg_dns_message *msg;
+  struct mg_dns_resource_record *rr;
+  struct mg_dns_reply reply;
+  int i;
+
+
+      struct mbuf reply_buf;
+      mbuf_init(&reply_buf, 512);
+      msg = (struct mg_dns_message *) data_;
+      reply = mg_dns_create_reply(&reply_buf, msg);
+
+      for (i = 0; i < msg->num_questions; i++) {
+        char rname[256];
+        rr = &msg->questions[i];
+        mg_dns_uncompress_name(msg, &rr->name, rname, sizeof(rname) - 1);
+        fprintf(stdout, "Q type %d name %s\n", rr->rtype, rname);
+        if (rr->rtype == MG_DNS_A_RECORD) {
+          in_addr_t addr = inet_addr("127.0.0.1");
+          mg_dns_reply_record(&reply, rr, NULL, rr->rtype, 10, &addr, 4);
+        }
+      }
+
+      //mg_dns_send_reply(nc, &reply);
+      //nc->flags |= MG_F_SEND_AND_CLOSE;
+	  mg_conn_->flags |= MG_F_SEND_AND_CLOSE;
+      mbuf_free(&reply_buf);
+
+
+
+
+					break;
+				}
+				// Deliberate fallthrough!
+
 			case MG_EV_HTTP_REPLY:
 			case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
+				std::cout << "HU?\n";
+				// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
+				// During, and *only* during this event there's a http_message instance available. The serving of static
+				// files requires this, so the SERVE event is fired synchronious with the poller..
 				if ( connection->m_func ) {
 					connection->m_func( connection, Connection::Event::HTTP );
 				}
