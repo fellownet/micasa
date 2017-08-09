@@ -32,8 +32,8 @@ namespace micasa {
 
 		Counter( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ );
 
-		void updateValue( const Device::UpdateSource& source_, const t_value& value_ );
-		void incrementValue( const Device::UpdateSource& source_, const t_value& value_ = 1.0f );
+		void updateValue( Device::UpdateSource source_, t_value value_ );
+		void incrementValue( Device::UpdateSource source_, t_value value_ = 1.0f );
 		t_value getValue() const { return this->m_value; };
 		nlohmann::json getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const;
 

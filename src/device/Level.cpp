@@ -103,7 +103,7 @@ namespace micasa {
 		} );
 	};
 
-	void Level::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Level::updateValue( Device::UpdateSource source_, t_value value_ ) {
 		if (
 			! this->m_enabled
 			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN

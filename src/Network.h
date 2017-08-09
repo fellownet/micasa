@@ -109,6 +109,9 @@ namespace micasa {
 #endif
 		static std::shared_ptr<Connection> connect( const std::string& uri_, const nlohmann::json& data_, Connection::t_eventFunc&& func_ );
 		static std::shared_ptr<Connection> connect( const std::string& uri_, Connection::t_eventFunc&& func_ );
+#ifdef _DEBUG
+		static unsigned int count();
+#endif // _DEBUG
 
 	private:
 		mg_mgr m_manager;

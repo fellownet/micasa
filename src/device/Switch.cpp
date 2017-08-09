@@ -84,7 +84,7 @@ namespace micasa {
 		} );
 	};
 
-	void Switch::updateValue( const Device::UpdateSource& source_, const Option& value_ ) {
+	void Switch::updateValue( Device::UpdateSource source_, Option value_ ) {
 		Switch::SubType subType = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
 		if (
 			! this->m_enabled
@@ -132,7 +132,7 @@ namespace micasa {
 		}
 	};
 
-	void Switch::updateValue( const Device::UpdateSource& source_, const t_value& value_ ) {
+	void Switch::updateValue( Device::UpdateSource source_, t_value value_ ) {
 		for ( auto optionsIt = OptionText.begin(); optionsIt != OptionText.end(); optionsIt++ ) {
 			if ( optionsIt->second == value_ ) {
 				return this->updateValue( source_, optionsIt->first );

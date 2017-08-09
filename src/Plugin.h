@@ -16,23 +16,26 @@ namespace micasa {
 
 	public:
 		enum class Type: unsigned short {
-			HARMONY_HUB = 1,
+			HARMONY_HUB         = 1,
 #ifdef _WITH_OPENZWAVE
-			ZWAVE,
-			ZWAVE_NODE,
+			ZWAVE               = 2,
+			ZWAVE_NODE          = 3,
 #endif // _WITH_OPENZWAVE
 #ifdef _WITH_LINUX_SPI
-			PIFACE,
-			PIFACE_BOARD,
+			PIFACE              = 4,
+			PIFACE_BOARD        = 5,
 #endif // _WITH_LINUX_SPI
-			RFXCOM,
-			SOLAREDGE,
-			SOLAREDGE_INVERTER,
-			WEATHER_UNDERGROUND,
-			DUMMY,
-			TELEGRAM,
+			RFXCOM              = 6,
+			SOLAREDGE           = 7,
+			SOLAREDGE_INVERTER  = 8,
+			WEATHER_UNDERGROUND = 9,
+			DUMMY               = 10,
+			TELEGRAM            = 11,
+#ifdef _DEBUG
+			DEBUG               = 12,
+#endif // _DEBUG
 #ifdef _WITH_HOMEKIT
-			HOMEKIT,
+			HOMEKIT             = 13,
 #endif // _WITH_LINUX_SPI
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
@@ -44,7 +47,7 @@ namespace micasa {
 			FAILED       = 3,
 			DISCONNECTED = 4,
 			READY        = 100,
-			SLEEPING     = 101
+			SLEEPING     = 101,
 		}; // enum State
 		static const std::map<State, std::string> StateText;
 		ENUM_UTIL_W_TEXT( State, StateText );

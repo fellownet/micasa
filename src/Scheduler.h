@@ -10,6 +10,8 @@
 #define SCHEDULER_INFINITE ULONG_MAX
 #define SCHEDULER_INTERVAL_1SEC 1000
 #define SCHEDULER_INTERVAL_5SEC 1000 * 5
+#define SCHEDULER_INTERVAL_10SEC 1000 * 10
+#define SCHEDULER_INTERVAL_30SEC 1000 * 30
 #define SCHEDULER_INTERVAL_1MIN 1000 * 60
 #define SCHEDULER_INTERVAL_5MIN 1000 * 60 * 5
 #define SCHEDULER_INTERVAL_1HOUR 1000 * 60 * 60
@@ -168,6 +170,9 @@ namespace micasa {
 		void erase( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 		std::shared_ptr<BaseTask> first( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 		void proceed( unsigned long wait_, std::shared_ptr<BaseTask> task_ );
+#ifdef _DEBUG
+		static unsigned int count();
+#endif // _DEBUG
 
 	private:
 
@@ -189,6 +194,9 @@ namespace micasa {
 			void erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 			std::shared_ptr<BaseTask> first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 			void proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ );
+#ifdef _DEBUG
+			unsigned int count() const;
+#endif // _DEBUG
 
 			static ThreadPool& get() {
 				// In c++11 static initialization is supposed to be thread-safe.

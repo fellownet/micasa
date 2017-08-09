@@ -299,6 +299,13 @@ namespace micasa {
 		return Network::_connect( uri_, nullptr, std::move( func_ ) );
 	};
 
+#ifdef _DEBUG
+	unsigned int Network::count() {
+		Network& network = Network::get();
+		return network.m_connections.size();
+	};
+#endif // _DEBUG
+
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
 		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, port_.c_str(), micasa_mg_handler, options_ );
@@ -314,7 +321,7 @@ namespace micasa {
 				connection = std::make_shared<Connection>( mg_conn, port_, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
 			}
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
-			network.m_connections[mg_conn] = connection;
+			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
 			return nullptr;
@@ -348,7 +355,7 @@ namespace micasa {
 			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Connecting to %s.", uri_.c_str() );
 			mg_set_timer( mg_conn, mg_time() + NETWORK_CONNECTION_DEFAULT_TIMEOUT_SEC );
 			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, uri_, flags, std::move( func_ ) );
-			network.m_connections[mg_conn] = connection;
+			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
 			return nullptr;
@@ -363,15 +370,12 @@ namespace micasa {
 		if ( event_ == MG_EV_ACCEPT ) {
 			char addr[64];
 			mg_sock_addr_to_str( (const socket_address*)data_, addr, sizeof( addr ), MG_SOCK_STRINGIFY_IP );
-
-			std::cout << (mg_connection*)mg_conn_->user_data << "\n";
-
 			auto find = network.m_connections.find( (mg_connection*)mg_conn_->user_data );
 			if ( find != network.m_connections.end() ) {
 				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accept connection from %s.", addr );
-				std::shared_ptr<Connection> bind = find->second;
+				std::shared_ptr<Connection> bind = network.m_connections.at( (mg_connection*)mg_conn_->user_data );
 				std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn_, addr, bind->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, bind->m_func );
-				network.m_connections[mg_conn_] = connection;
+				network.m_connections.insert( { mg_conn_, connection } );
 			} else {
 				Logger::logr( Logger::LogLevel::ERROR, &network, "Rejected connection from %s.", addr );
 			}
