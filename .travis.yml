@@ -29,6 +29,7 @@ matrix:
             - libcurl4-openssl-dev
             - libssl-dev
             - git
+            - libavahi-client-dev
 
     script:
     - cmake -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod && cd ..

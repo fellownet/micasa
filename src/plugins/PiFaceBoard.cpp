@@ -95,84 +95,83 @@ namespace micasa {
 		return label.str();
 	};
 
-	bool PiFaceBoard::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		auto device = std::static_pointer_cast<Switch>( device_ );
-		auto port = this->_parseReference( device_->getReference() );
+	bool PiFaceBoard::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			auto device = std::static_pointer_cast<Switch>( device_ );
+			auto port = this->_parseReference( device_->getReference() );
 #ifdef _DEBUG
-		assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
-		assert( port.second == PIFACEBOARD_PORT_OUTPUT && "Device should be an output port." );
+			assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
+			assert( port.second == PIFACEBOARD_PORT_OUTPUT && "Device should be an output port." );
 #endif // _DEBUG
 
-		if ( this->_queuePendingUpdate( device->getReference(), source_, PIFACEBOARD_BUSY_BLOCK_MSEC, PIFACEBOARD_BUSY_WAIT_MSEC ) ) {
-			unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_OLATA );
-			int mask = 0x01;
-			mask <<= port.first;
-			if ( device->getValueOption() == Switch::Option::OFF ) {
-				portState &= ~mask;
-			} else {
-				portState |= mask;
-			}
-			this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, portState );
-			apply_ = false;
-			return true;
+			if ( this->_queuePendingUpdate( device->getReference(), source_, PIFACEBOARD_BUSY_BLOCK_MSEC, PIFACEBOARD_BUSY_WAIT_MSEC ) ) {
+				unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_OLATA );
+				int mask = 0x01;
+				mask <<= port.first;
+				if ( device->getValueOption() == Switch::Option::OFF ) {
+					portState &= ~mask;
+				} else {
+					portState |= mask;
+				}
+				this->m_parent->_Write_MCP23S17_Register( this->m_devId, MCP23x17_GPIOA, portState );
+				apply_ = false;
+				return true;
 
-		} else {
-			Logger::log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
-			return false;
+			} else {
+				Logger::log( Logger::LogLevel::ERROR, this, "PiFace Board busy." );
+				return false;
+			}
 		}
+		return true;
 	};
 
-	json PiFaceBoard::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
-		json result = json::object();
-
-		if ( device_->getType() == Device::Type::SWITCH ) {
-			auto port = this->_parseReference( device_->getReference() );
-			if ( port.second == PIFACEBOARD_PORT_INPUT ) {
-				result["port_type"] = device_->getSettings()->get( "port_type", "pulse" );
-				if ( device_->getSettings()->get( "port_type", "pulse" ) == "pulse" ) {
-					result["count_pulses"] = device_->getSettings()->get<bool>( "count_pulses", false );
+	void PiFaceBoard::updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				auto port = this->_parseReference( device_->getReference() );
+				if ( port.second == PIFACEBOARD_PORT_INPUT ) {
+					json_["port_type"] = device_->getSettings()->get( "port_type", "pulse" );
+					if ( device_->getSettings()->get( "port_type", "pulse" ) == "pulse" ) {
+						json_["count_pulses"] = device_->getSettings()->get<bool>( "count_pulses", false );
+					}
 				}
 			}
 		}
-
-		return result;
 	};
 
-	json PiFaceBoard::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
-		json result = json::array();
-
-		if ( device_->getType() == Device::Type::SWITCH ) {
-			auto port = this->_parseReference( device_->getReference() );
-			if ( port.second == PIFACEBOARD_PORT_INPUT ) {
-				json setting = {
-					{ "name", "port_type" },
-					{ "label", "Type" },
-					{ "type", "list" },
-					{ "mandatory", true },
-					{ "sort", 99 },
-					{ "options", {
-						{
-							{ "value", "pulse" },
-							{ "label", "Pulse" },
-							{ "settings", {
-								{
-									{ "name", "count_pulses" },
-									{ "label", "Count Pulses" },
-									{ "type", "boolean" }
-								}
-							} }
-						},
-						{
-							{ "value", "toggle" },
-							{ "label", "Toggle" }
-						}
-					} }
-				};
-				result += setting;
+	void PiFaceBoard::updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				auto port = this->_parseReference( device_->getReference() );
+				if ( port.second == PIFACEBOARD_PORT_INPUT ) {
+					json setting = {
+						{ "name", "port_type" },
+						{ "label", "Type" },
+						{ "type", "list" },
+						{ "mandatory", true },
+						{ "sort", 99 },
+						{ "options", {
+							{
+								{ "value", "pulse" },
+								{ "label", "Pulse" },
+								{ "settings", {
+									{
+										{ "name", "count_pulses" },
+										{ "label", "Count Pulses" },
+										{ "type", "boolean" }
+									}
+								} }
+							},
+							{
+								{ "value", "toggle" },
+								{ "label", "Toggle" }
+							}
+						} }
+					};
+					json_ += setting;
+				}
 			}
 		}
-
-		return result;
 	};
 
 	inline void PiFaceBoard::_process( unsigned long iteration_ ) {

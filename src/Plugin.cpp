@@ -278,14 +278,6 @@ namespace micasa {
 		return children;
 	};
 
-	json Plugin::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
-		return json::object();
-	};
-
-	json Plugin::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
-		return json::array();
-	};
-
 	std::shared_ptr<Device> Plugin::getDevice( const std::string& reference_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		try {

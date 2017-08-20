@@ -157,182 +157,181 @@ namespace micasa {
 		}
 	};
 
-	json ZWaveNode::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
-		json result = json::object();
-
-		try {
-			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-			switch( valueId.GetCommandClassId() ) {
-				case COMMAND_CLASS_SWITCH_BINARY: {
-					result["prevent_race_conditions"] = device_->getSettings()->get<bool>( "prevent_race_conditions", false );
+	void ZWaveNode::updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			try {
+				ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+				switch( valueId.GetCommandClassId() ) {
+					case COMMAND_CLASS_SWITCH_BINARY: {
+						json_["prevent_race_conditions"] = device_->getSettings()->get<bool>( "prevent_race_conditions", false );
+					}
 				}
-			}
-		} catch( std::invalid_argument ) { } // reference isn't a valueid, like an action device
-
-		return result;
+			} catch( std::invalid_argument ) { } // reference isn't a valueid, like an action device
+		}
 	};
 
-	json ZWaveNode::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
-		json result = json::array();
-
-		try {
-			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-			switch( valueId.GetCommandClassId() ) {
-				case COMMAND_CLASS_SWITCH_BINARY: {
-					result += {
-						{ "name", "prevent_race_conditions" },
-						{ "label", "Prevent Race Conditions" },
-						{ "description", "Try to prevent race conditions, which are situations where a scripted and manual switch action occur shortly after each other, where the second action inadvertently undoes the first." },
-						{ "type", "boolean" },
-						{ "class", "advanced" },
-						{ "sort", 99 }
-					};
+	void ZWaveNode::updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			try {
+				ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
+				switch( valueId.GetCommandClassId() ) {
+					case COMMAND_CLASS_SWITCH_BINARY: {
+						json_ += {
+							{ "name", "prevent_race_conditions" },
+							{ "label", "Prevent Race Conditions" },
+							{ "description", "Try to prevent race conditions, which are situations where a scripted and manual switch action occur shortly after each other, where the second action inadvertently undoes the first." },
+							{ "type", "boolean" },
+							{ "class", "advanced" },
+							{ "sort", 99 }
+						};
+					}
 				}
-			}
-		} catch( std::invalid_argument ) { } // reference isn't a valueid, like an action device
-
-		return result;
+			} catch( std::invalid_argument ) { } // reference isn't a valueid, like an action device
+		}
 	};
 
-	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
+	bool ZWaveNode::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
 
-		// First handle all controller action pseudo devices.
-		if (
-			device_->getType() == Device::Type::SWITCH
-			&& (
-				device_->getReference() == "heal"
-				|| device_->getReference() == "identify"
-				|| device_->getReference() == "config"
-			)
-		) {
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+			// First handle all controller action pseudo devices.
+			if (
+				device_->getType() == Device::Type::SWITCH
+				&& (
+					device_->getReference() == "heal"
+					|| device_->getReference() == "identify"
+					|| device_->getReference() == "config"
+				)
+			) {
+				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+				if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
+					if (
+						this->getState() <= Plugin::State::INIT
+						|| this->m_parent->getState() < Plugin::State::READY
+					) {
+						Logger::log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+						return false;
+					}
+
+					// This method is most likely called from the scheduler and should therefore not block for too long, so
+					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+							if ( device->getReference() == "heal" ) {
+								Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
+								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
+							} else if ( device->getReference() == "identify" ) {
+								Manager::Get()->RefreshNodeInfo( this->m_homeId, this->m_nodeId );
+								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Identifying node." );
+							} else if ( device->getReference() == "config" ) {
+								Manager::Get()->RequestAllConfigParams( this->m_homeId, this->m_nodeId );
+								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
+							}
+
+							task_->repeat = 0; // done
+
+						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+						} else if ( task_->repeat == 0 ) {
+							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
+						}
+					} );
+
+					apply_ = false; // value is applied only after a successfull command
+					return true;
+				}
+
+				return false;
+
+			// Process all other device types.
+			} else {
+
+				if ( this->getState() != Plugin::State::READY ) {
+					if ( this->getState() == Plugin::State::FAILED ) {
+						Logger::log( Logger::LogLevel::WARNING, this, "Node is dead." );
+						return false;
+					} else if ( this->getState() == Plugin::State::SLEEPING ) {
+						Logger::log( Logger::LogLevel::WARNING, this, "Node is sleeping." );
+						// fallthrough, event can be sent regardless of sleeping state.
+					} else {
+						Logger::log( Logger::LogLevel::WARNING, this, "Node is busy." );
+						return false;
+					}
+				}
+
+				// Reconstruct the value id which is needed to send a command to a node.
+				ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
 				if (
-					this->getState() <= Plugin::State::INIT
-					|| this->m_parent->getState() < Plugin::State::READY
+					valueId.GetCommandClassId() == COMMAND_CLASS_SWITCH_BINARY
+					&& valueId.GetType() == ValueID::ValueType_Bool
+					&& device_->getType() == Device::Type::SWITCH
 				) {
-					Logger::log( Logger::LogLevel::ERROR, this, "Controller not ready." );
+					std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+					bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
+					std::string valueStr = device->getValue();
+
+					// This method is most likely called from the scheduler and should therefore not block for too long, so
+					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+							if ( this->_queuePendingUpdate( device->getReference(), source_, valueStr, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+								Manager::Get()->SetValue( valueId, value );
+							} else {
+								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
+							}
+
+							task_->repeat = 0; // done
+
+						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+						} else if ( task_->repeat == 0 ) {
+							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
+						}
+					} );
+
+				} else if (
+					valueId.GetCommandClassId() == COMMAND_CLASS_SWITCH_MULTILEVEL
+					&& valueId.GetType() == ValueID::ValueType_Byte
+					&& device_->getType() == Device::Type::LEVEL
+				) {
+					std::shared_ptr<Level> device = std::static_pointer_cast<Level>( device_ );
+					auto value = uint8( device->getValue() );
+
+					// This method is most likely called from the scheduler and should therefore not block for too long, so
+					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+							if ( this->_queuePendingUpdate( device->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+								Manager::Get()->SetValue( valueId, value );
+							} else {
+								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
+							}
+
+							task_->repeat = 0; // done
+
+						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+						} else if ( task_->repeat == 0 ) {
+							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
+						}
+					} );
+
+				} else {
+					Logger::log( Logger::LogLevel::ERROR, this, "Invalid command." );
 					return false;
 				}
-
-				// This method is most likely called from the scheduler and should therefore not block for too long, so
-				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-						if ( device->getReference() == "heal" ) {
-							Manager::Get()->HealNetworkNode( this->m_homeId, this->m_nodeId, true );
-							device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::NORMAL, this, "Node heal initiated." );
-						} else if ( device->getReference() == "identify" ) {
-							Manager::Get()->RefreshNodeInfo( this->m_homeId, this->m_nodeId );
-							device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::NORMAL, this, "Identifying node." );
-						} else if ( device->getReference() == "config" ) {
-							Manager::Get()->RequestAllConfigParams( this->m_homeId, this->m_nodeId );
-							device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
-						}
-
-						task_->repeat = 0; // done
-
-					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_->repeat == 0 ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-					}
-				} );
 
 				apply_ = false; // value is applied only after a successfull command
 				return true;
 			}
-
-			return false;
-
-		// Process all other device types.
-		} else {
-
-			if ( this->getState() != Plugin::State::READY ) {
-				if ( this->getState() == Plugin::State::FAILED ) {
-					Logger::log( Logger::LogLevel::WARNING, this, "Node is dead." );
-					return false;
-				} else if ( this->getState() == Plugin::State::SLEEPING ) {
-					Logger::log( Logger::LogLevel::WARNING, this, "Node is sleeping." );
-					// fallthrough, event can be sent regardless of sleeping state.
-				} else {
-					Logger::log( Logger::LogLevel::WARNING, this, "Node is busy." );
-					return false;
-				}
-			}
-
-			// Reconstruct the value id which is needed to send a command to a node.
-			ValueID valueId( this->m_homeId, std::stoull( device_->getReference() ) );
-			if (
-				valueId.GetCommandClassId() == COMMAND_CLASS_SWITCH_BINARY
-				&& valueId.GetType() == ValueID::ValueType_Bool
-				&& device_->getType() == Device::Type::SWITCH
-			) {
-				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-				bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
-				std::string valueStr = device->getValue();
-
-				// This method is most likely called from the scheduler and should therefore not block for too long, so
-				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-						if ( this->_queuePendingUpdate( device->getReference(), source_, valueStr, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-							Manager::Get()->SetValue( valueId, value );
-						} else {
-							Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
-						}
-
-						task_->repeat = 0; // done
-
-					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_->repeat == 0 ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-					}
-				} );
-
-			} else if (
-				valueId.GetCommandClassId() == COMMAND_CLASS_SWITCH_MULTILEVEL
-				&& valueId.GetType() == ValueID::ValueType_Byte
-				&& device_->getType() == Device::Type::LEVEL
-			) {
-				std::shared_ptr<Level> device = std::static_pointer_cast<Level>( device_ );
-				auto value = uint8( device->getValue() );
-
-				// This method is most likely called from the scheduler and should therefore not block for too long, so
-				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-						if ( this->_queuePendingUpdate( device->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-							Manager::Get()->SetValue( valueId, value );
-						} else {
-							Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
-						}
-
-						task_->repeat = 0; // done
-
-					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_->repeat == 0 ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-					}
-				} );
-
-			} else {
-				Logger::log( Logger::LogLevel::ERROR, this, "Invalid command." );
-				return false;
-			}
-
-			apply_ = false; // value is applied only after a successfull command
-			return true;
-		}
+		} // if owned_
+		return true;
 	};
 
 	void ZWaveNode::_handleNotification( const Notification* notification_ ) {

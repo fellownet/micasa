@@ -18,6 +18,7 @@ export class Setting {
 	maximum?: number;
 	maxlength?: number;
 	options?: Option[];
+	badge?: string;
 }
 
 @Injectable()

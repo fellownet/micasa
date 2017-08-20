@@ -503,6 +503,10 @@ namespace micasa {
 								},
 #endif // _DEBUG
 								{
+									{ "value", "dummy" },
+									{ "label", Dummy::label }
+								},
+								{
 									{ "value", "harmony_hub" },
 									{ "label", HarmonyHub::label },
 									{ "settings", HarmonyHub::getEmptySettingsJson() }

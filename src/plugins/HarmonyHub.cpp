@@ -151,56 +151,57 @@ namespace micasa {
 		return result;
 	};
 
-	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		apply_ = false;
+	bool HarmonyHub::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			apply_ = false;
 
-		if ( this->getState() != Plugin::State::READY ) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub not ready (yet)." );
-			return false;
-		}
-
-		std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-
-		std::string startActivityId = "";
-		if (
-			device->getValueOption() == Switch::Option::OFF
-			&& device->getReference() == this->m_currentActivityId
-		) {
-			if ( device->getReference() == "-1" ) {
-				startActivityId = this->m_settings->get( HARMONY_HUB_LAST_ACTIVITY_SETTING, "-1" );
-				if ( startActivityId == "-1" ) {
-					Logger::log( Logger::LogLevel::WARNING, this, "Unable to start last known activity." );
-				} else {
-					Logger::logr( Logger::LogLevel::VERBOSE, this, "Starting last known activity." );
-				}
-			} else {
-				startActivityId = "-1"; // PowerOff
-			}
-		}
-		if (
-			device->getValueOption() == Switch::Option::ON
-			&& device->getReference() != this->m_currentActivityId
-		) {
-			startActivityId = device_->getReference();
-		}
-
-		if ( startActivityId != "" ) {
-			if ( this->_queuePendingUpdate( "harmony_hub_" + std::to_string( this->m_id ), source_, HARMONY_HUB_BUSY_BLOCK_MSEC, HARMONY_HUB_BUSY_WAIT_MSEC ) ) {
-				std::stringstream command;
-				command << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
-				command << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
-				command << startActivityId << ":timestamp=0</oa></iq>";
-				this->m_connection->send( command.str() );
-				return true;
-			} else {
-				Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub busy." );
+			if ( this->getState() != Plugin::State::READY ) {
+				Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub not ready (yet)." );
 				return false;
 			}
-		} else {
-			Logger::log( Logger::LogLevel::ERROR, this, "Invalid activity." );
-			return false;
-		}
 
+			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+
+			std::string startActivityId = "";
+			if (
+				device->getValueOption() == Switch::Option::OFF
+				&& device->getReference() == this->m_currentActivityId
+			) {
+				if ( device->getReference() == "-1" ) {
+					startActivityId = this->m_settings->get( HARMONY_HUB_LAST_ACTIVITY_SETTING, "-1" );
+					if ( startActivityId == "-1" ) {
+						Logger::log( Logger::LogLevel::WARNING, this, "Unable to start last known activity." );
+					} else {
+						Logger::logr( Logger::LogLevel::VERBOSE, this, "Starting last known activity." );
+					}
+				} else {
+					startActivityId = "-1"; // PowerOff
+				}
+			}
+			if (
+				device->getValueOption() == Switch::Option::ON
+				&& device->getReference() != this->m_currentActivityId
+			) {
+				startActivityId = device_->getReference();
+			}
+
+			if ( startActivityId != "" ) {
+				if ( this->_queuePendingUpdate( "harmony_hub_" + std::to_string( this->m_id ), source_, HARMONY_HUB_BUSY_BLOCK_MSEC, HARMONY_HUB_BUSY_WAIT_MSEC ) ) {
+					std::stringstream command;
+					command << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;
+					command << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?startactivity\">activityId=";
+					command << startActivityId << ":timestamp=0</oa></iq>";
+					this->m_connection->send( command.str() );
+					return true;
+				} else {
+					Logger::log( Logger::LogLevel::ERROR, this, "Harmony Hub busy." );
+					return false;
+				}
+			} else {
+				Logger::log( Logger::LogLevel::ERROR, this, "Invalid activity." );
+				return false;
+			}
+		}
 		return true;
 	};
 

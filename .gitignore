@@ -12,6 +12,7 @@ micasa
 
 .DS_Store
 .AppleDouble
+._*
 
 lib/open-zwave*
 

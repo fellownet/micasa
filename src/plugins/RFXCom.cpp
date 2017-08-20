@@ -142,232 +142,231 @@ namespace micasa {
 		return result;
 	};
 
-	json RFXCom::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
-		json result = json::object();
-
-		if ( device_->getSettings()->get<bool>( DEVICE_SETTING_ADDED_MANUALLY, false ) ) {
-			result["rfx_type"] = device_->getSettings()->get( "rfx_type", "rfy" );
-			if ( device_->getSettings()->get( "rfx_type", "" ) == "rfy" ) {
-				result["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-				result["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-				result["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-				result["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
-			} else if ( device_->getSettings()->get( "rfx_type", "" ) == "ac" ) {
-				result["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-				result["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-				result["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-				result["rfx_id4"] = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
-				result["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+	void RFXCom::updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			if ( device_->getSettings()->get<bool>( DEVICE_SETTING_ADDED_MANUALLY, false ) ) {
+				json_["rfx_type"] = device_->getSettings()->get( "rfx_type", "rfy" );
+				if ( device_->getSettings()->get( "rfx_type", "" ) == "rfy" ) {
+					json_["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+					json_["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+					json_["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+					json_["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+				} else if ( device_->getSettings()->get( "rfx_type", "" ) == "ac" ) {
+					json_["rfx_id1"] = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+					json_["rfx_id2"] = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+					json_["rfx_id3"] = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+					json_["rfx_id4"] = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
+					json_["rfx_unitcode"] = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+				}
 			}
 		}
-
-		return result;
 	};
 
-	json RFXCom::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
-		json result = json::array();
-
-		if (
-			device_->getSettings()->get<bool>( DEVICE_SETTING_ADDED_MANUALLY, false )
-			&& device_->getType() == Device::Type::SWITCH
-		) {
-			json setting = {
-				{ "name", "rfx_type" },
-				{ "label", "Type" },
-				{ "type", "list" },
-				{ "class", device_->getSettings()->contains( "rfx_type" ) ? "advanced" : "normal" },
-				{ "mandatory", true },
-				{ "sort", 99 },
-				{ "options", {
-					{
-						 { "value", "rfy" },
-						 { "label", "RFY" },
-						 { "settings", {
-							{
-								{ "name", "rfx_id1" },
-								{ "label", "ID 1" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_id2" },
-								{ "label", "ID 2" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_id3" },
-								{ "label", "ID 3" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_unitcode" },
-								{ "label", "Unit Code" },
-								{ "type", "byte" },
-								{ "minimum", 1 },
-								{ "maximum", 16 },
-								{ "mandatory", true }
-							}
-						 } }
-					},
-					{
-						 { "value", "ac" },
-						 { "label", "AC" },
-						 { "settings", {
-							{
-								{ "name", "rfx_id1" },
-								{ "label", "ID 1" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_id2" },
-								{ "label", "ID 2" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_id3" },
-								{ "label", "ID 3" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_id4" },
-								{ "label", "ID 4" },
-								{ "type", "byte" },
-								{ "minimum", 0 },
-								{ "maximum", 255 },
-								{ "mandatory", true }
-							},
-							{
-								{ "name", "rfx_unitcode" },
-								{ "label", "Unit Code" },
-								{ "type", "byte" },
-								{ "minimum", 1 },
-								{ "maximum", 16 },
-								{ "mandatory", true }
-							}
-						 } }
-					}
-				} }
-			};
-			result += setting;
+	void RFXCom::updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
+		if ( owned_ ) {
+			if (
+				device_->getSettings()->get<bool>( DEVICE_SETTING_ADDED_MANUALLY, false )
+				&& device_->getType() == Device::Type::SWITCH
+			) {
+				json setting = {
+					{ "name", "rfx_type" },
+					{ "label", "Type" },
+					{ "type", "list" },
+					{ "class", device_->getSettings()->contains( "rfx_type" ) ? "advanced" : "normal" },
+					{ "mandatory", true },
+					{ "sort", 99 },
+					{ "options", {
+						{
+							{ "value", "rfy" },
+							{ "label", "RFY" },
+							{ "settings", {
+								{
+									{ "name", "rfx_id1" },
+									{ "label", "ID 1" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_id2" },
+									{ "label", "ID 2" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_id3" },
+									{ "label", "ID 3" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_unitcode" },
+									{ "label", "Unit Code" },
+									{ "type", "byte" },
+									{ "minimum", 1 },
+									{ "maximum", 16 },
+									{ "mandatory", true }
+								}
+							} }
+						},
+						{
+							{ "value", "ac" },
+							{ "label", "AC" },
+							{ "settings", {
+								{
+									{ "name", "rfx_id1" },
+									{ "label", "ID 1" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_id2" },
+									{ "label", "ID 2" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_id3" },
+									{ "label", "ID 3" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_id4" },
+									{ "label", "ID 4" },
+									{ "type", "byte" },
+									{ "minimum", 0 },
+									{ "maximum", 255 },
+									{ "mandatory", true }
+								},
+								{
+									{ "name", "rfx_unitcode" },
+									{ "label", "Unit Code" },
+									{ "type", "byte" },
+									{ "minimum", 1 },
+									{ "maximum", 16 },
+									{ "mandatory", true }
+								}
+							} }
+						}
+					} }
+				};
+				json_ += setting;
+			}
 		}
-
-		return result;
 	};
 
-	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() != Plugin::State::READY ) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Plugin not ready." );
-			return false;
-		}
+	bool RFXCom::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			if ( this->getState() != Plugin::State::READY ) {
+				Logger::log( Logger::LogLevel::ERROR, this, "Plugin not ready." );
+				return false;
+			}
 
 #ifdef _DEBUG
-		assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
+			assert( device_->getType() == Device::Type::SWITCH && "Device should be of Switch type." );
 #endif // _DEBUG
 
-		// First actions on the built-in device that can be used to create custom rfxcom switches are handled.
-		if ( device_->getReference() == "create_switch_device" ) {
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				auto device = this->declareDevice<Switch>( randomString( 16 ), "Switch", {
-					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
-					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-					{ DEVICE_SETTING_ADDED_MANUALLY,         true }
-				} );
-				device->setEnabled( true );
-				device->start();
-				device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::OFF );
-				return true;
+			// First actions on the built-in device that can be used to create custom rfxcom switches are handled.
+			if ( device_->getReference() == "create_switch_device" ) {
+				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+				if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+					auto device = this->declareDevice<Switch>( randomString( 16 ), "Switch", {
+						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+						{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+						{ DEVICE_SETTING_ADDED_MANUALLY,         true }
+					} );
+					device->setEnabled( true );
+					device->start();
+					device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::OFF );
+					return true;
+				}
 			}
-		}
 
-		// Each device created by rfxcom (both manually and automatically) should have an rfx_type setting that
-		// determines how to handle updates.
-		std::string rfxType = device_->getSettings()->get( "rfx_type", "" );
+			// Each device created by rfxcom (both manually and automatically) should have an rfx_type setting that
+			// determines how to handle updates.
+			std::string rfxType = device_->getSettings()->get( "rfx_type", "" );
 
-		// RFY devices are currently only supprted as manually added devices.
-		if ( "rfy" == rfxType ) {
-			if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
-				auto device = std::static_pointer_cast<Switch>( device_ );
+			// RFY devices are currently only supprted as manually added devices.
+			if ( "rfy" == rfxType ) {
+				if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
+					auto device = std::static_pointer_cast<Switch>( device_ );
 
-				tRBUF packet;
-				packet.RFY.packetlength = sizeof( packet.RFY ) - 1;
-				packet.RFY.packettype = pTypeRFY;
-				packet.RFY.subtype = sTypeRFY;//sTypeRFYext;
+					tRBUF packet;
+					packet.RFY.packetlength = sizeof( packet.RFY ) - 1;
+					packet.RFY.packettype = pTypeRFY;
+					packet.RFY.subtype = sTypeRFY;//sTypeRFYext;
 
-				packet.RFY.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-				packet.RFY.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-				packet.RFY.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-				packet.RFY.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+					packet.RFY.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+					packet.RFY.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+					packet.RFY.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+					packet.RFY.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
 
-				if (
-					device->getValueOption() == Switch::Option::ON
-					|| device->getValueOption() == Switch::Option::OPEN
-				) {
-					packet.RFY.cmnd = rfy_sUp;
-				} else if (
-					device->getValueOption() == Switch::Option::OFF
-					|| device->getValueOption() == Switch::Option::CLOSE
-				) {
-					packet.RFY.cmnd = rfy_sDown;
-				} else if ( device->getValueOption() == Switch::Option::STOP ) {
-					packet.RFY.cmnd = rfy_sStop;
+					if (
+						device->getValueOption() == Switch::Option::ON
+						|| device->getValueOption() == Switch::Option::OPEN
+					) {
+						packet.RFY.cmnd = rfy_sUp;
+					} else if (
+						device->getValueOption() == Switch::Option::OFF
+						|| device->getValueOption() == Switch::Option::CLOSE
+					) {
+						packet.RFY.cmnd = rfy_sDown;
+					} else if ( device->getValueOption() == Switch::Option::STOP ) {
+						packet.RFY.cmnd = rfy_sStop;
+					}
+
+					this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
+					return true;
+				} else {
+					Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
+					return false;
 				}
 
-				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
-				return true;
-			} else {
-				Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
-				return false;
+			// Manually added AC devices are actually lighting2 devices with subtype AC.
+			} else if (
+				"lighting2" == rfxType
+				|| "ac" == rfxType
+			) {
+				if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
+					auto device = std::static_pointer_cast<Switch>( device_ );
+
+					tRBUF packet;
+					packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
+					packet.LIGHTING2.packettype = pTypeLighting2;
+					packet.LIGHTING2.subtype = device_->getSettings()->get<unsigned int>( "rfx_subtype", sTypeAC );
+
+					packet.LIGHTING2.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+					packet.LIGHTING2.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+					packet.LIGHTING2.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+					packet.LIGHTING2.id4 = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
+					packet.LIGHTING2.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
+
+					packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
+
+					this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
+					return true;
+				} else {
+					Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
+					return false;
+				}
 			}
 
-		// Manually added AC devices are actually lighting2 devices with subtype AC.
-		} else if (
-			"lighting2" == rfxType
-			|| "ac" == rfxType
-		) {
-			if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
-				auto device = std::static_pointer_cast<Switch>( device_ );
-
-				tRBUF packet;
-				packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
-				packet.LIGHTING2.packettype = pTypeLighting2;
-				packet.LIGHTING2.subtype = device_->getSettings()->get<unsigned int>( "rfx_subtype", sTypeAC );
-
-				packet.LIGHTING2.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-				packet.LIGHTING2.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-				packet.LIGHTING2.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-				packet.LIGHTING2.id4 = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
-				packet.LIGHTING2.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
-
-				packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
-
-				this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
-				return true;
-			} else {
-				Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
-				return false;
-			}
+			return false;
 		}
-
-		return false;
+		return true;
 	};
 
 	bool RFXCom::_processPacket() {

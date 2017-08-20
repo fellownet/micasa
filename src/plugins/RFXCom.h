@@ -29,12 +29,12 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		std::string getLabel() const override { return RFXCom::label; };
-		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) override;
 		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 		static nlohmann::json getEmptySettingsJson( bool advanced_ = false );
-		nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const override;
-		nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const override;
+		void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
+		void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 
 	private:
 		std::shared_ptr<Serial> m_serial;

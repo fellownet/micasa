@@ -21,7 +21,7 @@ namespace micasa {
 		enum class LogLevel: int {
 			ERROR   = -99,
 			WARNING = -98,
-			SCRIPT  = -1,
+			NOTICE  = -1,
 			NORMAL  = 0,
 			VERBOSE = 1,
 			DEBUG   = 99

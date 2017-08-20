@@ -456,6 +456,14 @@ typedef struct stat cs_stat_t;
 #define MG_NET_IF MG_NET_IF_SOCKET
 #endif
 
+#ifndef MG_HOSTS_FILE_NAME
+#define MG_HOSTS_FILE_NAME "/etc/hosts"
+#endif
+
+#ifndef MG_RESOLV_CONF_FILE_NAME
+#define MG_RESOLV_CONF_FILE_NAME "/etc/resolv.conf"
+#endif
+
 #endif /* CS_PLATFORM == CS_P_UNIX */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_UNIX_H_ */
 #ifdef V7_MODULE_LINES
@@ -526,7 +534,9 @@ typedef struct stat cs_stat_t;
 #define SIZE_T_FMT "u"
 typedef struct stat cs_stat_t;
 #define DIRSEP '/'
+#if !defined(MGOS_VFS_DEFINE_DIRENT)
 #define CS_DEFINE_DIRENT
+#endif
 
 #define to64(x) strtoll(x, NULL, 10)
 #define INT64_FMT PRId64
@@ -534,7 +544,7 @@ typedef struct stat cs_stat_t;
 #define __cdecl
 #define _FILE_OFFSET_BITS 32
 
-#ifndef RTOS_SDK
+#if !defined(RTOS_SDK) && !defined(__cplusplus)
 #define fileno(x) -1
 #endif
 
@@ -722,6 +732,7 @@ extern "C" {
 struct SlTimeval_t;
 #define timeval SlTimeval_t
 int gettimeofday(struct timeval *t, void *tz);
+int settimeofday(const struct timeval *tv, const void *tz);
 
 int asprintf(char **strp, const char *fmt, ...);
 
@@ -745,7 +756,7 @@ struct stat {
 };
 
 int _stat(const char *pathname, struct stat *st);
-#define stat(a, b) _stat(a, b)
+int stat(const char *pathname, struct stat *st);
 
 #define __S_IFMT 0170000
 
@@ -1496,6 +1507,80 @@ void mbuf_trim(struct mbuf *);
 
 #endif /* CS_COMMON_MG_MEM_H_ */
 #ifdef V7_MODULE_LINES
+#line 1 "common/mg_str.h"
+#endif
+/*
+ * Copyright (c) 2014-2016 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef CS_COMMON_MG_STR_H_
+#define CS_COMMON_MG_STR_H_
+
+#include <stddef.h>
+
+/* Amalgamated: #include "common/platform.h" */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/* Describes chunk of memory */
+struct mg_str {
+  const char *p; /* Memory chunk pointer */
+  size_t len;    /* Memory chunk length */
+};
+
+/*
+ * Helper functions for creating mg_str struct from plain C string.
+ * `NULL` is allowed and becomes `{NULL, 0}`.
+ */
+struct mg_str mg_mk_str(const char *s);
+struct mg_str mg_mk_str_n(const char *s, size_t len);
+
+/* Macro for initializing mg_str. */
+#define MG_MK_STR(str_literal) \
+  { str_literal, sizeof(str_literal) - 1 }
+#define MG_NULL_STR \
+  { NULL, 0 }
+
+/*
+ * Cross-platform version of `strcmp()` where where first string is
+ * specified by `struct mg_str`.
+ */
+int mg_vcmp(const struct mg_str *str2, const char *str1);
+
+/*
+ * Cross-platform version of `strncasecmp()` where first string is
+ * specified by `struct mg_str`.
+ */
+int mg_vcasecmp(const struct mg_str *str2, const char *str1);
+
+/* Creates a copy of s (heap-allocated). */
+struct mg_str mg_strdup(const struct mg_str s);
+
+/*
+ * Creates a copy of s (heap-allocated).
+ * Resulting string is NUL-terminated (but NUL is not included in len).
+ */
+struct mg_str mg_strdup_nul(const struct mg_str s);
+
+/*
+ * Locates character in a string.
+ */
+const char *mg_strchr(const struct mg_str s, int c);
+
+int mg_strcmp(const struct mg_str str1, const struct mg_str str2);
+int mg_strncmp(const struct mg_str str1, const struct mg_str str2, size_t n);
+
+const char *mg_strstr(const struct mg_str haystack, const struct mg_str needle);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* CS_COMMON_MG_STR_H_ */
+#ifdef V7_MODULE_LINES
 #line 1 "common/str_util.h"
 #endif
 /*
@@ -1510,6 +1595,7 @@ void mbuf_trim(struct mbuf *);
 #include <stdlib.h>
 
 /* Amalgamated: #include "common/platform.h" */
+/* Amalgamated: #include "common/mg_str.h" */
 
 #ifndef CS_ENABLE_STRDUP
 #define CS_ENABLE_STRDUP 0
@@ -1603,6 +1689,32 @@ int mg_asprintf(char **buf, size_t size, const char *fmt, ...);
 
 /* Same as mg_asprintf, but takes varargs list. */
 int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
+
+/*
+ * A helper function for traversing a comma separated list of values.
+ * It returns a list pointer shifted to the next value or NULL if the end
+ * of the list found.
+ * The value is stored in a val vector. If the value has a form "x=y", then
+ * eq_val vector is initialised to point to the "y" part, and val vector length
+ * is adjusted to point only to "x".
+ * If the list is just a comma separated list of entries, like "aa,bb,cc" then
+ * `eq_val` will contain zero-length string.
+ *
+ * The purpose of this function is to parse comma separated string without
+ * any copying/memory allocation.
+ */
+const char *mg_next_comma_list_entry(const char *list, struct mg_str *val,
+                                     struct mg_str *eq_val);
+
+/*
+ * Matches 0-terminated string (mg_match_prefix) or string with given length
+ * mg_match_prefix_n against a glob pattern.
+ *
+ * Match is case-insensitive. Returns number of bytes matched, or -1 if no
+ * match.
+ */
+int mg_match_prefix(const char *pattern, int pattern_len, const char *str);
+int mg_match_prefix_n(const struct mg_str pattern, const struct mg_str str);
 
 #ifdef __cplusplus
 }
@@ -1772,32 +1884,34 @@ enum cs_log_level {
   _LL_MAX = 5,
 };
 
+/* Set log level. */
 void cs_log_set_level(enum cs_log_level level);
+
+/* Set log filter. NULL (a default) logs everything. */
+void cs_log_set_filter(char *source_file_name);
+
+int cs_log_print_prefix(enum cs_log_level level, const char *func,
+                        const char *filename);
+
+extern enum cs_log_level cs_log_threshold;
 
 #if CS_ENABLE_STDIO
 
 void cs_log_set_file(FILE *file);
-extern enum cs_log_level cs_log_level;
-void cs_log_print_prefix(const char *func);
-void cs_log_printf(const char *fmt, ...);
+void cs_log_printf(const char *fmt, ...)
+#ifdef __GNUC__
+    __attribute__((format(printf, 1, 2)))
+#endif
+    ;
 
-#define LOG(l, x)                    \
-  do {                               \
-    if (cs_log_level >= l) {         \
-      cs_log_print_prefix(__func__); \
-      cs_log_printf x;               \
-    }                                \
+#define LOG(l, x)                                                    \
+  do {                                                               \
+    if (cs_log_print_prefix(l, __func__, __FILE__)) cs_log_printf x; \
   } while (0)
 
 #ifndef CS_NDEBUG
 
-#define DBG(x)                              \
-  do {                                      \
-    if (cs_log_level >= LL_VERBOSE_DEBUG) { \
-      cs_log_print_prefix(__func__);        \
-      cs_log_printf x;                      \
-    }                                       \
-  } while (0)
+#define DBG(x) LOG(LL_VERBOSE_DEBUG, x)
 
 #else /* NDEBUG */
 
@@ -9017,6 +9131,98 @@ int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
+const char *mg_next_comma_list_entry(const char *, struct mg_str *,
+                                     struct mg_str *) WEAK;
+const char *mg_next_comma_list_entry(const char *list, struct mg_str *val,
+                                     struct mg_str *eq_val) {
+  if (list == NULL || *list == '\0') {
+    /* End of the list */
+    list = NULL;
+  } else {
+    val->p = list;
+    if ((list = strchr(val->p, ',')) != NULL) {
+      /* Comma found. Store length and shift the list ptr */
+      val->len = list - val->p;
+      list++;
+    } else {
+      /* This value is the last one */
+      list = val->p + strlen(val->p);
+      val->len = list - val->p;
+    }
+
+    if (eq_val != NULL) {
+      /* Value has form "x=y", adjust pointers and lengths */
+      /* so that val points to "x", and eq_val points to "y". */
+      eq_val->len = 0;
+      eq_val->p = (const char *) memchr(val->p, '=', val->len);
+      if (eq_val->p != NULL) {
+        eq_val->p++; /* Skip over '=' character */
+        eq_val->len = val->p + val->len - eq_val->p;
+        val->len = (eq_val->p - val->p) - 1;
+      }
+    }
+  }
+
+  return list;
+}
+
+int mg_match_prefix_n(const struct mg_str, const struct mg_str) WEAK;
+int mg_match_prefix_n(const struct mg_str pattern, const struct mg_str str) {
+  const char *or_str;
+  size_t len, i = 0, j = 0;
+  int res;
+
+  if ((or_str = (const char *) memchr(pattern.p, '|', pattern.len)) != NULL ||
+      (or_str = (const char *) memchr(pattern.p, ',', pattern.len)) != NULL) {
+    struct mg_str pstr = {pattern.p, (size_t)(or_str - pattern.p)};
+    res = mg_match_prefix_n(pstr, str);
+    if (res > 0) return res;
+    pstr.p = or_str + 1;
+    pstr.len = (pattern.p + pattern.len) - (or_str + 1);
+    return mg_match_prefix_n(pstr, str);
+  }
+
+  for (; i < pattern.len; i++, j++) {
+    if (pattern.p[i] == '?' && j != str.len) {
+      continue;
+    } else if (pattern.p[i] == '$') {
+      return j == str.len ? (int) j : -1;
+    } else if (pattern.p[i] == '*') {
+      i++;
+      if (i < pattern.len && pattern.p[i] == '*') {
+        i++;
+        len = str.len - j;
+      } else {
+        len = 0;
+        while (j + len != str.len && str.p[j + len] != '/') {
+          len++;
+        }
+      }
+      if (i == pattern.len) {
+        return j + len;
+      }
+      do {
+        const struct mg_str pstr = {pattern.p + i, pattern.len - i};
+        const struct mg_str sstr = {str.p + j + len, str.len - j - len};
+        res = mg_match_prefix_n(pstr, sstr);
+      } while (res == -1 && len-- > 0);
+      return res == -1 ? -1 : (int) (j + res + len);
+    } else if (str_util_lowercase(&pattern.p[i]) !=
+               str_util_lowercase(&str.p[j])) {
+      return -1;
+    }
+  }
+  return j;
+}
+
+int mg_match_prefix(const char *, int, const char *) WEAK;
+int mg_match_prefix(const char *pattern, int pattern_len, const char *str) {
+  const struct mg_str pstr = {pattern, (size_t) pattern_len};
+  struct mg_str s = {str, 0};
+  if (str != NULL) s.len = strlen(str);
+  return mg_match_prefix_n(pstr, s);
+}
+
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
 #line 1 "common/utf.c"
@@ -11213,9 +11419,9 @@ char *cs_read_file(const char *path, size_t *size) {
 char *cs_mmap_file(const char *path, size_t *size) WEAK;
 char *cs_mmap_file(const char *path, size_t *size) {
   char *r;
-  int fd = open(path, O_RDONLY);
+  int fd = open(path, O_RDONLY, 0);
   struct stat st;
-  if (fd == -1) return NULL;
+  if (fd < 0) return NULL;
   fstat(fd, &st);
   *size = (size_t) st.st_size;
   r = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -11259,6 +11465,13 @@ typedef struct {
 
 static call_trace_t call_trace;
 
+#if MGOS_ENABLE_CALL_TRACE
+void esp_exc_printf(const char *fmt, ...);
+#define call_trace_printf esp_exc_printf
+#else
+#define call_trace_printf printf
+#endif
+
 NOINSTR void print_call_trace() {
   static void *prev_trace[CALL_TRACE_SIZE];
   unsigned int size = call_trace.size;
@@ -11269,7 +11482,7 @@ NOINSTR void print_call_trace() {
     if (call_trace.addresses[i] != prev_trace[i]) break;
     pa = (uintptr_t) call_trace.addresses[i];
   }
-  fprintf(stderr, "%u %u", size, i);
+  call_trace_printf("%u %u", size, i);
   for (; i < size; i++) {
     const uintptr_t a = (uintptr_t) call_trace.addresses[i];
     /*
@@ -11279,11 +11492,11 @@ NOINSTR void print_call_trace() {
      */
     uintptr_t mask = ~((uintptr_t) 0);
     while (mask != 0 && (a & mask) != (pa & mask)) mask <<= 4;
-    fprintf(stderr, " %lx", (unsigned long) (a & ~mask));
+    call_trace_printf(" %lx", (unsigned long) (a & ~mask));
     prev_trace[i] = (void *) a;
     pa = a;
   }
-  fprintf(stderr, "\n");
+  call_trace_printf("\n");
 }
 
 #if MGOS_ENABLE_CALL_TRACE && !V7_ENABLE_CALL_TRACE
@@ -11928,46 +12141,6 @@ clean:
 }
 
 WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err File_exec(struct v7 *v7, v7_val_t *res) {
-  enum v7_err rcode = V7_OK;
-  v7_val_t arg0 = v7_arg(v7, 0);
-  v7_val_t arg1 = v7_arg(v7, 1);
-  FILE *fp = NULL;
-
-  if (v7_is_string(arg0)) {
-    const char *s1 = v7_get_cstring(v7, &arg0);
-    const char *s2 = "rb"; /* Open files in read mode by default */
-
-    if (v7_is_string(arg1)) {
-      s2 = v7_get_cstring(v7, &arg1);
-    }
-
-    if (s1 == NULL || s2 == NULL) {
-      *res = V7_NULL;
-      goto clean;
-    }
-
-    fp = popen(s1, s2);
-    if (fp != NULL) {
-      v7_val_t obj = v7_mk_object(v7);
-      v7_val_t file_proto = v7_get(
-          v7, v7_get(v7, v7_get_global(v7), "File", ~0), "prototype", ~0);
-      v7_set_proto(v7, obj, file_proto);
-      v7_def(v7, obj, s_fd_prop, sizeof(s_fd_prop) - 1, V7_DESC_ENUMERABLE(0),
-             v7_file_to_val(v7, fp));
-      *res = obj;
-      goto clean;
-    }
-  }
-
-  *res = V7_NULL;
-
-clean:
-  return rcode;
-}
-
-
-WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err File_read(struct v7 *v7, v7_val_t *res) {
   v7_val_t arg0 = v7_arg(v7, 0);
 
@@ -12125,7 +12298,6 @@ void init_file(struct v7 *v7) {
   v7_set_method(v7, file_obj, "remove", File_remove);
   v7_set_method(v7, file_obj, "rename", File_rename);
   v7_set_method(v7, file_obj, "open", File_open);
-  v7_set_method(v7, file_obj, "exec", File_exec);
   v7_set_method(v7, file_obj, "read", File_read);
   v7_set_method(v7, file_obj, "write", File_write);
   v7_set_method(v7, file_obj, "loadJSON", File_loadJSON);
@@ -21450,7 +21622,7 @@ static char *append_hex(char *buf, char *limit, uint8_t c) {
  * If size is zero it doesn't output anything but keeps counting.
  */
 static int snquote(char *buf, size_t size, const char *s, size_t len) {
-  char *limit = buf + size - 1;
+  char *limit = buf + size;
   const char *end;
   /*
    * String single character escape sequence:
@@ -21491,8 +21663,14 @@ static int snquote(char *buf, size_t size, const char *s, size_t len) {
   i++;
   if (buf < limit) *buf++ = '"';
 
-  if (size != 0) {
+  if (buf < limit) {
     *buf = '\0';
+  } else if (size != 0) {
+    /*
+     * There is no room for the NULL char, but the size wasn't zero, so we can
+     * safely put NULL in the previous byte
+     */
+    *(buf - 1) = '\0';
   }
   return i;
 }

@@ -203,6 +203,10 @@ namespace micasa {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
@@ -308,6 +312,10 @@ namespace micasa {
 			{ "sort", 999 }
 		};
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceSettingsJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
@@ -406,10 +414,14 @@ namespace micasa {
 		// If the update originates from the plugin it is not send back to the plugin again.
 		bool success = true;
 		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN ) {
-			success = this->getPlugin()->updateDevice( source_, this->shared_from_this(), apply );
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			if (
+				plugin != this->getPlugin()
+				|| ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
+			) {
+				success = success && plugin->updateDevice( source_, Device::shared_from_this(), plugin == this->getPlugin(), apply );
+			}
 		}
-
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
 				std::string date = "strftime( '%Y-%m-%d %H:', datetime( 'now' ) ) || CASE WHEN CAST( strftime( '%M',  datetime( 'now' ) ) AS INTEGER ) < 10 THEN '0' ELSE '' END || CAST( CAST( strftime( '%M', datetime( 'now' ) ) AS INTEGER ) / 5 * 5 AS TEXT ) || ':00'";
@@ -447,7 +459,7 @@ namespace micasa {
 				this->m_enabled
 				&& this->getPlugin()->getState() >= Plugin::State::READY
 			) {
-				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( this->shared_from_this() ), source_ );
+				g_controller->newEvent<Level>( std::static_pointer_cast<Level>( Device::shared_from_this() ), source_ );
 			}
 			Logger::logr( Logger::LogLevel::NORMAL, this, "New value %.3lf.", this->m_value );
 		} else {

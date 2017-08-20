@@ -120,15 +120,14 @@ namespace micasa {
 	};
 
 	json Device::getJson() const {
-		auto plugin = this->getPlugin();
+		json result = json::object();
 
-		json result = plugin->getDeviceJson( this->shared_from_this() );
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
 		result["enabled"] = this->isEnabled();
-		result["plugin"] = plugin->getName();
-		result["plugin_id"] = plugin->getId();
+		result["plugin"] = this->getPlugin()->getName();
+		result["plugin_id"] = this->getPlugin()->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
 		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", false );
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
@@ -137,7 +136,6 @@ namespace micasa {
 		if ( this->getSettings()->contains( DEVICE_SETTING_SIGNAL_STRENGTH ) ) {
 			result["signal_strength"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_SIGNAL_STRENGTH );
 		}
-
 		result["total_timers"] = g_database->getQueryValue<unsigned int>(
 			"SELECT COUNT(`timer_id`) "
 			"FROM `x_timer_devices` "
@@ -166,10 +164,9 @@ namespace micasa {
 	};
 
 	json Device::getSettingsJson() const {
-		auto plugin = this->getPlugin();
+		json result = json::array();
 
-		json result = plugin->getDeviceSettingsJson( this->shared_from_this() );
-		json setting = {
+		result += {
 			{ "name", "name" },
 			{ "label", "Name" },
 			{ "type", "string" },
@@ -178,18 +175,14 @@ namespace micasa {
 			{ "mandatory", true },
 			{ "sort", 1 }
 		};
-		result += setting;
-
-		setting = {
+		result += {
 			{ "name", "enabled" },
 			{ "label", "Enabled" },
 			{ "type", "boolean" },
 			{ "default", true },
 			{ "sort", 2 }
 		};
-		result += setting;
-
-		setting = {
+		result += {
 			{ "name", "ignore_duplicates" },
 			{ "label", "Ignore Duplicates" },
 			{ "description", "When this checkbox is enabled all duplicate values received for this device are discarded." },
@@ -198,7 +191,6 @@ namespace micasa {
 			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
 			{ "sort", 3 }
 		};
-		result += setting;
 
 		json scriptOptions = json::array();
 		auto scripts = g_database->getQuery(
@@ -229,7 +221,11 @@ namespace micasa {
 	};
 
 	void Device::putSettingsJson( const json& settings_ ) {
-		this->getPlugin()->putDeviceSettingsJson( this->shared_from_this(), settings_ );
+		auto owner = this->getPlugin();
+		auto device = this->shared_from_this();
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->putDeviceSettingsJson( this->shared_from_this(), settings_, plugin == owner );
+		}
 	};
 
 	void Device::setEnabled( bool enabled_ ) {

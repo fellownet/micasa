@@ -14,6 +14,28 @@ set( SRC
 	# libraries
 	lib/mongoose/mongoose.c
 	lib/v7/v7.c
+	lib/tlv8/tlv8.cpp
+
+	lib/srp/cstr.c
+	lib/srp/srp.c
+	lib/srp/srp6_server.c
+	lib/srp/t_conf.c
+	lib/srp/t_conv.c
+	lib/srp/t_math.c
+	lib/srp/t_misc.c
+	lib/srp/t_pw.c
+	lib/srp/t_read.c
+	lib/srp/t_truerand.c
+
+	lib/hkdf/hkdf.c
+
+	lib/chacha20/chacha20_simple.c
+
+	lib/poly1305/poly1305.c
+
+	lib/ed25519/ed25519.c
+
+	lib/curve25519/curve25519-donna.c
 
 	# main
 	src/micasa.cpp
@@ -184,7 +206,6 @@ if( WITH_HOMEKIT )
 
 	set( SRC ${SRC}
 		src/plugins/HomeKit.cpp
-		src/plugins/HomeKit/Manager.cpp
 	)
 endif()
 
@@ -207,6 +228,18 @@ set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -D
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
 add_definitions( -DV7_ENABLE_FILE -DV7_ENABLE_SOCKET -DV7_ENABLE_CRYPTO )
+
+#
+# Add homekit libraries
+# TODO move these to plugins/Homekit/
+#
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/tlv8 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/srp )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/hkdf )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/chacha20 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/curve25519 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/ed25519 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/poly1305 )
 
 #
 # Set compiler options.
@@ -309,3 +342,23 @@ if( SQLITE3_FOUND )
 else()
 	message( FATAL_ERROR "SQLite3 not found on your system." )
 endif( SQLITE3_FOUND )
+
+#
+# Check for Libdnssd
+#
+if( WITH_HOMEKIT )
+	if( WITH_OPENSSL )
+		#find_path( LIBAVAHI_CLIENT_INCLUDE_DIR NAMES dns_sd.h )
+		find_library( LIBAVAHI_CLIENT_LIBRARY NAMES avahi-client )
+		find_library( LIBAVAHI_COMMON_LIBRARY NAMES avahi-common )
+		find_package_handle_standard_args( LIBAVAHI "Libavahi not found" LIBAVAHI_CLIENT_LIBRARY LIBAVAHI_COMMON_LIBRARY )
+		if( LIBAVAHI_FOUND )
+			#include_directories( ${LIBDNSSD_INCLUDE_DIR} )
+			target_link_libraries( micasa ${LIBAVAHI_CLIENT_LIBRARY} ${LIBAVAHI_COMMON_LIBRARY} )
+		else()
+			message( FATAL_ERROR "Libavahi not found on your system." )
+		endif()
+	else()
+		message( FATAL_ERROR "Homekit support requires OpenSSL." )
+	endif()
+endif()

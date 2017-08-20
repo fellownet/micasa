@@ -37,7 +37,7 @@ namespace micasa {
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
 
-		enum class UpdateSource: unsigned short {
+		enum class UpdateSource: unsigned int {
 			PLUGIN   = (1 << 0),
 			TIMER    = (1 << 1),
 			SCRIPT   = (1 << 2),
@@ -49,7 +49,7 @@ namespace micasa {
 			EVENT    = TIMER | SCRIPT | LINK,
 			ANY      = PLUGIN | TIMER | SCRIPT | API | LINK | SYSTEM,
 
-			INTERNAL = (1 << 6) // should always be filtered out by plugin
+			INTERNAL = (1 << 6), // should always be filtered out by plugin
 		}; // enum UpdateSource
 		ENUM_UTIL( UpdateSource );
 
