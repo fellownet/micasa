@@ -258,9 +258,6 @@ namespace micasa {
 				task_->m_next->m_previous = task_->m_previous;
 			}
 			task_->m_previous = task_->m_next = nullptr;
-#ifdef _DEBUG
-			//assert( ( this->m_start == nullptr || this->m_start->time <= this->m_start->m_next->time ) && "Start should be the first task in the list." );
-#endif // _DEBUG
 			this->m_count--;
 			this->_notify( false, [this]() -> void { this->m_continue = true; } );
 		}

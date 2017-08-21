@@ -88,16 +88,11 @@ namespace micasa {
 		}
 	};
 
-	std::string randomString( size_t length_ ) {
-		auto randchar = []() -> char {
-			const char charset[] =
-			"0123456789"
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			"abcdefghijklmnopqrstuvwxyz";
-			const size_t max_index = (sizeof(charset) - 1);
-			return charset[ rand() % max_index ];
+	std::string randomString( size_t length_, std::string charset_ ) {
+		auto randchar = [&charset_]() -> char {
+			return charset_.c_str()[ rand() % charset_.length() ];
 		};
-		std::string str( length_,0 );
+		std::string str( length_, 0 );
 		std::generate_n( str.begin(), length_, randchar );
 		return str;
 	};

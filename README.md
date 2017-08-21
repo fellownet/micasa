@@ -9,6 +9,7 @@ Micasa is a software home automation controller designed to interconnect various
 
 - Z-Wave
 - RFXcom
+- HomeKit
 - Harmony Hub
 - PiFace
 - SolarEdge API

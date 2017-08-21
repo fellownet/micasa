@@ -16,7 +16,7 @@ namespace micasa {
 	std::vector<std::string> stringSplit( const std::string& input_, const char delim_ );
 	std::string stringJoin( const std::vector<std::string>& input_, const std::string& glue_ );
 	std::string stringFormat( const std::string format_, ... );
-	std::string randomString( size_t length_ );
+	std::string randomString( size_t length_, std::string charset_ = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" );
 	int randomNumber( int min_, int max_ );
 
 	const std::map<std::string, std::string> getSerialPorts();
