@@ -307,25 +307,25 @@ namespace micasa {
 							json output = json::object();
 							output["characteristics"] = json::array();
 
-							if ( device_->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
+							if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
 								output["characteristics"] += {
 									{ "aid", device_->getId() << 10 },
 									{ "iid", Characteristic::LIGHT },
 									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
 								};
-							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
+							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
 								output["characteristics"] += {
 									{ "aid", device_->getId() << 10 },
 									{ "iid", Characteristic::MOTION_DETECTOR },
 									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
 								};
-							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
+							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
 								output["characteristics"] += {
 									{ "aid", device_->getId() << 10 },
 									{ "iid", Characteristic::FAN },
 									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
 								};
-							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
+							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
 								output["characteristics"] += {
 									{ "aid", device_->getId() << 10 },
 									{ "iid", Characteristic::TEMPERATURE_SENSOR },
@@ -388,7 +388,7 @@ namespace micasa {
 
 		// If the subtype of the device can be changed by the user, the homekit setting should be shown only when a
 		// supported subtype is selected. Otherwise it should be visible only when the fixed subtype is supported.
-		std::string subtype = device_->getSettings()->get( "subtype", "unsupported" );
+		std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 		if ( device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
 			for ( auto& setting : json_ ) {
 				if ( setting["name"] == "subtype" ) {
@@ -1154,7 +1154,7 @@ namespace micasa {
 					};
 
 					// Only add supported devices to the bridge.
-					if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
+					if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
 						json characteristics = json::array();
 						characteristics += {
 							{ "type", "25" }, // 00000025-0000-1000-8000-0026BB765291 On
@@ -1176,7 +1176,7 @@ namespace micasa {
 							{ "aid", device->getId() << 10 },
 							{ "services", services }
 						};
-					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
+					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
 						json characteristics = json::array();
 						characteristics += {
 							{ "type", "22" }, // 00000022-0000-1000-8000-0026BB765291 Motion Detected
@@ -1198,7 +1198,7 @@ namespace micasa {
 							{ "aid", device->getId() << 10 },
 							{ "services", services }
 						};
-					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
+					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
 						json characteristics = json::array();
 						characteristics += {
 							{ "type", "B0" }, // 000000B0-0000-1000-8000-0026BB765291 Active
@@ -1220,7 +1220,7 @@ namespace micasa {
 							{ "aid", device->getId() << 10 },
 							{ "services", services }
 						};
-					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
+					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
 						// TODO remove pw perm
 						json characteristics = json::array();
 						characteristics += {
