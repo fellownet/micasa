@@ -375,28 +375,42 @@ namespace micasa {
 	};
 
 	void HomeKit::updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
-		for ( auto& setting : json_ ) {
-			if ( setting["name"] == "subtype" ) {
-				for ( auto& subtype : setting["options"] ) {
-					if (
-						subtype["value"] == Switch::SubTypeText.at( Switch::SubType::LIGHT )
-						|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
-						|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::FAN )
-						|| subtype["value"] == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
-					) {
-						subtype["settings"] = {
-							{
-								{ "name", "enable_homekit_" + this->getReference() },
-								{ "label", "HomeKit" },
-								{ "badge", "Enable HomeKit" },
-								{ "description", "Enable this setting to make this device accessible by HomeKit controllers." },
-								{ "type", "boolean" },
-								{ "class", setting["class"] }
-							}
-						};
+		auto getSetting = [this]() -> json {
+			return {
+				{ "name", "enable_homekit_" + this->getReference() },
+				{ "label", "HomeKit" },
+				{ "badge", "Enable HomeKit" },
+				{ "description", "Enable this setting to make this device accessible by HomeKit controllers." },
+				{ "type", "boolean" },
+				{ "class", "advanced" }
+			};
+		};
+
+		// If the subtype of the device can be changed by the user, the homekit setting should be shown only when a
+		// supported subtype is selected. Otherwise it should be visible only when the fixed subtype is supported.
+		std::string subtype = device_->getSettings()->get( "subtype", "unsupported" );
+		if ( device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			for ( auto& setting : json_ ) {
+				if ( setting["name"] == "subtype" ) {
+					for ( auto& subtype : setting["options"] ) {
+						if (
+							subtype["value"] == Switch::SubTypeText.at( Switch::SubType::LIGHT )
+							|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
+							|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::FAN )
+							|| subtype["value"] == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
+						) {
+							subtype["settings"] = { getSetting() };
+						}
 					}
 				}
 			}
+		} else if (
+			subtype == Switch::SubTypeText.at( Switch::SubType::LIGHT )
+			|| subtype == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
+			|| subtype == Switch::SubTypeText.at( Switch::SubType::FAN )
+			|| subtype == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
+		) {
+			json_ += getSetting();
 		}
 	};
 
