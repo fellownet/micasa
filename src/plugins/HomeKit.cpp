@@ -410,7 +410,7 @@ namespace micasa {
 			|| subtype == Switch::SubTypeText.at( Switch::SubType::FAN )
 			|| subtype == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
 		) {
-			json_ += getSetting();
+			json_.push_back( getSetting() );
 		}
 	};
 
