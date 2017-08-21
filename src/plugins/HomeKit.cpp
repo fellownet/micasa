@@ -106,22 +106,22 @@ namespace micasa {
 		ENCRYPTED_DATA = 0x05,
 		SEQUENCE_NUM   = 0x06,
 		ERROR_CODE     = 0x07,
-		PROOF          = 0x0a
+		PROOF          = 0x0a,
 	}; // enum class TLVType
 
 	enum class TLVCode: uint8_t {
 		INVALID_REQUEST   = 0x02,
-		INVALID_SIGNATURE = 0x04
+		INVALID_SIGNATURE = 0x04,
 	}; // enum class TLVCode
 
 	enum class Characteristic: unsigned int {
 		// HAP
-		IDENTIFY    = 6,
+		IDENTIFY           = 6,
 		// Custom
-		LIGHT       = 100,
-		FAN         = 101,
-		SWITCH      = 102,
-		TEMPERATURE = 103,
+		LIGHT              = 100,
+		MOTION_DETECTOR    = 101,
+		FAN                = 102,
+		TEMPERATURE_SENSOR = 103,
 	}; // enum class Characteristic
 
 	HomeKit::HomeKit( const unsigned int id_, const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) :
@@ -313,6 +313,24 @@ namespace micasa {
 									{ "iid", Characteristic::LIGHT },
 									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
 								};
+							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
+								output["characteristics"] += {
+									{ "aid", device_->getId() << 10 },
+									{ "iid", Characteristic::MOTION_DETECTOR },
+									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
+								};
+							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
+								output["characteristics"] += {
+									{ "aid", device_->getId() << 10 },
+									{ "iid", Characteristic::FAN },
+									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
+								};
+							} else if ( device_->getSettings()->get( "subtype", "unsupported" ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
+								output["characteristics"] += {
+									{ "aid", device_->getId() << 10 },
+									{ "iid", Characteristic::TEMPERATURE_SENSOR },
+									{ "value", std::static_pointer_cast<Level>( device_ )->getValue() }
+								};
 							} else {
 								Logger::log( Logger::LogLevel::ERROR, this, "Invalid device subtype when sending event." );
 								return;
@@ -362,8 +380,9 @@ namespace micasa {
 				for ( auto& subtype : setting["options"] ) {
 					if (
 						subtype["value"] == Switch::SubTypeText.at( Switch::SubType::LIGHT )
-						//|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
-						//|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::FAN )
+						|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
+						|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::FAN )
+						|| subtype["value"] == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
 					) {
 						subtype["settings"] = {
 							{
@@ -1107,7 +1126,7 @@ namespace micasa {
 							{
 								{ "type", "21" }, // 00000021-0000-1000-8000-0026BB765291 Model
 								{ "iid", 5 },
-								{ "value", "LightDevice1,1" },
+								{ "value", "MicasaDevice1,1" },
 								{ "perms", { "pr" } },
 								{ "format", "string" },
 							},
@@ -1122,7 +1141,6 @@ namespace micasa {
 
 					// Only add supported devices to the bridge.
 					if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
-
 						json characteristics = json::array();
 						characteristics += {
 							{ "type", "25" }, // 00000025-0000-1000-8000-0026BB765291 On
@@ -1135,6 +1153,73 @@ namespace micasa {
 
 						services += {
 							{ "type", "43" }, // 00000043-0000-1000-8000-0026BB765291 Light
+							{ "iid", 7 },
+							{ "characteristics", characteristics },
+							{ "primary", true }
+						};
+
+						result["accessories"] += {
+							{ "aid", device->getId() << 10 },
+							{ "services", services }
+						};
+					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
+						json characteristics = json::array();
+						characteristics += {
+							{ "type", "22" }, // 00000022-0000-1000-8000-0026BB765291 Motion Detected
+							{ "iid", Characteristic::MOTION_DETECTOR },
+							{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) },
+							{ "perms", { "pr", "ev" } },
+							{ "format", "bool" },
+							{ "ev", true }
+						};
+
+						services += {
+							{ "type", "85" }, // 00000085-0000-1000-8000-0026BB765291 Motion Sensor
+							{ "iid", 7 },
+							{ "characteristics", characteristics },
+							{ "primary", true }
+						};
+
+						result["accessories"] += {
+							{ "aid", device->getId() << 10 },
+							{ "services", services }
+						};
+					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
+						json characteristics = json::array();
+						characteristics += {
+							{ "type", "B0" }, // 000000B0-0000-1000-8000-0026BB765291 Active
+							{ "iid", Characteristic::FAN },
+							{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 0 },
+							{ "perms", perms },
+							{ "format", "uint8" },
+							{ "ev", true }
+						};
+
+						services += {
+							{ "type", "B7" }, // 000000B7-0000-1000-8000-0026BB765291 Fan v2
+							{ "iid", 7 },
+							{ "characteristics", characteristics },
+							{ "primary", true }
+						};
+
+						result["accessories"] += {
+							{ "aid", device->getId() << 10 },
+							{ "services", services }
+						};
+					} else if ( device->getSettings()->get( "subtype", "unsupported" ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
+						// TODO remove pw perm
+						json characteristics = json::array();
+						characteristics += {
+							{ "type", "11" }, // 00000011-0000-1000-8000-0026BB765291 Current Temperature
+							{ "iid", Characteristic::TEMPERATURE_SENSOR },
+							{ "value", std::static_pointer_cast<Level>( device )->getValue() },
+							{ "perms", { "pr", "ev" } },
+							{ "format", "uint8" },
+							{ "ev", true }
+						};
+
+						services += {
+							{ "type", "8A" }, // 0000008A-0000-1000-8000-0026BB765291 Temperature Sensor
 							{ "iid", 7 },
 							{ "characteristics", characteristics },
 							{ "primary", true }
@@ -1186,7 +1271,8 @@ namespace micasa {
 							switch( (Characteristic)iid ) {
 								case Characteristic::IDENTIFY:
 									break;
-								case Characteristic::LIGHT: {
+								case Characteristic::LIGHT:
+								case Characteristic::FAN: {
 									auto value = jsonGet<bool>( characteristic, "value" );
 									std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::LINK, value ? Switch::Option::ON : Switch::Option::OFF );
 									break;
@@ -1267,7 +1353,14 @@ namespace micasa {
 
 					switch( (Characteristic)iid ) {
 						case Characteristic::LIGHT:
+						case Characteristic::MOTION_DETECTOR:
 							characteristic["value"] = ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON );
+							break;
+						case Characteristic::FAN:
+							characteristic["value"] = ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 0;
+							break;
+						case Characteristic::TEMPERATURE_SENSOR:
+							characteristic["value"] = std::static_pointer_cast<Level>( device )->getValue();
 							break;
 						default:
 							Logger::log( Logger::LogLevel::ERROR, this, "Unknown iid in characteristics GET request." );
