@@ -1154,6 +1154,8 @@ namespace micasa {
 					};
 
 					// Only add supported devices to the bridge.
+					// TODO add battery status to service
+					// TODO add more types
 					if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
 						json characteristics = json::array();
 						characteristics += {

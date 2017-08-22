@@ -33,7 +33,7 @@ namespace micasa {
 			}
 
 			std::stringstream url;
-			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/list?api_key=" << this->m_settings->get( "api_key" );
+			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/list.json?api_key=" << this->m_settings->get( "api_key" );
 			this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {

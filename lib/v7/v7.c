@@ -191,7 +191,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <ctype.h>
 
 #ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib") /* Linking with winsock library */
@@ -218,13 +217,13 @@
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
 #define snprintf _snprintf
+#define fileno _fileno
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) *1000)
 #define to64(x) _atoi64(x)
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
 #define popen(x, y) _popen((x), (y))
 #define pclose(x) _pclose(x)
-#define fileno _fileno
 #endif
 #define rmdir _rmdir
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -271,7 +270,6 @@ typedef struct _stati64 cs_stat_t;
 #define S_ISREG(x) (((x) &_S_IFMT) == _S_IFREG)
 #endif
 #define DIRSEP '\\'
-#define CS_DEFINE_DIRENT
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -456,14 +454,6 @@ typedef struct stat cs_stat_t;
 #define MG_NET_IF MG_NET_IF_SOCKET
 #endif
 
-#ifndef MG_HOSTS_FILE_NAME
-#define MG_HOSTS_FILE_NAME "/etc/hosts"
-#endif
-
-#ifndef MG_RESOLV_CONF_FILE_NAME
-#define MG_RESOLV_CONF_FILE_NAME "/etc/resolv.conf"
-#endif
-
 #endif /* CS_PLATFORM == CS_P_UNIX */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_UNIX_H_ */
 #ifdef V7_MODULE_LINES
@@ -534,17 +524,13 @@ typedef struct stat cs_stat_t;
 #define SIZE_T_FMT "u"
 typedef struct stat cs_stat_t;
 #define DIRSEP '/'
-#if !defined(MGOS_VFS_DEFINE_DIRENT)
-#define CS_DEFINE_DIRENT
-#endif
-
 #define to64(x) strtoll(x, NULL, 10)
 #define INT64_FMT PRId64
 #define INT64_X_FMT PRIx64
 #define __cdecl
 #define _FILE_OFFSET_BITS 32
 
-#if !defined(RTOS_SDK) && !defined(__cplusplus)
+#ifndef RTOS_SDK
 #define fileno(x) -1
 #endif
 
@@ -732,7 +718,6 @@ extern "C" {
 struct SlTimeval_t;
 #define timeval SlTimeval_t
 int gettimeofday(struct timeval *t, void *tz);
-int settimeofday(const struct timeval *tv, const void *tz);
 
 int asprintf(char **strp, const char *fmt, ...);
 
@@ -756,7 +741,7 @@ struct stat {
 };
 
 int _stat(const char *pathname, struct stat *st);
-int stat(const char *pathname, struct stat *st);
+#define stat(a, b) _stat(a, b)
 
 #define __S_IFMT 0170000
 
@@ -777,6 +762,22 @@ int stat(const char *pathname, struct stat *st);
 
 #endif /* __TI_COMPILER_VERSION__ */
 
+#ifdef CC3200_FS_SPIFFS
+#include <common/spiffs/spiffs.h>
+
+typedef struct {
+  spiffs_DIR dh;
+  struct spiffs_dirent de;
+} DIR;
+
+#define d_name name
+#define dirent spiffs_dirent
+
+DIR *opendir(const char *dir_name);
+int closedir(DIR *dir);
+struct dirent *readdir(DIR *dir);
+#endif /* CC3200_FS_SPIFFS */
+
 #ifdef CC3200_FS_SLFS
 #define MG_FS_SLFS
 #endif
@@ -784,7 +785,6 @@ int stat(const char *pathname, struct stat *st);
 #if (defined(CC3200_FS_SPIFFS) || defined(CC3200_FS_SLFS)) && \
     !defined(MG_ENABLE_FILESYSTEM)
 #define MG_ENABLE_FILESYSTEM 1
-#define CS_DEFINE_DIRENT
 #endif
 
 #ifndef CS_ENABLE_STDIO
@@ -1076,10 +1076,6 @@ int gettimeofday(struct timeval *tp, void *tzp);
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #endif
 
-#ifndef EAGAIN
-#define EAGAIN EWOULDBLOCK
-#endif
-
 #ifndef __func__
 #define STRX(x) #x
 #define STR(x) STRX(x)
@@ -1135,7 +1131,6 @@ typedef uint32_t in_addr_t;
 #define SIZE_T_FMT "u"
 
 #define DIRSEP '\\'
-#define CS_DEFINE_DIRENT
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -1368,31 +1363,20 @@ char* inet_ntoa(struct in_addr in);
 #if CS_PLATFORM == CS_P_STM32
 
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 #include <memory.h>
-#include <fcntl.h>
-#include <stm32_sdk_hal.h>
 
 #define to64(x) strtoll(x, NULL, 10)
 #define INT64_FMT PRId64
 #define SIZE_T_FMT "u"
-typedef struct stat cs_stat_t;
-#define DIRSEP '/'
 
 #ifndef CS_ENABLE_STDIO
 #define CS_ENABLE_STDIO 1
 #endif
-
-#ifndef MG_ENABLE_FILESYSTEM
-#define MG_ENABLE_FILESYSTEM 1
-#endif
-
-#define CS_DEFINE_DIRENT
 
 #endif /* CS_PLATFORM == CS_P_STM32 */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_STM32_H_ */
@@ -1479,108 +1463,6 @@ void mbuf_trim(struct mbuf *);
 
 #endif /* CS_COMMON_MBUF_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "common/mg_mem.h"
-#endif
-/*
- * Copyright (c) 2014-2016 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_COMMON_MG_MEM_H_
-#define CS_COMMON_MG_MEM_H_
-
-#ifndef MG_MALLOC
-#define MG_MALLOC malloc
-#endif
-
-#ifndef MG_CALLOC
-#define MG_CALLOC calloc
-#endif
-
-#ifndef MG_REALLOC
-#define MG_REALLOC realloc
-#endif
-
-#ifndef MG_FREE
-#define MG_FREE free
-#endif
-
-#endif /* CS_COMMON_MG_MEM_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "common/mg_str.h"
-#endif
-/*
- * Copyright (c) 2014-2016 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_COMMON_MG_STR_H_
-#define CS_COMMON_MG_STR_H_
-
-#include <stddef.h>
-
-/* Amalgamated: #include "common/platform.h" */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-/* Describes chunk of memory */
-struct mg_str {
-  const char *p; /* Memory chunk pointer */
-  size_t len;    /* Memory chunk length */
-};
-
-/*
- * Helper functions for creating mg_str struct from plain C string.
- * `NULL` is allowed and becomes `{NULL, 0}`.
- */
-struct mg_str mg_mk_str(const char *s);
-struct mg_str mg_mk_str_n(const char *s, size_t len);
-
-/* Macro for initializing mg_str. */
-#define MG_MK_STR(str_literal) \
-  { str_literal, sizeof(str_literal) - 1 }
-#define MG_NULL_STR \
-  { NULL, 0 }
-
-/*
- * Cross-platform version of `strcmp()` where where first string is
- * specified by `struct mg_str`.
- */
-int mg_vcmp(const struct mg_str *str2, const char *str1);
-
-/*
- * Cross-platform version of `strncasecmp()` where first string is
- * specified by `struct mg_str`.
- */
-int mg_vcasecmp(const struct mg_str *str2, const char *str1);
-
-/* Creates a copy of s (heap-allocated). */
-struct mg_str mg_strdup(const struct mg_str s);
-
-/*
- * Creates a copy of s (heap-allocated).
- * Resulting string is NUL-terminated (but NUL is not included in len).
- */
-struct mg_str mg_strdup_nul(const struct mg_str s);
-
-/*
- * Locates character in a string.
- */
-const char *mg_strchr(const struct mg_str s, int c);
-
-int mg_strcmp(const struct mg_str str1, const struct mg_str str2);
-int mg_strncmp(const struct mg_str str1, const struct mg_str str2, size_t n);
-
-const char *mg_strstr(const struct mg_str haystack, const struct mg_str needle);
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* CS_COMMON_MG_STR_H_ */
-#ifdef V7_MODULE_LINES
 #line 1 "common/str_util.h"
 #endif
 /*
@@ -1595,7 +1477,6 @@ const char *mg_strstr(const struct mg_str haystack, const struct mg_str needle);
 #include <stdlib.h>
 
 /* Amalgamated: #include "common/platform.h" */
-/* Amalgamated: #include "common/mg_str.h" */
 
 #ifndef CS_ENABLE_STRDUP
 #define CS_ENABLE_STRDUP 0
@@ -1689,32 +1570,6 @@ int mg_asprintf(char **buf, size_t size, const char *fmt, ...);
 
 /* Same as mg_asprintf, but takes varargs list. */
 int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
-
-/*
- * A helper function for traversing a comma separated list of values.
- * It returns a list pointer shifted to the next value or NULL if the end
- * of the list found.
- * The value is stored in a val vector. If the value has a form "x=y", then
- * eq_val vector is initialised to point to the "y" part, and val vector length
- * is adjusted to point only to "x".
- * If the list is just a comma separated list of entries, like "aa,bb,cc" then
- * `eq_val` will contain zero-length string.
- *
- * The purpose of this function is to parse comma separated string without
- * any copying/memory allocation.
- */
-const char *mg_next_comma_list_entry(const char *list, struct mg_str *val,
-                                     struct mg_str *eq_val);
-
-/*
- * Matches 0-terminated string (mg_match_prefix) or string with given length
- * mg_match_prefix_n against a glob pattern.
- *
- * Match is case-insensitive. Returns number of bytes matched, or -1 if no
- * match.
- */
-int mg_match_prefix(const char *pattern, int pattern_len, const char *str);
-int mg_match_prefix_n(const struct mg_str pattern, const struct mg_str str);
 
 #ifdef __cplusplus
 }
@@ -1884,34 +1739,32 @@ enum cs_log_level {
   _LL_MAX = 5,
 };
 
-/* Set log level. */
 void cs_log_set_level(enum cs_log_level level);
-
-/* Set log filter. NULL (a default) logs everything. */
-void cs_log_set_filter(char *source_file_name);
-
-int cs_log_print_prefix(enum cs_log_level level, const char *func,
-                        const char *filename);
-
-extern enum cs_log_level cs_log_threshold;
 
 #if CS_ENABLE_STDIO
 
 void cs_log_set_file(FILE *file);
-void cs_log_printf(const char *fmt, ...)
-#ifdef __GNUC__
-    __attribute__((format(printf, 1, 2)))
-#endif
-    ;
+extern enum cs_log_level cs_log_level;
+void cs_log_print_prefix(const char *func);
+void cs_log_printf(const char *fmt, ...);
 
-#define LOG(l, x)                                                    \
-  do {                                                               \
-    if (cs_log_print_prefix(l, __func__, __FILE__)) cs_log_printf x; \
+#define LOG(l, x)                    \
+  do {                               \
+    if (cs_log_level >= l) {         \
+      cs_log_print_prefix(__func__); \
+      cs_log_printf x;               \
+    }                                \
   } while (0)
 
 #ifndef CS_NDEBUG
 
-#define DBG(x) LOG(LL_VERBOSE_DEBUG, x)
+#define DBG(x)                              \
+  do {                                      \
+    if (cs_log_level >= LL_VERBOSE_DEBUG) { \
+      cs_log_print_prefix(__func__);        \
+      cs_log_printf x;                      \
+    }                                       \
+  } while (0)
 
 #else /* NDEBUG */
 
@@ -1932,7 +1785,7 @@ void cs_log_printf(const char *fmt, ...)
 
 #endif /* CS_COMMON_CS_DBG_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_md5.h"
+#line 1 "common/md5.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1944,23 +1797,33 @@ void cs_log_printf(const char *fmt, ...)
 
 /* Amalgamated: #include "common/platform.h" */
 
-#ifndef CS_DISABLE_MD5
-#define CS_DISABLE_MD5 0
+#ifndef DISABLE_MD5
+#define DISABLE_MD5 0
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-typedef struct {
+typedef struct MD5Context {
   uint32_t buf[4];
   uint32_t bits[2];
   unsigned char in[64];
-} cs_md5_ctx;
+} MD5_CTX;
 
-void cs_md5_init(cs_md5_ctx *c);
-void cs_md5_update(cs_md5_ctx *c, const unsigned char *data, size_t len);
-void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
+void MD5_Init(MD5_CTX *c);
+void MD5_Update(MD5_CTX *c, const unsigned char *data, size_t len);
+void MD5_Final(unsigned char *md, MD5_CTX *c);
+
+/*
+ * Return stringified MD5 hash for NULL terminated list of pointer/length pairs.
+ * A length should be specified as size_t variable.
+ * Example:
+ *
+ *    char buf[33];
+ *    cs_md5(buf, "foo", (size_t) 3, "bar", (size_t) 3, NULL);
+ */
+char *cs_md5(char buf[33], ...);
 
 #ifdef __cplusplus
 }
@@ -1995,7 +1858,7 @@ void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
 
 #endif /* CS_COMMON_CS_ENDIAN_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_sha1.h"
+#line 1 "common/sha1.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -2005,11 +1868,11 @@ void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
 #ifndef CS_COMMON_SHA1_H_
 #define CS_COMMON_SHA1_H_
 
-#ifndef CS_DISABLE_SHA1
-#define CS_DISABLE_SHA1 0
+#ifndef DISABLE_SHA1
+#define DISABLE_SHA1 0
 #endif
 
-#if !CS_DISABLE_SHA1
+#if !DISABLE_SHA1
 
 /* Amalgamated: #include "common/platform.h" */
 
@@ -2033,7 +1896,7 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 }
 #endif /* __cplusplus */
 
-#endif /* CS_DISABLE_SHA1 */
+#endif /* DISABLE_SHA1 */
 
 #endif /* CS_COMMON_SHA1_H_ */
 #ifdef V7_MODULE_LINES
@@ -2047,31 +1910,54 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 #ifndef CS_COMMON_CS_DIRENT_H_
 #define CS_COMMON_CS_DIRENT_H_
 
-#include <limits.h>
-
 /* Amalgamated: #include "common/platform.h" */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-#ifdef CS_DEFINE_DIRENT
-typedef struct { int dummy; } DIR;
-
-struct dirent {
-  int d_ino;
-#ifdef _WIN32
-  char d_name[MAX_PATH];
-#else
-  /* TODO(rojer): Use PATH_MAX but make sure it's sane on every platform */
-  char d_name[256];
+#ifndef CS_ENABLE_SPIFFS
+#define CS_ENABLE_SPIFFS 0
 #endif
+
+#if CS_ENABLE_SPIFFS
+
+#include <spiffs.h>
+
+typedef struct {
+  spiffs_DIR dh;
+  struct spiffs_dirent de;
+} DIR;
+
+#define d_name name
+#define dirent spiffs_dirent
+
+int rmdir(const char *path);
+int mkdir(const char *path, mode_t mode);
+
+#endif
+
+#if defined(_WIN32)
+struct dirent {
+  char d_name[MAX_PATH];
 };
 
+typedef struct DIR {
+  HANDLE handle;
+  WIN32_FIND_DATAW info;
+  struct dirent result;
+} DIR;
+#endif
+
+#if CS_ENABLE_SPIFFS
+extern spiffs *cs_spiffs_get_fs(void);
+#endif
+
+#if defined(_WIN32) || CS_ENABLE_SPIFFS
 DIR *opendir(const char *dir_name);
 int closedir(DIR *dir);
 struct dirent *readdir(DIR *dir);
-#endif /* CS_DEFINE_DIRENT */
+#endif
 
 #ifdef __cplusplus
 }
@@ -3207,6 +3093,11 @@ void cr_context_free(struct cr_ctx *p_ctx);
 #define CS_V7_SRC_INTERNAL_H_
 
 /* Amalgamated: #include "v7/src/license.h" */
+
+/* Check whether we're compiling in an environment with no filesystem */
+#if defined(ARDUINO) && (ARDUINO == 106)
+#define V7_NO_FS
+#endif
 
 #ifndef FAST
 #define FAST
@@ -8731,7 +8622,6 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 
 #ifndef EXCLUDE_COMMON
 
-/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/platform.h" */
 /* Amalgamated: #include "common/str_util.h" */
 
@@ -8739,7 +8629,13 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 #define C_DISABLE_BUILTIN_SNPRINTF 0
 #endif
 
-/* Amalgamated: #include "common/mg_mem.h" */
+#ifndef MG_MALLOC
+#define MG_MALLOC malloc
+#endif
+
+#ifndef MG_FREE
+#define MG_FREE free
+#endif
 
 size_t c_strnlen(const char *s, size_t maxlen) WEAK;
 size_t c_strnlen(const char *s, size_t maxlen) {
@@ -9005,7 +8901,7 @@ const char *c_strnstr(const char *s, const char *find, size_t slen) {
 char *strdup(const char *src) WEAK;
 char *strdup(const char *src) {
   size_t len = strlen(src) + 1;
-  char *ret = MG_MALLOC(len);
+  char *ret = malloc(len);
   if (ret != NULL) {
     strcpy(ret, src);
   }
@@ -9131,98 +9027,6 @@ int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
-const char *mg_next_comma_list_entry(const char *, struct mg_str *,
-                                     struct mg_str *) WEAK;
-const char *mg_next_comma_list_entry(const char *list, struct mg_str *val,
-                                     struct mg_str *eq_val) {
-  if (list == NULL || *list == '\0') {
-    /* End of the list */
-    list = NULL;
-  } else {
-    val->p = list;
-    if ((list = strchr(val->p, ',')) != NULL) {
-      /* Comma found. Store length and shift the list ptr */
-      val->len = list - val->p;
-      list++;
-    } else {
-      /* This value is the last one */
-      list = val->p + strlen(val->p);
-      val->len = list - val->p;
-    }
-
-    if (eq_val != NULL) {
-      /* Value has form "x=y", adjust pointers and lengths */
-      /* so that val points to "x", and eq_val points to "y". */
-      eq_val->len = 0;
-      eq_val->p = (const char *) memchr(val->p, '=', val->len);
-      if (eq_val->p != NULL) {
-        eq_val->p++; /* Skip over '=' character */
-        eq_val->len = val->p + val->len - eq_val->p;
-        val->len = (eq_val->p - val->p) - 1;
-      }
-    }
-  }
-
-  return list;
-}
-
-int mg_match_prefix_n(const struct mg_str, const struct mg_str) WEAK;
-int mg_match_prefix_n(const struct mg_str pattern, const struct mg_str str) {
-  const char *or_str;
-  size_t len, i = 0, j = 0;
-  int res;
-
-  if ((or_str = (const char *) memchr(pattern.p, '|', pattern.len)) != NULL ||
-      (or_str = (const char *) memchr(pattern.p, ',', pattern.len)) != NULL) {
-    struct mg_str pstr = {pattern.p, (size_t)(or_str - pattern.p)};
-    res = mg_match_prefix_n(pstr, str);
-    if (res > 0) return res;
-    pstr.p = or_str + 1;
-    pstr.len = (pattern.p + pattern.len) - (or_str + 1);
-    return mg_match_prefix_n(pstr, str);
-  }
-
-  for (; i < pattern.len; i++, j++) {
-    if (pattern.p[i] == '?' && j != str.len) {
-      continue;
-    } else if (pattern.p[i] == '$') {
-      return j == str.len ? (int) j : -1;
-    } else if (pattern.p[i] == '*') {
-      i++;
-      if (i < pattern.len && pattern.p[i] == '*') {
-        i++;
-        len = str.len - j;
-      } else {
-        len = 0;
-        while (j + len != str.len && str.p[j + len] != '/') {
-          len++;
-        }
-      }
-      if (i == pattern.len) {
-        return j + len;
-      }
-      do {
-        const struct mg_str pstr = {pattern.p + i, pattern.len - i};
-        const struct mg_str sstr = {str.p + j + len, str.len - j - len};
-        res = mg_match_prefix_n(pstr, sstr);
-      } while (res == -1 && len-- > 0);
-      return res == -1 ? -1 : (int) (j + res + len);
-    } else if (str_util_lowercase(&pattern.p[i]) !=
-               str_util_lowercase(&str.p[j])) {
-      return -1;
-    }
-  }
-  return j;
-}
-
-int mg_match_prefix(const char *, int, const char *) WEAK;
-int mg_match_prefix(const char *pattern, int pattern_len, const char *str) {
-  const struct mg_str pstr = {pattern, (size_t) pattern_len};
-  struct mg_str s = {str, 0};
-  if (str != NULL) s.len = strlen(str);
-  return mg_match_prefix_n(pstr, s);
-}
-
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
 #line 1 "common/utf.c"
@@ -9248,7 +9052,6 @@ int mg_match_prefix(const char *pattern, int pattern_len, const char *str) {
 #include <stdarg.h>
 #include <string.h>
 /* Amalgamated: #include "common/platform.h" */
-/* Amalgamated: #include "common/str_util.h" */
 /* Amalgamated: #include "common/utf.h" */
 
 #ifndef CS_ENABLE_UTF8
@@ -10803,7 +10606,7 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len) {
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_md5.c"
+#line 1 "common/md5.c"
 #endif
 /*
  * This code implements the MD5 message-digest algorithm.
@@ -10822,11 +10625,11 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len) {
  * will fill a supplied 16-byte array with the digest.
  */
 
-/* Amalgamated: #include "common/cs_md5.h" */
+/* Amalgamated: #include "common/md5.h" */
 /* Amalgamated: #include "common/str_util.h" */
 
 #if !defined(EXCLUDE_COMMON)
-#if !CS_DISABLE_MD5
+#if !DISABLE_MD5
 
 /* Amalgamated: #include "common/cs_endian.h" */
 
@@ -10857,7 +10660,7 @@ static void byteReverse(unsigned char *buf, unsigned longs) {
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-void cs_md5_init(cs_md5_ctx *ctx) {
+void MD5_Init(MD5_CTX *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -10867,7 +10670,7 @@ void cs_md5_init(cs_md5_ctx *ctx) {
   ctx->bits[1] = 0;
 }
 
-static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
+static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -10949,7 +10752,7 @@ static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
+void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
@@ -10968,7 +10771,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
     }
     memcpy(p, buf, t);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     buf += t;
     len -= t;
   }
@@ -10976,7 +10779,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
   while (len >= 64) {
     memcpy(ctx->in, buf, 64);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     buf += 64;
     len -= 64;
   }
@@ -10984,7 +10787,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
+void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -10997,7 +10800,7 @@ void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
   if (count < 8) {
     memset(p, 0, count);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     memset(ctx->in, 0, 56);
   } else {
     memset(p, 0, count - 8);
@@ -11008,23 +10811,44 @@ void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
   a[14] = ctx->bits[0];
   a[15] = ctx->bits[1];
 
-  cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+  MD5Transform(ctx->buf, (uint32_t *) ctx->in);
   byteReverse((unsigned char *) ctx->buf, 4);
   memcpy(digest, ctx->buf, 16);
   memset((char *) ctx, 0, sizeof(*ctx));
 }
+#endif /* DISABLE_MD5 */
 
-#endif /* CS_DISABLE_MD5 */
+char *cs_md5(char buf[33], ...) {
+  unsigned char hash[16];
+  const unsigned char *p;
+  va_list ap;
+  MD5_CTX ctx;
+
+  MD5_Init(&ctx);
+
+  va_start(ap, buf);
+  while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
+    size_t len = va_arg(ap, size_t);
+    MD5_Update(&ctx, p, len);
+  }
+  va_end(ap);
+
+  MD5_Final(hash, &ctx);
+  cs_to_hex(buf, hash, sizeof(hash));
+
+  return buf;
+}
+
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_sha1.c"
+#line 1 "common/sha1.c"
 #endif
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-/* Amalgamated: #include "common/cs_sha1.h" */
+/* Amalgamated: #include "common/sha1.h" */
 
-#if !CS_DISABLE_SHA1 && !defined(EXCLUDE_COMMON)
+#if !DISABLE_SHA1 && !defined(EXCLUDE_COMMON)
 
 /* Amalgamated: #include "common/cs_endian.h" */
 
@@ -11282,7 +11106,6 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
 
 #ifndef EXCLUDE_COMMON
 
-/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/cs_dirent.h" */
 
 /*
@@ -11290,22 +11113,23 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
  * for systems which do not natively support it (e.g. Windows).
  */
 
-#ifdef _WIN32
-struct win32_dir {
-  DIR d;
-  HANDLE handle;
-  WIN32_FIND_DATAW info;
-  struct dirent result;
-};
+#ifndef MG_FREE
+#define MG_FREE free
+#endif
 
+#ifndef MG_MALLOC
+#define MG_MALLOC malloc
+#endif
+
+#ifdef _WIN32
 DIR *opendir(const char *name) {
-  struct win32_dir *dir = NULL;
+  DIR *dir = NULL;
   wchar_t wpath[MAX_PATH];
   DWORD attrs;
 
   if (name == NULL) {
     SetLastError(ERROR_BAD_ARGUMENTS);
-  } else if ((dir = (struct win32_dir *) MG_MALLOC(sizeof(*dir))) == NULL) {
+  } else if ((dir = (DIR *) MG_MALLOC(sizeof(*dir))) == NULL) {
     SetLastError(ERROR_NOT_ENOUGH_MEMORY);
   } else {
     to_wchar(name, wpath, ARRAY_SIZE(wpath));
@@ -11320,11 +11144,10 @@ DIR *opendir(const char *name) {
     }
   }
 
-  return (DIR *) dir;
+  return dir;
 }
 
-int closedir(DIR *d) {
-  struct win32_dir *dir = (struct win32_dir *) d;
+int closedir(DIR *dir) {
   int result = 0;
 
   if (dir != NULL) {
@@ -11339,12 +11162,10 @@ int closedir(DIR *d) {
   return result;
 }
 
-struct dirent *readdir(DIR *d) {
-  struct win32_dir *dir = (struct win32_dir *) d;
+struct dirent *readdir(DIR *dir) {
   struct dirent *result = NULL;
 
   if (dir) {
-    memset(&dir->result, 0, sizeof(dir->result));
     if (dir->handle != INVALID_HANDLE_VALUE) {
       result = &dir->result;
       (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
@@ -11366,6 +11187,52 @@ struct dirent *readdir(DIR *d) {
   return result;
 }
 #endif
+
+#if CS_ENABLE_SPIFFS
+
+DIR *opendir(const char *dir_name) {
+  DIR *dir = NULL;
+  spiffs *fs = cs_spiffs_get_fs();
+
+  if (dir_name == NULL || fs == NULL ||
+      (dir = (DIR *) calloc(1, sizeof(*dir))) == NULL) {
+    return NULL;
+  }
+
+  if (SPIFFS_opendir(fs, dir_name, &dir->dh) == NULL) {
+    free(dir);
+    dir = NULL;
+  }
+
+  return dir;
+}
+
+int closedir(DIR *dir) {
+  if (dir != NULL) {
+    SPIFFS_closedir(&dir->dh);
+    free(dir);
+  }
+  return 0;
+}
+
+struct dirent *readdir(DIR *dir) {
+  return SPIFFS_readdir(&dir->dh, &dir->de);
+}
+
+/* SPIFFs doesn't support directory operations */
+int rmdir(const char *path) {
+  (void) path;
+  return ENOTSUP;
+}
+
+int mkdir(const char *path, mode_t mode) {
+  (void) path;
+  (void) mode;
+  /* for spiffs supports only root dir, which comes from mongoose as '.' */
+  return (strlen(path) == 1 && *path == '.') ? 0 : ENOTSUP;
+}
+
+#endif /* CS_ENABLE_SPIFFS */
 
 #endif /* EXCLUDE_COMMON */
 
@@ -11419,9 +11286,9 @@ char *cs_read_file(const char *path, size_t *size) {
 char *cs_mmap_file(const char *path, size_t *size) WEAK;
 char *cs_mmap_file(const char *path, size_t *size) {
   char *r;
-  int fd = open(path, O_RDONLY, 0);
+  int fd = open(path, O_RDONLY);
   struct stat st;
-  if (fd < 0) return NULL;
+  if (fd == -1) return NULL;
   fstat(fd, &st);
   *size = (size_t) st.st_size;
   r = (char *) mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -11465,13 +11332,6 @@ typedef struct {
 
 static call_trace_t call_trace;
 
-#if MGOS_ENABLE_CALL_TRACE
-void esp_exc_printf(const char *fmt, ...);
-#define call_trace_printf esp_exc_printf
-#else
-#define call_trace_printf printf
-#endif
-
 NOINSTR void print_call_trace() {
   static void *prev_trace[CALL_TRACE_SIZE];
   unsigned int size = call_trace.size;
@@ -11482,7 +11342,7 @@ NOINSTR void print_call_trace() {
     if (call_trace.addresses[i] != prev_trace[i]) break;
     pa = (uintptr_t) call_trace.addresses[i];
   }
-  call_trace_printf("%u %u", size, i);
+  fprintf(stderr, "%u %u", size, i);
   for (; i < size; i++) {
     const uintptr_t a = (uintptr_t) call_trace.addresses[i];
     /*
@@ -11492,11 +11352,11 @@ NOINSTR void print_call_trace() {
      */
     uintptr_t mask = ~((uintptr_t) 0);
     while (mask != 0 && (a & mask) != (pa & mask)) mask <<= 4;
-    call_trace_printf(" %lx", (unsigned long) (a & ~mask));
+    fprintf(stderr, " %lx", (unsigned long) (a & ~mask));
     prev_trace[i] = (void *) a;
     pa = a;
   }
-  call_trace_printf("\n");
+  fprintf(stderr, "\n");
 }
 
 #if MGOS_ENABLE_CALL_TRACE && !V7_ENABLE_CALL_TRACE
@@ -12660,10 +12520,10 @@ V7_PRIVATE enum v7_err Crypto_base64_encode(struct v7 *v7, v7_val_t *res) {
 }
 
 static void v7_md5(const char *data, size_t len, char buf[16]) {
-  cs_md5_ctx ctx;
-  cs_md5_init(&ctx);
-  cs_md5_update(&ctx, (unsigned char *) data, len);
-  cs_md5_final((unsigned char *) buf, &ctx);
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  MD5_Update(&ctx, (unsigned char *) data, len);
+  MD5_Final((unsigned char *) buf, &ctx);
 }
 
 static void v7_sha1(const char *data, size_t len, char buf[20]) {
@@ -21622,7 +21482,7 @@ static char *append_hex(char *buf, char *limit, uint8_t c) {
  * If size is zero it doesn't output anything but keeps counting.
  */
 static int snquote(char *buf, size_t size, const char *s, size_t len) {
-  char *limit = buf + size;
+  char *limit = buf + size - 1;
   const char *end;
   /*
    * String single character escape sequence:
@@ -21663,14 +21523,8 @@ static int snquote(char *buf, size_t size, const char *s, size_t len) {
   i++;
   if (buf < limit) *buf++ = '"';
 
-  if (buf < limit) {
+  if (size != 0) {
     *buf = '\0';
-  } else if (size != 0) {
-    /*
-     * There is no room for the NULL char, but the size wasn't zero, so we can
-     * safely put NULL in the previous byte
-     */
-    *(buf - 1) = '\0';
   }
   return i;
 }
