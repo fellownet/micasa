@@ -4,6 +4,7 @@
 // https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
 // https://github.com/moflo/tlv8-particle/blob/master/src/TLV8.cpp
 // https://matthewarcus.wordpress.com/2014/05/10/srp-in-openssl/
+// https://gist.github.com/gomfunkel/b1a046d729757120907c
 
 #include <avahi-common/alternative.h>
 #include <avahi-common/malloc.h>
@@ -114,15 +115,40 @@ namespace micasa {
 		INVALID_SIGNATURE = 0x04,
 	}; // enum class TLVCode
 
-	enum class Characteristic: unsigned int {
-		// HAP
-		IDENTIFY           = 6,
-		// Custom
-		LIGHT              = 100,
-		MOTION_DETECTOR    = 101,
-		FAN                = 102,
-		TEMPERATURE_SENSOR = 103,
-	}; // enum class Characteristic
+	enum class HAPCharacteristic: unsigned int {
+		NAME          = 10,
+		MANUFACTURER  = 11,
+		SERIAL        = 12,
+		MODEL         = 13,
+		IDENTIFY      = 14,
+		S_NAME        = 15,
+
+		BATTERY_LEVEL = 20,
+		BATTERY_STATE = 21,
+		BATTERY_LOW   = 22,
+	}; // enum class HAPCharacteristic
+
+	const unsigned short LOW_BATTERY_THRESHOLD = 30;
+
+	const unsigned short HAP_PERM_PR = (1 << 0);
+	const unsigned short HAP_PERM_PW = (1 << 1);
+	const unsigned short HAP_PERM_EV = (1 << 2);
+
+	typedef struct { std::string service_uuid; std::string characteristic_uuid; std::string format; unsigned short iid; unsigned short permissions; } HAPDefenition;
+	const std::map<Device::Type, std::map<std::string, HAPDefenition>> HAPMappings {
+		{ Device::Type::SWITCH, {
+			{ Switch::resolveTextSubType( Switch::SubType::GENERIC ),         { "49", "25", "bool",  100,  HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::LIGHT ),           { "43", "25", "bool",  101, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ), { "85", "22", "bool",  102, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::FAN ),             { "B7", "B0", "uint8", 103, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::OCCUPANCY ),       { "86", "71", "uint8", 104, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::SCENE ),           { "89", "73", "uint8", 105, HAP_PERM_PR | HAP_PERM_EV } },
+		} },
+		{ Device::Type::LEVEL, {
+			{ Level::resolveTextSubType( Level::SubType::TEMPERATURE ),       { "8A", "11", "float", 110, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::HUMIDITY ),          { "82", "10", "float", 111, HAP_PERM_PR | HAP_PERM_EV } },
+		} },
+	};
 
 	HomeKit::HomeKit( const unsigned int id_, const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) :
 		Plugin( id_, type_, reference_, parent_ ),
@@ -148,6 +174,14 @@ namespace micasa {
 
 		auto handler = [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
 			switch( event_ ) {
+				case Network::Connection::Event::CONNECT:
+					this->m_sessions.emplace(
+						std::piecewise_construct,
+						std::forward_as_tuple( connection_ ),
+						std::forward_as_tuple( connection_ )
+					);
+					break;
+
 				case Network::Connection::Event::DATA: {
 					// Once raw data packages are received instead of parsed http messages, an (encrypted) session
 					// should be present.
@@ -199,13 +233,14 @@ namespace micasa {
 					}
 					break;
 				}
-				case Network::Connection::Event::HTTP: {
+
+				case Network::Connection::Event::HTTP:
 					// During the pairing phase the connection behaves like a standard unencrypted http connection that
 					// can be processed by mongoose.
 					this->_processRequest( connection_ );
 					break;
-				}
-				case Network::Connection::Event::DROPPED:
+
+					case Network::Connection::Event::DROPPED:
 				case Network::Connection::Event::CLOSE: {
 					Logger::log( Logger::LogLevel::VERBOSE, this, "Controller disconnected." );
 					auto find = this->m_sessions.find( connection_ );
@@ -236,7 +271,7 @@ namespace micasa {
 		}
 
 		// Pick a default bonjour name. This name is updated with a suffix if a collision is detected.
-		this->m_name = avahi_strdup( "Micasa" );
+		this->m_name = avahi_strdup( this->getName().c_str() );
 
 		// Allocate main avahi loop object.
 		if ( ! ( this->m_poll = avahi_simple_poll_new() ) ) {
@@ -277,11 +312,15 @@ namespace micasa {
 
 	void HomeKit::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		if ( this->m_poll ) {
+			avahi_simple_poll_quit( this->m_poll );
+		}
+		avahi_free( this->m_name );
 		if ( this->m_bind ) {
 			this->m_bind->terminate();
 		}
-		if ( this->m_poll ) {
-			avahi_simple_poll_quit( this->m_poll );
+		for ( auto& sessionIt : this->m_sessions ) {
+			sessionIt.second.m_connection->terminate();
 		}
 		if ( this->m_worker.joinable() ) {
 			this->m_worker.join();
@@ -304,39 +343,29 @@ namespace micasa {
 						this->m_scheduler.schedule( 0, 1, this, [this,device_,&session]( std::shared_ptr<Scheduler::Task<>> ) {
 							std::unique_lock<std::mutex> lock( session.m_sessionMutex );
 
-							json output = json::object();
-							output["characteristics"] = json::array();
+							try {
+								std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
+								const HAPDefenition& defenition = HAPMappings.at( device_->getType() ).at( subtype );
+								if ( ( defenition.permissions & HAP_PERM_EV ) != HAP_PERM_EV ) {
+									throw std::runtime_error( "Device " + device_->getName() + " doesn't support events." );
+								}
 
-							if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
-								output["characteristics"] += {
-									{ "aid", device_->getId() << 10 },
-									{ "iid", Characteristic::LIGHT },
-									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
+								json characteristic = {
+									{ "aid", device_->getId() + 1 },
+									{ "iid", defenition.iid }
 								};
-							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
-								output["characteristics"] += {
-									{ "aid", device_->getId() << 10 },
-									{ "iid", Characteristic::MOTION_DETECTOR },
-									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
+								this->_addHAPValue( device_, defenition.format, characteristic );
+
+								json output = {
+									{ "characteristics", { characteristic } }
 								};
-							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
-								output["characteristics"] += {
-									{ "aid", device_->getId() << 10 },
-									{ "iid", Characteristic::FAN },
-									{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) }
-								};
-							} else if ( device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
-								output["characteristics"] += {
-									{ "aid", device_->getId() << 10 },
-									{ "iid", Characteristic::TEMPERATURE_SENSOR },
-									{ "value", std::static_pointer_cast<Level>( device_ )->getValue() }
-								};
-							} else {
-								Logger::log( Logger::LogLevel::ERROR, this, "Invalid device subtype when sending event." );
-								return;
+
+								session.send( "EVENT/1.0 200 OK", "Content-Type: application/hap+json", output.dump() );
+							} catch( std::out_of_range exception_ ) {
+								Logger::logr( Logger::LogLevel::ERROR, this, "Device %s is not supported.", device_->getName().c_str() );
+							} catch( std::runtime_error exception_ ) {
+								Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 							}
-
-							session.send( "EVENT/1.0 200 OK", "Content-Type: application/hap+json", output.dump() );
 						} );
 					}
 				}
@@ -370,6 +399,13 @@ namespace micasa {
 		json result = json::array();
 		return result;
 	};
+
+	void HomeKit::putSettingsJson( const nlohmann::json& settings_ ) {
+		avahi_free( this->m_name );
+		this->m_name = avahi_strdup( this->getName().c_str() );
+		this->_increaseConfigNumber();
+	};
+
 	void HomeKit::updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
 		json_["enable_homekit_" + this->getReference()] = device_->getSettings()->get<bool>( "enable_homekit_" + this->getReference(), false );
 	};
@@ -388,29 +424,23 @@ namespace micasa {
 
 		// If the subtype of the device can be changed by the user, the homekit setting should be shown only when a
 		// supported subtype is selected. Otherwise it should be visible only when the fixed subtype is supported.
-		std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
-		if ( device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+		if ( __unlikely( device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) ) {
 			for ( auto& setting : json_ ) {
 				if ( setting["name"] == "subtype" ) {
 					for ( auto& subtype : setting["options"] ) {
-						if (
-							subtype["value"] == Switch::SubTypeText.at( Switch::SubType::LIGHT )
-							|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
-							|| subtype["value"] == Switch::SubTypeText.at( Switch::SubType::FAN )
-							|| subtype["value"] == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
-						) {
+						try {
+							HAPMappings.at( device_->getType() ).at( subtype["value"] );
 							subtype["settings"] = { getSetting() };
-						}
+						} catch( std::out_of_range exception_ ) { }
 					}
 				}
 			}
-		} else if (
-			subtype == Switch::SubTypeText.at( Switch::SubType::LIGHT )
-			|| subtype == Switch::SubTypeText.at( Switch::SubType::MOTION_DETECTOR )
-			|| subtype == Switch::SubTypeText.at( Switch::SubType::FAN )
-			|| subtype == Level::SubTypeText.at( Level::SubType::TEMPERATURE )
-		) {
-			json_.push_back( getSetting() );
+		} else {
+			std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
+			try {
+				HAPMappings.at( device_->getType() ).at( subtype );
+				json_.push_back( getSetting() );
+			} catch( std::out_of_range exception_ ) { }
 		}
 	};
 
@@ -432,15 +462,7 @@ namespace micasa {
 			}
 		}
 		if ( increaseConfig ) {
-			Logger::log( Logger::LogLevel::VERBOSE, this, "Increasing HAP configuration index." );
-			int config = this->m_settings->get( "_configuration_number", 1 );
-			this->m_settings->put( "_configuration_number", ++config );
-			if ( this->m_group ) {
-				avahi_entry_group_reset( this->m_group );
-			}
-			if ( this->m_client ) {
-				this->_createService( this->m_client );
-			}
+			this->_increaseConfigNumber();
 		}
 	};
 
@@ -674,20 +696,23 @@ namespace micasa {
 				bzero( &chacha20, sizeof( chacha20 ) );
 				chacha20_setup( &chacha20, (const uint8_t *)this->m_sessionKey, 32, (uint8_t*)"PS-Msg05" );
 
-				// TODO figure out what this does, but it's necessary for the
-				// chacha decrypt to work??
 				char temp[64];
-				bzero( temp, 64 ); // TODO see if bzero is necessary, ifso, replace it with memset
+				bzero( temp, 64 );
 				char temp2[64];
 				bzero( temp2, 64 );
 				chacha20_encrypt( &chacha20, (const uint8_t*)temp, (uint8_t *)temp2, 64 );
 
-				// TODO the last 16 chars from the encrypted data package contain
-				// a verification hash, which we ignore for now. Add it later!
-				// TODO add verification
+				char verify[16];
+				bzero( verify, 16 );
+				poly1305_genkey( (const unsigned char*)temp2, (unsigned char*)encrypted.data, encrypted.size - 16, Type_Data_Without_Length, verify );
+
 				uint8_t size = encrypted.size - 16;
 				char decrypted[size];
 				chacha20_decrypt( &chacha20, encrypted.data, (uint8_t*)decrypted, size );
+
+				if ( memcmp( (void*)verify, (void*)&encrypted.data[encrypted.size - 16], 16 ) != 0 ) {
+					throw std::runtime_error( "Session packet verification failed in pair request." );
+				}
 
 				struct tlv_map tlvmap;
 				memset( &tlvmap, 0, sizeof( tlv_map ) );
@@ -755,7 +780,7 @@ namespace micasa {
 
 				// Encode inner output tlv data.
 				chacha20_ctx ctx;
-				bzero( &ctx, sizeof( ctx ) ); // TODO is this necessary
+				bzero( &ctx, sizeof( ctx ) );
 				chacha20_setup( &ctx, (const uint8_t*)this->m_sessionKey, 32, (uint8_t*)"PS-Msg06" );
 				char buffer[64];
 				char key[64];
@@ -770,7 +795,6 @@ namespace micasa {
 				free( output_inner );
 
 				// We need to add the 16 characters of verification here.
-				char verify[16];
 				memset( verify, 0, 16 );
 				poly1305_genkey( (const unsigned char*)key, (unsigned char*)encrypted_out, length_inner, Type_Data_Without_Length, verify );
 				memcpy( (unsigned char*)&encrypted_out[length_inner], verify, 16 );
@@ -812,15 +836,6 @@ namespace micasa {
 		if ( ! this->m_settings->get( "paired", false ) ) {
 			Logger::log( Logger::LogLevel::WARNING, this, "Pair verify called without being paired." );
 			connection_->reply( "", 403 /* forbidden */, { } );
-		}
-
-		// The pair verification call is usually the start of a new encrypted session, so a session is created here.
-		if ( this->m_sessions.find( connection_ ) == this->m_sessions.end() ) {
-			this->m_sessions.emplace(
-				std::piecewise_construct,
-				std::forward_as_tuple( connection_ ),
-				std::forward_as_tuple( connection_ )
-			);
 		}
 
 		try {
@@ -898,7 +913,7 @@ namespace micasa {
 
 				// Encode inner output tlv data.
 				chacha20_ctx ctx;
-				bzero( &ctx, sizeof( ctx ) ); // TODO can this be removed?
+				bzero( &ctx, sizeof( ctx ) );
 				chacha20_setup( &ctx, (const uint8_t*)session.m_sessionKey, 32, (uint8_t*)"PV-Msg02" );
 				char buffer[64];
 				char key[64];
@@ -951,12 +966,23 @@ namespace micasa {
 				bzero( &chacha20, sizeof( chacha20 ) );
 				chacha20_setup( &chacha20, (const uint8_t *)session.m_sessionKey, 32, (uint8_t*)"PV-Msg03" );
 
-				// TODO missing verification (810).
+				char temp[64];
+				bzero( temp, 64 );
+				char temp2[64];
+				bzero( temp2, 64 );
+				chacha20_encrypt( &chacha20, (const uint8_t*)temp, (uint8_t *)temp2, 64 );
+
+				char verify[16];
+				bzero( verify, 16 );
+				poly1305_genkey( (const unsigned char*)temp2, (unsigned char*)encrypted.data, encrypted.size - 16, Type_Data_Without_Length, verify );
+
+				if ( memcmp( (void*)verify, (void*)&encrypted.data[encrypted.size - 16], 16 ) != 0 ) {
+					throw std::runtime_error( "Session packet verification failed in pair verify request." );
+				}
+
 				uint8_t size = encrypted.size - 16;
 				char decrypted[size];
 				chacha20_decrypt( &chacha20, encrypted.data, (uint8_t*)decrypted, size );
-
-				// TODO all verification is missing here!
 
 				// Create output tlv data.
 				struct tlv_map tlvmap_out;
@@ -1013,11 +1039,13 @@ namespace micasa {
 			}
 
 			if ( reqtype.data[0] == 3 ) {
-
-
+				// Not implemented.
 			} else if ( reqtype.data[0] == 4 ) {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Pairing removed." );
 				this->m_settings->put( "paired", false );
+				for ( auto& sessionIt : this->m_sessions ) {
+					sessionIt.second.m_connection->terminate();
+				}
 			}
 
 			// Create output tlv data.
@@ -1050,48 +1078,45 @@ namespace micasa {
 		try {
 			auto& session = this->m_sessions.at( connection_ );
 
-			json result = json::object();
-			result["accessories"] = json::array();
-
-			// The first accessoiry is always the bridge itself.
-			result["accessories"] += {
-				{ "aid", 1 },
+			json accessories = json::array();
+			accessories += {
+				{ "aid", 1 }, // first accessory is the bridge and should use aid 1
 				{ "services", {
 					{
-						{ "type", "3E" }, // 0000003E-0000-1000-8000-0026BB765291 Accessory Information
+						{ "type", "3E" }, // accessory information service
 						{ "iid", 1 },
 						{ "characteristics", {
 							{
-								{ "type", "23" }, // 00000023-0000-1000-8000-0026BB765291 Name
-								{ "iid", 2 },
+								{ "type", "23" },
+								{ "iid", HAPCharacteristic::NAME },
 								{ "value", "Micasa" },
 								{ "perms", { "pr" } },
 								{ "format", "string" },
 							},
 							{
-								{ "type", "20" }, // 00000020-0000-1000-8000-0026BB765291 Manufacturer
-								{ "iid", 3 },
+								{ "type", "20" },
+								{ "iid", HAPCharacteristic::MANUFACTURER },
 								{ "value", "Fellownet" },
 								{ "perms", { "pr" } },
 								{ "format", "string" },
 							},
 							{
-								{ "type", "30" }, // 00000030-0000-1000-8000-0026BB765291 Serial Number
-								{ "iid", 4 },
+								{ "type", "30" },
+								{ "iid", HAPCharacteristic::SERIAL },
 								{ "value", this->_getAccessoryId() },
 								{ "perms", { "pr" } },
 								{ "format", "string" },
 							},
 							{
-								{ "type", "21" }, // 00000021-0000-1000-8000-0026BB765291 Model
-								{ "iid", 5 },
+								{ "type", "21" },
+								{ "iid", HAPCharacteristic::MODEL },
 								{ "value", "HomeKitPlugin1,1" },
 								{ "perms", { "pr" } },
 								{ "format", "string" },
 							},
 							{
-								{ "type", "14" }, // 00000014-0000-1000-8000-0026BB765291 Run Identify Routine
-								{ "iid", 6 },
+								{ "type", "14" },
+								{ "iid", HAPCharacteristic::IDENTIFY },
 								{ "perms", { "pw" } },
 								{ "format", "bool" },
 							},
@@ -1102,154 +1127,155 @@ namespace micasa {
 
 			for ( auto const& device : g_controller->getAllDevices() ) {
 				if ( device->getSettings()->get( "enable_homekit_" + this->getReference(), false ) ) {
+					try {
+						std::string subtype = device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
+						const HAPDefenition& defenition = HAPMappings.at( device->getType() ).at( subtype );
 
-					// Prepare the permissions and the accessory information service which needs to be present for all
-					// services exposed by the bridge.
-					json perms = { "pr", "ev" };
-					auto updateSources = device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::ANY );
-					if ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) != 0 ) {
-						perms += "pw";
-					}
+						// Prepare the services array for this accessory / device. The first service should always be
+						// the information service, which is mandatory.
+						json services = json::array();
+						services += {
+							{ "type", "3E" }, // accessory information service
+							{ "iid", 1 },
+							{ "characteristics", {
+								{
+									{ "type", "23" },
+									{ "iid", HAPCharacteristic::NAME },
+									{ "value", device->getName() },
+									{ "perms", { "pr" } },
+									{ "format", "string" },
+								},
+								{
+									{ "type", "20" },
+									{ "iid", HAPCharacteristic::MANUFACTURER },
+									{ "value", "Fellownet" },
+									{ "perms", { "pr" } },
+									{ "format", "string" },
+								},
+								{
+									{ "type", "30" },
+									{ "iid", HAPCharacteristic::SERIAL },
+									{ "value", this->_getAccessoryId() },
+									{ "perms", { "pr" } },
+									{ "format", "string" },
+								},
+								{
+									{ "type", "21" },
+									{ "iid", HAPCharacteristic::MODEL },
+									{ "value", "MicasaDevice1,1" },
+									{ "perms", { "pr" } },
+									{ "format", "string" },
+								},
+								{
+									{ "type", "14" },
+									{ "iid", HAPCharacteristic::IDENTIFY },
+									{ "perms", { "pw" } },
+									{ "format", "bool" },
+								},
+							} }
+						};
 
-					json services = json::array();
-					services += {
-						{ "type", "3E" }, // 0000003E-0000-1000-8000-0026BB765291 Accessory Information
-						{ "iid", 1 },
-						{ "characteristics", {
-							{
-								{ "type", "23" }, // 00000023-0000-1000-8000-0026BB765291 Name
+						// If the device is battery powered an additional battery service is added.
+						if ( device->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
+							unsigned int level = device->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
+							level = level > 100 ? 100 : level;
+							level = level < 0 ? 0 : level;
+							services += {
+								{ "type", "96" }, // battery service
 								{ "iid", 2 },
-								{ "value", device->getName() },
-								{ "perms", { "pr" } },
-								{ "format", "string" },
-							},
-							{
-								{ "type", "20" }, // 00000020-0000-1000-8000-0026BB765291 Manufacturer
-								{ "iid", 3 },
-								{ "value", "Fellownet" },
-								{ "perms", { "pr" } },
-								{ "format", "string" },
-							},
-							{
-								{ "type", "30" }, // 00000030-0000-1000-8000-0026BB765291 Serial Number
-								{ "iid", 4 },
-								{ "value", this->_getAccessoryId() },
-								{ "perms", { "pr" } },
-								{ "format", "string" },
-							},
-							{
-								{ "type", "21" }, // 00000021-0000-1000-8000-0026BB765291 Model
-								{ "iid", 5 },
-								{ "value", "MicasaDevice1,1" },
-								{ "perms", { "pr" } },
-								{ "format", "string" },
-							},
-							{
-								{ "type", "14" }, // 00000014-0000-1000-8000-0026BB765291 Run Identify Routine
-								{ "iid", 6 },
-								{ "perms", { "pw" } },
-								{ "format", "bool" },
-							},
-						} }
-					};
+								{ "characteristics", {
+									{
+										{ "type", "68" },
+										{ "iid", HAPCharacteristic::BATTERY_LEVEL },
+										{ "value", level },
+										{ "perms", { "pr" } },
+										{ "format", "uint8" },
+									},
+									{
+										{ "type", "8F" },
+										{ "iid", HAPCharacteristic::BATTERY_STATE },
+										{ "value", 2 }, // not chargeable
+										{ "perms", { "pr" } },
+										{ "format", "uint8" },
+									},
+									{
+										{ "type", "79" },
+										{ "iid", HAPCharacteristic::BATTERY_LOW },
+										{ "value", level < LOW_BATTERY_THRESHOLD ? 1 : 0 },
+										{ "perms", { "pr" } },
+										{ "format", "uint8" },
+									}
+								} }
+							};
+						}
 
-					// Only add supported devices to the bridge.
-					// TODO add battery status to service
-					// TODO add more types
-					if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::LIGHT ) ) {
+						unsigned short permission_bits = HAP_PERM_PR | HAP_PERM_EV;
+						auto updateSources = device->getSettings()->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::UpdateSource::ANY );
+						if ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) != 0 ) {
+							permission_bits |= HAP_PERM_PW;
+						}
+						permission_bits &= defenition.permissions;
+						json permissions = json::array();
+						if ( ( permission_bits & HAP_PERM_PR ) == HAP_PERM_PR ) { permissions += "pr"; };
+						if ( ( permission_bits & HAP_PERM_PW ) == HAP_PERM_PW ) { permissions += "pw"; };
+						if ( ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV ) { permissions += "ev"; };
+
+						// The service iid should change when the type of the service changes. Hashing the concatenated
+						// uuid's makes sure the iid is unique for the service. The first 1000 iid's are reserved.
+						std::stringstream idstr;
+						idstr << defenition.service_uuid << "|" << defenition.characteristic_uuid << "|";
+						unsigned long service_iid;
+						std::hash<std::string> hasher;
+						do {
+							service_iid = hasher( idstr.str() );
+							idstr << "X";
+						} while ( service_iid < 1000 );
+
+						// Create the characteristics array for the primary service. It contains the name too, which makes
+						// sure the name of the service gets updated on iOS devices when the device name is altered.
 						json characteristics = json::array();
 						characteristics += {
-							{ "type", "25" }, // 00000025-0000-1000-8000-0026BB765291 On
-							{ "iid", Characteristic::LIGHT },
-							{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) },
-							{ "perms", perms },
-							{ "format", "bool" },
-							{ "ev", true }
+							{ "type", "23" },
+							{ "iid", HAPCharacteristic::S_NAME },
+							{ "value", device->getName() },
+							{ "perms", { "pr" } },
+							{ "format", "string" },
 						};
+						json characteristic = {
+							{ "type", defenition.characteristic_uuid },
+							{ "iid", defenition.iid },
+							{ "perms", permissions },
+							{ "format", defenition.format },
+							{ "ev", ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV }
+						};
+						this->_addHAPValue( device, defenition.format, characteristic );
+						characteristics += characteristic;
 
 						services += {
-							{ "type", "43" }, // 00000043-0000-1000-8000-0026BB765291 Light
-							{ "iid", 7 },
+							{ "type", defenition.service_uuid },
+							{ "iid", service_iid },
 							{ "characteristics", characteristics },
 							{ "primary", true }
 						};
 
-						result["accessories"] += {
-							{ "aid", device->getId() << 10 },
+						accessories += {
+							{ "aid", device->getId() + 1 },
 							{ "services", services }
 						};
-					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ) ) {
-						json characteristics = json::array();
-						characteristics += {
-							{ "type", "22" }, // 00000022-0000-1000-8000-0026BB765291 Motion Detected
-							{ "iid", Characteristic::MOTION_DETECTOR },
-							{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) },
-							{ "perms", { "pr", "ev" } },
-							{ "format", "bool" },
-							{ "ev", true }
-						};
 
-						services += {
-							{ "type", "85" }, // 00000085-0000-1000-8000-0026BB765291 Motion Sensor
-							{ "iid", 7 },
-							{ "characteristics", characteristics },
-							{ "primary", true }
-						};
-
-						result["accessories"] += {
-							{ "aid", device->getId() << 10 },
-							{ "services", services }
-						};
-					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Switch::resolveTextSubType( Switch::SubType::FAN ) ) {
-						json characteristics = json::array();
-						characteristics += {
-							{ "type", "B0" }, // 000000B0-0000-1000-8000-0026BB765291 Active
-							{ "iid", Characteristic::FAN },
-							{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 0 },
-							{ "perms", perms },
-							{ "format", "uint8" },
-							{ "ev", true }
-						};
-
-						services += {
-							{ "type", "B7" }, // 000000B7-0000-1000-8000-0026BB765291 Fan v2
-							{ "iid", 7 },
-							{ "characteristics", characteristics },
-							{ "primary", true }
-						};
-
-						result["accessories"] += {
-							{ "aid", device->getId() << 10 },
-							{ "services", services }
-						};
-					} else if ( device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) == Level::resolveTextSubType( Level::SubType::TEMPERATURE ) ) {
-						// TODO remove pw perm
-						json characteristics = json::array();
-						characteristics += {
-							{ "type", "11" }, // 00000011-0000-1000-8000-0026BB765291 Current Temperature
-							{ "iid", Characteristic::TEMPERATURE_SENSOR },
-							{ "value", std::static_pointer_cast<Level>( device )->getValue() },
-							{ "perms", { "pr", "ev" } },
-							{ "format", "uint8" },
-							{ "ev", true }
-						};
-
-						services += {
-							{ "type", "8A" }, // 0000008A-0000-1000-8000-0026BB765291 Temperature Sensor
-							{ "iid", 7 },
-							{ "characteristics", characteristics },
-							{ "primary", true }
-						};
-
-						result["accessories"] += {
-							{ "aid", device->getId() << 10 },
-							{ "services", services }
-						};
+					} catch( std::out_of_range exception_ ) {
+						Logger::logr( Logger::LogLevel::ERROR, this, "Device %s is not supported.", device->getName().c_str() );
+					} catch( std::runtime_error exception_ ) {
+						Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
 					}
 				}
 			}
 
-			session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", result.dump() );
+			json output = {
+				{ "accessories", accessories }
+			};
+
+			session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
 
 		} catch( std::out_of_range exception_ ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Session is not valid." );
@@ -1272,34 +1298,42 @@ namespace micasa {
 					throw std::runtime_error( "Missing characteristics in characteristics PUT request." );
 				}
 				for ( auto const& characteristic : data["characteristics"] ) {
-
-					// TODO handle errors when multiple characteristis have been sent. Should return 207.
 					auto aid = jsonGet<unsigned long>( characteristic["aid"] );
 					if ( aid == 1 ) {
-						// Skip put requests for the bridge; these are most likely unsupported identify requests.
-						continue;
+						continue; // bridge
 					}
 					auto iid = jsonGet<unsigned long>( characteristic["iid"] );
-					auto device = g_controller->getDeviceById( aid >> 10 );
-					if ( device != nullptr ) {
-						if ( characteristic.find( "value" ) != characteristic.end() ) {
-							// This an update request for a characteristic.
-							switch( (Characteristic)iid ) {
-								case Characteristic::IDENTIFY:
-									break;
-								case Characteristic::LIGHT:
-								case Characteristic::FAN: {
-									auto value = jsonGet<bool>( characteristic, "value" );
-									std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::LINK, value ? Switch::Option::ON : Switch::Option::OFF );
-									break;
+					auto device = g_controller->getDeviceById( aid - 1 );
+					if ( __likely( device != nullptr ) ) {
+						if ( __likely( characteristic.find( "value" ) != characteristic.end() ) ) {
+							try {
+								std::string subtype = device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
+								const HAPDefenition& defenition = HAPMappings.at( device->getType() ).at( subtype );
+								if ( __likely( iid == defenition.iid ) ) {
+									if ( device->getType() == Device::Type::SWITCH ) {
+										auto value = jsonGet<bool>( characteristic, "value" );
+										std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::LINK, value ? Switch::Option::ON : Switch::Option::OFF );
+									} else if ( device->getType() == Device::Type::LEVEL ) {
+										auto value = jsonGet<double>( characteristic, "value" );
+										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, value );
+									} else if ( device->getType() == Device::Type::COUNTER ) {
+										auto value = jsonGet<double>( characteristic, "value" );
+										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, value );
+									}
+								} else {
+									switch( (HAPCharacteristic)iid ) {
+										case HAPCharacteristic::IDENTIFY:
+											// Not implemented yet.
+											break;
+										default:
+											Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
+											continue;
+									}
 								}
-								default:
-									Logger::logr( Logger::LogLevel::ERROR, this, "Invalid instance id %d in characteristics PUT request.", iid );
-									break;
+							} catch( std::out_of_range exception_ ) {
+								Logger::logr( Logger::LogLevel::ERROR, this, "Device %s is not supported.", device->getName().c_str() );
 							}
 						} else if ( characteristic.find( "ev" ) != characteristic.end() ) {
-							// HAP par 5.8.2 - this is a request to monitor or unmonitor the characteristic representing
-							// he device.
 							if ( jsonGet<bool>( characteristic, "ev" ) ) {
 								// Add the device to the vector of monitored devices if it's not already present.
 								auto deviceIt = session.m_devices.begin();
@@ -1335,8 +1369,7 @@ namespace micasa {
 
 				// HAP par 5.7.3 - an id param should always be present and is a comma-separated list of accessory and
 				// characteristic id pairs seperated by a dot.
-				json result = json::object();
-				result["characteristics"] = json::array();
+				json characteristics = json::array();
 				auto params = connection_->getParams();
 				auto find = params.find( "id" );
 				if ( find == params.end() ) {
@@ -1346,53 +1379,65 @@ namespace micasa {
 				for ( auto const& idpair : idpairs ) {
 					auto ids =  stringSplit( idpair, '.' );
 					auto aid = std::stoul( ids[0] );
+					if ( aid == 1 ) {
+						continue; // bridge
+					}
 					auto iid = std::stoul( ids[1] );
-					json characteristic = {
-						{ "aid", aid },
-						{ "iid", iid }
-					};
-					if ( idpairs.size() > 1 ) {
-						// TODO nope nope; no status *ever* if all the characteristics are fetched OK.
-						//characteristic["status"] = 0;
-					}
+					auto device = g_controller->getDeviceById( aid - 1 );
+					if ( __likely( device != nullptr ) ) {
+						try {
+							std::string subtype = device->getSettings()->get( "subtype", device->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
+							const HAPDefenition& defenition = HAPMappings.at( device->getType() ).at( subtype );
 
-					auto device = g_controller->getDeviceById( aid >> 10 );
-					if ( device == nullptr ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Invalid device in characteristics GET request." );
-						characteristic["status"] = -70402;
-						if ( idpairs.size() > 1 ) {
-							//protocol = "HTTP/1.1 207 Multi-Status";
-						} else {
-							// TODO this should result in an http error
-						}
-					}
-
-					switch( (Characteristic)iid ) {
-						case Characteristic::LIGHT:
-						case Characteristic::MOTION_DETECTOR:
-							characteristic["value"] = ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON );
-							break;
-						case Characteristic::FAN:
-							characteristic["value"] = ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 0;
-							break;
-						case Characteristic::TEMPERATURE_SENSOR:
-							characteristic["value"] = std::static_pointer_cast<Level>( device )->getValue();
-							break;
-						default:
-							Logger::log( Logger::LogLevel::ERROR, this, "Unknown iid in characteristics GET request." );
-							characteristic["status"] = -70402;
-							if ( idpairs.size() > 1 ) {
-								//protocol = "HTTP/1.1 207 Multi-Status";
+							json characteristic = {
+								{ "aid", aid },
+								{ "iid", iid }
+							};
+							if ( __likely( iid == defenition.iid ) ) {
+								this->_addHAPValue( device, defenition.format, characteristic );
 							} else {
-								// TODO this should result in an http error
+								switch( (HAPCharacteristic)iid ) {
+									case HAPCharacteristic::NAME:
+									case HAPCharacteristic::S_NAME:
+										characteristic["value"] = device->getName();
+										break;
+									case HAPCharacteristic::BATTERY_STATE:
+										characteristic["value"] = 2; // not chargeable
+										break;
+									case HAPCharacteristic::BATTERY_LEVEL:
+									case HAPCharacteristic::BATTERY_LOW: {
+										unsigned int level = device->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL, 100 );
+										level = level > 100 ? 100 : level;
+										level = level < 0 ? 0 : level;
+										if ( (HAPCharacteristic)iid == HAPCharacteristic::BATTERY_LEVEL ) {
+											characteristic["value"] = level;
+										} else {
+											characteristic["value"] = ( level < LOW_BATTERY_THRESHOLD ? 1 : 0 );
+										}
+										break;
+									}
+									default:
+										Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
+										continue;
+								}
 							}
-							break;
-					}
 
-					result["characteristics"] += characteristic;
+							characteristics += characteristic;
+						} catch( std::out_of_range exception_ ) {
+							Logger::logr( Logger::LogLevel::ERROR, this, "Device %s is not supported.", device->getName().c_str() );
+						} catch( std::runtime_error exception_ ) {
+							Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+						}
+					} else {
+						Logger::logr( Logger::LogLevel::ERROR, this, "Invalid accessory id %d in characteristics GET request.", aid );
+					}
 				}
 
-				session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", result.dump() );
+				json output = {
+					{ "characteristics", characteristics }
+				};
+
+				session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
 			}
 
 		} catch( std::out_of_range exception_ ) {
@@ -1401,6 +1446,50 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid json received." );
 		} catch( std::runtime_error exception_ ) {
 			Logger::logr( Logger::LogLevel::ERROR, this, exception_.what() );
+		}
+	};
+
+	void HomeKit::_increaseConfigNumber() {
+		Logger::log( Logger::LogLevel::VERBOSE, this, "Increasing HAP configuration index." );
+		int config = this->m_settings->get( "_configuration_number", 1 );
+		this->m_settings->put( "_configuration_number", ++config );
+		if ( this->m_group ) {
+			avahi_entry_group_reset( this->m_group );
+		}
+		if ( this->m_client ) {
+			this->_createService( this->m_client );
+		}
+	};
+
+	void HomeKit::_addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) throw( std::runtime_error ) {
+		if ( "bool" == format_ ) {
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				object_["value"] = ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON );
+			} else {
+				throw std::runtime_error( "Device " + device_->getName() + " doesn't support bool values." );
+			}
+		} else if ( "uint8" == format_ ) {
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				object_["value"] = ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) ? 1 : 0;
+			} else if ( device_->getType() == Device::Type::LEVEL ) {
+				object_["value"] = (uint8_t)std::static_pointer_cast<Level>( device_ )->getValue();
+			} else if ( device_->getType() == Device::Type::COUNTER ) {
+				object_["value"] = (uint8_t)std::static_pointer_cast<Counter>( device_ )->getValue();
+			} else {
+				throw std::runtime_error( "Device " + device_->getName() + " doesn't support uint8 values." );
+			}
+		} else if ( "float" == format_ ) {
+			if ( device_->getType() == Device::Type::LEVEL ) {
+				object_["value"] = std::static_pointer_cast<Level>( device_ )->getValue();
+			} else if ( device_->getType() == Device::Type::COUNTER ) {
+				object_["value"] = std::static_pointer_cast<Counter>( device_ )->getValue();
+			} else {
+				throw std::runtime_error( "Device " + device_->getName() + " doesn't support float values." );
+			}
+#ifdef _DEBUG
+		} else {
+			assert( false && "HAPMappings contains invalid format." );
+#endif // _DEBUG
 		}
 	};
 

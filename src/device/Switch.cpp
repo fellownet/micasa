@@ -28,6 +28,7 @@ namespace micasa {
 		{ Switch::SubType::HEATER, "heater" },
 		{ Switch::SubType::BELL, "bell" },
 		{ Switch::SubType::SCENE, "scene" },
+		{ Switch::SubType::OCCUPANCY, "occupancy" },
 		{ Switch::SubType::ACTION, "action" },
 	};
 

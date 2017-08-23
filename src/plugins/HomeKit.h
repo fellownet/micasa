@@ -40,6 +40,7 @@ namespace micasa {
 		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 		static nlohmann::json getEmptySettingsJson( bool advanced_ = false );
+		void putSettingsJson( const nlohmann::json& settings_ );
 		void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) override;
@@ -67,6 +68,9 @@ namespace micasa {
 		void _handlePairings( std::shared_ptr<Network::Connection> connection_ );
 		void _handleAccessories( std::shared_ptr<Network::Connection> connection_ );
 		void _handleCharacteristics( std::shared_ptr<Network::Connection> connection_ );
+
+		void _increaseConfigNumber();
+		void _addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) throw( std::runtime_error );
 
 		std::string _getSetupCode() const;
 		std::string _getAccessoryId() const;
