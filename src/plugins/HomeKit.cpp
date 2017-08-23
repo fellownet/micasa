@@ -134,6 +134,8 @@ namespace micasa {
 	const unsigned short HAP_PERM_PW = (1 << 1);
 	const unsigned short HAP_PERM_EV = (1 << 2);
 
+	// NOTE custom/additional characteristics should be added in three separate places, updateDevice, _handleAccessories
+	// and _handleCharacteristic (GET and optionally PUT).
 	typedef struct { std::string service_uuid; std::string characteristic_uuid; std::string format; unsigned short iid; unsigned short permissions; } HAPDefenition;
 	const std::map<Device::Type, std::map<std::string, HAPDefenition>> HAPMappings {
 		{ Device::Type::SWITCH, {
@@ -147,6 +149,9 @@ namespace micasa {
 		{ Device::Type::LEVEL, {
 			{ Level::resolveTextSubType( Level::SubType::TEMPERATURE ),       { "8A", "11", "float", 110, HAP_PERM_PR | HAP_PERM_EV } },
 			{ Level::resolveTextSubType( Level::SubType::HUMIDITY ),          { "82", "10", "float", 111, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::LUMINANCE ),         { "84", "6B", "float", 112, HAP_PERM_PR | HAP_PERM_EV } },
+			// NOTE an additional on/off characteristic is added for the dimmer, leave a gap in iid for it.
+			{ Level::resolveTextSubType( Level::SubType::DIMMER ),            { "43", "8",  "int",   114, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
 		} },
 	};
 
@@ -355,10 +360,18 @@ namespace micasa {
 									{ "iid", defenition.iid }
 								};
 								this->_addHAPValue( device_, defenition.format, characteristic );
-
 								json output = {
 									{ "characteristics", { characteristic } }
 								};
+
+								// Services with additional required characteristics are added here.
+								if ( subtype == Level::SubType::DIMMER ) {
+									output["characteristics"] += {
+										{ "aid", device_->getId() + 1 },
+										{ "iid", defenition.iid - 1 }, // should be a left a gap in HAPMappings
+										{ "value", ( std::static_pointer_cast<Level>( device_ )->getValue() > 0 ) }
+									};
+								}
 
 								session.send( "EVENT/1.0 200 OK", "Content-Type: application/hap+json", output.dump() );
 							} catch( std::out_of_range exception_ ) {
@@ -418,6 +431,7 @@ namespace micasa {
 				{ "badge", "Enable HomeKit" },
 				{ "description", "Enable this setting to make this device accessible by HomeKit controllers." },
 				{ "type", "boolean" },
+				{ "sort", 110 },
 				{ "class", "advanced" }
 			};
 		};
@@ -1251,6 +1265,18 @@ namespace micasa {
 						this->_addHAPValue( device, defenition.format, characteristic );
 						characteristics += characteristic;
 
+						// Services with additional required characteristics are added here.
+						if ( subtype == Level::SubType::DIMMER ) {
+							characteristics += {
+								{ "type", "25" }, // On/Off is required besides brightness
+								{ "iid", defenition.iid - 1 }, // should be left a gap in
+								{ "perms", permissions },
+								{ "format", "int" },
+								{ "ev", ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV },
+								{ "value", ( std::static_pointer_cast<Level>( device )->getValue() > 0 ) }
+							};
+						}
+
 						services += {
 							{ "type", defenition.service_uuid },
 							{ "iid", service_iid },
@@ -1325,9 +1351,23 @@ namespace micasa {
 										case HAPCharacteristic::IDENTIFY:
 											// Not implemented yet.
 											break;
-										default:
-											Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
-											continue;
+										default: {
+											// Services with additional required characteristics are added here.
+											if (
+												subtype == Level::SubType::DIMMER
+												&& iid == (unsigned long)defenition.iid - 1
+											) {
+												auto value = jsonGet<bool>( characteristic, "value" );
+												if ( value ) {
+													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, 100 );
+												} else {
+													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, 0 );
+												}
+											} else {
+												Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
+												continue;
+											}
+										}
 									}
 								}
 							} catch( std::out_of_range exception_ ) {
@@ -1416,9 +1456,18 @@ namespace micasa {
 										}
 										break;
 									}
-									default:
-										Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
-										continue;
+									default: {
+										// Services with additional required characteristics are added here.
+										if (
+											subtype == Level::SubType::DIMMER
+											&& iid == (unsigned long)defenition.iid - 1
+										) {
+											characteristic["value"] = ( std::static_pointer_cast<Level>( device )->getValue() > 0 );
+										} else {
+											Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
+											continue;
+										}
+									}
 								}
 							}
 
@@ -1475,6 +1524,14 @@ namespace micasa {
 				object_["value"] = (uint8_t)std::static_pointer_cast<Level>( device_ )->getValue();
 			} else if ( device_->getType() == Device::Type::COUNTER ) {
 				object_["value"] = (uint8_t)std::static_pointer_cast<Counter>( device_ )->getValue();
+			} else {
+				throw std::runtime_error( "Device " + device_->getName() + " doesn't support uint8 values." );
+			}
+		} else if ( "int" == format_ ) {
+			if ( device_->getType() == Device::Type::LEVEL ) {
+				object_["value"] = (int)std::static_pointer_cast<Level>( device_ )->getValue();
+			} else if ( device_->getType() == Device::Type::COUNTER ) {
+				object_["value"] = (int)std::static_pointer_cast<Counter>( device_ )->getValue();
 			} else {
 				throw std::runtime_error( "Device " + device_->getName() + " doesn't support uint8 values." );
 			}
