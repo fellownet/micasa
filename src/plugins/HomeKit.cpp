@@ -1,14 +1,8 @@
-// https://github.com/etwmc/Personal-HomeKit-HAP
-// https://github.com/KhaosT/HAP-NodeJS
-// apt-get install libavahi-client-dev
-// https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
-// https://github.com/moflo/tlv8-particle/blob/master/src/TLV8.cpp
-// https://matthewarcus.wordpress.com/2014/05/10/srp-in-openssl/
-// https://gist.github.com/gomfunkel/b1a046d729757120907c
-
-#include <avahi-common/alternative.h>
-#include <avahi-common/malloc.h>
-#include <avahi-common/error.h>
+#ifndef _DARWIN
+	#include <avahi-common/alternative.h>
+	#include <avahi-common/malloc.h>
+	#include <avahi-common/error.h>
+#endif // _DARWIN
 
 #include "tlv8.h"
 
@@ -29,61 +23,63 @@ extern "C" {
 
 #include "HomeKit.h"
 
-void micasa_avahi_client_callback( AvahiClient* client_, AvahiClientState state_, void* userdata_ ) {
-	auto plugin = (micasa::HomeKit*)userdata_;
-	switch( state_ ) {
-		case AVAHI_CLIENT_S_RUNNING:
-			plugin->_createService( client_ );
-			break;
+#ifndef _DARWIN
+	void micasa_avahi_client_callback( AvahiClient* client_, AvahiClientState state_, void* userdata_ ) {
+		auto plugin = (micasa::HomeKit*)userdata_;
+		switch( state_ ) {
+			case AVAHI_CLIENT_S_RUNNING:
+				plugin->_createService( client_ );
+				break;
 
-		case AVAHI_CLIENT_FAILURE:
-			plugin->setState( micasa::Plugin::State::FAILED );
-			micasa::Logger::logr( micasa::Logger::LogLevel::ERROR, plugin, "Error in avahi client: %s.", avahi_strerror( avahi_client_errno( client_ ) ) );
-			avahi_simple_poll_quit( plugin->m_poll );
-			break;
+			case AVAHI_CLIENT_FAILURE:
+				plugin->setState( micasa::Plugin::State::FAILED );
+				micasa::Logger::logr( micasa::Logger::LogLevel::ERROR, plugin, "Error in avahi client: %s.", avahi_strerror( avahi_client_errno( client_ ) ) );
+				avahi_simple_poll_quit( plugin->m_poll );
+				break;
 
-		case AVAHI_CLIENT_S_COLLISION:
-		case AVAHI_CLIENT_S_REGISTERING:
-			if ( plugin->m_group ) {
-				avahi_entry_group_reset( plugin->m_group );
-			}
-			break;
+			case AVAHI_CLIENT_S_COLLISION:
+			case AVAHI_CLIENT_S_REGISTERING:
+				if ( plugin->m_group ) {
+					avahi_entry_group_reset( plugin->m_group );
+				}
+				break;
 
-		case AVAHI_CLIENT_CONNECTING:
-			break;
+			case AVAHI_CLIENT_CONNECTING:
+				break;
 
-		default:
-			break;
-	}
-};
-
-void micasa_avahi_group_callback( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ ) {
-	auto plugin = (micasa::HomeKit*)userdata_;
-	switch( state_ ) {
-		case AVAHI_ENTRY_GROUP_ESTABLISHED:
-			micasa::Logger::log( micasa::Logger::LogLevel::VERBOSE, plugin, "Avahi group established." );
-			break;
-
-		case AVAHI_ENTRY_GROUP_COLLISION: {
-			char* altname = avahi_alternative_service_name( plugin->m_name );
-			micasa::Logger::logr( micasa::Logger::LogLevel::WARNING, plugin, "Avahi name collision, renaming from %s to %s.", plugin->m_name, altname );
-			avahi_free( plugin->m_name );
-			plugin->m_name = altname;
-			plugin->_createService( avahi_entry_group_get_client( group_ ) );
-			break;
+			default:
+				break;
 		}
+	};
 
-		case AVAHI_ENTRY_GROUP_FAILURE:
-			plugin->setState( micasa::Plugin::State::FAILED );
-			micasa::Logger::logr( micasa::Logger::LogLevel::ERROR, plugin, "Avahi group entry failure: %s.", avahi_strerror( avahi_client_errno( avahi_entry_group_get_client( group_ ) ) ) );
-			avahi_simple_poll_quit( plugin->m_poll );
-			break;
+	void micasa_avahi_group_callback( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ ) {
+		auto plugin = (micasa::HomeKit*)userdata_;
+		switch( state_ ) {
+			case AVAHI_ENTRY_GROUP_ESTABLISHED:
+				micasa::Logger::log( micasa::Logger::LogLevel::VERBOSE, plugin, "Avahi group established." );
+				break;
 
-		case AVAHI_ENTRY_GROUP_UNCOMMITED:
-		case AVAHI_ENTRY_GROUP_REGISTERING:
-			break;
-	}
-};
+			case AVAHI_ENTRY_GROUP_COLLISION: {
+				char* altname = avahi_alternative_service_name( plugin->m_name );
+				micasa::Logger::logr( micasa::Logger::LogLevel::WARNING, plugin, "Avahi name collision, renaming from %s to %s.", plugin->m_name, altname );
+				avahi_free( plugin->m_name );
+				plugin->m_name = altname;
+				plugin->_createService( avahi_entry_group_get_client( group_ ) );
+				break;
+			}
+
+			case AVAHI_ENTRY_GROUP_FAILURE:
+				plugin->setState( micasa::Plugin::State::FAILED );
+				micasa::Logger::logr( micasa::Logger::LogLevel::ERROR, plugin, "Avahi group entry failure: %s.", avahi_strerror( avahi_client_errno( avahi_entry_group_get_client( group_ ) ) ) );
+				avahi_simple_poll_quit( plugin->m_poll );
+				break;
+
+			case AVAHI_ENTRY_GROUP_UNCOMMITED:
+			case AVAHI_ENTRY_GROUP_REGISTERING:
+				break;
+		}
+	};
+#endif // _DARWIN
 
 namespace micasa {
 
@@ -144,6 +140,7 @@ namespace micasa {
 			{ Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ), { "85", "22", "bool",  102, HAP_PERM_PR | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::FAN ),             { "B7", "B0", "uint8", 103, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::OCCUPANCY ),       { "86", "71", "uint8", 104, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::CONTACT ),         { "80", "6A", "uint8", 105, HAP_PERM_PR | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::SCENE ),           { "89", "73", "uint8", 105, HAP_PERM_PR | HAP_PERM_EV } },
 		} },
 		{ Device::Type::LEVEL, {
@@ -157,9 +154,13 @@ namespace micasa {
 
 	HomeKit::HomeKit( const unsigned int id_, const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) :
 		Plugin( id_, type_, reference_, parent_ ),
+#ifdef _DARWIN
+		m_dnssd( NULL ),
+#else
 		m_client( NULL ),
 		m_poll( NULL ),
 		m_group( NULL ),
+#endif // _DARWIN
 		m_srp( NULL ),
 		m_publicKey( NULL ),
 		m_secretKey( NULL )
@@ -179,20 +180,24 @@ namespace micasa {
 
 		auto handler = [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) -> void {
 			switch( event_ ) {
-				case Network::Connection::Event::CONNECT:
+				case Network::Connection::Event::CONNECT: {
+					std::lock_guard<std::mutex> lock( this->m_sessionsMutex );
 					this->m_sessions.emplace(
 						std::piecewise_construct,
 						std::forward_as_tuple( connection_ ),
 						std::forward_as_tuple( connection_ )
 					);
 					break;
+				}
 
 				case Network::Connection::Event::DATA: {
 					// Once raw data packages are received instead of parsed http messages, an (encrypted) session
 					// should be present.
+					std::unique_lock<std::mutex> sessionsLock( this->m_sessionsMutex );
 					if ( this->m_sessions.find( connection_ ) != this->m_sessions.end() ) {
 						Session& session = this->m_sessions.at( connection_ );
-						std::unique_lock<std::mutex> lock( session.m_sessionMutex );
+						std::lock_guard<std::mutex> lock( session.m_sessionMutex );
+						sessionsLock.unlock();
 
 						std::string data = connection_->popData();
 						auto packet = data.c_str();
@@ -225,7 +230,7 @@ namespace micasa {
 						) {
 							if ( mg_parse_http( decrypted, length, &http, true ) > 0 ) {
 								connection_->m_data = &http;
-								this->_processRequest( connection_ );
+								this->_processRequest( session );
 								this->setState( Plugin::State::READY );
 							} else {
 								Logger::log( Logger::LogLevel::ERROR, this, "Unable to parse session http message." );
@@ -239,15 +244,25 @@ namespace micasa {
 					break;
 				}
 
-				case Network::Connection::Event::HTTP:
+				case Network::Connection::Event::HTTP: {
 					// During the pairing phase the connection behaves like a standard unencrypted http connection that
 					// can be processed by mongoose.
-					this->_processRequest( connection_ );
+					std::unique_lock<std::mutex> sessionsLock( this->m_sessionsMutex );
+					if ( this->m_sessions.find( connection_ ) != this->m_sessions.end() ) {
+						Session& session = this->m_sessions.at( connection_ );
+						std::lock_guard<std::mutex> lock( session.m_sessionMutex );
+						sessionsLock.unlock();
+						this->_processRequest( session );
+					} else {
+						Logger::log( Logger::LogLevel::ERROR, this, "Session is not open." );
+					}
 					break;
+				}
 
-					case Network::Connection::Event::DROPPED:
+				case Network::Connection::Event::DROPPED:
 				case Network::Connection::Event::CLOSE: {
 					Logger::log( Logger::LogLevel::VERBOSE, this, "Controller disconnected." );
+					std::lock_guard<std::mutex> lock( this->m_sessionsMutex );
 					auto find = this->m_sessions.find( connection_ );
 					if ( find != this->m_sessions.end() ) {
 						this->m_sessions.erase( find );
@@ -268,13 +283,22 @@ namespace micasa {
 		this->m_bind = Network::bind( "[::]:0", handler );
 #else
 		this->m_bind = Network::bind( "0.0.0.0:0", handler );
-#endif
+#endif // _IPV6_ENABLED
 		if ( ! this->m_bind ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Unable to bind." );
 			this->setState( Plugin::State::FAILED );
 			return;
 		}
 
+		// Everytime the plugin is restarted the config number should increase, which makes sure the controller
+		// reinitializes it's config and connects to the right port.
+		int config = this->m_settings->get( "_configuration_number", 0 );
+		this->m_settings->put( "_configuration_number", ++config );
+		this->m_settings->commit();
+
+#ifdef _DARWIN
+		this->_createService();
+#else
 		// Pick a default bonjour name. This name is updated with a suffix if a collision is detected.
 		this->m_name = avahi_strdup( this->getName().c_str() );
 
@@ -310,6 +334,23 @@ namespace micasa {
 				avahi_simple_poll_free( this->m_poll );
 			}
 		} );
+#endif // _DARWIN
+
+		// The keep-alive task will send periodic empty events to the iOS controller to make sure the connection is
+		// still open.
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+			std::lock_guard<std::mutex> lock( this->m_sessionsMutex );
+			for ( auto& sessionIt : this->m_sessions ) {
+				auto& session = sessionIt.second;
+				std::lock_guard<std::mutex> lock( session.m_sessionMutex );
+				if ( session.m_encrypted ) {
+					json output = {
+						{ "characteristics", json::array() }
+					};
+					session.send( "EVENT/1.0 200 OK", "Content-Type: application/hap+json", output.dump() );
+				}
+			}
+		} );
 
 		// As long as there's no connection from the controller (an iOS device) we remain in disconnected state.
 		this->setState( Plugin::State::DISCONNECTED );
@@ -317,19 +358,32 @@ namespace micasa {
 
 	void HomeKit::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
+
+#ifdef _DARWIN
+		DNSServiceRefDeallocate( this->m_dnssd );
+		this->m_dnssd = NULL;
+#else
 		if ( this->m_poll ) {
 			avahi_simple_poll_quit( this->m_poll );
 		}
 		avahi_free( this->m_name );
-		if ( this->m_bind ) {
-			this->m_bind->terminate();
-		}
-		for ( auto& sessionIt : this->m_sessions ) {
-			sessionIt.second.m_connection->terminate();
-		}
 		if ( this->m_worker.joinable() ) {
 			this->m_worker.join();
 		}
+#endif // _DARWIN
+
+		if ( this->m_bind ) {
+			this->m_bind->terminate();
+		}
+		std::lock_guard<std::mutex> lock( this->m_sessionsMutex );
+		for ( auto& sessionIt : this->m_sessions ) {
+			sessionIt.second.m_connection->terminate();
+		}
+
 		Plugin::stop();
 	};
 
@@ -338,6 +392,7 @@ namespace micasa {
 
 			// Events for this device are only sent to sessions that have specificially asked for this device to be
 			// monitored.
+			std::unique_lock<std::mutex> sessionsLock( this->m_sessionsMutex );
 			for ( auto& sessionIt : this->m_sessions ) {
 				for ( auto& devicePtr : sessionIt.second.m_devices ) {
 					if ( devicePtr.lock() == device_ ) {
@@ -346,7 +401,7 @@ namespace micasa {
 						// Sending of events is done in a separate thread that locks on the session. This prevents an
 						// event being sent in the middle of some other request or response.
 						this->m_scheduler.schedule( 0, 1, this, [this,device_,&session]( std::shared_ptr<Scheduler::Task<>> ) {
-							std::unique_lock<std::mutex> lock( session.m_sessionMutex );
+							std::lock_guard<std::mutex> lock( session.m_sessionMutex );
 
 							try {
 								std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
@@ -361,11 +416,11 @@ namespace micasa {
 								};
 								this->_addHAPValue( device_, defenition.format, characteristic );
 								json output = {
-									{ "characteristics", { characteristic } }
+									{ "characteristics", json::array( { characteristic } ) }
 								};
 
 								// Services with additional required characteristics are added here.
-								if ( subtype == Level::SubType::DIMMER ) {
+								if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 									output["characteristics"] += {
 										{ "aid", device_->getId() + 1 },
 										{ "iid", defenition.iid - 1 }, // should be a left a gap in HAPMappings
@@ -413,12 +468,6 @@ namespace micasa {
 		return result;
 	};
 
-	void HomeKit::putSettingsJson( const nlohmann::json& settings_ ) {
-		avahi_free( this->m_name );
-		this->m_name = avahi_strdup( this->getName().c_str() );
-		this->_increaseConfigNumber();
-	};
-
 	void HomeKit::updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const {
 		json_["enable_homekit_" + this->getReference()] = device_->getSettings()->get<bool>( "enable_homekit_" + this->getReference(), false );
 	};
@@ -444,7 +493,8 @@ namespace micasa {
 					for ( auto& subtype : setting["options"] ) {
 						try {
 							HAPMappings.at( device_->getType() ).at( subtype["value"] );
-							subtype["settings"] = { getSetting() };
+							subtype["settings"] = json::array();
+							subtype["settings"].push_back( getSetting() );
 						} catch( std::out_of_range exception_ ) { }
 					}
 				}
@@ -476,10 +526,75 @@ namespace micasa {
 			}
 		}
 		if ( increaseConfig ) {
-			this->_increaseConfigNumber();
+			Logger::log( Logger::LogLevel::VERBOSE, this, "Increasing HAP configuration index." );
+			int config = this->m_settings->get( "_configuration_number", 1 );
+			this->m_settings->put( "_configuration_number", ++config );
+			this->m_settings->commit();
+
+#ifdef _DARWIN
+			this->_createService();
+#else
+			if ( this->m_group ) {
+				avahi_entry_group_reset( this->m_group );
+			}
+			if ( this->m_client ) {
+				this->_createService( this->m_client );
+			}
+#endif // _DARWIN
 		}
 	};
 
+#ifdef _DARWIN
+	void HomeKit::_createService() {
+		if ( this->m_dnssd != NULL ) {
+			DNSServiceRefDeallocate( this->m_dnssd );
+			this->m_dnssd = NULL;
+		}
+
+		std::string config = "c#=" + this->m_settings->get( "_configuration_number", "1" );
+		std::string id = "id=" + this->_getAccessoryId();
+		std::string status;
+		if ( this->m_settings->get( "paired", false ) ) {
+			status = "sf=0";
+		} else {
+			status = "sf=1"; // not paired
+		}
+		auto txtparts = {
+			config.c_str(),
+			"ff=0",
+			id.c_str(),
+			"md=HomeKitPlugin1,1",
+			"pv=1.0",
+			"s#=1",
+			status.c_str(),
+			"ci=2",
+		};
+		std::stringstream txt;
+		for ( const auto& txtpart : txtparts ) {
+			txt << char( strlen( txtpart ) ) << txtpart;
+		}
+
+		Logger::logr( Logger::LogLevel::VERBOSE, this, "Using configuration number %s.", config.c_str() );
+		DNSServiceErrorType error = DNSServiceRegister(
+			&this->m_dnssd,
+			0, // no flags
+			0, // all network interfaces
+			this->getName().c_str(),
+			"_hap._tcp",
+			NULL, // default domain
+			NULL, // use default host name
+			htons( this->m_bind->getPort() ), // port number
+			txt.str().size(), // length of TXT record
+			txt.str().c_str(),
+			NULL, // callback function
+			this
+		);
+		if ( error != kDNSServiceErr_NoError ) {
+			Logger::log( Logger::LogLevel::ERROR, this, "Unable to register bonjour service." );
+			this->setState( Plugin::State::FAILED );
+		}
+	};
+#else
 	void HomeKit::_createService( AvahiClient* client_ ) {
 
 		// If this is the first time we're called, let's create a new entry group if necessary.
@@ -496,20 +611,22 @@ namespace micasa {
 		if ( avahi_entry_group_is_empty( this->m_group ) ) {
 			std::string config = "c#=" + this->m_settings->get( "_configuration_number", "1" );
 			std::string id = "id=" + this->_getAccessoryId();
+			std::string status;
+			if ( this->m_settings->get( "paired", false ) ) {
+				status = "sf=0";
+			} else {
+				status = "sf=1"; // not paired
+			}
 			Logger::logr( Logger::LogLevel::VERBOSE, this, "Using configuration number %s.", config.c_str() );
 			int ret = avahi_entry_group_add_service( this->m_group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, static_cast<AvahiPublishFlags>( 0 ), this->m_name, "_hap._tcp", NULL, NULL, this->m_bind->getPort(),
-				// See table Table 5-7 of the HAP documentation.
-				// Current configuration number. Required. Must update when an accessory, service,
-				// or characteristic is added or removed on the accessory server.
 				config.c_str(),
 				// Feature flags (e.g. "0x3" for bits 0 and 1). Required if non-zero. See Table 5-8.
 				"ff=0",
 				id.c_str(),
-				"md=Device1,1",
+				"md=HomeKitPlugin1,1",
 				"pv=1.0",
 				"s#=1",
-				// Status flags; 1 = Accessory has not been paired with any controllers
-				"sf=1",
+				status.c_str(),
 				"ci=2",
 				NULL
 			);
@@ -541,28 +658,29 @@ namespace micasa {
 			}
 		}
 	};
+#endif // _DARWIN
 
-	void HomeKit::_processRequest( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string uri = connection_->getUri();
+	void HomeKit::_processRequest( Session& session_ ) {
+		std::string uri = session_.m_connection->getUri();
 		if ( uri.substr( 0, 9 ) == "/identify" ) {
-			this->_handleIdentify( connection_ );
+			this->_handleIdentify( session_ );
 		} else if ( uri.substr( 0, 11 ) == "/pair-setup" ) {
-			this->_handlePair( connection_ );
+			this->_handlePair( session_ );
 		} else if ( uri.substr( 0, 12 ) == "/pair-verify" ) {
-			this->_handlePairVerify( connection_ );
+			this->_handlePairVerify( session_ );
 		} else if ( uri.substr( 0, 9 ) == "/pairings" ) {
-			this->_handlePairings( connection_ );
+			this->_handlePairings( session_ );
 		} else if ( uri.substr( 0, 12 ) == "/accessories" ) {
-			this->_handleAccessories( connection_ );
+			this->_handleAccessories( session_ );
 		} else if ( uri.substr( 0, 16 ) == "/characteristics" ) {
-			this->_handleCharacteristics( connection_ );
+			this->_handleCharacteristics( session_ );
 		} else {
 			Logger::logr( Logger::LogLevel::WARNING, this, "Unsupported request uri %s.", uri.c_str() );
 		}
 	};
 
-	void HomeKit::_handleIdentify( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handleIdentify( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Identify %s request received.", method.c_str() );
 
 		// HAP par 5.7.6 - This call is only valid if we're unpaired. If we're paired the identify routine should
@@ -570,12 +688,12 @@ namespace micasa {
 		if ( method == "POST" ) {
 			if ( false == this->m_settings->get( "paired", false ) ) {
 				Logger::log( Logger::LogLevel::NOTICE, this, "Identify routine initiated." );
-				connection_->reply( "", 204 /* no content */, { } );
+				session_.m_connection->reply( "", 204 /* no content */, { } );
 			} else {
 				Logger::log( Logger::LogLevel::WARNING, this, "Identify called while already paired with controller." );
 				json result = json::object();
 				result["status"] = -70401;
-				connection_->reply( result.dump(), 400 /* bad request */, {
+				session_.m_connection->reply( result.dump(), 400 /* bad request */, {
 					{ "Content-Type", "application/hap+json" }
 				} );
 			}
@@ -584,14 +702,14 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_handlePair( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handlePair( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Pair %s request received.", method.c_str() );
 
 		try {
 
 			// Parse received tlv data and determine if it's valid and contains the required sequence number.
-			std::string body = connection_->getBody();
+			std::string body = session_.m_connection->getBody();
 			TLV8Class TLV8 = TLV8Class();
 			struct tlv_map tlvmap_in;
 			memset( &tlvmap_in, 0, sizeof( tlv_map ) );
@@ -635,7 +753,7 @@ namespace micasa {
 				uint32_t length;
 				TLV8.encode( &tlvmap_out, &output, &length );
 
-				connection_->reply( std::string( (char*)output, length ), 200, {
+				session_.m_connection->reply( std::string( (char*)output, length ), 200, {
 					{ "Content-Type", "application/pairing+tlv8" }
 				} );
 
@@ -679,7 +797,7 @@ namespace micasa {
 				uint32_t length;
 				TLV8.encode( &tlvmap_out, &output, &length );
 
-				connection_->reply( std::string( (char*)output, length ), 200, {
+				session_.m_connection->reply( std::string( (char*)output, length ), 200, {
 					{ "Content-Type", "application/pairing+tlv8" }
 				} );
 
@@ -823,7 +941,7 @@ namespace micasa {
 				uint32_t length;
 				TLV8.encode( &tlvmap_out, &output, &length );
 
-				connection_->reply( std::string( (char*)output, length ), 200, {
+				session_.m_connection->reply( std::string( (char*)output, length ), 200, {
 					{ "Content-Type", "application/pairing+tlv8" }
 				} );
 
@@ -833,6 +951,7 @@ namespace micasa {
 				// At this point the plugin has been paired with the controller, and it should remain that way.
 				Logger::log( Logger::LogLevel::NOTICE, this, "Paired with controller." );
 				this->m_settings->put( "paired", true );
+				this->m_settings->commit();
 			}
 
 			TLV8.TLVFree( &tlvmap_in );
@@ -842,21 +961,19 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_handlePairVerify( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handlePairVerify( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Pair verify %s request received.", method.c_str() );
 
 		// A pair verify call can only be handled if the plugin is paired with a controller first.
 		if ( ! this->m_settings->get( "paired", false ) ) {
 			Logger::log( Logger::LogLevel::WARNING, this, "Pair verify called without being paired." );
-			connection_->reply( "", 403 /* forbidden */, { } );
+			session_.m_connection->reply( "", 403 /* forbidden */, { } );
 		}
 
 		try {
-			auto& session = this->m_sessions.at( connection_ );
-
 			// First the tlv data is parsed.
-			std::string body = connection_->getBody();
+			std::string body = session_.m_connection->getBody();
 			TLV8Class TLV8 = TLV8Class();
 			struct tlv_map tlvmap_in;
 			memset( &tlvmap_in, 0, sizeof( tlv_map ) );
@@ -917,9 +1034,9 @@ namespace micasa {
 
 				{
 					if (
-						0 != hkdf( (uint8_t*)"Pair-Verify-Encrypt-Salt", 24, sharedKey, 32, (uint8_t*)"Pair-Verify-Encrypt-Info", 24, (uint8_t*)session.m_sessionKey, 32 )
-						|| 0 != hkdf( (uint8_t*)"Control-Salt", 12, sharedKey, 32, (uint8_t*)"Control-Read-Encryption-Key", 27, (uint8_t*)session.m_accessoryToControllerKey, 32 )
-						|| 0 != hkdf( (uint8_t*)"Control-Salt", 12, sharedKey, 32, (uint8_t*)"Control-Write-Encryption-Key", 28, (uint8_t*)session.m_controllerToAccessoryKey, 32 )
+						0 != hkdf( (uint8_t*)"Pair-Verify-Encrypt-Salt", 24, sharedKey, 32, (uint8_t*)"Pair-Verify-Encrypt-Info", 24, (uint8_t*)session_.m_sessionKey, 32 )
+						|| 0 != hkdf( (uint8_t*)"Control-Salt", 12, sharedKey, 32, (uint8_t*)"Control-Read-Encryption-Key", 27, (uint8_t*)session_.m_accessoryToControllerKey, 32 )
+						|| 0 != hkdf( (uint8_t*)"Control-Salt", 12, sharedKey, 32, (uint8_t*)"Control-Write-Encryption-Key", 28, (uint8_t*)session_.m_controllerToAccessoryKey, 32 )
 					) {
 						throw std::runtime_error( "Pair verification encryption failure." );
 					}
@@ -928,7 +1045,7 @@ namespace micasa {
 				// Encode inner output tlv data.
 				chacha20_ctx ctx;
 				bzero( &ctx, sizeof( ctx ) );
-				chacha20_setup( &ctx, (const uint8_t*)session.m_sessionKey, 32, (uint8_t*)"PV-Msg02" );
+				chacha20_setup( &ctx, (const uint8_t*)session_.m_sessionKey, 32, (uint8_t*)"PV-Msg02" );
 				char buffer[64];
 				char key[64];
 				bzero( buffer, 64 );
@@ -958,7 +1075,7 @@ namespace micasa {
 				uint32_t length;
 				TLV8.encode( &tlvmap_out, &output, &length );
 
-				connection_->reply( std::string( (char*)output, length ), 200, {
+				session_.m_connection->reply( std::string( (char*)output, length ), 200, {
 					{ "Content-Type", "application/pairing+tlv8" }
 				} );
 
@@ -978,7 +1095,7 @@ namespace micasa {
 
 				chacha20_ctx chacha20;
 				bzero( &chacha20, sizeof( chacha20 ) );
-				chacha20_setup( &chacha20, (const uint8_t *)session.m_sessionKey, 32, (uint8_t*)"PV-Msg03" );
+				chacha20_setup( &chacha20, (const uint8_t *)session_.m_sessionKey, 32, (uint8_t*)"PV-Msg03" );
 
 				char temp[64];
 				bzero( temp, 64 );
@@ -1007,7 +1124,7 @@ namespace micasa {
 				uint32_t length;
 				TLV8.encode( &tlvmap_out, &output, &length );
 
-				connection_->reply( std::string( (char*)output, length ), 200, {
+				session_.m_connection->reply( std::string( (char*)output, length ), 200, {
 					{ "Content-Type", "application/pairing+tlv8" }
 				} );
 
@@ -1017,8 +1134,9 @@ namespace micasa {
 				// After he pairing process is complete, the connection encrypts all data at the packet level. These
 				// packets are not recognized as http packets by mongoose, so we're removing the http protocol handler
 				// and process these packets manually.
-				connection_->m_mg_conn->proto_handler = NULL;
-				connection_->m_flags &= ~NETWORK_CONNECTION_FLAG_HTTP;
+				session_.m_connection->m_mg_conn->proto_handler = NULL;
+				session_.m_connection->m_flags &= ~NETWORK_CONNECTION_FLAG_HTTP;
+				session_.m_encrypted = true;
 			}
 
 			TLV8.TLVFree( &tlvmap_in );
@@ -1030,15 +1148,13 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_handlePairings( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handlePairings( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Pairings %s request received.", method.c_str() );
 
 		try {
-			auto& session = this->m_sessions.at( connection_ );
-
 			// First the tlv data is parsed.
-			std::string body = connection_->getBody();
+			std::string body = session_.m_connection->getBody();
 			TLV8Class TLV8 = TLV8Class();
 			struct tlv_map tlvmap_in;
 			memset( &tlvmap_in, 0, sizeof( tlv_map ) );
@@ -1057,6 +1173,8 @@ namespace micasa {
 			} else if ( reqtype.data[0] == 4 ) {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Pairing removed." );
 				this->m_settings->put( "paired", false );
+				this->m_settings->commit();
+				std::lock_guard<std::mutex> sessionsLock( this->m_sessionsMutex );
 				for ( auto& sessionIt : this->m_sessions ) {
 					sessionIt.second.m_connection->terminate();
 				}
@@ -1071,7 +1189,7 @@ namespace micasa {
 			uint32_t length = 0;
 			TLV8.encode( &tlvmap_out, &output, &length );
 
-			session.send( "HTTP/1.1 200 OK", "Content-Type: application/pairing+tlv8", std::string( (char*)output, length ) );
+			session_.send( "HTTP/1.1 200 OK", "Content-Type: application/pairing+tlv8", std::string( (char*)output, length ) );
 
 			TLV8.TLVFree( &tlvmap_out );
 			free( output );
@@ -1085,13 +1203,11 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_handleAccessories( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handleAccessories( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Accessoires %s request received.", method.c_str() );
 
 		try {
-			auto& session = this->m_sessions.at( connection_ );
-
 			json accessories = json::array();
 			accessories += {
 				{ "aid", 1 }, // first accessory is the bridge and should use aid 1
@@ -1193,7 +1309,6 @@ namespace micasa {
 						if ( device->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 							unsigned int level = device->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );
 							level = level > 100 ? 100 : level;
-							level = level < 0 ? 0 : level;
 							services += {
 								{ "type", "96" }, // battery service
 								{ "iid", 2 },
@@ -1266,7 +1381,7 @@ namespace micasa {
 						characteristics += characteristic;
 
 						// Services with additional required characteristics are added here.
-						if ( subtype == Level::SubType::DIMMER ) {
+						if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 							characteristics += {
 								{ "type", "25" }, // On/Off is required besides brightness
 								{ "iid", defenition.iid - 1 }, // should be left a gap in
@@ -1301,7 +1416,7 @@ namespace micasa {
 				{ "accessories", accessories }
 			};
 
-			session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
+			session_.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
 
 		} catch( std::out_of_range exception_ ) {
 			Logger::log( Logger::LogLevel::ERROR, this, "Session is not valid." );
@@ -1310,16 +1425,14 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_handleCharacteristics( std::shared_ptr<Network::Connection> connection_ ) {
-		std::string method = connection_->getMethod();
+	void HomeKit::_handleCharacteristics( Session& session_ ) {
+		std::string method = session_.m_connection->getMethod();
 		Logger::logr( Logger::LogLevel::VERBOSE, this, "Characteristics %s request received.", method.c_str() );
 
 		try {
-			auto& session = this->m_sessions.at( connection_ );
-
 			if ( method == "PUT" ) {
 
-				json data = json::parse( connection_->getBody() );
+				json data = json::parse( session_.m_connection->getBody() );
 				if ( data.find( "characteristics" ) == data.end() ) {
 					throw std::runtime_error( "Missing characteristics in characteristics PUT request." );
 				}
@@ -1354,13 +1467,12 @@ namespace micasa {
 										default: {
 											// Services with additional required characteristics are added here.
 											if (
-												subtype == Level::SubType::DIMMER
+												subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 												&& iid == (unsigned long)defenition.iid - 1
 											) {
+												// We're only handling the OFF request for dimmers. An ON request is
 												auto value = jsonGet<bool>( characteristic, "value" );
-												if ( value ) {
-													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, 100 );
-												} else {
+												if ( ! value ) {
 													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::LINK, 0 );
 												}
 											} else {
@@ -1376,22 +1488,22 @@ namespace micasa {
 						} else if ( characteristic.find( "ev" ) != characteristic.end() ) {
 							if ( jsonGet<bool>( characteristic, "ev" ) ) {
 								// Add the device to the vector of monitored devices if it's not already present.
-								auto deviceIt = session.m_devices.begin();
-								for ( ; deviceIt != session.m_devices.end(); deviceIt++ ) {
+								auto deviceIt = session_.m_devices.begin();
+								for ( ; deviceIt != session_.m_devices.end(); deviceIt++ ) {
 									if ( deviceIt->lock() == device ) {
 										break;
 									}
 								}
-								if ( deviceIt == session.m_devices.end() ) {
+								if ( deviceIt == session_.m_devices.end() ) {
 									Logger::logr( Logger::LogLevel::VERBOSE, this, "Start monitoring %s.", device->getName().c_str() );
-									session.m_devices.push_back( device );
+									session_.m_devices.push_back( device );
 								}
 							} else {
 								// Remove the device from the vector of monitored devices, if it can be found.
-								for ( auto deviceIt = session.m_devices.begin(); deviceIt != session.m_devices.end(); ) {
+								for ( auto deviceIt = session_.m_devices.begin(); deviceIt != session_.m_devices.end(); ) {
 									if ( deviceIt->lock() == device ) {
 										Logger::logr( Logger::LogLevel::VERBOSE, this, "Stop monitoring %s.", device->getName().c_str() );
-										deviceIt = session.m_devices.erase( deviceIt );
+										deviceIt = session_.m_devices.erase( deviceIt );
 									} else {
 										deviceIt++;
 									}
@@ -1403,14 +1515,14 @@ namespace micasa {
 					}
 				}
 
-				session.send( "HTTP/1.1 204 No Content", "Content-Type: application/hap+json", "" );
+				session_.send( "HTTP/1.1 204 No Content", "Content-Type: application/hap+json", "" );
 
 			} else if ( method == "GET" ) {
 
 				// HAP par 5.7.3 - an id param should always be present and is a comma-separated list of accessory and
 				// characteristic id pairs seperated by a dot.
 				json characteristics = json::array();
-				auto params = connection_->getParams();
+				auto params = session_.m_connection->getParams();
 				auto find = params.find( "id" );
 				if ( find == params.end() ) {
 					throw std::runtime_error( "Missing id parameter in characteristics GET request." );
@@ -1448,7 +1560,6 @@ namespace micasa {
 									case HAPCharacteristic::BATTERY_LOW: {
 										unsigned int level = device->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL, 100 );
 										level = level > 100 ? 100 : level;
-										level = level < 0 ? 0 : level;
 										if ( (HAPCharacteristic)iid == HAPCharacteristic::BATTERY_LEVEL ) {
 											characteristic["value"] = level;
 										} else {
@@ -1459,7 +1570,7 @@ namespace micasa {
 									default: {
 										// Services with additional required characteristics are added here.
 										if (
-											subtype == Level::SubType::DIMMER
+											subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 											&& iid == (unsigned long)defenition.iid - 1
 										) {
 											characteristic["value"] = ( std::static_pointer_cast<Level>( device )->getValue() > 0 );
@@ -1486,7 +1597,7 @@ namespace micasa {
 					{ "characteristics", characteristics }
 				};
 
-				session.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
+				session_.send( "HTTP/1.1 200 OK", "Content-Type: application/hap+json", output.dump() );
 			}
 
 		} catch( std::out_of_range exception_ ) {
@@ -1495,18 +1606,6 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::ERROR, this, "Invalid json received." );
 		} catch( std::runtime_error exception_ ) {
 			Logger::logr( Logger::LogLevel::ERROR, this, exception_.what() );
-		}
-	};
-
-	void HomeKit::_increaseConfigNumber() {
-		Logger::log( Logger::LogLevel::VERBOSE, this, "Increasing HAP configuration index." );
-		int config = this->m_settings->get( "_configuration_number", 1 );
-		this->m_settings->put( "_configuration_number", ++config );
-		if ( this->m_group ) {
-			avahi_entry_group_reset( this->m_group );
-		}
-		if ( this->m_client ) {
-			this->_createService( this->m_client );
 		}
 	};
 

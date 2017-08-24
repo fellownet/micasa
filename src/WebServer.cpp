@@ -679,7 +679,7 @@ namespace micasa {
 							plugin->getSettings()->put( pluginData );
 							plugin->getSettings()->commit();
 							if ( enabled ) {
-								this->m_scheduler.schedule( 0, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
+								this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
 									plugin->start();
 								} );
 							}

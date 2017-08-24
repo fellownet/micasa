@@ -14,7 +14,7 @@ namespace micasa {
 		enum class SubType: unsigned short {
 			GENERIC = 1,
 			LIGHT,
-			DOOR_CONTACT,
+			CONTACT,
 			BLINDS,
 			MOTION_DETECTOR,
 			FAN,

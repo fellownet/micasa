@@ -21,7 +21,7 @@ namespace micasa {
 	const std::map<Switch::SubType, std::string> Switch::SubTypeText = {
 		{ Switch::SubType::GENERIC, "generic" },
 		{ Switch::SubType::LIGHT, "light" },
-		{ Switch::SubType::DOOR_CONTACT, "door_contact" },
+		{ Switch::SubType::CONTACT, "contact" },
 		{ Switch::SubType::BLINDS, "blinds" },
 		{ Switch::SubType::MOTION_DETECTOR, "motion_detector" },
 		{ Switch::SubType::FAN, "fan" },

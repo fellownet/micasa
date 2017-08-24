@@ -1,8 +1,12 @@
 #pragma once
 
-#include <avahi-client/client.h>
-#include <avahi-client/publish.h>
-#include <avahi-common/simple-watch.h>
+#ifdef _DARWIN
+	#include <dns_sd.h>
+#else
+	#include <avahi-client/client.h>
+	#include <avahi-client/publish.h>
+	#include <avahi-common/simple-watch.h>
+#endif // _DARWIN
 
 extern "C" {
 	#include "srp.h"
@@ -11,8 +15,10 @@ extern "C" {
 #include "../Plugin.h"
 #include "../Network.h"
 
-void micasa_avahi_client_callback( AvahiClient* client_, AvahiClientState state_, void* userdata_ );
-void micasa_avahi_group_callback( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ );
+#ifndef _DARWIN
+	void micasa_avahi_client_callback( AvahiClient* client_, AvahiClientState state_, void* userdata_ );
+	void micasa_avahi_group_callback( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ );
+#endif // _DARWIN
 
 namespace micasa {
 
@@ -22,8 +28,10 @@ namespace micasa {
 
 	class HomeKit final : public Plugin {
 
+#ifndef _DARWIN
 		friend void (::micasa_avahi_client_callback)( AvahiClient* client_, AvahiClientState state_, void* userdata_ );
 		friend void (::micasa_avahi_group_callback)( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ );
+#endif // _DARWIN
 
 	private: class Session;
 
@@ -40,36 +48,42 @@ namespace micasa {
 		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
 		static nlohmann::json getEmptySettingsJson( bool advanced_ = false );
-		void putSettingsJson( const nlohmann::json& settings_ );
 		void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) override;
 
 	private:
 		std::shared_ptr<Network::Connection> m_bind;
+#ifdef _DARWIN
+		_DNSServiceRef_t* m_dnssd;
+#else
 		char* m_name;
 		AvahiClient* m_client;
 		AvahiSimplePoll* m_poll;
 		AvahiEntryGroup* m_group;
 		std::thread m_worker;
-
+#endif // _DARWIN
 		SRP* m_srp;
 		cstr* m_publicKey;
 		cstr* m_secretKey;
 		char m_sessionKey[64];
 		std::map<std::shared_ptr<Network::Connection>, HomeKit::Session> m_sessions;
+		mutable std::mutex m_sessionsMutex;
 
+#ifdef _DARWIN
+		void _createService();
+#else
 		void _createService( AvahiClient* client_ );
+#endif // _DARWIN
 
-		void _processRequest( std::shared_ptr<Network::Connection> connection_ );
-		void _handleIdentify( std::shared_ptr<Network::Connection> connection_ );
-		void _handlePair( std::shared_ptr<Network::Connection> connection_ );
-		void _handlePairVerify( std::shared_ptr<Network::Connection> connection_ );
-		void _handlePairings( std::shared_ptr<Network::Connection> connection_ );
-		void _handleAccessories( std::shared_ptr<Network::Connection> connection_ );
-		void _handleCharacteristics( std::shared_ptr<Network::Connection> connection_ );
+		void _processRequest( Session& session_ );
+		void _handleIdentify( Session& session_ );
+		void _handlePair( Session& session_ );
+		void _handlePairVerify( Session& session_ );
+		void _handlePairings( Session& session_ );
+		void _handleAccessories( Session& session_ );
+		void _handleCharacteristics( Session& session_ );
 
-		void _increaseConfigNumber();
 		void _addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) throw( std::runtime_error );
 
 		std::string _getSetupCode() const;
@@ -82,6 +96,7 @@ namespace micasa {
 		class Session final {
 
 		public:
+			bool m_encrypted;
 			std::shared_ptr<Network::Connection> m_connection;
 			std::vector<std::weak_ptr<Device>> m_devices;
 			mutable std::mutex m_sessionMutex;
@@ -94,6 +109,7 @@ namespace micasa {
 			struct http_message m_http;
 
 			Session( std::shared_ptr<Network::Connection> connection_ ) :
+				m_encrypted( false ),
 				m_connection( connection_ ),
 				m_controllerToAccessoryCount( 0 ),
 				m_accessoryToControllerCount( 0 )
