@@ -77,14 +77,11 @@ namespace micasa {
 						}
 						break;
 					}
-					case Network::Connection::Event::DROPPED: {
-						Logger::log( Logger::LogLevel::WARNING, this, "Connection dropped." );
+					case Network::Connection::Event::DROPPED:
+					case Network::Connection::Event::CLOSE: {
+						Logger::log( Logger::LogLevel::ERROR, this, "Connection closed." );
 						this->setState( Plugin::State::FAILED );
 						this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this->m_task );
-						break;
-					}
-					case Network::Connection::Event::CLOSE: {
-						Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 						break;
 					}
 					default: { break; }

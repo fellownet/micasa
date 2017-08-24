@@ -209,7 +209,7 @@ namespace micasa {
 			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
 
 				if (
-					this->getState() <= Plugin::State::INIT
+					this->getState() < Plugin::State::INIT
 					|| this->m_parent->getState() < Plugin::State::READY
 				) {
 					Logger::log( Logger::LogLevel::ERROR, this, "Controller not ready." );
