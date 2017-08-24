@@ -230,10 +230,6 @@ namespace micasa {
 				if ( task_->time < this->m_start->time ) {
 					this->m_start = task_;
 				}
-#ifdef _DEBUG
-				assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
-				assert( this->m_start->time <= this->m_start->m_next->time && "Start should be the first task in the list." );
-#endif // _DEBUG
 			}
 			this->m_count++;
 			this->_notify( false, [this]() -> void { this->m_continue = true; } );
@@ -245,9 +241,6 @@ namespace micasa {
 			task_->m_previous != nullptr
 			&& task_->m_next != nullptr
 		) {
-#ifdef _DEBUG
-			assert( ( task_->m_next == this->m_start || task_->m_next->time >= task_->time ) && "Linked list of tasks should be sorted acending." );
-#endif // _DEBUG
 			if ( __unlikely( task_->m_next == task_ ) ) {
 				this->m_start = nullptr;
 			} else {

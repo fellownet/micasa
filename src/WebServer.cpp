@@ -459,10 +459,12 @@ namespace micasa {
 #endif // _DEBUG
 
 				unsigned int code = output["code"].get<unsigned int>();
-				connection_->reply( content, code, {
-					{ "Content-Type", "Content-type: application/json" },
-					{ "Access-Control-Allow-Origin", "*" },
-					{ "Cache-Control", "no-cache, no-store, must-revalidate" }
+				this->m_scheduler.schedule( code == 401 ? SCHEDULER_INTERVAL_3SEC : 0, 1, this, [connection_,content,code]( std::shared_ptr<Scheduler::Task<>> ) {
+					connection_->reply( content, code, {
+						{ "Content-Type", "Content-type: application/json" },
+						{ "Access-Control-Allow-Origin", "*" },
+						{ "Cache-Control", "no-cache, no-store, must-revalidate" }
+					} );
 				} );
 			} );
 		}
@@ -1817,7 +1819,7 @@ namespace micasa {
 					// to this callback it means that either the username or password was invalid.
 					if ( user_ == nullptr ) {
 						Logger::log( Logger::LogLevel::WARNING, this, "Invalid username and/or password supplied." );
-						throw WebServer::ResourceException( 400, "Login.Failure", "The username and/or password is invalid." );
+						throw WebServer::ResourceException( 401, "Login.Failure", "The username and/or password is invalid." );
 					}
 					output_["code"] = 201; // Created
 					Logger::logr( Logger::LogLevel::NORMAL, this, "User %s logged in.", user_->getName().c_str() );

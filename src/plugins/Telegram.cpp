@@ -74,6 +74,7 @@ namespace micasa {
 							}
 							break;
 						}
+						case Network::Connection::Event::DROPPED:
 						case Network::Connection::Event::CLOSE: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connection closed." );
 							if ( this->getState() != Plugin::State::FAILED ) {
