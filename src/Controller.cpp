@@ -185,7 +185,7 @@ v7_err micasa_v7_log( struct v7* v7_, v7_val_t* res_ ) {
 	} else {
 		p = v7_stringify( v7_, arg0, buffer, sizeof( buffer ), V7_STRINGIFY_DEFAULT );
 	}
-	micasa::Logger::log( micasa::Logger::LogLevel::SCRIPT, controller, std::string( p ) );
+	micasa::Logger::log( micasa::Logger::LogLevel::NOTICE, controller, std::string( p ) );
 	if ( p != buffer ) {
 		free(p);
 	}

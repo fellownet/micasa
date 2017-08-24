@@ -37,6 +37,9 @@
 #endif // _DEBUG
 #include "plugins/Dummy.h"
 #include "plugins/HarmonyHub.h"
+#ifdef _WITH_HOMEKIT
+	#include "plugins/HomeKit.h"
+#endif // _WITH_HOMEKIT
 #ifdef _WITH_LINUX_SPI
 	#include "plugins/PiFace.h"
 #endif // _WITH_LINUX_SPI
@@ -172,14 +175,23 @@ namespace micasa {
 			}
 		};
 		if ( this->m_port > 0 ) {
-			this->m_bind = Network::bind( std::to_string( this->m_port ), handler );
+		std::string address;
+#ifdef _IPV6_ENABLED
+			this->m_bind = Network::bind( "[::]:" + std::to_string( this->m_port ), handler );
+#else
+			this->m_bind = Network::bind( "0.0.0.0:" + std::to_string( this->m_port ), handler );
+#endif
 			if ( ! this->m_bind ) {
 				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_port );
 			}
 		}
 #ifdef _WITH_OPENSSL
 		if ( this->m_sslport > 0 ) {
-			this->m_sslbind = Network::bind( std::to_string( this->m_sslport ), std::string( _DATADIR ) + "/cert.pem", std::string( _DATADIR ) + "/key.pem", handler );
+#ifdef _IPV6_ENABLED
+			this->m_sslbind = Network::bind( "[::]:" + std::to_string( this->m_sslport ), std::string( _DATADIR ) + "/cert.pem", std::string( _DATADIR ) + "/key.pem", handler );
+#else
+			this->m_sslbind = Network::bind( "0.0.0.0:" + std::to_string( this->m_sslport ), std::string( _DATADIR ) + "/cert.pem", std::string( _DATADIR ) + "/key.pem", handler );
+#endif
 			if ( ! this->m_sslbind ) {
 				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to bind to port %d.", this->m_sslport );
 			}
@@ -501,6 +513,12 @@ namespace micasa {
 									{ "label", HarmonyHub::label },
 									{ "settings", HarmonyHub::getEmptySettingsJson() }
 								},
+#ifdef _WITH_HOMEKIT
+								{
+									{ "value", "homekit" },
+									{ "label", HomeKit::label }
+								},
+#endif // _WITH_HOMEKIT
 #ifdef _WITH_LINUX_SPI
 								{
 									{ "value", "piface" },
@@ -663,7 +681,7 @@ namespace micasa {
 							plugin->getSettings()->put( pluginData );
 							plugin->getSettings()->commit();
 							if ( enabled ) {
-								this->m_scheduler.schedule( 0, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
+								this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {
 									plugin->start();
 								} );
 							}

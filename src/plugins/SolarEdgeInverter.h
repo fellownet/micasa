@@ -16,7 +16,6 @@ namespace micasa {
 		void start() override;
 		void stop() override;
 		std::string getLabel() const override;
-		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override { return true; };
 
 	private:
 		std::shared_ptr<Network::Connection> m_connection;

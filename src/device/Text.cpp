@@ -51,7 +51,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_1HOUR ), SCHEDULER_INTERVAL_1HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			this->_purgeHistory();
 		} );
 
@@ -67,7 +67,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being stopped." );
 #endif // _DEBUG
-		Logger::removeReceiver( std::static_pointer_cast<Text>( this->shared_from_this() ) );
+		Logger::removeReceiver( std::static_pointer_cast<Text>( Device::shared_from_this() ) );
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );
@@ -139,6 +139,10 @@ namespace micasa {
 			}
 		}
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
@@ -150,7 +154,7 @@ namespace micasa {
 				{ "label", "SubType" },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", "advanced" },
+				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
 				{ "sort", 10 }
 			};
 			for ( auto subTypeIt = Text::SubTypeText.begin(); subTypeIt != Text::SubTypeText.end(); subTypeIt++ ) {
@@ -207,7 +211,7 @@ namespace micasa {
 								{ "label", "Errors and warnings" },
 							},
 							{
-								{ "value", Logger::resolveLogLevel( Logger::LogLevel::SCRIPT ) },
+								{ "value", Logger::resolveLogLevel( Logger::LogLevel::NOTICE ) },
 								{ "label", "Errors, warnings and scripts" },
 							}
 						} }
@@ -216,14 +220,18 @@ namespace micasa {
 			};
 		}
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceSettingsJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
 	void Text::putSettingsJson( const nlohmann::json& settings_ ) {
-		Logger::removeReceiver( std::static_pointer_cast<Text>( this->shared_from_this() ) );
+		Logger::removeReceiver( std::static_pointer_cast<Text>( Device::shared_from_this() ) );
 		if ( jsonGet<bool>( settings_, "send_log" ) ) {
 			Logger::addReceiver(
-				std::static_pointer_cast<Text>( this->shared_from_this() ),
+				std::static_pointer_cast<Text>( Device::shared_from_this() ),
 				Logger::resolveLogLevel( jsonGet<int>( settings_, "send_log_level" ) )
 			);
 		}
@@ -278,8 +286,8 @@ namespace micasa {
 				this->updateValue( UpdateSource::SYSTEM, "Error: " + message_ );
 			} else if ( logLevel_ == Logger::LogLevel::WARNING ) {
 				this->updateValue( UpdateSource::SYSTEM, "Warning: " + message_ );
-			} else if ( logLevel_ == Logger::LogLevel::SCRIPT ) {
-				this->updateValue( UpdateSource::SYSTEM, "Script: " + message_ );
+			} else if ( logLevel_ == Logger::LogLevel::NOTICE ) {
+				this->updateValue( UpdateSource::SYSTEM, "Notice: " + message_ );
 			}
 		} );
 	};
@@ -293,8 +301,13 @@ namespace micasa {
 		// If the update originates from the plugin it is not send back to the plugin again.
 		bool success = true;
 		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN ) {
-			success = this->getPlugin()->updateDevice( source_, this->shared_from_this(), apply );
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			if (
+				plugin != this->getPlugin()
+				|| ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
+			) {
+				success = success && plugin->updateDevice( source_, Device::shared_from_this(), plugin == this->getPlugin(), apply );
+			}
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
@@ -311,7 +324,7 @@ namespace micasa {
 				this->m_enabled
 				&& this->getPlugin()->getState() >= Plugin::State::READY
 			) {
-				g_controller->newEvent<Text>( std::static_pointer_cast<Text>( this->shared_from_this() ), source_ );
+				g_controller->newEvent<Text>( std::static_pointer_cast<Text>( Device::shared_from_this() ), source_ );
 			}
 			Logger::logr( Logger::LogLevel::NORMAL, this, "New value %s.", this->m_value.c_str() );
 		} else {

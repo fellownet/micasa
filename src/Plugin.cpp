@@ -22,6 +22,9 @@
 #endif // _DEBUG
 #include "plugins/Dummy.h"
 #include "plugins/HarmonyHub.h"
+#ifdef _WITH_HOMEKIT
+	#include "plugins/HomeKit.h"
+#endif // _WITH_HOMEKIT
 #ifdef _WITH_LINUX_SPI
 	#include "plugins/PiFace.h"
 	#include "plugins/PiFaceBoard.h"
@@ -53,6 +56,9 @@ namespace micasa {
 #endif // _DEBUG
 		{ Plugin::Type::DUMMY, "dummy" },
 		{ Plugin::Type::HARMONY_HUB, "harmony_hub" },
+#ifdef _WITH_HOMEKIT
+		{ Plugin::Type::HOMEKIT, "homekit" },
+#endif // _WITH_LINUX_SPI
 #ifdef _WITH_LINUX_SPI
 		{ Plugin::Type::PIFACE, "piface" },
 		{ Plugin::Type::PIFACE_BOARD, "piface_board" },
@@ -106,6 +112,11 @@ namespace micasa {
 			case Type::HARMONY_HUB:
 				return std::make_shared<HarmonyHub>( id_, type_, reference_, parent_ );
 				break;
+#ifdef _WITH_HOMEKIT
+			case Type::HOMEKIT:
+				return std::make_shared<HomeKit>( id_, type_, reference_, parent_ );
+				break;
+#endif // _WITH_HOMEKIT
 #ifdef _WITH_LINUX_SPI
 			case Type::PIFACE:
 				return std::make_shared<PiFace>( id_, type_, reference_, parent_ );
@@ -265,14 +276,6 @@ namespace micasa {
 			}
 		}
 		return children;
-	};
-
-	json Plugin::getDeviceJson( std::shared_ptr<const Device> device_, bool full_ ) const {
-		return json::object();
-	};
-
-	json Plugin::getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const {
-		return json::array();
 	};
 
 	std::shared_ptr<Device> Plugin::getDevice( const std::string& reference_ ) const {

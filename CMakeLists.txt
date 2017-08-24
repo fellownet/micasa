@@ -174,6 +174,45 @@ if( WITH_OPENZWAVE )
 endif()
 
 #
+# Add homekit support.
+#
+option( WITH_HOMEKIT "Build with HomeKit support" YES )
+if( WITH_HOMEKIT )
+	message( STATUS "Build with HomeKit support" )
+
+	add_definitions( -D_WITH_HOMEKIT -DMG_ENABLE_DNS_SERVER )
+
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/tlv8 )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/srp )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/hkdf )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/chacha20 )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/curve25519 )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/ed25519 )
+	include_directories( ${CMAKE_CURRENT_BINARY_DIR}/src/plugins/HomeKit/poly1305 )
+
+	set( SRC ${SRC}
+		src/plugins/HomeKit/tlv8/tlv8.cpp
+		src/plugins/HomeKit/srp/cstr.c
+		src/plugins/HomeKit/srp/srp.c
+		src/plugins/HomeKit/srp/srp6_server.c
+		src/plugins/HomeKit/srp/t_conf.c
+		src/plugins/HomeKit/srp/t_conv.c
+		src/plugins/HomeKit/srp/t_math.c
+		src/plugins/HomeKit/srp/t_misc.c
+		src/plugins/HomeKit/srp/t_pw.c
+		src/plugins/HomeKit/srp/t_read.c
+		src/plugins/HomeKit/srp/t_truerand.c
+		src/plugins/HomeKit/hkdf/hkdf.c
+		src/plugins/HomeKit/chacha20/chacha20_simple.c
+		src/plugins/HomeKit/poly1305/poly1305.c
+		src/plugins/HomeKit/ed25519/ed25519.c
+		src/plugins/HomeKit/curve25519/curve25519-donna.c
+
+		src/plugins/HomeKit.cpp
+	)
+endif()
+
+#
 # Add JSON.
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
@@ -199,6 +238,8 @@ add_definitions( -DV7_ENABLE_FILE -DV7_ENABLE_SOCKET -DV7_ENABLE_CRYPTO )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11" )
 if( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
 	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
+else()
+	add_definitions( -D_DARWIN )
 endif()
 if( DEBUG )
 #	AddressSanitizer has__interceptor_pthread_create problems.
@@ -294,3 +335,27 @@ if( SQLITE3_FOUND )
 else()
 	message( FATAL_ERROR "SQLite3 not found on your system." )
 endif( SQLITE3_FOUND )
+
+#
+# Check for Libdnssd
+#
+if( WITH_HOMEKIT )
+	if( WITH_OPENSSL )
+		if ( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+			find_library( LIBAVAHI_CLIENT_LIBRARY NAMES avahi-client )
+			find_library( LIBAVAHI_COMMON_LIBRARY NAMES avahi-common )
+			find_package_handle_standard_args( LIBAVAHI "Libavahi not found" LIBAVAHI_CLIENT_LIBRARY LIBAVAHI_COMMON_LIBRARY )
+			if( LIBAVAHI_FOUND )
+				#include_directories( ${LIBDNSSD_INCLUDE_DIR} )
+				target_link_libraries( micasa ${LIBAVAHI_CLIENT_LIBRARY} ${LIBAVAHI_COMMON_LIBRARY} )
+			else()
+				message( FATAL_ERROR "Libavahi not found on your system." )
+			endif()
+		else()
+#			set( CFNETWORK_LIBRARY "-framework CFNetwark" CACHE FILEPATH "CFNetwork framework" FORCE )
+#			target_link_libraries( micasa ${CFNETWORK_LIBRARY} )
+		endif()
+	else()
+		message( FATAL_ERROR "Homekit support requires OpenSSL." )
+	endif()
+endif()

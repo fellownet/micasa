@@ -16,7 +16,7 @@ namespace micasa {
 		void stop() override;
 
 		std::string getLabel() const override { return Dummy::label; };
-		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) override;
+		bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) override;
 
 	}; // class Dummy
 

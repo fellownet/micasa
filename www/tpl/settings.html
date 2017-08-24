@@ -29,7 +29,7 @@
 	</select>
 </div>
 <ng-container *ngFor="let option of setting.options">
-<settings *ngIf="option.settings && field.value == option.value" [settings]="option.settings" [form]="form" [values]="values"></settings>
+<settings *ngIf="option.settings && field.value == option.value" [settings]="option.settings" [form]="form" [values]="values" [advanced]="showAdvancedSettings"></settings>
 </ng-container>
 </ng-container>
 
@@ -59,10 +59,10 @@
 	<label for="setting-{{setting.name}}" *ngIf="setting.description && setting.description.length>0">{{ setting.label }}</label>
 	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>
 	<div class="checkbox">
-		<label><input type="checkbox" [(ngModel)]="values[setting.name]" name="{{ setting.name }}" #field="ngModel" [registerForm]="form" [registerModel]="field">{{ setting.label }}</label>
+		<label><input type="checkbox" [(ngModel)]="values[setting.name]" name="{{ setting.name }}" #field="ngModel" [registerForm]="form" [registerModel]="field">{{ setting.badge || setting.label }}</label>
 	</div>
 </div>
-<settings *ngIf="setting.settings && field.value" [settings]="setting.settings" [form]="form" [values]="values"></settings>
+<settings *ngIf="setting.settings && field.value" [settings]="setting.settings" [form]="form" [values]="values" [advanced]="showAdvancedSettings"></settings>
 </ng-container>
 
 <ng-container *ngSwitchCase="'multiselect'">

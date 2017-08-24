@@ -226,99 +226,102 @@ namespace micasa {
 		return result;
 	};
 
-	bool ZWave::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() < Plugin::State::READY ) {
-			Logger::log( Logger::LogLevel::WARNING, this, "Controller not ready." );
-			return false;
-		}
-
-		if ( device_->getType() == Device::Type::SWITCH ) {
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-
-			if (
-				device->getReference() == "heal"
-				&& device->getValueOption() == Switch::Option::ACTIVATE
-			) {
-				// This method is most likely called from the scheduler and should therefore not block for too long, so
-				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-						Manager::Get()->HealNetwork( this->m_homeId, true );
-						device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-						Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
-
-						task_->repeat = 0; // done
-
-					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_->repeat == 0 ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-					}
-				} );
-
-				apply_ = false; // value is applied only after a successfull command
-				return true;
+	bool ZWave::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			if ( this->getState() < Plugin::State::READY ) {
+				Logger::log( Logger::LogLevel::WARNING, this, "Controller not ready." );
+				return false;
 			}
 
-			if ( device->getValueOption() == Switch::Option::ENABLED ) {
-				// This method is most likely called from the scheduler and should therefore not block for too long, so
-				// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-				this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-						bool cancel = false;
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
 
-						if ( device->getReference() == "include" ) {
-							if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
-								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ENABLED );
-								cancel = true;
-								Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode enabled." );
-							} else {
-								Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable inclusion mode." );
-							}
-						} else if ( device->getReference() == "exclude" ) {
-							if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
-								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ENABLED );
-								cancel = true;
-								Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode enabled." );
-							} else {
-								Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable exclusion mode." );
-							}
+				if (
+					device->getReference() == "heal"
+					&& device->getValueOption() == Switch::Option::ACTIVATE
+				) {
+					// This method is most likely called from the scheduler and should therefore not block for too long, so
+					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+
+							Manager::Get()->HealNetwork( this->m_homeId, true );
+							device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+							Logger::log( Logger::LogLevel::NORMAL, this, "Network heal initiated." );
+
+							task_->repeat = 0; // done
+
+						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+						} else if ( task_->repeat == 0 ) {
+							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
 						}
+					} );
 
-						// Cancelling in- or exclude mode should also be done in several short attempts as opposed to
-						// one long blocking attempt.
-						if ( cancel ) {
-							this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-								if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-									std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-									Manager::Get()->CancelControllerCommand( this->m_homeId );
-									device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::DISABLED );
-									task_->repeat = 0; // done
+					apply_ = false; // value is applied only after a successfull command
+					return true;
+				}
 
-								// After several tries the manager instance still isn't ready, so we're bailing out with
-								// an error.
-								} else if ( task_->repeat == 0 ) {
-									Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command cancellation failed." );
+				if ( device->getValueOption() == Switch::Option::ENABLED ) {
+					// This method is most likely called from the scheduler and should therefore not block for too long, so
+					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,source_,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+							bool cancel = false;
+
+							if ( device->getReference() == "include" ) {
+								if ( Manager::Get()->AddNode( this->m_homeId, false ) ) {
+									device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ENABLED );
+									cancel = true;
+									Logger::log( Logger::LogLevel::NORMAL, this, "Inclusion mode enabled." );
+								} else {
+									Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable inclusion mode." );
 								}
-							} );
+							} else if ( device->getReference() == "exclude" ) {
+								if ( Manager::Get()->RemoveNode( this->m_homeId ) ) {
+									device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ENABLED );
+									cancel = true;
+									Logger::log( Logger::LogLevel::NORMAL, this, "Exclusion mode enabled." );
+								} else {
+									Logger::log( Logger::LogLevel::ERROR, this, "Unable to enable exclusion mode." );
+								}
+							}
+
+							// Cancelling in- or exclude mode should also be done in several short attempts as opposed to
+							// one long blocking attempt.
+							if ( cancel ) {
+								this->m_scheduler.schedule( 1000 * 60 * OPEN_ZWAVE_IN_EXCLUSION_MODE_DURATION_MINUTES, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [this,device]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+									if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+										std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+										Manager::Get()->CancelControllerCommand( this->m_homeId );
+										device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::DISABLED );
+										task_->repeat = 0; // done
+
+									// After several tries the manager instance still isn't ready, so we're bailing out with
+									// an error.
+									} else if ( task_->repeat == 0 ) {
+										Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command cancellation failed." );
+									}
+								} );
+							}
+
+							task_->repeat = 0; // done
+
+						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+						} else if ( task_->repeat == 0 ) {
+							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
 						}
+					} );
 
-						task_->repeat = 0; // done
-
-					// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-					} else if ( task_->repeat == 0 ) {
-						Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-					}
-				} );
-
-				apply_ = false; // value is applied only after a successfull command
-				return true;
+					apply_ = false; // value is applied only after a successfull command
+					return true;
+				}
 			}
-		}
 
-		return false;
+			return false;
+		} // if owned_
+		return true;
 	};
 
 	void ZWave::_handleNotification( const Notification* notification_ ) {

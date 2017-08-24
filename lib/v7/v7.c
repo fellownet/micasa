@@ -191,7 +191,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <ctype.h>
 
 #ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib") /* Linking with winsock library */
@@ -218,13 +217,13 @@
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
 #define snprintf _snprintf
+#define fileno _fileno
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) *1000)
 #define to64(x) _atoi64(x)
 #if !defined(__MINGW32__) && !defined(__MINGW64__)
 #define popen(x, y) _popen((x), (y))
 #define pclose(x) _pclose(x)
-#define fileno _fileno
 #endif
 #define rmdir _rmdir
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -271,7 +270,6 @@ typedef struct _stati64 cs_stat_t;
 #define S_ISREG(x) (((x) &_S_IFMT) == _S_IFREG)
 #endif
 #define DIRSEP '\\'
-#define CS_DEFINE_DIRENT
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -526,8 +524,6 @@ typedef struct stat cs_stat_t;
 #define SIZE_T_FMT "u"
 typedef struct stat cs_stat_t;
 #define DIRSEP '/'
-#define CS_DEFINE_DIRENT
-
 #define to64(x) strtoll(x, NULL, 10)
 #define INT64_FMT PRId64
 #define INT64_X_FMT PRIx64
@@ -766,6 +762,22 @@ int _stat(const char *pathname, struct stat *st);
 
 #endif /* __TI_COMPILER_VERSION__ */
 
+#ifdef CC3200_FS_SPIFFS
+#include <common/spiffs/spiffs.h>
+
+typedef struct {
+  spiffs_DIR dh;
+  struct spiffs_dirent de;
+} DIR;
+
+#define d_name name
+#define dirent spiffs_dirent
+
+DIR *opendir(const char *dir_name);
+int closedir(DIR *dir);
+struct dirent *readdir(DIR *dir);
+#endif /* CC3200_FS_SPIFFS */
+
 #ifdef CC3200_FS_SLFS
 #define MG_FS_SLFS
 #endif
@@ -773,7 +785,6 @@ int _stat(const char *pathname, struct stat *st);
 #if (defined(CC3200_FS_SPIFFS) || defined(CC3200_FS_SLFS)) && \
     !defined(MG_ENABLE_FILESYSTEM)
 #define MG_ENABLE_FILESYSTEM 1
-#define CS_DEFINE_DIRENT
 #endif
 
 #ifndef CS_ENABLE_STDIO
@@ -1065,10 +1076,6 @@ int gettimeofday(struct timeval *tp, void *tzp);
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #endif
 
-#ifndef EAGAIN
-#define EAGAIN EWOULDBLOCK
-#endif
-
 #ifndef __func__
 #define STRX(x) #x
 #define STR(x) STRX(x)
@@ -1124,7 +1131,6 @@ typedef uint32_t in_addr_t;
 #define SIZE_T_FMT "u"
 
 #define DIRSEP '\\'
-#define CS_DEFINE_DIRENT
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -1357,31 +1363,20 @@ char* inet_ntoa(struct in_addr in);
 #if CS_PLATFORM == CS_P_STM32
 
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 #include <memory.h>
-#include <fcntl.h>
-#include <stm32_sdk_hal.h>
 
 #define to64(x) strtoll(x, NULL, 10)
 #define INT64_FMT PRId64
 #define SIZE_T_FMT "u"
-typedef struct stat cs_stat_t;
-#define DIRSEP '/'
 
 #ifndef CS_ENABLE_STDIO
 #define CS_ENABLE_STDIO 1
 #endif
-
-#ifndef MG_ENABLE_FILESYSTEM
-#define MG_ENABLE_FILESYSTEM 1
-#endif
-
-#define CS_DEFINE_DIRENT
 
 #endif /* CS_PLATFORM == CS_P_STM32 */
 #endif /* CS_COMMON_PLATFORMS_PLATFORM_STM32_H_ */
@@ -1467,34 +1462,6 @@ void mbuf_trim(struct mbuf *);
 #endif /* __cplusplus */
 
 #endif /* CS_COMMON_MBUF_H_ */
-#ifdef V7_MODULE_LINES
-#line 1 "common/mg_mem.h"
-#endif
-/*
- * Copyright (c) 2014-2016 Cesanta Software Limited
- * All rights reserved
- */
-
-#ifndef CS_COMMON_MG_MEM_H_
-#define CS_COMMON_MG_MEM_H_
-
-#ifndef MG_MALLOC
-#define MG_MALLOC malloc
-#endif
-
-#ifndef MG_CALLOC
-#define MG_CALLOC calloc
-#endif
-
-#ifndef MG_REALLOC
-#define MG_REALLOC realloc
-#endif
-
-#ifndef MG_FREE
-#define MG_FREE free
-#endif
-
-#endif /* CS_COMMON_MG_MEM_H_ */
 #ifdef V7_MODULE_LINES
 #line 1 "common/str_util.h"
 #endif
@@ -1818,7 +1785,7 @@ void cs_log_printf(const char *fmt, ...);
 
 #endif /* CS_COMMON_CS_DBG_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_md5.h"
+#line 1 "common/md5.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1830,23 +1797,33 @@ void cs_log_printf(const char *fmt, ...);
 
 /* Amalgamated: #include "common/platform.h" */
 
-#ifndef CS_DISABLE_MD5
-#define CS_DISABLE_MD5 0
+#ifndef DISABLE_MD5
+#define DISABLE_MD5 0
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-typedef struct {
+typedef struct MD5Context {
   uint32_t buf[4];
   uint32_t bits[2];
   unsigned char in[64];
-} cs_md5_ctx;
+} MD5_CTX;
 
-void cs_md5_init(cs_md5_ctx *c);
-void cs_md5_update(cs_md5_ctx *c, const unsigned char *data, size_t len);
-void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
+void MD5_Init(MD5_CTX *c);
+void MD5_Update(MD5_CTX *c, const unsigned char *data, size_t len);
+void MD5_Final(unsigned char *md, MD5_CTX *c);
+
+/*
+ * Return stringified MD5 hash for NULL terminated list of pointer/length pairs.
+ * A length should be specified as size_t variable.
+ * Example:
+ *
+ *    char buf[33];
+ *    cs_md5(buf, "foo", (size_t) 3, "bar", (size_t) 3, NULL);
+ */
+char *cs_md5(char buf[33], ...);
 
 #ifdef __cplusplus
 }
@@ -1881,7 +1858,7 @@ void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
 
 #endif /* CS_COMMON_CS_ENDIAN_H_ */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_sha1.h"
+#line 1 "common/sha1.h"
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -1891,11 +1868,11 @@ void cs_md5_final(unsigned char *md, cs_md5_ctx *c);
 #ifndef CS_COMMON_SHA1_H_
 #define CS_COMMON_SHA1_H_
 
-#ifndef CS_DISABLE_SHA1
-#define CS_DISABLE_SHA1 0
+#ifndef DISABLE_SHA1
+#define DISABLE_SHA1 0
 #endif
 
-#if !CS_DISABLE_SHA1
+#if !DISABLE_SHA1
 
 /* Amalgamated: #include "common/platform.h" */
 
@@ -1919,7 +1896,7 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 }
 #endif /* __cplusplus */
 
-#endif /* CS_DISABLE_SHA1 */
+#endif /* DISABLE_SHA1 */
 
 #endif /* CS_COMMON_SHA1_H_ */
 #ifdef V7_MODULE_LINES
@@ -1933,31 +1910,54 @@ void cs_hmac_sha1(const unsigned char *key, size_t key_len,
 #ifndef CS_COMMON_CS_DIRENT_H_
 #define CS_COMMON_CS_DIRENT_H_
 
-#include <limits.h>
-
 /* Amalgamated: #include "common/platform.h" */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-#ifdef CS_DEFINE_DIRENT
-typedef struct { int dummy; } DIR;
-
-struct dirent {
-  int d_ino;
-#ifdef _WIN32
-  char d_name[MAX_PATH];
-#else
-  /* TODO(rojer): Use PATH_MAX but make sure it's sane on every platform */
-  char d_name[256];
+#ifndef CS_ENABLE_SPIFFS
+#define CS_ENABLE_SPIFFS 0
 #endif
+
+#if CS_ENABLE_SPIFFS
+
+#include <spiffs.h>
+
+typedef struct {
+  spiffs_DIR dh;
+  struct spiffs_dirent de;
+} DIR;
+
+#define d_name name
+#define dirent spiffs_dirent
+
+int rmdir(const char *path);
+int mkdir(const char *path, mode_t mode);
+
+#endif
+
+#if defined(_WIN32)
+struct dirent {
+  char d_name[MAX_PATH];
 };
 
+typedef struct DIR {
+  HANDLE handle;
+  WIN32_FIND_DATAW info;
+  struct dirent result;
+} DIR;
+#endif
+
+#if CS_ENABLE_SPIFFS
+extern spiffs *cs_spiffs_get_fs(void);
+#endif
+
+#if defined(_WIN32) || CS_ENABLE_SPIFFS
 DIR *opendir(const char *dir_name);
 int closedir(DIR *dir);
 struct dirent *readdir(DIR *dir);
-#endif /* CS_DEFINE_DIRENT */
+#endif
 
 #ifdef __cplusplus
 }
@@ -3093,6 +3093,11 @@ void cr_context_free(struct cr_ctx *p_ctx);
 #define CS_V7_SRC_INTERNAL_H_
 
 /* Amalgamated: #include "v7/src/license.h" */
+
+/* Check whether we're compiling in an environment with no filesystem */
+#if defined(ARDUINO) && (ARDUINO == 106)
+#define V7_NO_FS
+#endif
 
 #ifndef FAST
 #define FAST
@@ -8617,7 +8622,6 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 
 #ifndef EXCLUDE_COMMON
 
-/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/platform.h" */
 /* Amalgamated: #include "common/str_util.h" */
 
@@ -8625,7 +8629,13 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 #define C_DISABLE_BUILTIN_SNPRINTF 0
 #endif
 
-/* Amalgamated: #include "common/mg_mem.h" */
+#ifndef MG_MALLOC
+#define MG_MALLOC malloc
+#endif
+
+#ifndef MG_FREE
+#define MG_FREE free
+#endif
 
 size_t c_strnlen(const char *s, size_t maxlen) WEAK;
 size_t c_strnlen(const char *s, size_t maxlen) {
@@ -8891,7 +8901,7 @@ const char *c_strnstr(const char *s, const char *find, size_t slen) {
 char *strdup(const char *src) WEAK;
 char *strdup(const char *src) {
   size_t len = strlen(src) + 1;
-  char *ret = MG_MALLOC(len);
+  char *ret = malloc(len);
   if (ret != NULL) {
     strcpy(ret, src);
   }
@@ -9042,7 +9052,6 @@ int mg_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
 #include <stdarg.h>
 #include <string.h>
 /* Amalgamated: #include "common/platform.h" */
-/* Amalgamated: #include "common/str_util.h" */
 /* Amalgamated: #include "common/utf.h" */
 
 #ifndef CS_ENABLE_UTF8
@@ -10597,7 +10606,7 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len) {
 
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_md5.c"
+#line 1 "common/md5.c"
 #endif
 /*
  * This code implements the MD5 message-digest algorithm.
@@ -10616,11 +10625,11 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst, int *dec_len) {
  * will fill a supplied 16-byte array with the digest.
  */
 
-/* Amalgamated: #include "common/cs_md5.h" */
+/* Amalgamated: #include "common/md5.h" */
 /* Amalgamated: #include "common/str_util.h" */
 
 #if !defined(EXCLUDE_COMMON)
-#if !CS_DISABLE_MD5
+#if !DISABLE_MD5
 
 /* Amalgamated: #include "common/cs_endian.h" */
 
@@ -10651,7 +10660,7 @@ static void byteReverse(unsigned char *buf, unsigned longs) {
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-void cs_md5_init(cs_md5_ctx *ctx) {
+void MD5_Init(MD5_CTX *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -10661,7 +10670,7 @@ void cs_md5_init(cs_md5_ctx *ctx) {
   ctx->bits[1] = 0;
 }
 
-static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
+static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -10743,7 +10752,7 @@ static void cs_md5_transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
+void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
@@ -10762,7 +10771,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
     }
     memcpy(p, buf, t);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     buf += t;
     len -= t;
   }
@@ -10770,7 +10779,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
   while (len >= 64) {
     memcpy(ctx->in, buf, 64);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     buf += 64;
     len -= 64;
   }
@@ -10778,7 +10787,7 @@ void cs_md5_update(cs_md5_ctx *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
+void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -10791,7 +10800,7 @@ void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
   if (count < 8) {
     memset(p, 0, count);
     byteReverse(ctx->in, 16);
-    cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+    MD5Transform(ctx->buf, (uint32_t *) ctx->in);
     memset(ctx->in, 0, 56);
   } else {
     memset(p, 0, count - 8);
@@ -10802,23 +10811,44 @@ void cs_md5_final(unsigned char digest[16], cs_md5_ctx *ctx) {
   a[14] = ctx->bits[0];
   a[15] = ctx->bits[1];
 
-  cs_md5_transform(ctx->buf, (uint32_t *) ctx->in);
+  MD5Transform(ctx->buf, (uint32_t *) ctx->in);
   byteReverse((unsigned char *) ctx->buf, 4);
   memcpy(digest, ctx->buf, 16);
   memset((char *) ctx, 0, sizeof(*ctx));
 }
+#endif /* DISABLE_MD5 */
 
-#endif /* CS_DISABLE_MD5 */
+char *cs_md5(char buf[33], ...) {
+  unsigned char hash[16];
+  const unsigned char *p;
+  va_list ap;
+  MD5_CTX ctx;
+
+  MD5_Init(&ctx);
+
+  va_start(ap, buf);
+  while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
+    size_t len = va_arg(ap, size_t);
+    MD5_Update(&ctx, p, len);
+  }
+  va_end(ap);
+
+  MD5_Final(hash, &ctx);
+  cs_to_hex(buf, hash, sizeof(hash));
+
+  return buf;
+}
+
 #endif /* EXCLUDE_COMMON */
 #ifdef V7_MODULE_LINES
-#line 1 "common/cs_sha1.c"
+#line 1 "common/sha1.c"
 #endif
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-/* Amalgamated: #include "common/cs_sha1.h" */
+/* Amalgamated: #include "common/sha1.h" */
 
-#if !CS_DISABLE_SHA1 && !defined(EXCLUDE_COMMON)
+#if !DISABLE_SHA1 && !defined(EXCLUDE_COMMON)
 
 /* Amalgamated: #include "common/cs_endian.h" */
 
@@ -11076,7 +11106,6 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
 
 #ifndef EXCLUDE_COMMON
 
-/* Amalgamated: #include "common/mg_mem.h" */
 /* Amalgamated: #include "common/cs_dirent.h" */
 
 /*
@@ -11084,22 +11113,23 @@ void cs_hmac_sha1(const unsigned char *key, size_t keylen,
  * for systems which do not natively support it (e.g. Windows).
  */
 
-#ifdef _WIN32
-struct win32_dir {
-  DIR d;
-  HANDLE handle;
-  WIN32_FIND_DATAW info;
-  struct dirent result;
-};
+#ifndef MG_FREE
+#define MG_FREE free
+#endif
 
+#ifndef MG_MALLOC
+#define MG_MALLOC malloc
+#endif
+
+#ifdef _WIN32
 DIR *opendir(const char *name) {
-  struct win32_dir *dir = NULL;
+  DIR *dir = NULL;
   wchar_t wpath[MAX_PATH];
   DWORD attrs;
 
   if (name == NULL) {
     SetLastError(ERROR_BAD_ARGUMENTS);
-  } else if ((dir = (struct win32_dir *) MG_MALLOC(sizeof(*dir))) == NULL) {
+  } else if ((dir = (DIR *) MG_MALLOC(sizeof(*dir))) == NULL) {
     SetLastError(ERROR_NOT_ENOUGH_MEMORY);
   } else {
     to_wchar(name, wpath, ARRAY_SIZE(wpath));
@@ -11114,11 +11144,10 @@ DIR *opendir(const char *name) {
     }
   }
 
-  return (DIR *) dir;
+  return dir;
 }
 
-int closedir(DIR *d) {
-  struct win32_dir *dir = (struct win32_dir *) d;
+int closedir(DIR *dir) {
   int result = 0;
 
   if (dir != NULL) {
@@ -11133,12 +11162,10 @@ int closedir(DIR *d) {
   return result;
 }
 
-struct dirent *readdir(DIR *d) {
-  struct win32_dir *dir = (struct win32_dir *) d;
+struct dirent *readdir(DIR *dir) {
   struct dirent *result = NULL;
 
   if (dir) {
-    memset(&dir->result, 0, sizeof(dir->result));
     if (dir->handle != INVALID_HANDLE_VALUE) {
       result = &dir->result;
       (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
@@ -11160,6 +11187,52 @@ struct dirent *readdir(DIR *d) {
   return result;
 }
 #endif
+
+#if CS_ENABLE_SPIFFS
+
+DIR *opendir(const char *dir_name) {
+  DIR *dir = NULL;
+  spiffs *fs = cs_spiffs_get_fs();
+
+  if (dir_name == NULL || fs == NULL ||
+      (dir = (DIR *) calloc(1, sizeof(*dir))) == NULL) {
+    return NULL;
+  }
+
+  if (SPIFFS_opendir(fs, dir_name, &dir->dh) == NULL) {
+    free(dir);
+    dir = NULL;
+  }
+
+  return dir;
+}
+
+int closedir(DIR *dir) {
+  if (dir != NULL) {
+    SPIFFS_closedir(&dir->dh);
+    free(dir);
+  }
+  return 0;
+}
+
+struct dirent *readdir(DIR *dir) {
+  return SPIFFS_readdir(&dir->dh, &dir->de);
+}
+
+/* SPIFFs doesn't support directory operations */
+int rmdir(const char *path) {
+  (void) path;
+  return ENOTSUP;
+}
+
+int mkdir(const char *path, mode_t mode) {
+  (void) path;
+  (void) mode;
+  /* for spiffs supports only root dir, which comes from mongoose as '.' */
+  return (strlen(path) == 1 && *path == '.') ? 0 : ENOTSUP;
+}
+
+#endif /* CS_ENABLE_SPIFFS */
 
 #endif /* EXCLUDE_COMMON */
 
@@ -11928,46 +12001,6 @@ clean:
 }
 
 WARN_UNUSED_RESULT
-V7_PRIVATE enum v7_err File_exec(struct v7 *v7, v7_val_t *res) {
-  enum v7_err rcode = V7_OK;
-  v7_val_t arg0 = v7_arg(v7, 0);
-  v7_val_t arg1 = v7_arg(v7, 1);
-  FILE *fp = NULL;
-
-  if (v7_is_string(arg0)) {
-    const char *s1 = v7_get_cstring(v7, &arg0);
-    const char *s2 = "rb"; /* Open files in read mode by default */
-
-    if (v7_is_string(arg1)) {
-      s2 = v7_get_cstring(v7, &arg1);
-    }
-
-    if (s1 == NULL || s2 == NULL) {
-      *res = V7_NULL;
-      goto clean;
-    }
-
-    fp = popen(s1, s2);
-    if (fp != NULL) {
-      v7_val_t obj = v7_mk_object(v7);
-      v7_val_t file_proto = v7_get(
-          v7, v7_get(v7, v7_get_global(v7), "File", ~0), "prototype", ~0);
-      v7_set_proto(v7, obj, file_proto);
-      v7_def(v7, obj, s_fd_prop, sizeof(s_fd_prop) - 1, V7_DESC_ENUMERABLE(0),
-             v7_file_to_val(v7, fp));
-      *res = obj;
-      goto clean;
-    }
-  }
-
-  *res = V7_NULL;
-
-clean:
-  return rcode;
-}
-
-
-WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err File_read(struct v7 *v7, v7_val_t *res) {
   v7_val_t arg0 = v7_arg(v7, 0);
 
@@ -12125,7 +12158,6 @@ void init_file(struct v7 *v7) {
   v7_set_method(v7, file_obj, "remove", File_remove);
   v7_set_method(v7, file_obj, "rename", File_rename);
   v7_set_method(v7, file_obj, "open", File_open);
-  v7_set_method(v7, file_obj, "exec", File_exec);
   v7_set_method(v7, file_obj, "read", File_read);
   v7_set_method(v7, file_obj, "write", File_write);
   v7_set_method(v7, file_obj, "loadJSON", File_loadJSON);
@@ -12488,10 +12520,10 @@ V7_PRIVATE enum v7_err Crypto_base64_encode(struct v7 *v7, v7_val_t *res) {
 }
 
 static void v7_md5(const char *data, size_t len, char buf[16]) {
-  cs_md5_ctx ctx;
-  cs_md5_init(&ctx);
-  cs_md5_update(&ctx, (unsigned char *) data, len);
-  cs_md5_final((unsigned char *) buf, &ctx);
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  MD5_Update(&ctx, (unsigned char *) data, len);
+  MD5_Final((unsigned char *) buf, &ctx);
 }
 
 static void v7_sha1(const char *data, size_t len, char buf[20]) {

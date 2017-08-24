@@ -58,6 +58,12 @@ namespace micasa {
 
 			typedef std::function<void( std::shared_ptr<Connection> connection_, Event event_ )> t_eventFunc;
 
+			// These variables are exposed to the calling party but should be used only in edge cases.
+			mg_connection* m_mg_conn;
+			std::atomic<unsigned int> m_flags;
+			std::string m_conn_uri;
+			void* m_data;
+
 			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, t_eventFunc&& func_ );
 			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, const t_eventFunc& func_ );
 			~Connection();
@@ -70,23 +76,20 @@ namespace micasa {
 			void close();
 			void terminate();
 			void serve( const std::string& root_, const std::string& index_ = "index.html" );
-			void reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_ );
+			void reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_, bool close_ = false );
 			void send( const std::string& data_ );
 
 			std::string popData();
 			std::string getBody() const;
 			std::string getUri() const;
+			int getPort() const;
 			std::string getQuery() const;
 			std::string getMethod() const;
 			std::map<std::string, std::string> getHeaders() const;
 			std::map<std::string, std::string> getParams() const;
 
 		private:
-			mg_connection* m_mg_conn;
-			std::string m_conn_uri;
-			void* m_data;
 			std::atomic<int> m_event;
-			std::atomic<unsigned int> m_flags;
 			t_eventFunc m_func;
 			std::queue<std::function<void(void)>> m_tasks;
 			mutable std::mutex m_tasksMutex;

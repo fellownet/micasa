@@ -52,13 +52,15 @@ namespace micasa {
 		Plugin::stop();
 	};
 
-	bool Debug::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( device_->getType() == Device::Type::SWITCH ) {
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
-				std::string type = device->getReference();
-				if ( type == "shutdown" ) {
-					micasa::g_shutdown = true;
+	bool Debug::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+				if ( device->getValueOption() == Switch::Option::ACTIVATE ) {
+					std::string type = device->getReference();
+					if ( type == "shutdown" ) {
+						micasa::g_shutdown = true;
+					}
 				}
 			}
 		}

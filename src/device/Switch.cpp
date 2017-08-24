@@ -21,13 +21,14 @@ namespace micasa {
 	const std::map<Switch::SubType, std::string> Switch::SubTypeText = {
 		{ Switch::SubType::GENERIC, "generic" },
 		{ Switch::SubType::LIGHT, "light" },
-		{ Switch::SubType::DOOR_CONTACT, "door_contact" },
+		{ Switch::SubType::CONTACT, "contact" },
 		{ Switch::SubType::BLINDS, "blinds" },
 		{ Switch::SubType::MOTION_DETECTOR, "motion_detector" },
 		{ Switch::SubType::FAN, "fan" },
 		{ Switch::SubType::HEATER, "heater" },
 		{ Switch::SubType::BELL, "bell" },
 		{ Switch::SubType::SCENE, "scene" },
+		{ Switch::SubType::OCCUPANCY, "occupancy" },
 		{ Switch::SubType::ACTION, "action" },
 	};
 
@@ -70,7 +71,7 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being started." );
 #endif // _DEBUG
-		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_HOUR ), SCHEDULER_INTERVAL_HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_1HOUR ), SCHEDULER_INTERVAL_1HOUR, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			this->_purgeHistory();
 		} );
 	};
@@ -178,6 +179,10 @@ namespace micasa {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
@@ -232,6 +237,10 @@ namespace micasa {
 			{ "sort", 999 }
 		};
 
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->updateDeviceSettingsJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
+		}
+
 		return result;
 	};
 
@@ -266,8 +275,13 @@ namespace micasa {
 		// If the update originates from the plugin it is not send back to the plugin again.
 		bool success = true;
 		bool apply = true;
-		if ( ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN ) {
-			success = this->getPlugin()->updateDevice( source_, this->shared_from_this(), apply );
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			if (
+				plugin != this->getPlugin()
+				|| ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
+			) {
+				success = success && plugin->updateDevice( source_, Device::shared_from_this(), plugin == this->getPlugin(), apply );
+			}
 		}
 		if ( success && apply ) {
 			if ( this->m_enabled ) {
@@ -287,7 +301,7 @@ namespace micasa {
 					|| Switch::SubType::ACTION == Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) )
 				)
 			) {
-				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( this->shared_from_this() ), source_ );
+				g_controller->newEvent<Switch>( std::static_pointer_cast<Switch>( Device::shared_from_this() ), source_ );
 			}
 			if ( this->m_value == Switch::Option::ACTIVATE ) {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Activated." );

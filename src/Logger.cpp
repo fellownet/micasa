@@ -18,7 +18,7 @@ namespace micasa {
 		std::lock_guard<std::mutex> lock( logger.m_receiversMutex );
 		logger.m_receivers.push_back( { receiver_, level_ } );
 	};
-	
+
 	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
 		Logger& logger = Logger::get();
 		std::lock_guard<std::mutex> lock( logger.m_receiversMutex );
@@ -26,7 +26,7 @@ namespace micasa {
 			if ( (*receiversIt).receiver.lock() == receiver_ ) {
 				receiversIt = logger.m_receivers.erase( receiversIt );
 			} else {
-				receiversIt++;	
+				receiversIt++;
 			}
 		}
 	};
@@ -77,7 +77,7 @@ namespace micasa {
 			case Logger::LogLevel::DEBUG:
 				std::cout << "\033[0;37m" << timebuf << message_ << "\033[0m\n";
 				break;
-			case Logger::LogLevel::SCRIPT:
+			case Logger::LogLevel::NOTICE:
 				std::cout << "\033[0;33m" << timebuf << message_ << "\033[0m\n";
 				break;
 			default:

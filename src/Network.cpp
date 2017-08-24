@@ -22,16 +22,16 @@ namespace micasa {
 
 	Network::Connection::Connection( mg_connection* mg_conn_, const std::string& uri_, unsigned int flags_, t_eventFunc&& func_ ) :
 		m_mg_conn( mg_conn_ ),
-		m_conn_uri( uri_ ),
 		m_flags( flags_ ),
+		m_conn_uri( uri_ ),
 		m_func( std::move( func_ ) )
 	{
 	};
 
 	Network::Connection::Connection( mg_connection* mg_conn_, const std::string& uri_, unsigned int flags_, const t_eventFunc& func_ ) :
 		m_mg_conn( mg_conn_ ),
-		m_conn_uri( uri_ ),
 		m_flags( flags_ ),
+		m_conn_uri( uri_ ),
 		m_func( func_ )
 	{
 	};
@@ -72,8 +72,8 @@ namespace micasa {
 		mg_serve_http( this->m_mg_conn, (http_message*)this->m_data, options );
 	};
 
-	void Network::Connection::reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_ ) {
-		auto task = [this,data_,code_,headers_]() {
+	void Network::Connection::reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_, bool close_ ) {
+		auto task = [this,data_,code_,headers_,close_]() {
 			std::stringstream headers;
 			for ( auto headersIt = headers_.begin(); headersIt != headers_.end(); ) {
 				headers << headersIt->first << ": " << headersIt->second;
@@ -86,8 +86,10 @@ namespace micasa {
 				if ( code_ != 304 ) { // not modified
 					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
 				}
-				// NOTE connection is kept alive.
-				// this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+				if ( close_ ) {
+					this->m_mg_conn->flags |= MG_F_SEND_AND_CLOSE;
+					this->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
+				}
 			}
 		};
 		if ( __unlikely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
@@ -155,6 +157,12 @@ namespace micasa {
 #endif // _DEBUG
 		auto http = (http_message*)this->m_data;
 		return std::string( http->uri.p, http->uri.len );
+	};
+
+	int Network::Connection::getPort() const {
+		char* buffer = new char[8];
+		mg_conn_addr_to_str( this->m_mg_conn, buffer, 8, MG_SOCK_STRINGIFY_PORT );
+		return std::stoi( buffer );
 	};
 
 	std::string Network::Connection::getQuery() const {
@@ -248,7 +256,7 @@ namespace micasa {
 		this->m_shutdown = false;
 		this->m_worker = std::thread( [this]() -> void {
 			do {
-				mg_mgr_poll( &this->m_manager, 100 );
+				mg_mgr_poll( &this->m_manager, 1000 );
 			} while( ! this->m_shutdown );
 		} );
 	};
@@ -308,17 +316,12 @@ namespace micasa {
 
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
-		std::string address;
-#ifdef _IPV6_ENABLED
-		address = "[::]:" + port_;
-#else
-		address = "0.0.0.0:" + port_;
-#endif
-		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, address.c_str(), micasa_mg_handler, options_ );
+		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, port_.c_str(), micasa_mg_handler, options_ );
+		Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", port_.c_str() );
+		std::shared_ptr<Connection> connection;
 		if ( mg_conn ) {
 			mg_set_protocol_http_websocket( mg_conn );
-			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Binding to %s.", address.c_str() );
-			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, address, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			connection = std::make_shared<Connection>( mg_conn, port_, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
 			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
@@ -343,6 +346,10 @@ namespace micasa {
 				mg_set_protocol_http_websocket( mg_conn );
 				flags |= NETWORK_CONNECTION_FLAG_HTTP;
 			}
+		} else if ( uri_.substr( 0, 3 ) == "udp" ) {
+			// NOTE forcing broadcast when udp > needs some improvements
+			options.flags = options.flags | MG_F_ENABLE_BROADCAST;
+			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		} else {
 			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		}
@@ -443,12 +450,12 @@ namespace micasa {
 				break;
 			}
 
-			// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
-			// During, and *only* during this event there's a http_message instance available. The serving of static
-			// files requires this, so the SERVE event is fired synchronious with the poller..
 			case MG_EV_HTTP_REQUEST:
 			case MG_EV_HTTP_REPLY:
 			case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
+				// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
+				// During, and *only* during this event there's a http_message instance available. The serving of static
+				// files requires this, so the SERVE event is fired synchronious with the poller..
 				if ( connection->m_func ) {
 					connection->m_func( connection, Connection::Event::HTTP );
 				}

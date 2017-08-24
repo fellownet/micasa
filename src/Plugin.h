@@ -34,6 +34,9 @@ namespace micasa {
 #ifdef _DEBUG
 			DEBUG               = 12,
 #endif // _DEBUG
+#ifdef _WITH_HOMEKIT
+			HOMEKIT             = 13,
+#endif // _WITH_LINUX_SPI
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
@@ -71,6 +74,7 @@ namespace micasa {
 		void setState( const State& state_, bool children_ = false );
 		std::string getReference() const { return this->m_reference; };
 		std::string getName() const;
+		virtual std::string getLabel() const =0;
 		std::shared_ptr<Settings<Plugin>> getSettings() const { return this->m_settings; };
 		std::shared_ptr<Plugin> getParent() const { return this->m_parent; };
 		std::vector<std::shared_ptr<Plugin>> getChildren() const;
@@ -86,11 +90,13 @@ namespace micasa {
 		virtual nlohmann::json getJson() const;
 		virtual nlohmann::json getSettingsJson() const;
 		virtual void putSettingsJson( const nlohmann::json& settings_ ) { };
-		virtual nlohmann::json getDeviceJson( std::shared_ptr<const Device> device_, bool full_ = false ) const;
-		virtual nlohmann::json getDeviceSettingsJson( std::shared_ptr<const Device> device_ ) const;
-		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& settings_ ) { };
-		virtual std::string getLabel() const =0;
-		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) =0;
+
+		// The device update methods are called on *all* plugins to allow interaction
+		// between plugins.
+		virtual void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const { };
+		virtual void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const { };
+		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) { };
+		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) { return true; };
 
 	protected:
 		const unsigned int m_id;

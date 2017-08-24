@@ -156,106 +156,107 @@ namespace micasa {
 		}
 	};
 
-	bool Telegram::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool& apply_ ) {
-		if ( this->getState() < Plugin::State::DISCONNECTED ) {
-			Logger::log( Logger::LogLevel::ERROR, this, "Telegram not ready (yet)." );
-			return false;
-		}
+	bool Telegram::updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) {
+		if ( owned_ ) {
+			if ( this->getState() < Plugin::State::DISCONNECTED ) {
+				Logger::log( Logger::LogLevel::ERROR, this, "Telegram not ready (yet)." );
+				return false;
+			}
 
-		if ( device_->getType() == Device::Type::SWITCH ) {
-			std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-			if (
-				device->getReference() == "accept"
-				&& device->getValueOption() == Switch::Option::ENABLED
-			) {
-				if ( this->m_acceptMode ) {
-					Logger::log( Logger::LogLevel::ERROR, this, "Accept Mode already enabled." );
+			if ( device_->getType() == Device::Type::SWITCH ) {
+				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
+				if (
+					device->getReference() == "accept"
+					&& device->getValueOption() == Switch::Option::ENABLED
+				) {
+					if ( this->m_acceptMode ) {
+						Logger::log( Logger::LogLevel::ERROR, this, "Accept Mode already enabled." );
+					} else {
+						Logger::log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
+						this->m_acceptMode = true;
+						this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this,device]( std::shared_ptr<Scheduler::Task<>> ) {
+							this->m_acceptMode = false;
+							device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::DISABLED );
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
+						} );
+					}
+					return true;
+				}
+			} else if ( device_->getType() == Device::Type::TEXT ) {
+
+				// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
+				// to all chat devices.
+				auto sourceDevice = std::static_pointer_cast<Text>( device_ );
+				std::vector<std::shared_ptr<Text>> targetDevices;
+				if ( sourceDevice->getReference() == "broadcast" ) {
+					auto allDevices = this->getAllDevices();
+					for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
+						if (
+							(*deviceIt)->getType() == Device::Type::TEXT
+							&& (*deviceIt)->getReference() != "broadcast"
+							&& (*deviceIt)->isEnabled()
+						) {
+							targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
+						}
+					}
 				} else {
-					Logger::log( Logger::LogLevel::NORMAL, this, "Accept Mode enabled." );
-					this->m_acceptMode = true;
-					this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, 1, this, [this,device]( std::shared_ptr<Scheduler::Task<>> ) {
-						this->m_acceptMode = false;
-						device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::DISABLED );
-						Logger::log( Logger::LogLevel::VERBOSE, this, "Accept Mode disabled." );
-					} );
+					targetDevices.push_back( sourceDevice );
+					apply_ = false;
+				}
+				for ( auto deviceIt = targetDevices.begin(); deviceIt != targetDevices.end(); deviceIt++ ) {
+
+					// For each device a task is started that makes sure several attempts are made to send the message. The
+					// target device is captured as a weak pointer to make sure the device can be destroyed if necessary.
+					std::string value = sourceDevice->getValue();
+					Device::UpdateSource source = source_;
+					std::string reference = (*deviceIt)->getReference();
+					std::weak_ptr<Text> targetPtr = *deviceIt;
+
+					// The mutable flag on the lambda ensures that the variables are copied and mutable. Otherwise they're
+					// captured as a const by default and we can't modify them (NOTE they're still copies!).
+					if ( this->_queuePendingUpdate( reference, source_, TELEGRAM_BUSY_BLOCK_MSEC, TELEGRAM_BUSY_WAIT_MSEC ) ) {
+						this->m_scheduler.schedule( 0, 1, this, [this,value,targetPtr,source,reference]( std::shared_ptr<Scheduler::Task<>> task_ ) mutable {
+							auto target = targetPtr.lock();
+							if ( target ) {
+								std::stringstream url;
+								url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
+								json params = {
+									{ "chat_id", std::stoi( target->getReference() ) },
+									{ "text", value },
+									{ "parse_mode", "Markdown" }
+								};
+								Network::connect( url.str(), params, [this,value,targetPtr,source,reference,task_]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) mutable {
+									switch( event_ ) {
+										case Network::Connection::Event::CONNECT: {
+											this->_releasePendingUpdate( reference, source );
+											auto target = targetPtr.lock();
+											if ( target ) {
+												target->updateValue( source | Device::UpdateSource::PLUGIN, value );
+											}
+											break;
+										}
+										case Network::Connection::Event::FAILURE: {
+											if ( task_->iteration < 5 ) {
+												Logger::log( Logger::LogLevel::WARNING, this, "Connection failure, retrying." );
+												this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, task_ );
+											} else {
+												Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
+												this->_releasePendingUpdate( reference );
+											}
+											break;
+										}
+										default: { break; }
+									}
+								} );
+							}
+						} );
+					}
 				}
 				return true;
 			}
-		} else if ( device_->getType() == Device::Type::TEXT ) {
-
-			// A message can be sent to a single device (=chat) or to the broadcast device, in which case it is send
-			// to all chat devices.
-			auto sourceDevice = std::static_pointer_cast<Text>( device_ );
-			std::vector<std::shared_ptr<Text>> targetDevices;
-			if ( sourceDevice->getReference() == "broadcast" ) {
-				auto allDevices = this->getAllDevices();
-				for ( auto deviceIt = allDevices.begin(); deviceIt != allDevices.end(); deviceIt++ ) {
-					if (
-						(*deviceIt)->getType() == Device::Type::TEXT
-						&& (*deviceIt)->getReference() != "broadcast"
-						&& (*deviceIt)->isEnabled()
-					) {
-						targetDevices.push_back( std::static_pointer_cast<Text>( *deviceIt ) );
-					}
-				}
-			} else {
-				targetDevices.push_back( sourceDevice );
-				apply_ = false;
-			}
-			for ( auto deviceIt = targetDevices.begin(); deviceIt != targetDevices.end(); deviceIt++ ) {
-
-				// For each device a task is started that makes sure several attempts are made to send the message. The
-				// target device is captured as a weak pointer to make sure the device can be destroyed if necessary.
-				std::string value = sourceDevice->getValue();
-				Device::UpdateSource source = source_;
-				std::string reference = (*deviceIt)->getReference();
-				std::weak_ptr<Text> targetPtr = *deviceIt;
-
-				// The mutable flag on the lambda ensures that the variables are copied and mutable. Otherwise they're
-				// captured as a const by default and we can't modify them (NOTE they're still copies!).
-				if ( this->_queuePendingUpdate( reference, source_, TELEGRAM_BUSY_BLOCK_MSEC, TELEGRAM_BUSY_WAIT_MSEC ) ) {
-					this->m_scheduler.schedule( 0, 1, this, [this,value,targetPtr,source,reference]( std::shared_ptr<Scheduler::Task<>> task_ ) mutable {
-						auto target = targetPtr.lock();
-						if ( target ) {
-							std::stringstream url;
-							url << "https://api.telegram.org/bot" << this->m_settings->get( "token" ) << "/sendMessage";
-							json params = {
-								{ "chat_id", std::stoi( target->getReference() ) },
-								{ "text", value },
-								{ "parse_mode", "Markdown" }
-							};
-							Network::connect( url.str(), params, [this,value,targetPtr,source,reference,task_]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) mutable {
-								switch( event_ ) {
-									case Network::Connection::Event::CONNECT: {
-										this->_releasePendingUpdate( reference, source );
-										auto target = targetPtr.lock();
-										if ( target ) {
-											target->updateValue( source | Device::UpdateSource::PLUGIN, value );
-										}
-										break;
-									}
-									case Network::Connection::Event::FAILURE: {
-										if ( task_->iteration < 5 ) {
-											Logger::log( Logger::LogLevel::WARNING, this, "Connection failure, retrying." );
-											this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, task_ );
-										} else {
-											Logger::log( Logger::LogLevel::ERROR, this, "Connection failure." );
-											this->_releasePendingUpdate( reference );
-										}
-										break;
-									}
-									default: { break; }
-								}
-							} );
-						}
-					} );
-				}
-			}
-
-			return true;
-		}
-
-		return false;
+			return false;
+		} // if owned_
+		return true;
 	};
 
 	json Telegram::getJson() const {

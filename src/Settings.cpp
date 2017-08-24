@@ -153,7 +153,6 @@ namespace micasa {
 		}
 	};
 
-	template class SettingsHelper<void>;
 	template class SettingsHelper<Plugin>;
 	template class SettingsHelper<Device>;
 	template class SettingsHelper<User>;
