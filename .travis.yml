@@ -49,7 +49,7 @@ matrix:
       - brew install libusb
       - brew install libusb-compat
       - brew install openssl
-      - brew install sqlite
+      - brew upgrade sqlite
       - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
       - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
