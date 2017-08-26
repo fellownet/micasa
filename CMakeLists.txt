@@ -66,14 +66,14 @@ if( DEBUG )
 endif()
 
 #
-# Set default DATADIR location
+# Set default DATADIR location.
 #
 set(DATADIR "./" CACHE STRING "Data directory")
 message( STATUS "Using ${DATADIR} as datadir" )
 add_definitions( -D_DATADIR="${DATADIR}" )
 
 #
-# Enable or disable IPv6
+# Enable or disable IPv6.
 #
 option( ENABLE_IPV6 "Build with IPv6 support" YES )
 if( ENABLE_IPV6 )
@@ -115,6 +115,9 @@ endif( INCLUDE_SPI )
 
 #
 # Add and compile open-zwave project.
+# We're using a fork of the open-zwave project found here:
+# https://github.com/OpenZWave/open-zwave
+# NOTE: the fork removes the udev dependency by obsoleting a couple of old controllers.
 #
 option( WITH_OPENZWAVE "Build with OpenZWave libraries" YES )
 if( WITH_OPENZWAVE )
@@ -174,7 +177,7 @@ if( WITH_OPENZWAVE )
 endif()
 
 #
-# Add homekit support.
+# Add HomeKit support.
 #
 option( WITH_HOMEKIT "Build with HomeKit support" YES )
 if( WITH_HOMEKIT )
@@ -213,12 +216,13 @@ if( WITH_HOMEKIT )
 endif()
 
 #
-# Add JSON.
+# Add JSON support.
+# https://github.com/nlohmann/json
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/json )
 
 #
-# Add Mongoose Network Library.
+# Add Cesanta Mongoose Network Library.
 # https://github.com/cesanta/mongoose
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/mongoose )
@@ -226,11 +230,12 @@ add_definitions( -DMG_DISABLE_HTTP_DIGEST_AUTH -DMG_DISABLE_MD5 -DMG_ENABLE_BROA
 set_source_files_properties( lib/mongoose/mongoose.c PROPERTIES COMPILE_FLAGS -DEXCLUDE_COMMON )
 
 #
-# Add v7 Javascript Engine.
+# Add Cesanta v7 Javascript Engine.
 # https://github.com/cesanta/v7
+# NOTE: the DISABLE_MD5 flag is necessary to prevent duplicate symbols when linking.
 #
 include_directories( ${CMAKE_CURRENT_BINARY_DIR}/lib/v7 )
-add_definitions( -DV7_ENABLE_FILE -DV7_ENABLE_SOCKET -DV7_ENABLE_CRYPTO )
+add_definitions( -DV7_ENABLE_FILE -DDISABLE_MD5 )
 
 #
 # Set compiler options.
@@ -267,10 +272,11 @@ if( WITH_OPENZWAVE )
 
 		#
 		# Check for Libusb.
+		# We're linking to Libusb statically.
 		#
 		find_path( LIBUSB_INCLUDE_DIR NAMES usb.h )
-		find_library( LIBUSB_LIBRARY NAMES usb )
-		find_package_handle_standard_args( Libusb "Libusb not found" LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
+		find_library( LIBUSB_LIBRARY NAMES libusb.a )
+		find_package_handle_standard_args( LIBUSB "Libusb not found" LIBUSB_LIBRARY LIBUSB_INCLUDE_DIR )
 		if( LIBUSB_FOUND )
 			include_directories( ${LIBUSB_INCLUDE_DIR} )
 			target_link_libraries( micasa OpenZWaveLib ${LIBUSB_LIBRARY} )
@@ -290,11 +296,16 @@ if( WITH_OPENZWAVE )
 endif()
 
 #
-# Check for OpenSSL
+# Check for OpenSSL.
+# NOTE: on Darwin we're linking to OpenSSL statically; here we're instructing cmake to
+# use .a as library suffix.
 #
 option( WITH_OPENSSL "Build with OpenSSL libraries" YES )
 if( WITH_OPENSSL )
 	message( STATUS "Build with OpenSSL libraries" )
+	if( CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+		set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+	endif()
 	find_package( OpenSSL )
 	if( OPENSSL_FOUND )
 		include_directories( ${OPENSSL_INCLUDE_DIRS} )
@@ -308,14 +319,15 @@ else()
 endif()
 
 #
-# Check for libudev
+# Check for libudev.
+# NOTE: libudev support is deprecated due to stability issues and cross platform support.
 #
 option( WITH_LIBUDEV "Build with libudev support" NO )
 if( WITH_LIBUDEV )
 	message( STATUS "Build with libudev support" )
 	find_path( LIBUDEV_INCLUDE_DIR NAMES libudev.h )
 	find_library( LIBUDEV_LIBRARY NAMES udev )
-	find_package_handle_standard_args( Libudev "Libudev not found" LIBUDEV_LIBRARY LIBUDEV_INCLUDE_DIR )
+	find_package_handle_standard_args( LIBUDEV "Libudev not found" LIBUDEV_LIBRARY LIBUDEV_INCLUDE_DIR )
 	if( LIBUDEV_FOUND )
 		include_directories( ${LIBUDEV_INCLUDE_DIR} )
 		target_link_libraries( micasa ${LIBUDEV_LIBRARY} )
@@ -324,11 +336,17 @@ if( WITH_LIBUDEV )
 endif( WITH_LIBUDEV )
 
 #
-# Check for SQLite3
+# Check for SQLite3.
+# NOTE: on Darwin we're linking to SQLite3 statically; this time we need to provide a hint as
+# to where cmake can find this library.
 #
 find_path( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
-find_library( SQLITE3_LIBRARY NAMES sqlite3 )
-find_package_handle_standard_args( SQLite3 "SQLite3 not found" SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR )
+if( CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+	find_library( SQLITE3_LIBRARY NAMES libsqlite3.a HINTS "/usr/local/opt/sqlite3/lib/" )
+else()
+	find_library( SQLITE3_LIBRARY NAMES sqlite3 )
+endif()
+find_package_handle_standard_args( SQLITE3 "SQLite3 not found" SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR )
 if( SQLITE3_FOUND )
 	include_directories( ${SQLITE3_INCLUDE_DIR} )
 	target_link_libraries( micasa ${SQLITE3_LIBRARY} )
@@ -337,7 +355,8 @@ else()
 endif( SQLITE3_FOUND )
 
 #
-# Check for Libdnssd
+# Check for Avahi.
+# NOTE: on Darwin libdns_sd is used instead, which is available by default.
 #
 if( WITH_HOMEKIT )
 	if( WITH_OPENSSL )
@@ -346,14 +365,10 @@ if( WITH_HOMEKIT )
 			find_library( LIBAVAHI_COMMON_LIBRARY NAMES avahi-common )
 			find_package_handle_standard_args( LIBAVAHI "Libavahi not found" LIBAVAHI_CLIENT_LIBRARY LIBAVAHI_COMMON_LIBRARY )
 			if( LIBAVAHI_FOUND )
-				#include_directories( ${LIBDNSSD_INCLUDE_DIR} )
 				target_link_libraries( micasa ${LIBAVAHI_CLIENT_LIBRARY} ${LIBAVAHI_COMMON_LIBRARY} )
 			else()
 				message( FATAL_ERROR "Libavahi not found on your system." )
 			endif()
-		else()
-#			set( CFNETWORK_LIBRARY "-framework CFNetwark" CACHE FILEPATH "CFNetwork framework" FORCE )
-#			target_link_libraries( micasa ${CFNETWORK_LIBRARY} )
 		endif()
 	else()
 		message( FATAL_ERROR "Homekit support requires OpenSSL." )

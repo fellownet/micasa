@@ -407,7 +407,7 @@ namespace micasa {
 
 			// An ACCEPT event is fired as CONNECT.
 			case MG_EV_ACCEPT: {
-				if ( connection->m_func ) {
+				if ( connection->m_func != nullptr ) {
 					connection->m_func( connection, Connection::Event::CONNECT );
 				}
 				break;
@@ -423,7 +423,7 @@ namespace micasa {
 					connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
 					event = Connection::Event::FAILURE;
 				}
-				if ( connection->m_func ) {
+				if ( connection->m_func != nullptr ) {
 					connection->m_func( connection, event );
 				}
 				break;
@@ -433,7 +433,7 @@ namespace micasa {
 			case MG_EV_TIMER: {
 				mg_conn_->flags |= MG_F_CLOSE_IMMEDIATELY;
 				connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
-				if ( connection->m_func ) {
+				if ( connection->m_func != nullptr ) {
 					connection->m_func( connection, Connection::Event::FAILURE );
 				}
 				break;
@@ -443,7 +443,7 @@ namespace micasa {
 			// event for HTTP connections, these should use the getBody method.
 			case MG_EV_RECV: {
 				if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_HTTP ) == 0 ) {
-					if ( connection->m_func ) {
+					if ( connection->m_func != nullptr ) {
 						connection->m_func( connection, Connection::Event::DATA );
 					}
 				}
@@ -456,7 +456,7 @@ namespace micasa {
 				// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
 				// During, and *only* during this event there's a http_message instance available. The serving of static
 				// files requires this, so the SERVE event is fired synchronious with the poller..
-				if ( connection->m_func ) {
+				if ( connection->m_func != nullptr ) {
 					connection->m_func( connection, Connection::Event::HTTP );
 				}
 				if ( event_ == MG_EV_HTTP_REPLY ) {
@@ -477,7 +477,7 @@ namespace micasa {
 					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_CLOSE ) == NETWORK_CONNECTION_FLAG_CLOSE ) {
 						event = Connection::Event::CLOSE;
 					}
-					if ( connection->m_func ) {
+					if ( connection->m_func != nullptr ) {
 						connection->m_func( connection, event );
 					}
 				}
