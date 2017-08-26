@@ -341,11 +341,12 @@ endif( WITH_LIBUDEV )
 # to where cmake can find this library.
 #
 find_path( SQLITE3_INCLUDE_DIR NAMES sqlite3.h )
-if( CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
-	find_library( SQLITE3_LIBRARY NAMES libsqlite3.a HINTS "/usr/local/opt/sqlite3/lib/" )
-else()
+#if( CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
+#	find_library( SQLITE3_LIBRARY NAMES libsqlite3.a HINTS "/usr/local/opt/sqlite3/lib/" )
+#else()
+#TODO check where this library is found
 	find_library( SQLITE3_LIBRARY NAMES sqlite3 )
-endif()
+#endif()
 find_package_handle_standard_args( SQLITE3 "SQLite3 not found" SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR )
 if( SQLITE3_FOUND )
 	include_directories( ${SQLITE3_INCLUDE_DIR} )
