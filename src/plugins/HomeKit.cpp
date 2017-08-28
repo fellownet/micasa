@@ -338,7 +338,7 @@ namespace micasa {
 
 		// The keep-alive task will send periodic empty events to the iOS controller to make sure the connection is
 		// still open.
-		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> lock( this->m_sessionsMutex );
 			for ( auto& sessionIt : this->m_sessions ) {
 				auto& session = sessionIt.second;

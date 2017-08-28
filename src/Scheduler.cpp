@@ -33,12 +33,6 @@ namespace micasa {
 		Scheduler::ThreadPool::get().proceed( this, wait_, task_ );
 	};
 
-#ifdef _DEBUG
-	unsigned int Scheduler::count() {
-		return Scheduler::ThreadPool::get().count();
-	};
-#endif // _DEBUG
-
 	// ==========
 	// ThreadPool
 	// ==========
@@ -46,7 +40,6 @@ namespace micasa {
 	Scheduler::ThreadPool::ThreadPool() :
 		m_shutdown( false ),
 		m_continue( false ),
-		m_count( 0 ),
 		m_threads( std::vector<std::thread>( std::max( 2U, 2 * std::thread::hardware_concurrency() ) ) )
 	{
 		for ( unsigned int i = 0; i < this->m_threads.size(); i++ ) {
@@ -61,7 +54,7 @@ namespace micasa {
 		}
 #ifdef _DEBUG
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-		assert( this->m_start == nullptr && "All tasks should be purged when ThreadPool is destructed." );
+		assert( this->m_tasks.size() == 0 && "All tasks should be purged when ThreadPool is destructed." );
 		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed." );
 		tasksLock.unlock();
 #endif // _DEBUG
@@ -72,29 +65,24 @@ namespace micasa {
 		assert( this->m_shutdown == false && "Tasks should only be scheduled when scheduler is running." );
 #endif // _DEBUG
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		this->_insert( task_ );
+		this->m_tasks.insert( { task_->time, task_ } );
+		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
 	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
 		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 
-		// The linked list is circular and because it's modified while iterating we're cannot detect when the invariant
-		// is looping. Instead, we're going to just investigate as many of the tasks as there are in the task queue and
-		// remove them if the condition matches.
-		auto position = this->m_start;
-		for ( unsigned int i = 0, total = this->m_count; i < total; i++ ) {
-			auto task = position;
-			position = position->m_next;
+		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
 			if (
-				task->m_scheduler == scheduler_
-				&& func_( *( task.get() ) )
+				taskIt->second->m_scheduler == scheduler_
+				&& func_( *( taskIt->second.get() ) )
 			) {
-				this->_erase( task );
+				taskIt = this->m_tasks.erase( taskIt );
+			} else {
+				taskIt++;
 			}
 		}
 
-		// After all pending tasks have been removed, all running tasks should be instructed *not* to repeat. Their
-		// futures are gathered.
 		std::vector<std::shared_ptr<BaseTask>> tasks;
 		for ( auto taskIt = this->m_activeTasks.begin(); taskIt != this->m_activeTasks.end(); taskIt++ ) {
 			if (
@@ -108,7 +96,6 @@ namespace micasa {
 
 		tasksLock.unlock();
 
-		// Block the thread until all tasks have been completed.
 		for ( auto const &task : tasks ) {
 			task->complete();
 		}
@@ -116,51 +103,43 @@ namespace micasa {
 
 	auto Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const -> std::shared_ptr<BaseTask> {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		auto position = this->m_start;
-		do {
+		for ( auto& taskIt : this->m_tasks ) {
 			if (
-				position->m_scheduler == scheduler_
-				&& func_( *( position.get() ) )
+				taskIt.second->m_scheduler == scheduler_
+				&& func_( *( taskIt.second.get() ) )
 			) {
-				return position;
+				return taskIt.second;
 			}
-			position = position->m_next;
-		} while( position != this->m_start );
+		}
 		return nullptr;
 	};
 
 	void Scheduler::ThreadPool::proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ ) {
 		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		this->_erase( task_ );
+		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
+			if (
+				taskIt->second->m_scheduler == scheduler_
+				&& taskIt->second == task_
+			) {
+				taskIt = this->m_tasks.erase( taskIt );
+			} else {
+				taskIt++;
+			}
+		}
 		task_->time = system_clock::now() + milliseconds( wait_ );
-		this->_insert( task_ );
+		this->m_tasks.insert( { task_->time, task_ } );
+		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
-
-#ifdef _DEBUG
-	unsigned int Scheduler::ThreadPool::count() const {
-		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
-		if ( this->m_start == nullptr ) {
-			return 0;
-		}
-		unsigned int count = 1;
-		auto current = this->m_start;
-		while( current->m_next != this->m_start ) {
-			count++;
-			current = current->m_next;
-		}
-		return count;
-	};
-#endif // _DEBUG
 
 	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
 			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
 			if (
-				this->m_start != nullptr
-				&& this->m_start->time <= system_clock::now()
+				this->m_tasks.size() > 0
+				&& this->m_tasks.begin()->second->time <= system_clock::now()
 			) {
-				auto task = this->m_start;
-				this->_erase( task );
+				auto task = this->m_tasks.begin()->second;
+				this->m_tasks.erase( this->m_tasks.begin() );
 				this->m_activeTasks.push_back( task );
 				tasksLock.unlock();
 
@@ -174,27 +153,27 @@ namespace micasa {
 				}
 
 				if ( task->repeat > 1 ) {
-					if ( task->repeat != SCHEDULER_INFINITE ) {
+					if ( task->repeat != SCHEDULER_REPEAT_INFINITE ) {
 						task->repeat--;
 					}
 					auto now = system_clock::now();
 					do {
-						// Make sure the thread doesn't get saturated at the expense of skipping intervals.
 						task->time += milliseconds( task->delay );
 					} while( task->time < now );
-					this->_insert( task );
+					this->m_tasks.insert( { task->time, task } );
+					this->_notify( false, [this]() -> void { this->m_continue = true; } );
 				}
 			}
 
 			auto predicate = [&]() -> bool { return this->m_shutdown || this->m_continue; };
 			std::unique_lock<std::mutex> conditionLock( this->m_conditionMutex );
-			if ( __unlikely( this->m_start == nullptr ) ) {
+			if ( __unlikely( this->m_tasks.size() == 0 ) ) {
 				tasksLock.unlock();
 				this->m_continueCondition.wait( conditionLock, predicate );
 			} else {
 				auto now = system_clock::now();
-				if ( now < this->m_start->time ) {
-					auto wait = this->m_start->time - now;
+				if ( now < this->m_tasks.begin()->second->time ) {
+					auto wait = this->m_tasks.begin()->second->time - now;
 					tasksLock.unlock();
 					this->m_continueCondition.wait_for( conditionLock, wait, predicate );
 				} else {
@@ -203,56 +182,6 @@ namespace micasa {
 			}
 			this->m_continue = false;
 			conditionLock.unlock();
-		}
-	};
-
-	inline void Scheduler::ThreadPool::_insert( std::shared_ptr<BaseTask> task_ ) {
-		if (
-			task_->m_previous == nullptr
-			&& task_->m_next == nullptr
-		) {
-			if ( __unlikely( this->m_start == nullptr ) ) {
-				this->m_start = task_;
-				task_->m_previous = task_->m_next = task_;
-			} else {
-				auto position = this->m_start;
-				while( position->time < task_->time ) {
-					position = position->m_next;
-					if ( position == this->m_start ) {
-						break;
-					}
-				}
-				task_->m_previous = position->m_previous;
-				task_->m_next = position;
-				position->m_previous->m_next = task_;
-				position->m_previous = task_;
-
-				if ( task_->time < this->m_start->time ) {
-					this->m_start = task_;
-				}
-			}
-			this->m_count++;
-			this->_notify( false, [this]() -> void { this->m_continue = true; } );
-		}
-	};
-
-	inline void Scheduler::ThreadPool::_erase( std::shared_ptr<BaseTask> task_ ) {
-		if (
-			task_->m_previous != nullptr
-			&& task_->m_next != nullptr
-		) {
-			if ( __unlikely( task_->m_next == task_ ) ) {
-				this->m_start = nullptr;
-			} else {
-				if ( this->m_start == task_ ) {
-					this->m_start = task_->m_next;
-				}
-				task_->m_previous->m_next = task_->m_next;
-				task_->m_next->m_previous = task_->m_previous;
-			}
-			task_->m_previous = task_->m_next = nullptr;
-			this->m_count--;
-			this->_notify( false, [this]() -> void { this->m_continue = true; } );
 		}
 	};
 

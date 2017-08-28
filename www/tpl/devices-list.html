@@ -41,8 +41,8 @@
 	</tr>
 	<tr *ngFor="let device of grid.page" (click)="selectDevice( device )"
 		[class.disabled]="! device.enabled"
-		[class.warning]="device.battery_level && device.battery_level >= 20 && device.battery_level < 45"
-		[class.danger]="device.battery_level && device.battery_level < 20"
+		[class.warning]="device.battery_level >= 20 && device.battery_level < 45"
+		[class.danger]="device.battery_level < 20"
 	>
 		<td class="icon" [ngSwitch]="device.type">
 <ng-container *ngSwitchCase="'switch'" [ngSwitch]="device.subtype">
@@ -83,9 +83,9 @@
 			<i class="fa fa-calendar" *ngIf="device.total_timers > 0"></i>
 			<i class="fa fa-link" *ngIf="device.total_links > 0"></i>
 			<i class="fa fa-clock-o" *ngIf="device.scheduled"></i>
-			<i class="fa fa-battery-half" *ngIf="device.battery_level && device.battery_level >= 45 && device.battery_level < 75"></i>
-			<i class="fa fa-battery-quarter" *ngIf="device.battery_level && device.battery_level >= 20 && device.battery_level < 45"></i>
-			<i class="fa fa-battery-empty" *ngIf="device.battery_level && device.battery_level < 20"></i>
+			<i class="fa fa-battery-half" *ngIf="device.battery_level >= 45 && device.battery_level < 75"></i>
+			<i class="fa fa-battery-quarter" *ngIf="device.battery_level >= 20 && device.battery_level < 45"></i>
+			<i class="fa fa-battery-empty" *ngIf="device.battery_level < 20"></i>
 		</td>
 		<td><span class="label"
 			[class.label-success]="device.value == 'On' || device.value == 'Enabled'"
