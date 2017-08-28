@@ -332,15 +332,13 @@ namespace micasa {
 
 	std::shared_ptr<Network::Connection> Network::_connect( const std::string& uri_, const nlohmann::json& data_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
-		mg_connect_opts options;
-		memset( &options, 0, sizeof( options ) );
 		mg_connection* mg_conn;
 		unsigned int flags = 0;
 		if ( __likely( uri_.substr( 0, 4 ) == "http" ) ) {
 			if ( data_.is_null() ) {
-				mg_conn = mg_connect_http_opt( &network.m_manager, micasa_mg_handler, options, uri_.c_str(), NULL, NULL );
+				mg_conn = mg_connect_http( &network.m_manager, micasa_mg_handler, uri_.c_str(), NULL, NULL );
 			} else {
-				mg_conn = mg_connect_http_opt( &network.m_manager, micasa_mg_handler, options, uri_.c_str(), "Content-Type: application/json\r\n", data_.dump().c_str() );
+				mg_conn = mg_connect_http( &network.m_manager, micasa_mg_handler, uri_.c_str(), "Content-Type: application/json\r\n", data_.dump().c_str() );
 			}
 			if ( mg_conn ) {
 				mg_set_protocol_http_websocket( mg_conn );
@@ -348,10 +346,12 @@ namespace micasa {
 			}
 		} else if ( uri_.substr( 0, 3 ) == "udp" ) {
 			// NOTE forcing broadcast when udp > needs some improvements
+			mg_connect_opts options;
+			memset( &options, 0, sizeof( options ) );
 			options.flags = options.flags | MG_F_ENABLE_BROADCAST;
 			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		} else {
-			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
+			mg_conn = mg_connect( &network.m_manager, uri_.c_str(), micasa_mg_handler );
 		}
 		if ( mg_conn ) {
 			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Connecting to %s.", uri_.c_str() );
