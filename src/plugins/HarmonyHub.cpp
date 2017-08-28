@@ -89,7 +89,7 @@ namespace micasa {
 			} );
 		} );
 
-		this->m_scheduler.schedule( 1000 * HARMONY_HUB_PING_INTERVAL_SEC, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( 1000 * HARMONY_HUB_PING_INTERVAL_SEC, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( this->getState() == Plugin::State::READY ) {
 				std::stringstream response;
 				response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID;

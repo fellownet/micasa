@@ -30,7 +30,7 @@ namespace micasa {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 		Plugin::start();
 
-		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( 0, SCHEDULER_INTERVAL_5MIN, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( ! this->m_settings->contains( { "api_key", "site_id", "serial" } ) ) {
 				Logger::log( Logger::LogLevel::ERROR, this, "Missing settings." );
 				this->setState( Plugin::State::FAILED );

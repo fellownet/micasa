@@ -299,7 +299,7 @@ namespace micasa {
 		// to make sure the whole minute has passed.
 		auto now = system_clock::now();
 		auto wait = now + ( milliseconds( 60005 ) - duration_cast<milliseconds>( now.time_since_epoch() ) % milliseconds( 60000 ) );
-		this->m_scheduler.schedule( wait, 60000, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( wait, 60000, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( this->m_running ) {
 				this->_runTimers();
 			}
