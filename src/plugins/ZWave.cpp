@@ -158,8 +158,14 @@ namespace micasa {
 
 	void ZWave::stop() {
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopping..." );
-
 		std::unique_lock<std::timed_mutex> lock( ZWave::g_managerMutex );
+
+		for ( auto& child : this->getChildren() ) {
+			if ( child->getState() != Plugin::State::DISABLED ) {
+				child->stop();
+			}
+		}
+
 		Manager::Get()->RemoveWatcher( micasa_openzwave_notification_handler, this );
 		if ( ! this->m_port.empty() ) {
 			Manager::Get()->RemoveDriver( this->m_port );

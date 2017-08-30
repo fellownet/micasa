@@ -716,14 +716,6 @@ namespace micasa {
 									if ( plugin->getState() != Plugin::State::DISABLED ) {
 										plugin->stop();
 									}
-									for ( auto& pluginIt : plugins ) {
-										if (
-											pluginIt->getParent() == plugin
-											&& pluginIt->getState() != Plugin::State::DISABLED
-										) {
-											pluginIt->stop();
-										}
-									}
 								}
 								if ( enabled ) {
 									this->m_scheduler.schedule( SCHEDULER_INTERVAL_1SEC, 1, this, [plugin]( std::shared_ptr<Scheduler::Task<>> ) {

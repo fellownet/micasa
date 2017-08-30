@@ -89,6 +89,11 @@ namespace micasa {
 
 	void PiFace::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		for ( auto& child : this->getChildren() ) {
+			if ( child->getState() != Plugin::State::DISABLED ) {
+				child->stop();
+			}
+		}
 		if ( this->getState() == Plugin::State::READY ) {
 			close( this->m_fd );
 		}

@@ -364,8 +364,10 @@ namespace micasa {
 
 				case MG_EV_RECV: {
 					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_HTTP ) == 0 ) {
+						std::unique_lock<std::mutex> lock( connection->m_mutex );
 						connection->m_data += std::string( connection->m_mg_conn->recv_mbuf.buf, connection->m_mg_conn->recv_mbuf.len );
 						mbuf_remove( &connection->m_mg_conn->recv_mbuf, connection->m_mg_conn->recv_mbuf.len );
+						lock.unlock();
 						if ( connection->m_func != nullptr ) {
 							network.m_scheduler.schedule( 0, 1, &network, [connection]( std::shared_ptr<Scheduler::Task<>> ) {
 								connection->m_func( connection, Connection::Event::DATA );
@@ -378,7 +380,9 @@ namespace micasa {
 				case MG_EV_HTTP_REQUEST:
 				case MG_EV_HTTP_REPLY:
 				case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
+					std::unique_lock<std::mutex> lock( connection->m_mutex );
 					connection->m_http = *(http_message*)data_;
+					lock.unlock();
 					if ( event_ == MG_EV_HTTP_REPLY ) {
 						connection->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
 						connection->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
