@@ -828,7 +828,7 @@ struct dirent *readdir(DIR *dir);
 
 #include <simplelink.h>
 #include <netapp.h>
-#undef timeval 
+#undef timeval
 
 typedef int sock_t;
 #define INVALID_SOCKET (-1)
@@ -12001,6 +12001,45 @@ clean:
 }
 
 WARN_UNUSED_RESULT
+V7_PRIVATE enum v7_err File_exec(struct v7 *v7, v7_val_t *res) {
+  enum v7_err rcode = V7_OK;
+  v7_val_t arg0 = v7_arg(v7, 0);
+  v7_val_t arg1 = v7_arg(v7, 1);
+  FILE *fp = NULL;
+
+  if (v7_is_string(arg0)) {
+    const char *s1 = v7_get_cstring(v7, &arg0);
+    const char *s2 = "rb"; /* Open files in read mode by default */
+
+    if (v7_is_string(arg1)) {
+      s2 = v7_get_cstring(v7, &arg1);
+    }
+
+    if (s1 == NULL || s2 == NULL) {
+      *res = V7_NULL;
+      goto clean;
+    }
+
+    fp = popen(s1, s2);
+    if (fp != NULL) {
+      v7_val_t obj = v7_mk_object(v7);
+      v7_val_t file_proto = v7_get(
+          v7, v7_get(v7, v7_get_global(v7), "File", ~0), "prototype", ~0);
+      v7_set_proto(v7, obj, file_proto);
+      v7_def(v7, obj, s_fd_prop, sizeof(s_fd_prop) - 1, V7_DESC_ENUMERABLE(0),
+             v7_file_to_val(v7, fp));
+      *res = obj;
+      goto clean;
+    }
+  }
+
+  *res = V7_NULL;
+
+clean:
+  return rcode;
+}
+
+WARN_UNUSED_RESULT
 V7_PRIVATE enum v7_err File_read(struct v7 *v7, v7_val_t *res) {
   v7_val_t arg0 = v7_arg(v7, 0);
 
@@ -12158,6 +12197,7 @@ void init_file(struct v7 *v7) {
   v7_set_method(v7, file_obj, "remove", File_remove);
   v7_set_method(v7, file_obj, "rename", File_rename);
   v7_set_method(v7, file_obj, "open", File_open);
+  v7_set_method(v7, file_obj, "exec", File_exec);
   v7_set_method(v7, file_obj, "read", File_read);
   v7_set_method(v7, file_obj, "write", File_write);
   v7_set_method(v7, file_obj, "loadJSON", File_loadJSON);
