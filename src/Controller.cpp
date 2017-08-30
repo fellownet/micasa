@@ -354,19 +354,22 @@ namespace micasa {
 		}
 #endif // _WITH_LIBUDEV
 
-		// Stopping the plugins is done asynchroniously. First all plugin instances are ordered to stop in a separate
-		// thread...
+		// Stopping the plugins is done asynchroniously. First all parent plugin instances are ordered to stop in a
+		// separate thread...
 		std::unique_lock<std::recursive_mutex> pluginsLock( this->m_pluginsMutex );
 		std::map<std::string, std::future<void>> futures;
 		for ( auto& pluginPair : this->m_plugins ) {
 			auto plugin = pluginPair.second;
-			if ( plugin->getState() != Plugin::State::DISABLED ) {
+			if (
+				plugin->getParent() == nullptr
+				&& plugin->getState() != Plugin::State::DISABLED
+			) {
 				futures[plugin->getName()] = std::async( std::launch::async, [plugin] {
 					plugin->stop();
 				} );
 			}
 		}
-		this->m_plugins.clear();
+		pluginsLock.unlock();
 
 		// ... then all threads are waited for to complete, skipping over plugin threads that take too long to stop.
 		for ( auto const &futuresIt : futures ) {
@@ -378,16 +381,13 @@ namespace micasa {
 			assert( status == std::future_status::ready && "Plugin should stop properly." );
 #endif // _DEBUG
 		}
+
+		pluginsLock.lock();
+		this->m_plugins.clear();
 		pluginsLock.unlock();
 
 		Logger::log( Logger::LogLevel::NORMAL, this, "Stopped." );
 	};
-
-
-
-
-// HIER GEBLEVEN :/
-
 
 	std::shared_ptr<Plugin> Controller::getPlugin( const std::string& reference_ ) const {
 		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
@@ -465,21 +465,37 @@ namespace micasa {
 	};
 
 	void Controller::removePlugin( const std::shared_ptr<Plugin> plugin_ ) {
-		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
 
-		// First all the children of this plugin are stopped and removed from the list. NOTE the futures which we're
-		// using to watch the proper stopping of plugins, are created on the heap to allow them to be passed into the
-		// scheduler by pointer.
-		auto* futures = new std::map<std::string, std::future<void>>();
+		// NOTE all the children records in the database will be removed automatically due to
+		// foreign key constraints.
+		g_database->putQuery(
+			"DELETE FROM `plugins` "
+			"WHERE `id`=%d",
+			plugin_->getId()
+		);
+
+		// Then the plugin is stopped in a separate thread.
+		this->m_scheduler.schedule( 0, 1, this, [this,plugin_]( std::shared_ptr<Scheduler::Task<>> ) {
+			auto future = std::async( std::launch::async, [plugin_] {
+				plugin_->stop();
+			} );
+			std::future_status status = future.wait_for( seconds( 15 ) );
+			if ( status == std::future_status::timeout ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", plugin_->getName().c_str() );
+			}
+#ifdef _DEBUG
+			assert( status == std::future_status::ready && "Plugin should stop properly." );
+#endif // _DEBUG
+		} );
+
+		// All children and the plugin itself are removed from the list.
+		std::lock_guard<std::recursive_mutex> lock( this->m_pluginsMutex );
 		for ( auto pluginsIt = this->m_plugins.begin(); pluginsIt != this->m_plugins.end(); ) {
 			auto plugin = pluginsIt->second;
-			if ( plugin->getParent() == plugin_ ) {
-				if ( plugin->getState() != Plugin::State::DISABLED ) {
-					(*futures)[plugin->getName()] = std::async( std::launch::async, [plugin] {
-						plugin->stop();
-					} );
-				}
-
+			if (
+				plugin == plugin_
+				|| plugin->getParent() == plugin_
+			) {
 				json data = json::object();
 				data["event"] = "plugin_remove";
 				data["data"] = {
@@ -492,50 +508,6 @@ namespace micasa {
 				pluginsIt++;
 			}
 		}
-
-		// Then the plugin itself is stopped and removed. NOTE all the children records in the database will be
-		// removed automatically due to foreign key constraints.
-		for ( auto pluginsIt = this->m_plugins.begin(); pluginsIt != this->m_plugins.end(); ) {
-			if ( pluginsIt->second == plugin_ ) {
-				if ( plugin_->getState() != Plugin::State::DISABLED ) {
-					(*futures)[plugin_->getName()] = std::async( std::launch::async, [plugin_] {
-						plugin_->stop();
-					} );
-				}
-				g_database->putQuery(
-					"DELETE FROM `plugins` "
-					"WHERE `id`=%d",
-					plugin_->getId()
-				);
-
-				json data = json::object();
-				data["event"] = "plugin_remove";
-				data["data"] = {
-					{ "id", plugin_->getId() }
-				};
-				g_webServer->broadcast( data.dump() );
-
-				this->m_plugins.erase( pluginsIt );
-				break;
-			} else {
-				pluginsIt++;
-			}
-		}
-
-		// Waiting for the proper stopping of the plugin is done in a separate thread to allow the webserver to return
-		// the removal results immediately.
-		this->m_scheduler.schedule( 0, 1, this, [this,futures]( std::shared_ptr<Scheduler::Task<>> ) {
-			for ( auto const &futuresIt : *futures ) {
-				std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
-				if ( status == std::future_status::timeout ) {
-					Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
-				}
-#ifdef _DEBUG
-				assert( status == std::future_status::ready && "Plugin should stop properly." );
-#endif // _DEBUG
-			}
-			delete futures;
-		} );
 	};
 
 	std::shared_ptr<Device> Controller::getDevice( const std::string& reference_ ) const {

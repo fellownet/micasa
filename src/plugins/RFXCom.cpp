@@ -102,6 +102,7 @@ namespace micasa {
 	json RFXCom::getJson() const {
 		json result = Plugin::getJson();
 		result["port"] = this->m_settings->get( "port", "" );
+		result["accept_new"] = this->m_settings->get( "accept_new", true );
 		return result;
 	};
 
@@ -121,9 +122,8 @@ namespace micasa {
 			{ "type", "string" },
 			{ "mandatory", true },
 			{ "class", advanced_ ? "advanced" : "normal" },
-			{ "sort", 99 }
+			{ "sort", 98 }
 		};
-
 #ifdef _WITH_LIBUDEV
 		json options = json::array();
 		auto ports = getSerialPorts();
@@ -137,8 +137,17 @@ namespace micasa {
 		setting["type"] = "list";
 		setting["options"] = options;
 #endif // _WITH_LIBUDEV
-
 		result += setting;
+
+		result += {
+			{ "name", "accept_new" },
+			{ "label", "Accept New Hardware" },
+			{ "type", "boolean" },
+			{ "mandatory", true },
+			{ "class", advanced_ ? "advanced" : "normal" },
+			{ "sort", 99 }
+		};
+
 		return result;
 	};
 
@@ -468,28 +477,32 @@ namespace micasa {
 			return false;
 		}
 
-		this->declareDevice<Level>( reference + "(T)", "Temperature", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::CELSIUS ) },
-			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
-			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
-			{ "rfx_type", "temphum" }
-		} )->updateValue( Device::UpdateSource::PLUGIN, temperature );
+		if ( this->m_settings->get( "accept_new", true ) ) {
+			this->declareDevice<Level>( reference + "(T)", "Temperature", {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::TEMPERATURE ) },
+				{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::CELSIUS ) },
+				{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
+				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
+				{ "rfx_type", "temphum" }
+			} )->updateValue( Device::UpdateSource::PLUGIN, temperature );
+		}
 
 		unsigned int humidity = (unsigned int)packet_->TEMP_HUM.humidity;
 		if ( humidity > 100 ) {
 			return false;
 		}
 
-		this->declareDevice<Level>( reference + "(H)", "Humidity", {
-			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
-			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::HUMIDITY ) },
-			{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) },
-			{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
-			{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
-			{ "rfx_type", "temphum" }
-		} )->updateValue( Device::UpdateSource::PLUGIN, humidity );
+		if ( this->m_settings->get( "accept_new", true ) ) {
+			this->declareDevice<Level>( reference + "(H)", "Humidity", {
+				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
+				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::HUMIDITY ) },
+				{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) },
+				{ DEVICE_SETTING_BATTERY_LEVEL,          (unsigned int)( packet_->TEMP_HUM.battery_level * 10 ) },
+				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
+				{ "rfx_type", "temphum" }
+			} )->updateValue( Device::UpdateSource::PLUGIN, humidity );
+		}
 
 		return true;
 	};
@@ -506,7 +519,8 @@ namespace micasa {
 		std::string reference = ss.str();
 
 		if (
-			packet_->LIGHTING2.cmnd != light2_sGroupOn
+			this->m_settings->get( "accept_new", true )
+			&& packet_->LIGHTING2.cmnd != light2_sGroupOn
 			&& packet_->LIGHTING2.cmnd != light2_sGroupOff
 		) {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );

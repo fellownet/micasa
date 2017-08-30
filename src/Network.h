@@ -6,8 +6,10 @@
 #include <atomic>
 #include <queue>
 #include <mutex>
+#include <climits>
 
 #include "Utils.h"
+#include "Scheduler.h"
 
 #include "json.hpp"
 
@@ -27,6 +29,9 @@ extern "C" {
 
 namespace micasa {
 
+	// The HomeKit plugin requires direct access to the mongoose connection and is therefore marked as a friend.
+	class HomeKit;
+
 	// =======
 	// Network
 	// =======
@@ -44,6 +49,7 @@ namespace micasa {
 		class Connection {
 
 			friend class micasa::Network;
+			friend class micasa::HomeKit;
 
 		public:
 			enum class Event: unsigned short {
@@ -58,14 +64,8 @@ namespace micasa {
 
 			typedef std::function<void( std::shared_ptr<Connection> connection_, Event event_ )> t_eventFunc;
 
-			// These variables are exposed to the calling party but should be used only in edge cases.
-			mg_connection* m_mg_conn;
-			std::atomic<unsigned int> m_flags;
-			std::string m_conn_uri;
-			void* m_data;
-
-			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, t_eventFunc&& func_ );
-			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, const t_eventFunc& func_ );
+			Connection( mg_connection* connection_, unsigned int flags_, t_eventFunc&& func_ );
+			Connection( mg_connection* connection_, unsigned int flags_, const t_eventFunc& func_ );
 			~Connection();
 
 			Connection( const Connection& ) = delete; // do not copy
@@ -79,20 +79,25 @@ namespace micasa {
 			void reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_, bool close_ = false );
 			void send( const std::string& data_ );
 
-			std::string popData();
+			std::string getData() const;
+			std::string popData( unsigned int length_ = ULONG_MAX );
 			std::string getBody() const;
 			std::string getUri() const;
-			int getPort() const;
+			unsigned int getPort() const;
+			std::string getIp() const;
 			std::string getQuery() const;
 			std::string getMethod() const;
 			std::map<std::string, std::string> getHeaders() const;
 			std::map<std::string, std::string> getParams() const;
 
 		private:
-			std::atomic<int> m_event;
+			mg_connection* m_mg_conn;
+			std::atomic<unsigned int> m_flags;
+			struct http_message m_http;
+			std::string m_data;
 			t_eventFunc m_func;
 			std::queue<std::function<void(void)>> m_tasks;
-			mutable std::mutex m_tasksMutex;
+			mutable std::mutex m_mutex;
 
 		}; // class Connection
 
@@ -111,11 +116,9 @@ namespace micasa {
 #endif
 		static std::shared_ptr<Connection> connect( const std::string& uri_, const nlohmann::json& data_, Connection::t_eventFunc&& func_ );
 		static std::shared_ptr<Connection> connect( const std::string& uri_, Connection::t_eventFunc&& func_ );
-#ifdef _DEBUG
-		static unsigned int count();
-#endif // _DEBUG
 
 	private:
+		Scheduler m_scheduler;
 		mg_mgr m_manager;
 		std::atomic<bool> m_shutdown;
 		std::thread m_worker;

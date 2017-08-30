@@ -64,6 +64,11 @@ namespace micasa {
 
 	void SolarEdge::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		for ( auto& child : this->getChildren() ) {
+			if ( child->getState() != Plugin::State::DISABLED ) {
+				child->stop();
+			}
+		}
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );

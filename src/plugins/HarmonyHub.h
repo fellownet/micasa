@@ -40,9 +40,8 @@ namespace micasa {
 		std::shared_ptr<Network::Connection> m_connection;
 		ConnectionState m_connectionState;
 		std::string m_currentActivityId;
-		std::string m_received;
 
-		void _process();
+		void _process( const std::string& data_ );
 
 	}; // class HarmonyHub
 
