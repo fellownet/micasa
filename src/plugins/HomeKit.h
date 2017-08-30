@@ -10,15 +10,15 @@
 
 extern "C" {
 	#include "srp.h"
-}
-
-#include "../Plugin.h"
-#include "../Network.h"
 
 #ifndef _DARWIN
 	void micasa_avahi_client_callback( AvahiClient* client_, AvahiClientState state_, void* userdata_ );
 	void micasa_avahi_group_callback( AvahiEntryGroup* group_, AvahiEntryGroupState state_, void* userdata_ );
 #endif // _DARWIN
+}
+
+#include "../Plugin.h"
+#include "../Network.h"
 
 namespace micasa {
 

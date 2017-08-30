@@ -223,13 +223,11 @@ namespace micasa {
 						bzero( decrypted, 2048 );
 						chacha20_encrypt( &chacha20, (const uint8_t*)&packet[2], (uint8_t*)decrypted, length );
 
-						struct http_message http;
 						if (
 							len >= (2 + length + 16 )
 							&& memcmp( (void*)verify, (void*)&packet[2 + length], 16 ) == 0
 						) {
-							if ( mg_parse_http( decrypted, length, &http, true ) > 0 ) {
-								connection_->m_data = &http;
+							if ( mg_parse_http( decrypted, length, &connection_->m_http, true ) > 0 ) {
 								this->_processRequest( session );
 								this->setState( Plugin::State::READY );
 							} else {

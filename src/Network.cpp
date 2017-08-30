@@ -4,10 +4,6 @@
 #include "Network.h"
 #include "Logger.h"
 
-#ifdef _DEBUG
-	#include <cassert>
-#endif // _DEBUG
-
 void micasa_mg_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
 	micasa::Network::get()._handler( mg_conn_, event_, data_ );
 }
@@ -55,23 +51,22 @@ namespace micasa {
 	};
 
 	void Network::Connection::serve( const std::string& root_, const std::string& index_ ) {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & MG_EV_HTTP_REQUEST ) == MG_EV_HTTP_REQUEST
-			&& "Serving static content should be done from the REQUEST event."
-		);
-#endif // _DEBUG
-		mg_serve_http_opts options;
-		memset( &options, 0, sizeof( options ) );
-		options.document_root = root_.c_str();
-		options.index_files = index_.c_str();
-		options.enable_directory_listing = "no";
-		mg_serve_http( this->m_mg_conn, (http_message*)this->m_data, options );
+		std::unique_lock<std::mutex> lock( this->m_mutex );
+		this->m_tasks.push( [this,root_,index_]() {
+			mg_serve_http_opts options;
+			memset( &options, 0, sizeof( options ) );
+			options.document_root = root_.c_str();
+			options.index_files = index_.c_str();
+			options.enable_directory_listing = "no";
+			mg_serve_http( this->m_mg_conn, &this->m_http, options );
+		} );
+		lock.unlock();
+		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
 	void Network::Connection::reply( const std::string& data_, int code_, const std::map<std::string, std::string>& headers_, bool close_ ) {
-		auto task = [this,data_,code_,headers_,close_]() {
+		std::unique_lock<std::mutex> lock( this->m_mutex );
+		this->m_tasks.push( [this,data_,code_,headers_,close_]() {
 			std::stringstream headers;
 			for ( auto headersIt = headers_.begin(); headersIt != headers_.end(); ) {
 				headers << headersIt->first << ": " << headersIt->second;
@@ -89,19 +84,14 @@ namespace micasa {
 					this->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
 				}
 			}
-		};
-		if ( __unlikely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
-			task();
-		} else {
-			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-			this->m_tasks.push( task );
-			tasksLock.unlock();
-			mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
-		}
+		} );
+		lock.unlock();
+		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
 	void Network::Connection::send( const std::string& data_ ) {
-		auto task = [this,data_]() {
+		std::unique_lock<std::mutex> lock( this->m_mutex );
+		this->m_tasks.push( [this,data_]() {
 			if ( this->m_mg_conn != nullptr ) {
 				if ( ( this->m_flags & NETWORK_CONNECTION_FLAG_SOCKET ) == NETWORK_CONNECTION_FLAG_SOCKET ) {
 					mg_send_websocket_frame( this->m_mg_conn, WEBSOCKET_OP_TEXT, data_.c_str(), data_.length() );
@@ -109,106 +99,66 @@ namespace micasa {
 					mg_send( this->m_mg_conn, data_.c_str(), data_.length() );
 				}
 			}
-		};
-		if ( __likely( std::this_thread::get_id() == Network::get().m_worker.get_id() ) ) {
-			task();
-		} else {
-			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
-			this->m_tasks.push( task );
-			tasksLock.unlock();
-			mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
-		}
+		} );
+		lock.unlock();
+		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
-	std::string Network::Connection::popData() {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & MG_EV_RECV ) == MG_EV_RECV
-			&& "Popping data from the connection should be done from the DATA callback."
-		);
-#endif // _DEBUG
-		std::string data( this->m_mg_conn->recv_mbuf.buf, this->m_mg_conn->recv_mbuf.len );
-		mbuf_remove( &this->m_mg_conn->recv_mbuf, this->m_mg_conn->recv_mbuf.len );
-		return data;
+	std::string Network::Connection::getData() const {
+		std::lock_guard<std::mutex> lock( this->m_mutex );
+		return this->m_data;
+	};
+
+	std::string Network::Connection::popData( unsigned int length_ ) {
+		unsigned int length = length_ > this->m_data.size() ? this->m_data.size() : length_;
+		std::string result = this->m_data.substr( 0, length );
+		this->m_data.erase( 0, length );
+		return result;
 	};
 
 	std::string Network::Connection::getBody() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
-		auto http = (http_message*)this->m_data;
-		return std::string( http->body.p, http->body.len );
+		std::lock_guard<std::mutex> lock( this->m_mutex );
+		return std::string( this->m_http.body.p, this->m_http.body.len );
 	};
 
 	std::string Network::Connection::getUri() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
-		auto http = (http_message*)this->m_data;
-		return std::string( http->uri.p, http->uri.len );
+		std::lock_guard<std::mutex> lock( this->m_mutex );
+		return std::string( this->m_http.uri.p, this->m_http.uri.len );
 	};
 
 	unsigned int Network::Connection::getPort() const {
+		std::lock_guard<std::mutex> lock( this->m_mutex );
 		char* buffer = new char[6]; // max 65535 length  5 + \0
 		mg_conn_addr_to_str( this->m_mg_conn, buffer, 6, MG_SOCK_STRINGIFY_PORT );
 		return std::stoi( buffer );
 	};
 
 	std::string Network::Connection::getIp() const {
+		std::lock_guard<std::mutex> lock( this->m_mutex );
 		char* buffer = new char[46]; // max ipv6 length = 45 + \0
 		mg_conn_addr_to_str( this->m_mg_conn, buffer, 46, MG_SOCK_STRINGIFY_IP );
 		return std::string( buffer );
 	};
 
 	std::string Network::Connection::getQuery() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
-		auto http = (http_message*)this->m_data;
-		return std::string( http->query_string.p, http->query_string.len );
+		std::lock_guard<std::mutex> lock( this->m_mutex );
+		return std::string( this->m_http.query_string.p, this->m_http.query_string.len );
 	};
 
 	std::string Network::Connection::getMethod() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
-		auto http = (http_message*)this->m_data;
-		return std::string( http->method.p, http->method.len );
+		std::lock_guard<std::mutex> lock( this->m_mutex );
+		return std::string( this->m_http.method.p, this->m_http.method.len );
 	};
 
 	std::map<std::string, std::string> Network::Connection::getHeaders() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
-		auto http = (http_message*)this->m_data;
+		std::lock_guard<std::mutex> lock( this->m_mutex );
 		std::map<std::string, std::string> headers;
 		int i = 0;
-		for ( const mg_str& name : http->header_names ) {
+		for ( const mg_str& name : this->m_http.header_names ) {
 			std::string header, value;
 			header.assign( name.p, name.len );
 			if ( ! header.empty() ) {
-				value.assign( http->header_values[i].p, http->header_values[i].len );
+				value.assign( this->m_http.header_values[i].p, this->m_http.header_values[i].len );
 				headers[header] = value;
 			}
 			i++;
@@ -217,13 +167,6 @@ namespace micasa {
 	};
 
 	std::map<std::string, std::string> Network::Connection::getParams() const {
-#ifdef _DEBUG
-		assert(
-			std::this_thread::get_id() == Network::get().m_worker.get_id()
-			&& ( this->m_event & ( MG_EV_HTTP_REQUEST | MG_EV_HTTP_REPLY ) ) > 0
-			&& "Getting data from a connection should be done from within a callback."
-		);
-#endif // _DEBUG
 		std::string query = this->getQuery();
 		std::map<std::string, std::string> params;
 		std::regex pattern( "([\\w+%]+)=([^&]*)" );
@@ -276,10 +219,6 @@ namespace micasa {
 		this->m_worker.join();
 
 		mg_mgr_free( &this->m_manager );
-
-#ifdef _DEBUG
-		assert( this->m_connections.size() == 0 && "All connections should've been closed when the manager is freed." );
-#endif // _DEBUG
 	};
 
 	std::shared_ptr<Network::Connection> Network::bind( const std::string& port_, Connection::t_eventFunc&& func_ ) {
@@ -311,13 +250,6 @@ namespace micasa {
 		return Network::_connect( uri_, nullptr, std::move( func_ ) );
 	};
 
-#ifdef _DEBUG
-	unsigned int Network::count() {
-		Network& network = Network::get();
-		return network.m_connections.size();
-	};
-#endif // _DEBUG
-
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
 		mg_connection* mg_conn = mg_bind_opt( &network.m_manager, port_.c_str(), micasa_mg_handler, options_ );
@@ -326,7 +258,7 @@ namespace micasa {
 		if ( mg_conn ) {
 			mg_set_protocol_http_websocket( mg_conn );
 			connection = std::make_shared<Connection>( mg_conn, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
-			mg_conn->user_data = mg_conn; // see ACCEPT event handler
+			mg_conn->user_data = mg_conn;
 			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
@@ -381,14 +313,9 @@ namespace micasa {
 		}
 
 		if ( connection ) {
-			connection->m_event = event_;
-			connection->m_data = data_;
 			switch( event_ ) {
-
-				// The broadcast method will trigger this event for all open connections. Any pending sending of data
-				// needs to be done within this event.
 				case MG_EV_POLL: {
-					std::unique_lock<std::mutex> lock( connection->m_tasksMutex );
+					std::unique_lock<std::mutex> lock( connection->m_mutex );
 					while( ! connection->m_tasks.empty() ) {
 						if ( connection->m_mg_conn ) {
 							connection->m_tasks.front()();
@@ -399,16 +326,15 @@ namespace micasa {
 					break;
 				}
 
-				// An ACCEPT event is fired as CONNECT.
 				case MG_EV_ACCEPT: {
 					if ( connection->m_func != nullptr ) {
-						connection->m_func( connection, Connection::Event::CONNECT );
+						network.m_scheduler.schedule( 0, 1, &network, [connection]( std::shared_ptr<Scheduler::Task<>> ) {
+							connection->m_func( connection, Connection::Event::CONNECT );
+						} );
 					}
 					break;
 				}
 
-				// When a connection is succesfully made the CONNECT event is fired. The timeout timer that was set when
-				// the connection was initiated, is stopped.
 				case MG_EV_CONNECT: {
 					mg_set_timer( connection->m_mg_conn, 0 );
 					int status = *(int*)data_;
@@ -418,27 +344,32 @@ namespace micasa {
 						event = Connection::Event::FAILURE;
 					}
 					if ( connection->m_func != nullptr ) {
-						connection->m_func( connection, event );
+						network.m_scheduler.schedule( 0, 1, &network, [connection,event]( std::shared_ptr<Scheduler::Task<>> ) {
+							connection->m_func( connection, event );
+						} );
 					}
 					break;
 				}
 
-				// If the timer event is fired the connection timed out and a failure event should be fired instead.
 				case MG_EV_TIMER: {
 					connection->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
 					connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
 					if ( connection->m_func != nullptr ) {
-						connection->m_func( connection, Connection::Event::FAILURE );
+						network.m_scheduler.schedule( 0, 1, &network, [connection]( std::shared_ptr<Scheduler::Task<>> ) {
+							connection->m_func( connection, Connection::Event::FAILURE );
+						} );
 					}
 					break;
 				}
 
-				// The RECV event is fired for partial data that is received from the connection. We're not refiring this
-				// event for HTTP connections, these should use the getBody method.
 				case MG_EV_RECV: {
 					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_HTTP ) == 0 ) {
+						connection->m_data += std::string( connection->m_mg_conn->recv_mbuf.buf, connection->m_mg_conn->recv_mbuf.len );
+						mbuf_remove( &connection->m_mg_conn->recv_mbuf, connection->m_mg_conn->recv_mbuf.len );
 						if ( connection->m_func != nullptr ) {
-							connection->m_func( connection, Connection::Event::DATA );
+							network.m_scheduler.schedule( 0, 1, &network, [connection]( std::shared_ptr<Scheduler::Task<>> ) {
+								connection->m_func( connection, Connection::Event::DATA );
+							} );
 						}
 					}
 					break;
@@ -447,15 +378,15 @@ namespace micasa {
 				case MG_EV_HTTP_REQUEST:
 				case MG_EV_HTTP_REPLY:
 				case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
-					// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
-					// During, and *only* during this event there's a http_message instance available. The serving of static
-					// files requires this, so the SERVE event is fired synchronious with the poller..
-					if ( connection->m_func != nullptr ) {
-						connection->m_func( connection, Connection::Event::HTTP );
-					}
+					connection->m_http = *(http_message*)data_;
 					if ( event_ == MG_EV_HTTP_REPLY ) {
 						connection->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
 						connection->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
+					}
+					if ( connection->m_func != nullptr ) {
+						network.m_scheduler.schedule( 0, 1, &network, [connection]( std::shared_ptr<Scheduler::Task<>> ) {
+							connection->m_func( connection, Connection::Event::HTTP );
+						} );
 					}
 					break;
 				}
@@ -472,7 +403,9 @@ namespace micasa {
 							event = Connection::Event::CLOSE;
 						}
 						if ( connection->m_func != nullptr ) {
-							connection->m_func( connection, event );
+							network.m_scheduler.schedule( 0, 1, &network, [connection,event]( std::shared_ptr<Scheduler::Task<>> ) {
+								connection->m_func( connection, event );
+							} );
 						}
 					}
 					network.m_connections.erase( connection->m_mg_conn );

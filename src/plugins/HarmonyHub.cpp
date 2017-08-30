@@ -23,8 +23,7 @@ namespace micasa {
 	HarmonyHub::HarmonyHub( const unsigned int id_, const Plugin::Type type_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) :
 		Plugin( id_, type_, reference_, parent_ ),
 		m_connectionState( ConnectionState::IDLE ),
-		m_currentActivityId( "-1" ),
-		m_received( "" )
+		m_currentActivityId( "-1" )
 	{
 	};
 
@@ -66,14 +65,13 @@ namespace micasa {
 						break;
 					}
 					case Network::Connection::Event::DATA: {
-						const std::string& data = connection_->popData();
-						this->m_received.append( data );
+						std::string data = connection_->getData();
 						if (
 							! data.empty()
 							&& data.at( data.size() - 1 ) == '>'
 						) {
-							this->_process();
-							this->m_received.clear();
+							this->_process( data );
+							(void) connection_->popData( data.size() );
 						}
 						break;
 					}
@@ -202,16 +200,16 @@ namespace micasa {
 		return true;
 	};
 
-	void HarmonyHub::_process() {
-		if ( this->m_received == "<iq/>" ) {
+	void HarmonyHub::_process( const std::string& data_ ) {
+		if ( data_ == "<iq/>" ) {
 			return;
 		}
 
 		switch( this->m_connectionState ) {
 			case ConnectionState::WAIT_FOR_CURRENT_ACTIVITY: {
 				if (
-					this->m_received.find( "vnd.logitech.harmony.engine?getCurrentActivity" ) != std::string::npos
-					&& stringIsolate( this->m_received, "<![CDATA[result=", "]]>", this->m_currentActivityId )
+					data_.find( "vnd.logitech.harmony.engine?getCurrentActivity" ) != std::string::npos
+					&& stringIsolate( data_, "<![CDATA[result=", "]]>", this->m_currentActivityId )
 				) {
 					std::stringstream response;
 					response << "<iq type=\"get\" id=\"" << HARMONY_HUB_CONNECTION_ID << "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?config\"></oa></iq>";
@@ -223,8 +221,8 @@ namespace micasa {
 			case ConnectionState::WAIT_FOR_ACTIVITIES: {
 				std::string raw;
 				if (
-					this->m_received.find( "vnd.logitech.harmony/vnd.logitech.harmony.engine?config" ) != std::string::npos
-					&& stringIsolate( this->m_received, "<![CDATA[", "]]>", raw )
+					data_.find( "vnd.logitech.harmony/vnd.logitech.harmony.engine?config" ) != std::string::npos
+					&& stringIsolate( data_, "<![CDATA[", "]]>", raw )
 				) {
 					try {
 						json data = json::parse( raw );
@@ -254,8 +252,8 @@ namespace micasa {
 			}
 			case ConnectionState::IDLE: {
 				if (
-					this->m_received.find( "vnd.logitech.ping" ) != std::string::npos
-					&& this->m_received.find( "errorcode='200'" ) == std::string::npos
+					data_.find( "vnd.logitech.ping" ) != std::string::npos
+					&& data_.find( "errorcode='200'" ) == std::string::npos
 				) {
 					Logger::log( Logger::LogLevel::ERROR, this, "Invalid ping response." );
 					this->m_connection->terminate(); // results in dropped vs. closed
@@ -264,8 +262,8 @@ namespace micasa {
 
 				std::string raw;
 				if (
-					this->m_received.find( "connect.stateDigest?notify" ) != std::string::npos
-					&& stringIsolate( this->m_received, "<![CDATA[", "]]>", raw )
+					data_.find( "connect.stateDigest?notify" ) != std::string::npos
+					&& stringIsolate( data_, "<![CDATA[", "]]>", raw )
 				) {
 					try {
 						json data = json::parse( raw );
@@ -324,8 +322,8 @@ namespace micasa {
 #ifdef _DEBUG
 				std::string activityId;
 				if (
-					this->m_received.find( "startActivityFinished" ) != std::string::npos
-					&& stringIsolate( this->m_received, "activityId=", ":", activityId )
+					data_.find( "startActivityFinished" ) != std::string::npos
+					&& stringIsolate( data_, "activityId=", ":", activityId )
 				) {
 					assert( this->m_currentActivityId == activityId && "Activity finished notification should match currecnt active activity." );
 				}

@@ -328,140 +328,137 @@ namespace micasa {
 				headers["Authorization"] = params.at( "_token" );
 			} catch( ... ) { };
 
-			this->m_scheduler.schedule( 0, 1, this, [this,connection_,uri,method,headers,data,params]( std::shared_ptr<Scheduler::Task<>> ) {
-
-				// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
-				// string).
-				json input = json::object();
-				if (
-					WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
-					&& data.length() > 2
-				) {
-					try {
-						input = json::parse( data );
-					} catch( json::exception ex_ ) {
-						Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
-					}
-				}
-				for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
-					input[(*paramsIt).first] = (*paramsIt).second;
-				}
-
-				// If a username/password combination, or an authorization token was provided, match it with a user or
-				// an existing login. The user is stored in the login table in the login/refresh resource.
-				std::shared_ptr<User> user = nullptr;
-				if (
-					input.find( "username" ) != input.end()
-					&& input.find( "password" ) != input.end()
-				) {
-					try {
-						auto data = g_database->getQueryRow(
-							"SELECT `id`, `name`, `rights`, `password` "
-							"FROM `users` "
-							"WHERE `username`='%s' "
-							"AND `enabled`=1",
-							input["username"].get<std::string>().c_str()
-						);
-						auto parts = stringSplit( data["password"], '.' );
-						std::string pepper = g_settings->get( WEBSERVER_SETTING_HASH_PEPPER );
-						if ( parts[0] == this->_hash( parts[1] + pepper + input["password"].get<std::string>() + WEBSERVER_HASH_MAGGI ) ) {
-							user = std::make_shared<User>(
-								std::stoi( data["id"] ),
-								data["name"],
-								User::resolveRights( std::stoi( data["rights"] ) )
-							);
-						}
-					} catch( Database::NoResultsException ex_ ) {
-						// Do not log this error (yet), a new user might be created.
-					}
-				}
-				if (
-					user == nullptr
-					&& headers.find( "Authorization" ) != headers.end()
-				) {
-					try {
-						std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
-						std::string token = headers.at( "Authorization" );
-						auto login = this->m_logins.at( token );
-						if ( login.valid > system_clock::now() ) {
-							user = login.user;
-							input["_token"] = token;
-						}
-						loginsLock.unlock();
-					} catch( std::out_of_range ex_ ) {
-						Logger::log( Logger::LogLevel::WARNING, this, "Invalid authorization token supplied." );
-					}
-				}
-
-				// Prepare the output json object that is eventually send back to the client.
-				json output = {
-					{ "result", "OK" },
-					{ "code", 204 }, // no content
-				};
-
+			// Prepare the input json object that holds all the supplied parameters (both in the body as in the query
+			// string).
+			json input = json::object();
+			if (
+				WebServer::resolveMethod( method & ( Method::POST | Method::PUT | Method::PATCH ) ) > 0
+				&& data.length() > 2
+			) {
 				try {
-					for ( auto &resource : this->m_resources ) {
-						std::regex pattern( resource.uri );
-						std::smatch match;
-						if (
-							std::regex_search( uri, match, pattern )
-							&& ( resource.methods & method ) == method
-						) {
-							// Add each matched paramter to the input for the callback to determine which individual
-							// resource was accessed.
-							for ( unsigned int i = 1; i < match.size(); i++ ) {
-								if ( match.str( i ).size() > 0 ) {
-									input["$" + std::to_string( i )] = match.str( i );
-								}
-							}
-							resource.callback( user, input, method, output );
-						}
-					}
-
-					// If no callbacks we're called the code should still be 204 and should be replaced with a 404
-					// indicating a resource not found error.
-					if ( output["code"].get<unsigned int>() == 204 ) {
-						output["result"] = "ERROR";
-						output["code"] = 404;
-						output["error"] = "Resource.Not.Found";
-						output["message"] = "The requested resource was not found.";
-					}
-
-				} catch( const ResourceException& exception_ ) {
-					output["result"] = "ERROR";
-					output["code"] = exception_.code;
-					output["error"] = exception_.error;
-					output["message"] = exception_.message;
-				} catch( std::exception& exception_ ) { // also catches json::exception
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-					Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
-#ifndef _DEBUG
-				} catch( ... ) {
-					output["result"] = "ERROR";
-					output["code"] = 500;
-					output["error"] = "Resource.Failure";
-					output["message"] = "The requested resource failed to load.";
-#endif // _DEBUG
+					input = json::parse( data );
+				} catch( json::exception ex_ ) {
+					Logger::log( Logger::LogLevel::ERROR, this, ex_.what() );
 				}
+			}
+			for ( auto paramsIt = params.begin(); paramsIt != params.end(); paramsIt++ ) {
+				input[(*paramsIt).first] = (*paramsIt).second;
+			}
+
+			// If a username/password combination, or an authorization token was provided, match it with a user or
+			// an existing login. The user is stored in the login table in the login/refresh resource.
+			std::shared_ptr<User> user = nullptr;
+			if (
+				input.find( "username" ) != input.end()
+				&& input.find( "password" ) != input.end()
+			) {
+				try {
+					auto data = g_database->getQueryRow(
+						"SELECT `id`, `name`, `rights`, `password` "
+						"FROM `users` "
+						"WHERE `username`='%s' "
+						"AND `enabled`=1",
+						input["username"].get<std::string>().c_str()
+					);
+					auto parts = stringSplit( data["password"], '.' );
+					std::string pepper = g_settings->get( WEBSERVER_SETTING_HASH_PEPPER );
+					if ( parts[0] == this->_hash( parts[1] + pepper + input["password"].get<std::string>() + WEBSERVER_HASH_MAGGI ) ) {
+						user = std::make_shared<User>(
+							std::stoi( data["id"] ),
+							data["name"],
+							User::resolveRights( std::stoi( data["rights"] ) )
+						);
+					}
+				} catch( Database::NoResultsException ex_ ) {
+					// Do not log this error (yet), a new user might be created.
+				}
+			}
+			if (
+				user == nullptr
+				&& headers.find( "Authorization" ) != headers.end()
+			) {
+				try {
+					std::unique_lock<std::mutex> loginsLock( this->m_loginsMutex );
+					std::string token = headers.at( "Authorization" );
+					auto login = this->m_logins.at( token );
+					if ( login.valid > system_clock::now() ) {
+						user = login.user;
+						input["_token"] = token;
+					}
+					loginsLock.unlock();
+				} catch( std::out_of_range ex_ ) {
+					Logger::log( Logger::LogLevel::WARNING, this, "Invalid authorization token supplied." );
+				}
+			}
+
+			// Prepare the output json object that is eventually send back to the client.
+			json output = {
+				{ "result", "OK" },
+				{ "code", 204 }, // no content
+			};
+
+			try {
+				for ( auto &resource : this->m_resources ) {
+					std::regex pattern( resource.uri );
+					std::smatch match;
+					if (
+						std::regex_search( uri, match, pattern )
+						&& ( resource.methods & method ) == method
+					) {
+						// Add each matched paramter to the input for the callback to determine which individual
+						// resource was accessed.
+						for ( unsigned int i = 1; i < match.size(); i++ ) {
+							if ( match.str( i ).size() > 0 ) {
+								input["$" + std::to_string( i )] = match.str( i );
+							}
+						}
+						resource.callback( user, input, method, output );
+					}
+				}
+
+				// If no callbacks we're called the code should still be 204 and should be replaced with a 404
+				// indicating a resource not found error.
+				if ( output["code"].get<unsigned int>() == 204 ) {
+					output["result"] = "ERROR";
+					output["code"] = 404;
+					output["error"] = "Resource.Not.Found";
+					output["message"] = "The requested resource was not found.";
+				}
+
+			} catch( const ResourceException& exception_ ) {
+				output["result"] = "ERROR";
+				output["code"] = exception_.code;
+				output["error"] = exception_.error;
+				output["message"] = exception_.message;
+			} catch( std::exception& exception_ ) { // also catches json::exception
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+				Logger::log( Logger::LogLevel::ERROR, this, exception_.what() );
+#ifndef _DEBUG
+			} catch( ... ) {
+				output["result"] = "ERROR";
+				output["code"] = 500;
+				output["error"] = "Resource.Failure";
+				output["message"] = "The requested resource failed to load.";
+#endif // _DEBUG
+			}
 
 #ifdef _DEBUG
-				assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
-				assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
-				const std::string content = output.dump( 4 );
+			assert( output.find( "result" ) != output.end() && output["result"].is_string() && "API requests should contain a string result property." );
+			assert( output.find( "code" ) != output.end() && output["code"].is_number() && "API requests should contain a numeric code property." );
+			const std::string content = output.dump( 4 );
 #else
-				const std::string content = output.dump();
+			const std::string content = output.dump();
 #endif // _DEBUG
 
-				unsigned int code = output["code"].get<unsigned int>();
-				this->m_scheduler.schedule( code == 401 ? SCHEDULER_INTERVAL_3SEC : 0, 1, this, [connection_,content,code]( std::shared_ptr<Scheduler::Task<>> ) {
-					connection_->reply( content, code, {
-						{ "Content-Type", "Content-type: application/json" },
-						{ "Access-Control-Allow-Origin", "*" },
-						{ "Cache-Control", "no-cache, no-store, must-revalidate" }
-					} );
+			unsigned int code = output["code"].get<unsigned int>();
+			this->m_scheduler.schedule( code == 401 ? SCHEDULER_INTERVAL_3SEC : 0, 1, this, [connection_,content,code]( std::shared_ptr<Scheduler::Task<>> ) {
+				connection_->reply( content, code, {
+					{ "Content-Type", "Content-type: application/json" },
+					{ "Access-Control-Allow-Origin", "*" },
+					{ "Cache-Control", "no-cache, no-store, must-revalidate" }
 				} );
 			} );
 		}

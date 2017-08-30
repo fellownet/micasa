@@ -370,7 +370,7 @@ namespace micasa {
 
 		// ... then all threads are waited for to complete, skipping over plugin threads that take too long to stop.
 		for ( auto const &futuresIt : futures ) {
-			std::future_status status = futuresIt.second.wait_for( seconds( 15 ) );
+			std::future_status status = futuresIt.second.wait_for( seconds( 30 ) );
 			if ( status == std::future_status::timeout ) {
 				Logger::logr( Logger::LogLevel::ERROR, this, "Unable to stop %s within allowed timeframe.", futuresIt.first.c_str() );
 			}
