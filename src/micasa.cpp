@@ -34,6 +34,7 @@ namespace micasa {
 		switch( signal_ ) {
 			case SIGINT:
 			case SIGTERM:
+				signal( signal_, SIG_IGN );
 				g_shutdown = true;
 				break;
 		}
