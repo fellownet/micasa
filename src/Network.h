@@ -61,11 +61,10 @@ namespace micasa {
 			// These variables are exposed to the calling party but should be used only in edge cases.
 			mg_connection* m_mg_conn;
 			std::atomic<unsigned int> m_flags;
-			std::string m_conn_uri;
 			void* m_data;
 
-			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, t_eventFunc&& func_ );
-			Connection( mg_connection* connection_, const std::string& uri_, unsigned int flags_, const t_eventFunc& func_ );
+			Connection( mg_connection* connection_, unsigned int flags_, t_eventFunc&& func_ );
+			Connection( mg_connection* connection_, unsigned int flags_, const t_eventFunc& func_ );
 			~Connection();
 
 			Connection( const Connection& ) = delete; // do not copy
@@ -82,7 +81,8 @@ namespace micasa {
 			std::string popData();
 			std::string getBody() const;
 			std::string getUri() const;
-			int getPort() const;
+			unsigned int getPort() const;
+			std::string getIp() const;
 			std::string getQuery() const;
 			std::string getMethod() const;
 			std::map<std::string, std::string> getHeaders() const;

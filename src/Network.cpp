@@ -20,18 +20,16 @@ namespace micasa {
 	// Connection
 	// ==========
 
-	Network::Connection::Connection( mg_connection* mg_conn_, const std::string& uri_, unsigned int flags_, t_eventFunc&& func_ ) :
+	Network::Connection::Connection( mg_connection* mg_conn_, unsigned int flags_, t_eventFunc&& func_ ) :
 		m_mg_conn( mg_conn_ ),
 		m_flags( flags_ ),
-		m_conn_uri( uri_ ),
 		m_func( std::move( func_ ) )
 	{
 	};
 
-	Network::Connection::Connection( mg_connection* mg_conn_, const std::string& uri_, unsigned int flags_, const t_eventFunc& func_ ) :
+	Network::Connection::Connection( mg_connection* mg_conn_, unsigned int flags_, const t_eventFunc& func_ ) :
 		m_mg_conn( mg_conn_ ),
 		m_flags( flags_ ),
-		m_conn_uri( uri_ ),
 		m_func( func_ )
 	{
 	};
@@ -159,10 +157,16 @@ namespace micasa {
 		return std::string( http->uri.p, http->uri.len );
 	};
 
-	int Network::Connection::getPort() const {
-		char* buffer = new char[8];
-		mg_conn_addr_to_str( this->m_mg_conn, buffer, 8, MG_SOCK_STRINGIFY_PORT );
+	unsigned int Network::Connection::getPort() const {
+		char* buffer = new char[6]; // max 65535 length  5 + \0
+		mg_conn_addr_to_str( this->m_mg_conn, buffer, 6, MG_SOCK_STRINGIFY_PORT );
 		return std::stoi( buffer );
+	};
+
+	std::string Network::Connection::getIp() const {
+		char* buffer = new char[46]; // max ipv6 length = 45 + \0
+		mg_conn_addr_to_str( this->m_mg_conn, buffer, 46, MG_SOCK_STRINGIFY_IP );
+		return std::string( buffer );
 	};
 
 	std::string Network::Connection::getQuery() const {
@@ -321,7 +325,7 @@ namespace micasa {
 		std::shared_ptr<Connection> connection;
 		if ( mg_conn ) {
 			mg_set_protocol_http_websocket( mg_conn );
-			connection = std::make_shared<Connection>( mg_conn, port_, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
+			connection = std::make_shared<Connection>( mg_conn, NETWORK_CONNECTION_FLAG_HTTP | NETWORK_CONNECTION_FLAG_BIND, std::move( func_ ) );
 			mg_conn->user_data = mg_conn; // see ACCEPT event handler
 			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
@@ -344,19 +348,13 @@ namespace micasa {
 				mg_set_protocol_http_websocket( mg_conn );
 				flags |= NETWORK_CONNECTION_FLAG_HTTP;
 			}
-		} else if ( uri_.substr( 0, 3 ) == "udp" ) {
-			// NOTE forcing broadcast when udp > needs some improvements
-			mg_connect_opts options;
-			memset( &options, 0, sizeof( options ) );
-			options.flags = options.flags | MG_F_ENABLE_BROADCAST;
-			mg_conn = mg_connect_opt( &network.m_manager, uri_.c_str(), micasa_mg_handler, options );
 		} else {
 			mg_conn = mg_connect( &network.m_manager, uri_.c_str(), micasa_mg_handler );
 		}
 		if ( mg_conn ) {
 			Logger::logr( Logger::LogLevel::VERBOSE, &network, "Connecting to %s.", uri_.c_str() );
 			mg_set_timer( mg_conn, mg_time() + NETWORK_CONNECTION_DEFAULT_TIMEOUT_SEC );
-			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, uri_, flags, std::move( func_ ) );
+			std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn, flags, std::move( func_ ) );
 			network.m_connections.insert( { mg_conn, connection } );
 			return connection;
 		} else {
@@ -367,122 +365,119 @@ namespace micasa {
 	inline void Network::_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
 		Network& network = Network::get();
 
-		// The ACCEPT event is fired when a new connection enters a listening connection. The connection pointer points
-		// to the *new* connection. The originating connection is stored in the user_data pointer .
+		std::shared_ptr<Connection> connection = nullptr;
 		if ( event_ == MG_EV_ACCEPT ) {
-			char addr[64];
-			mg_sock_addr_to_str( (const socket_address*)data_, addr, sizeof( addr ), MG_SOCK_STRINGIFY_IP );
 			auto find = network.m_connections.find( (mg_connection*)mg_conn_->user_data );
 			if ( find != network.m_connections.end() ) {
-				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accept connection from %s.", addr );
-				std::shared_ptr<Connection> bind = network.m_connections.at( (mg_connection*)mg_conn_->user_data );
-				std::shared_ptr<Connection> connection = std::make_shared<Connection>( mg_conn_, addr, bind->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, bind->m_func );
+				connection = std::make_shared<Connection>( mg_conn_, find->second->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, find->second->m_func );
 				network.m_connections.insert( { mg_conn_, connection } );
-			} else {
-				Logger::logr( Logger::LogLevel::ERROR, &network, "Rejected connection from %s.", addr );
+				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accepted connection from %s.", connection->getIp().c_str() );
+			}
+		} else {
+			auto find = network.m_connections.find( mg_conn_ );
+			if ( find != network.m_connections.end() ) {
+				connection = find->second;
 			}
 		}
 
-		auto find = network.m_connections.find( mg_conn_ );
-		if ( find == network.m_connections.end() ) {
-			return;
-		}
-		std::shared_ptr<Connection> connection = find->second;
-		connection->m_event = event_;
-		connection->m_data = data_;
-		switch( event_ ) {
+		if ( connection ) {
+			connection->m_event = event_;
+			connection->m_data = data_;
+			switch( event_ ) {
 
-			// The broadcast method will trigger this event for all open connections. Any pending sending of data
-			// needs to be done within this event.
-			case MG_EV_POLL: {
-				std::unique_lock<std::mutex> tasksLock( connection->m_tasksMutex );
-				while( ! connection->m_tasks.empty() ) {
-					auto task = connection->m_tasks.front();
-					connection->m_tasks.pop();
-					task();
-				}
-				tasksLock.unlock();
-				break;
-			}
-
-			// An ACCEPT event is fired as CONNECT.
-			case MG_EV_ACCEPT: {
-				if ( connection->m_func != nullptr ) {
-					connection->m_func( connection, Connection::Event::CONNECT );
-				}
-				break;
-			}
-
-			// When a connection is succesfully made the CONNECT event is fired. The timeout timer that was set when
-			// the connection was initiated, is stopped.
-			case MG_EV_CONNECT: {
-				mg_set_timer( mg_conn_, 0 );
-				int status = *(int*)data_;
-				Connection::Event event = Connection::Event::CONNECT;
-				if ( status != 0 ) {
-					connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
-					event = Connection::Event::FAILURE;
-				}
-				if ( connection->m_func != nullptr ) {
-					connection->m_func( connection, event );
-				}
-				break;
-			}
-
-			// If the timer event is fired the connection timed out and a failure event should be fired instead.
-			case MG_EV_TIMER: {
-				mg_conn_->flags |= MG_F_CLOSE_IMMEDIATELY;
-				connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
-				if ( connection->m_func != nullptr ) {
-					connection->m_func( connection, Connection::Event::FAILURE );
-				}
-				break;
-			}
-
-			// The RECV event is fired for partial data that is received from the connection. We're not refiring this
-			// event for HTTP connections, these should use the getBody method.
-			case MG_EV_RECV: {
-				if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_HTTP ) == 0 ) {
-					if ( connection->m_func != nullptr ) {
-						connection->m_func( connection, Connection::Event::DATA );
+				// The broadcast method will trigger this event for all open connections. Any pending sending of data
+				// needs to be done within this event.
+				case MG_EV_POLL: {
+					std::unique_lock<std::mutex> lock( connection->m_tasksMutex );
+					while( ! connection->m_tasks.empty() ) {
+						if ( connection->m_mg_conn ) {
+							connection->m_tasks.front()();
+						}
+						connection->m_tasks.pop();
 					}
+					lock.unlock();
+					break;
 				}
-				break;
-			}
 
-			case MG_EV_HTTP_REQUEST:
-			case MG_EV_HTTP_REPLY:
-			case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
-				// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
-				// During, and *only* during this event there's a http_message instance available. The serving of static
-				// files requires this, so the SERVE event is fired synchronious with the poller..
-				if ( connection->m_func != nullptr ) {
-					connection->m_func( connection, Connection::Event::HTTP );
+				// An ACCEPT event is fired as CONNECT.
+				case MG_EV_ACCEPT: {
+					if ( connection->m_func != nullptr ) {
+						connection->m_func( connection, Connection::Event::CONNECT );
+					}
+					break;
 				}
-				if ( event_ == MG_EV_HTTP_REPLY ) {
-					mg_conn_->flags |= MG_F_CLOSE_IMMEDIATELY;
-					connection->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
-				}
-				break;
-			}
 
-			case MG_EV_WEBSOCKET_HANDSHAKE_DONE: {
-				connection->m_flags |= NETWORK_CONNECTION_FLAG_SOCKET;
-				break;
-			}
-
-			case MG_EV_CLOSE: {
-				if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_FAILURE ) == 0 ) {
-					Connection::Event event = Connection::Event::DROPPED;
-					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_CLOSE ) == NETWORK_CONNECTION_FLAG_CLOSE ) {
-						event = Connection::Event::CLOSE;
+				// When a connection is succesfully made the CONNECT event is fired. The timeout timer that was set when
+				// the connection was initiated, is stopped.
+				case MG_EV_CONNECT: {
+					mg_set_timer( connection->m_mg_conn, 0 );
+					int status = *(int*)data_;
+					Connection::Event event = Connection::Event::CONNECT;
+					if ( status != 0 ) {
+						connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
+						event = Connection::Event::FAILURE;
 					}
 					if ( connection->m_func != nullptr ) {
 						connection->m_func( connection, event );
 					}
+					break;
 				}
-				network.m_connections.erase( mg_conn_ );
-				connection->m_mg_conn = nullptr;
+
+				// If the timer event is fired the connection timed out and a failure event should be fired instead.
+				case MG_EV_TIMER: {
+					connection->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+					connection->m_flags |= NETWORK_CONNECTION_FLAG_FAILURE;
+					if ( connection->m_func != nullptr ) {
+						connection->m_func( connection, Connection::Event::FAILURE );
+					}
+					break;
+				}
+
+				// The RECV event is fired for partial data that is received from the connection. We're not refiring this
+				// event for HTTP connections, these should use the getBody method.
+				case MG_EV_RECV: {
+					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_HTTP ) == 0 ) {
+						if ( connection->m_func != nullptr ) {
+							connection->m_func( connection, Connection::Event::DATA );
+						}
+					}
+					break;
+				}
+
+				case MG_EV_HTTP_REQUEST:
+				case MG_EV_HTTP_REPLY:
+				case MG_EV_WEBSOCKET_HANDSHAKE_REQUEST: {
+					// If the connection protocol was set to http, both incoming as outgoing connections fire HTTP events.
+					// During, and *only* during this event there's a http_message instance available. The serving of static
+					// files requires this, so the SERVE event is fired synchronious with the poller..
+					if ( connection->m_func != nullptr ) {
+						connection->m_func( connection, Connection::Event::HTTP );
+					}
+					if ( event_ == MG_EV_HTTP_REPLY ) {
+						connection->m_mg_conn->flags |= MG_F_CLOSE_IMMEDIATELY;
+						connection->m_flags |= NETWORK_CONNECTION_FLAG_CLOSE;
+					}
+					break;
+				}
+
+				case MG_EV_WEBSOCKET_HANDSHAKE_DONE: {
+					connection->m_flags |= NETWORK_CONNECTION_FLAG_SOCKET;
+					break;
+				}
+
+				case MG_EV_CLOSE: {
+					if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_FAILURE ) == 0 ) {
+						Connection::Event event = Connection::Event::DROPPED;
+						if ( ( connection->m_flags & NETWORK_CONNECTION_FLAG_CLOSE ) == NETWORK_CONNECTION_FLAG_CLOSE ) {
+							event = Connection::Event::CLOSE;
+						}
+						if ( connection->m_func != nullptr ) {
+							connection->m_func( connection, event );
+						}
+					}
+					network.m_connections.erase( connection->m_mg_conn );
+					connection->m_mg_conn = nullptr;
+				}
 			}
 		}
 	};
