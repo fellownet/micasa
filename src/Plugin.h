@@ -31,11 +31,8 @@ namespace micasa {
 			WEATHER_UNDERGROUND = 9,
 			DUMMY               = 10,
 			TELEGRAM            = 11,
-#ifdef _DEBUG
-			DEBUG               = 12,
-#endif // _DEBUG
 #ifdef _WITH_HOMEKIT
-			HOMEKIT             = 13,
+			HOMEKIT             = 12,
 #endif // _WITH_LINUX_SPI
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;

@@ -17,9 +17,6 @@
 #include "device/Text.h"
 #include "device/Switch.h"
 
-#ifdef _DEBUG
-	#include "plugins/Debug.h"
-#endif // _DEBUG
 #include "plugins/Dummy.h"
 #include "plugins/HarmonyHub.h"
 #ifdef _WITH_HOMEKIT
@@ -51,9 +48,6 @@ namespace micasa {
 	const char* Plugin::settingsName = "plugin";
 
 	const std::map<Plugin::Type, std::string> Plugin::TypeText = {
-#ifdef _DEBUG
-		{ Plugin::Type::DEBUG, "debug" },
-#endif // _DEBUG
 		{ Plugin::Type::DUMMY, "dummy" },
 		{ Plugin::Type::HARMONY_HUB, "harmony_hub" },
 #ifdef _WITH_HOMEKIT
@@ -101,11 +95,6 @@ namespace micasa {
 
 	std::shared_ptr<Plugin> Plugin::factory( const Type type_, const unsigned int id_, const std::string reference_, const std::shared_ptr<Plugin> parent_ ) {
 		switch( type_ ) {
-#ifdef _DEBUG
-			case Type::DEBUG:
-				return std::make_shared<Debug>( id_, type_, reference_, parent_ );
-				break;
-#endif // _DEBUG
 			case Type::DUMMY:
 				return std::make_shared<Dummy>( id_, type_, reference_, parent_ );
 				break;

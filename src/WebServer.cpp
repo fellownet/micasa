@@ -32,9 +32,6 @@
 #include "Settings.h"
 #include "User.h"
 
-#ifdef _DEBUG
-	#include "plugins/Debug.h"
-#endif // _DEBUG
 #include "plugins/Dummy.h"
 #include "plugins/HarmonyHub.h"
 #ifdef _WITH_HOMEKIT
@@ -214,7 +211,7 @@ namespace micasa {
 			Logger::log( Logger::LogLevel::NORMAL, this, "Default administrator user created." );
 		}
 
-		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( SCHEDULER_INTERVAL_5MIN, SCHEDULER_INTERVAL_5MIN, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> lock( this->m_loginsMutex );
 			auto now = system_clock::now();
 			for ( auto loginIt = this->m_logins.begin(); loginIt != this->m_logins.end(); ) {
@@ -498,12 +495,6 @@ namespace micasa {
 							{ "type", "list" },
 							{ "mandatory", true },
 							{ "options", {
-#ifdef _DEBUG
-								{
-									{ "value", "debug" },
-									{ "label", Debug::label }
-								},
-#endif // _DEBUG
 								{
 									{ "value", "dummy" },
 									{ "label", Dummy::label }

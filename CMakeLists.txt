@@ -60,9 +60,6 @@ if( DEBUG )
 	message( STATUS "Building DEBUG release" )
 	set( CMAKE_BUILD_TYPE Debug )
 	add_definitions( -D_DEBUG )
-	set( SRC ${SRC}
-		src/plugins/Debug.cpp
-	)
 endif()
 
 #

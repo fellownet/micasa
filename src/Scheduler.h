@@ -3,11 +3,13 @@
 #include <thread>
 #include <chrono>
 #include <vector>
+#include <map>
 #include <mutex>
 #include <condition_variable>
 #include <climits>
 
-#define SCHEDULER_INFINITE ULONG_MAX
+#define SCHEDULER_REPEAT_INFINITE ULONG_MAX
+
 #define SCHEDULER_INTERVAL_1SEC 1000
 #define SCHEDULER_INTERVAL_3SEC 1000 * 3
 #define SCHEDULER_INTERVAL_5SEC 1000 * 5
@@ -64,8 +66,6 @@ namespace micasa {
 
 		private:
 			Scheduler* m_scheduler;
-			std::shared_ptr<BaseTask> m_previous;
-			std::shared_ptr<BaseTask> m_next;
 
 		}; // class BaseTask
 
@@ -171,9 +171,6 @@ namespace micasa {
 		void erase( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 		std::shared_ptr<BaseTask> first( BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 		void proceed( unsigned long wait_, std::shared_ptr<BaseTask> task_ );
-#ifdef _DEBUG
-		static unsigned int count();
-#endif // _DEBUG
 
 	private:
 
@@ -195,9 +192,6 @@ namespace micasa {
 			void erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } );
 			std::shared_ptr<BaseTask> first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ = []( const BaseTask& ) -> bool { return true; } ) const;
 			void proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ );
-#ifdef _DEBUG
-			unsigned int count() const;
-#endif // _DEBUG
 
 			static ThreadPool& get() {
 				// In c++11 static initialization is supposed to be thread-safe.
@@ -208,8 +202,7 @@ namespace micasa {
 		private:
 			bool m_shutdown;
 			bool m_continue;
-			std::shared_ptr<BaseTask> m_start;
-			unsigned int m_count;
+			std::multimap<std::chrono::system_clock::time_point, std::shared_ptr<BaseTask>> m_tasks;
 			std::vector<std::shared_ptr<BaseTask>> m_activeTasks;
 			mutable std::mutex m_tasksMutex;
 			std::vector<std::thread> m_threads;
@@ -219,8 +212,6 @@ namespace micasa {
 			ThreadPool(); // private constructor
 
 			void _loop( unsigned int index_ );
-			void _insert( std::shared_ptr<BaseTask> task_ );
-			void _erase( std::shared_ptr<BaseTask> task_ );
 			void _notify( bool all_, std::function<void()>&& func_ );
 
 		}; // class ThreadPool
