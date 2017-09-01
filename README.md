@@ -20,13 +20,11 @@ Micasa is a software home automation controller designed to interconnect various
 
 ## Impressions
 
-<img src="/../support/support/readme/dashboard.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/devices.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/energy.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/plugins.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/homekit.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/scripts.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
-<img src="/../support/support/readme/tempwtrendline.png?raw=true" height="130" style="float:left; margin-bottom: 15px;">
+<img src="/../support/support/readme/dashboard.png?raw=true" height="130">
+| <img src="/../support/support/readme/devices.png?raw=true" height="130"> | <img src="/../support/support/readme/plugins.png?raw=true" height="130"> |
+| <img src="/../support/support/readme/energy.png?raw=true" height="130"> | <img src="/../support/support/readme/tempwtrendline.png?raw=true" height="130"> |
+<img src="/../support/support/readme/homekit.png?raw=true" height="130">
+<img src="/../support/support/readme/scripts.png?raw=true" height="130">
 
 ## Contributing
 
