@@ -20,10 +20,7 @@ Micasa is a software home automation controller designed to interconnect various
 
 ## Impressions
 
-### Dashboard
-<img src="/../support/support/readme/dashboard.png?raw=true" height="100">
-
-### Devices
+<img src="/../support/support/readme/dashboard.png?raw=true" height="100" align="left">
 <img src="/../support/support/readme/devices.png?raw=true" height="100">
 
 ### Energy
