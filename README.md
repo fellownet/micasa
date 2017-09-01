@@ -18,6 +18,16 @@ Micasa is a software home automation controller designed to interconnect various
 
 ... and more coming soon.
 
+## Impressions
+
+<img src="/../support/support/readme/dashboard.png?raw=true" height="130">
+<img src="/../support/support/readme/devices.png?raw=true" height="130">
+<img src="/../support/support/readme/energy.png?raw=true" height="130">
+<img src="/../support/support/readme/plugins.png?raw=true" height="130">
+<img src="/../support/support/readme/homekit.png?raw=true" height="130">
+<img src="/../support/support/readme/scripts.png?raw=true" height="130">
+<img src="/../support/support/readme/tempwtrendline.png?raw=true" height="130">
+
 ## Contributing
 
 To submit a bug report, please create an [issue at GitHub](https://github.com/fellownet/micasa/issues/new).
