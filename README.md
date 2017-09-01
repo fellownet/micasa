@@ -20,23 +20,13 @@ Micasa is a software home automation controller designed to interconnect various
 
 ## Impressions
 
-<img src="/../support/support/readme/dashboard.png?raw=true" height="100" align="left">
-<img src="/../support/support/readme/devices.png?raw=true" height="100">
-
-### Energy
-<img src="/../support/support/readme/energy.png?raw=true" height="100">
-
-### Plugins
-<img src="/../support/support/readme/plugins.png?raw=true" height="100">
-
-### HomeKit
-<img src="/../support/support/readme/homekit.png?raw=true" height="100">
-
-### Scripts
-<img src="/../support/support/readme/scripts.png?raw=true" height="100">
-
-### Temperature
-<img src="/../support/support/readme/tempwtrendline.png?raw=true" height="100">
+<img src="/../support/support/readme/dashboard.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/devices.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/energy.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/plugins.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/homekit.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/scripts.png?raw=true" height="130" align="left">
+<img src="/../support/support/readme/tempwtrendline.png?raw=true" height="130" align="left">
 
 ## Contributing
 
