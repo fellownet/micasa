@@ -88,12 +88,12 @@ namespace micasa {
 		virtual nlohmann::json getSettingsJson() const;
 		virtual void putSettingsJson( const nlohmann::json& settings_ ) { };
 
-		// The device update methods are called on *all* plugins to allow interaction
-		// between plugins.
+		// The device update/remove methods are called on *all* plugins to allow interaction between plugins.
 		virtual void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const { };
 		virtual void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const { };
 		virtual void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) { };
 		virtual bool updateDevice( const Device::UpdateSource& source_, std::shared_ptr<Device> device_, bool owned_, bool& apply_ ) { return true; };
+		virtual void beforeRemoveDevice( const std::shared_ptr<Device> device_ ) { };
 
 	protected:
 		const unsigned int m_id;
