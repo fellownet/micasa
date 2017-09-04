@@ -28,13 +28,12 @@ namespace micasa {
 		"\t\t\t99 = debug\n"
 	;
 
-	bool g_shutdown = false;
+	static volatile bool g_shutdown = false;
 
 	void signal_handler( int signal_ ) {
 		switch( signal_ ) {
 			case SIGINT:
 			case SIGTERM:
-				signal( signal_, SIG_IGN );
 				g_shutdown = true;
 				break;
 		}
@@ -88,8 +87,11 @@ int main( int argc_, char* argv_[] ) {
 		return EXIT_FAILURE;
 	}
 
-	signal( SIGINT, signal_handler );
-	signal( SIGTERM, signal_handler );
+	struct sigaction action;
+	memset( &action, 0, sizeof( struct sigaction ) );
+	action.sa_handler = signal_handler;
+	sigaction( SIGINT, &action, NULL );
+	sigaction( SIGTERM, &action, NULL );
 
 	g_database = std::unique_ptr<Database>( new Database );
 

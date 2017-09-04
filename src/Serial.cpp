@@ -30,6 +30,7 @@ void micasa_serial_signal_handler( int signal_ ) {
 
 namespace micasa {
 
+	Scheduler Serial::g_scheduler;
 	std::vector<Serial*> Serial::g_serialInstances;
 	std::mutex Serial::g_serialInstancesMutex;
 
@@ -44,7 +45,7 @@ namespace micasa {
 		m_fd( -1 )
 	{
 	};
-	
+
 	Serial::~Serial() {
 		// Close the serial port if it is open.
 		if ( this->m_fd > -1 ) {
@@ -64,14 +65,20 @@ namespace micasa {
 		}
 
 		// Add ourselves to the list of serial instances that receive io signals. Install the signal handler if we're
-		// the first.'
+		// the first. From the doc: "When more than one thread is able to receive the interrupt, only one is chosen".
 		std::unique_lock<std::mutex> serialInstanceLock( g_serialInstancesMutex );
 		g_serialInstances.push_back( this );
 		if ( g_serialInstances.size() == 1 ) {
-			signal( SIGIO, micasa_serial_signal_handler );
+			auto task = g_scheduler.schedule( 0, 1, this, []( std::shared_ptr<Scheduler::Task<>> ) {
+				struct sigaction action;
+				memset( &action, 0, sizeof( struct sigaction ) );
+				action.sa_handler = micasa_serial_signal_handler;
+				sigaction( SIGIO, &action, NULL );
+			} );
+			task->complete();
 		}
 		serialInstanceLock.unlock();
-	
+
 		// Direct all SIGIO and SIGURG signals for the port to the current process and enable
 		// asynchronous I/O with the serial port.
 		if (
@@ -81,7 +88,7 @@ namespace micasa {
 			this->close();
 			throw Serial::SerialException( "Unable to configure port." );
 		}
-		
+
 		// Save the current settings of the serial port so they can be  restored when the serial port
 		// is closed.
 		if ( tcgetattr( this->m_fd, &this->m_oldSettings ) < 0 ) {
@@ -94,14 +101,14 @@ namespace micasa {
 			this->close();
 			throw Serial::SerialException( "Unable to flush port settings." );
 		}
-		
+
 		// Start assembling the new port settings.
 		termios settings;
 		bzero( &settings, sizeof( settings ) );
-		
+
 		// Enable the receiver (CREAD) and ignore modem control lines (CLOCAL).
 		settings.c_cflag |= CREAD | CLOCAL;
-		
+
 		// Set the VMIN and VTIME parameters to zero by default. VMIN is the minimum number of characters
 		// for non-canonical read and VTIME is the timeout in deciseconds for non-canonical read. Setting
 		// both of these parameters to zero implies that a read will return immediately only giving the
@@ -128,11 +135,11 @@ namespace micasa {
 		) {
 			throw Serial::SerialException( "Unsupported baudrate." );
 		}
-		
+
 		// Set the character size.
 		settings.c_cflag &= ~CSIZE;
 		settings.c_cflag |= this->m_charSize;
-		
+
 		// Set the parity.
 		switch( this->m_parity ) {
 			case Parity::PARITY_EVEN:
@@ -152,7 +159,7 @@ namespace micasa {
 				throw Serial::SerialException( "Invalid parity." );
 				break;
 		}
-		
+
 		// Set the number of stop bits.
 		switch( this->m_stopBits ) {
 			case StopBits::STOP_BITS_1:
@@ -164,7 +171,7 @@ namespace micasa {
 			default:
 				throw Serial::SerialException( "Invalid stopbits." );
 		}
-		
+
 		// Set the flow control.
 		switch( this->m_flowControl ) {
 			case FlowControl::FLOW_CONTROL_HARD:
@@ -186,7 +193,7 @@ namespace micasa {
 
 	void Serial::close() {
 		std::lock_guard<std::mutex> lock( this->m_fdMutex );
-	
+
 		if ( this->m_fd < 0 ) {
 			throw Serial::SerialException( "Port not open." );
 		}
@@ -208,18 +215,18 @@ namespace micasa {
 
 		// Restore old settings on the port.
 		tcsetattr( this->m_fd, TCSANOW, &this->m_oldSettings );
-	
+
 		::close( this->m_fd );
 		this->m_fd = -1;
 	};
 
 	void Serial::write( const unsigned char* data_, const size_t length_ ) {
 		std::lock_guard<std::mutex> lock( this->m_fdMutex );
-	
+
 		if ( this->m_fd < 0 ) {
 			throw Serial::SerialException( "Port not open." );
 		}
-	
+
 		int written = -1;
 		do {
 			written = ::write( this->m_fd, data_, length_ );
@@ -235,11 +242,11 @@ namespace micasa {
 
 	void Serial::setModemControlLine( const int modemLine_, const bool lineState_ ) {
 		std::lock_guard<std::mutex> lock( this->m_fdMutex );
-	
+
 		if ( this->m_fd < 0 ) {
 			throw Serial::SerialException( "Port not open." );
 		}
-		
+
 		// Set or unset the specified bit according to the value of lineState_.
 		int ioctlResult = -1;
 		if ( true == lineState_ ) {
@@ -257,7 +264,7 @@ namespace micasa {
 
 	bool Serial::getModemControlLine( const int modemLine_ ) const {
 		std::lock_guard<std::mutex> lock( this->m_fdMutex );
-	
+
 		if ( this->m_fd < 0 ) {
 			throw Serial::SerialException( "Port not open." );
 		}
@@ -271,10 +278,7 @@ namespace micasa {
 	};
 
 	void Serial::_signalReceived() {
-
-		// Read all the data into the buffer. This is done in a separate thread to prevent stalling other serial ports
-		// which also might have data available.
-		//std::thread( [this]{
+		g_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> fdLock( this->m_fdMutex );
 
 			// Determine if it was our serial port that received data.
@@ -282,7 +286,7 @@ namespace micasa {
 			if ( ioctl( this->m_fd, FIONREAD, &bytesAvailable ) < 0 ) {
 				return;
 			}
-			
+
 			unsigned char data[bytesAvailable];
 			int length;
 			for ( length = 0; length < bytesAvailable; length++ ) {
@@ -298,8 +302,7 @@ namespace micasa {
 			if ( this->m_callback != nullptr ) {
 				(*this->m_callback)( data, length );
 			}
-
-		//} ).detach();
+		} );
 	};
 
 } // namespace micasa
