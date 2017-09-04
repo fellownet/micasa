@@ -409,11 +409,17 @@ namespace micasa {
 			}
 
 			case pTypeTEMP_HUM:
-				return ( length + 1 == sizeof( packet->TEMP_HUM ) && this->_handleTempHumPacket( packet ) );
+				return (
+					length + 1 == sizeof( packet->TEMP_HUM )
+					&& this->_handleTempHumPacket( packet )
+				);
 				break;
 
 			case pTypeLighting2:
-				return ( length + 1 == sizeof( packet->LIGHTING2 ) && this->_handleLightning2Packet( packet ) );
+				return (
+					length + 1 == sizeof( packet->LIGHTING2 )
+					&& this->_handleLightning2Packet( packet )
+				);
 				break;
 
 			case pTypeLighting1:
@@ -486,6 +492,11 @@ namespace micasa {
 				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 				{ "rfx_type", "temphum" }
 			} )->updateValue( Device::UpdateSource::PLUGIN, temperature );
+		} else {
+			auto device = this->getDevice( reference + "(T)" );
+			if ( device ) {
+				std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::PLUGIN, temperature );
+			}
 		}
 
 		unsigned int humidity = (unsigned int)packet_->TEMP_HUM.humidity;
@@ -502,6 +513,11 @@ namespace micasa {
 				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->TEMP_HUM.rssi },
 				{ "rfx_type", "temphum" }
 			} )->updateValue( Device::UpdateSource::PLUGIN, humidity );
+		} else {
+			auto device = this->getDevice( reference + "(H)" );
+			if ( device ) {
+				std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::PLUGIN, humidity );
+			}
 		}
 
 		return true;
@@ -519,24 +535,30 @@ namespace micasa {
 		std::string reference = ss.str();
 
 		if (
-			this->m_settings->get( "accept_new", true )
-			&& packet_->LIGHTING2.cmnd != light2_sGroupOn
+			packet_->LIGHTING2.cmnd != light2_sGroupOn
 			&& packet_->LIGHTING2.cmnd != light2_sGroupOff
 		) {
 			Switch::Option value = ( packet_->LIGHTING2.cmnd == light2_sOn ? Switch::Option::ON : Switch::Option::OFF );
-			this->declareDevice<Switch>( reference, "Switch", {
-				{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
-				{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
-				{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
-				{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
-				{ "rfx_type", "lighting2" },
-				{ "rfx_subtype", (unsigned int)packet_->LIGHTING2.subtype },
-				{ "rfx_id1", (unsigned int)packet_->LIGHTING2.id1 },
-				{ "rfx_id2", (unsigned int)packet_->LIGHTING2.id1 },
-				{ "rfx_id3", (unsigned int)packet_->LIGHTING2.id1 },
-				{ "rfx_id4", (unsigned int)packet_->LIGHTING2.id1 },
-				{ "rfx_unitcode", (unsigned int)packet_->LIGHTING2.unitcode }
-			} )->updateValue( Device::UpdateSource::PLUGIN, value );
+			if ( this->m_settings->get( "accept_new", true ) ) {
+				this->declareDevice<Switch>( reference, "Switch", {
+					{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+					{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+					{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
+					{ DEVICE_SETTING_SIGNAL_STRENGTH,        (unsigned int)packet_->LIGHTING2.rssi },
+					{ "rfx_type", "lighting2" },
+					{ "rfx_subtype", (unsigned int)packet_->LIGHTING2.subtype },
+					{ "rfx_id1", (unsigned int)packet_->LIGHTING2.id1 },
+					{ "rfx_id2", (unsigned int)packet_->LIGHTING2.id1 },
+					{ "rfx_id3", (unsigned int)packet_->LIGHTING2.id1 },
+					{ "rfx_id4", (unsigned int)packet_->LIGHTING2.id1 },
+					{ "rfx_unitcode", (unsigned int)packet_->LIGHTING2.unitcode }
+				} )->updateValue( Device::UpdateSource::PLUGIN, value );
+			} else {
+				auto device = this->getDevice( reference );
+				if ( device ) {
+					std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::PLUGIN, value );
+				}
+			}
 		}
 
 		return true;
