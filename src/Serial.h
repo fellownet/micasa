@@ -9,14 +9,16 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+#include "Scheduler.h"
+
 void micasa_serial_signal_handler( int signal_ );
 
 namespace micasa {
 
 	class Serial {
-		
+
 		friend void (::micasa_serial_signal_handler)( int signal_ );
-		
+
 	public:
 		typedef std::function<void( const unsigned char* data_, const size_t length_ )> t_callback;
 
@@ -71,11 +73,12 @@ namespace micasa {
 		inline bool getCts() const { return this->getModemControlLine( TIOCM_CTS ); };
 
 	protected:
-	
+
 	private:
+		static Scheduler g_scheduler;
 		static std::vector<Serial*> g_serialInstances;
 		static std::mutex g_serialInstancesMutex;
-	
+
 		const std::string m_port;
 		const unsigned int m_baudRate;
 		const CharacterSize m_charSize;
@@ -83,13 +86,13 @@ namespace micasa {
 		const StopBits m_stopBits;
 		const FlowControl m_flowControl;
 		const std::shared_ptr<t_callback> m_callback;
-		
+
 		int m_fd;
 		mutable std::mutex m_fdMutex;
 		termios m_oldSettings;
 
 		void _signalReceived();
-	
+
 	}; // class Serial
 
 }; // namespace micasa
