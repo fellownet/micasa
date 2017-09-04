@@ -29,6 +29,9 @@ namespace micasa {
 		{ Switch::SubType::BELL, "bell" },
 		{ Switch::SubType::SCENE, "scene" },
 		{ Switch::SubType::OCCUPANCY, "occupancy" },
+		{ Switch::SubType::SMOKE_DETECTOR, "smoke_detector" },
+		{ Switch::SubType::CO_DETECTOR, "co_detector" },
+		{ Switch::SubType::ALARM, "alarm" },
 		{ Switch::SubType::ACTION, "action" },
 	};
 

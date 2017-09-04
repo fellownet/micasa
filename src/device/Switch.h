@@ -22,6 +22,9 @@ namespace micasa {
 			BELL,
 			SCENE,
 			OCCUPANCY,
+			SMOKE_DETECTOR,
+			CO_DETECTOR,
+			ALARM,
 			ACTION = 99 // reserved for plugin actions such as network healing or adding devices
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;

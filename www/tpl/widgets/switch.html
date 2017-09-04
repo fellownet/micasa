@@ -33,6 +33,9 @@
 					<i class="fa fa-flag" *ngSwitchCase="'fan'"></i>
 					<i class="fa fa-bell-o" *ngSwitchCase="'bell'"></i>
 					<i class="fa fa-sign-out" *ngSwitchCase="'contact'"></i>
+					<i class="fa fa-fire-extinguisher" *ngSwitchCase="'smoke_detector'"></i>
+					<i class="fa fa-industry" *ngSwitchCase="'co_detector'"></i>
+					<i class="fa fa-bullhorn" *ngSwitchCase="'alarm'"></i>
 					<ng-container *ngSwitchDefault>
 						<i class="fa fa-toggle-on" *ngIf="data[0].device.value!='Off'"></i>
 						<i class="fa fa-toggle-off" *ngIf="data[0].device.value=='Off'"></i>
