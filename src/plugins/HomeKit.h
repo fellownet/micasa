@@ -51,6 +51,7 @@ namespace micasa {
 		void updateDeviceJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void updateDeviceSettingsJson( std::shared_ptr<const Device> device_, nlohmann::json& json_, bool owned_ ) const override;
 		void putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) override;
+		void beforeRemoveDevice( const std::shared_ptr<Device> device_ ) override;
 
 	private:
 		std::shared_ptr<Network::Connection> m_bind;
@@ -70,6 +71,7 @@ namespace micasa {
 		std::map<std::shared_ptr<Network::Connection>, HomeKit::Session> m_sessions;
 		mutable std::mutex m_sessionsMutex;
 
+		void _increaseConfig( bool createService_ );
 #ifdef _DARWIN
 		void _createService();
 #else

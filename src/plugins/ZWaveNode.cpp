@@ -520,6 +520,8 @@ namespace micasa {
 					subtype = Switch::SubType::MOTION_DETECTOR;
 				} else if ( pluginLabel.find( "door" ) != string::npos ) {
 					subtype = Switch::SubType::CONTACT;
+				} else if ( pluginLabel.find( "smoke" ) != string::npos ) {
+					subtype = Switch::SubType::SMOKE_DETECTOR;
 				}
 
 				Device::UpdateSource allowedUpdateSources = Device::UpdateSource::PLUGIN | Device::UpdateSource::INTERNAL;

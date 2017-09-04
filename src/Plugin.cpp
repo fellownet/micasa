@@ -327,6 +327,9 @@ namespace micasa {
 	}
 
 	void Plugin::removeDevice( const std::shared_ptr<Device> device_ ) {
+		for ( auto const& plugin : g_controller->getAllPlugins() ) {
+			plugin->beforeRemoveDevice( device_ );
+		}
 		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( devicesIt->second == device_ ) {
