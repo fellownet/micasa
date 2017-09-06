@@ -415,7 +415,7 @@ namespace micasa {
 						) {
 							auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
 							device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::WARNING, this, "Node timeout, heal initiated." );
+							Logger::log( Logger::LogLevel::VERBOSE, this, "Node timeout, heal initiated." );
 						} else {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Node timeout." ); // timeouts during startup are to be expected
 						}
@@ -573,7 +573,7 @@ namespace micasa {
 					&& ( source_ & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
 					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					Logger::logr( Logger::LogLevel::WARNING, this, "Possible wrong value notification. Received %s, expected %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
+					Logger::logr( Logger::LogLevel::NOTICE, this, "Possible wrong value notification. Received %s, expected %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->RefreshValue( valueId_ );
 
 				// If the prevent_race_conditions setting is active and the race condition pending update is present,
@@ -585,7 +585,7 @@ namespace micasa {
 					&& targetValue != Switch::resolveTextOption( data )
 					&& this->_queuePendingUpdate( reference, source_ & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
+					Logger::logr( Logger::LogLevel::NOTICE, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
 
 				// The value appears to be valid and should be used to set the device.
@@ -877,7 +877,7 @@ namespace micasa {
 			}
 
 			default: {
-				Logger::logr( Logger::LogLevel::WARNING, this, "Unknown Command Class 0x%02X (%s)", commandClass, label.c_str() );
+				Logger::logr( Logger::LogLevel::NOTICE, this, "Unknown Command Class 0x%02X (%s)", commandClass, label.c_str() );
 				break;
 			}
 		}
