@@ -481,7 +481,7 @@ namespace micasa {
 						json settings = json::array();
 						settings += {
 							{ "name", "enabled" },
-							{ "label", "Enabled" },
+							{ "badge", "Enabled" },
 							{ "type", "boolean" },
 							{ "default", false },
 							{ "sort", 2 }
@@ -1115,7 +1115,7 @@ namespace micasa {
 					};
 					settings += {
 						{ "name", "enabled" },
-						{ "label", "Enabled" },
+						{ "badge", "Enabled" },
 						{ "type", "boolean" },
 						{ "mandatory", true },
 						{ "default", true },
@@ -1361,7 +1361,7 @@ namespace micasa {
 					};
 					settings += {
 						{ "name", "enabled" },
-						{ "label", "Enabled" },
+						{ "badge", "Enabled" },
 						{ "type", "boolean" },
 						{ "mandatory", true },
 						{ "default", true },
@@ -1536,7 +1536,7 @@ namespace micasa {
 					};
 					settings += {
 						{ "name", "enabled" },
-						{ "label", "Enabled" },
+						{ "badge", "Enabled" },
 						{ "type", "boolean" },
 						{ "mandatory", true },
 						{ "default", true },
@@ -1917,7 +1917,7 @@ namespace micasa {
 					};
 					settings += {
 						{ "name", "enabled" },
-						{ "label", "Enabled" },
+						{ "badge", "Enabled" },
 						{ "type", "boolean" },
 						{ "mandatory", true },
 						{ "default", true },
@@ -2117,9 +2117,9 @@ namespace micasa {
 
 		for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
 			auto setting = *settingsIt;
-			const std::string& name = setting["name"].get<std::string>();
-			const std::string& label = setting["label"].get<std::string>();
-			const std::string& type = setting["type"].get<std::string>();
+			const std::string& name = jsonGet( setting, "name" );
+			const std::string& label = jsonGet( setting, "label", jsonGet( setting, "badge", name ) );
+			const std::string& type = jsonGet( setting, "type" );
 
 			// Search for the setting name in the input parameters. The name in the defenition should
 			// me used as the key when submitting settings.

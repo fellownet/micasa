@@ -264,7 +264,9 @@ namespace micasa {
 		if ( ! task ) {
 			this->m_logger.task = this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 				if ( this->m_logger.repeated > 0 ) {
-					this->updateValue( UpdateSource::SYSTEM, "Last message was repeated " + std::to_string( this->m_logger.repeated ) + " times." );
+					this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+						this->updateValue( UpdateSource::SYSTEM, "Last message was repeated " + std::to_string( this->m_logger.repeated ) + " times." );
+					} );
 				}
 				this->m_logger.last = "";
 				this->m_logger.repeated = 0;
@@ -274,14 +276,15 @@ namespace micasa {
 			this->m_logger.repeated++;
 			return;
 		}
+		unsigned int delay = 0;
 		if ( task ) {
 			this->m_scheduler.proceed( 0, task );
+			task->complete();
+			delay = 100;
 		}
 		this->m_logger.last = message_;
 
-		// The actual updating of the value with the log is done in a separate task because the action itself might
-		// generate a log and would then cause a deadlock by the logger.
-		this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
+		this->m_scheduler.schedule( delay, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
 			if ( logLevel_ == Logger::LogLevel::ERROR ) {
 				this->updateValue( UpdateSource::SYSTEM, "Error: " + message_ );
 			} else if ( logLevel_ == Logger::LogLevel::WARNING ) {

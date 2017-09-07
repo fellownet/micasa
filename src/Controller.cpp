@@ -654,7 +654,7 @@ namespace micasa {
 
 		// A mutable copy is made from the passed const options. This is necessary because even though we need to use
 		// the mutable flag on the lambda, the original type copied into the lambda is const and mutable won't change
-		// that. So now, a non const is copied into the lamda as const and the mutable flag will alow it to be changed.
+		// that. So now, a non const is copied into the lamda as const and the mutable flag will allow it to be changed.
 		TaskOptions options = options_;
 		options.repeat--;
 		options.clear = false;
