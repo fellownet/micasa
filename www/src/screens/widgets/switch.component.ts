@@ -103,25 +103,37 @@ export class WidgetSwitchComponent implements OnInit, OnChanges, OnDestroy {
 		return !! this._busy;
 	};
 
-	public toggle() {
+	public toggle( value_?: string ) {
 		if (
 			! this.invalid
 			&& ! this._busy
 		) {
 			let value: string;
-			if ( this.data[0].device.value == 'On' ) {
-				value = 'Off';
-			} else {
-				value = 'On';
-			}
-			let now: number = Date.now();
-			this._busy = now;
-			setTimeout( () => {
-				if ( this._busy == now ) {
-					delete( this._busy );
+			if ( this.data[0].device.options.length > 2 ) {
+				if ( !! value_ ) {
+					value = value_;
 				}
-			}, 5000 );
-			this._devicesService.patchDevice( this.data[0].device, value ).subscribe();
+			} else if ( this.data[0].device.options.length == 2 ) {
+				let index: number = this.data[0].device.options.indexOf( this.data[0].device.value );
+				if ( index > -1 ) {
+					index = ( index + 1 ) % 2;
+					value = this.data[0].device.options[index];
+				} else {
+					value = this.data[0].device.options[0];
+				}
+			} else if ( this.data[0].device.options.length == 1 ) {
+				value = this.data[0].device.options[0];
+			}
+			if ( !!value ) {
+				let now: number = Date.now();
+				this._busy = now;
+				setTimeout( () => {
+					if ( this._busy == now ) {
+						delete( this._busy );
+					}
+				}, 3000 );
+				this._devicesService.patchDevice( this.data[0].device, value ).subscribe();
+			}
 		}
 	};
 

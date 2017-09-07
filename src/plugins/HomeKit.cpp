@@ -64,6 +64,7 @@ extern "C" {
 				micasa::Logger::logr( micasa::Logger::LogLevel::WARNING, plugin, "Avahi name collision, renaming from %s to %s.", plugin->m_name, altname );
 				avahi_free( plugin->m_name );
 				plugin->m_name = altname;
+				plugin->_increaseConfig( false );
 				plugin->_createService( avahi_entry_group_get_client( group_ ) );
 				break;
 			}
@@ -419,10 +420,16 @@ namespace micasa {
 
 								// Services with additional required characteristics are added here.
 								if ( subtype == Switch::resolveTextSubType( Switch::SubType::ALARM ) ) {
+									unsigned int state = 3;
+									if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::HOME ) {
+										state = 0;
+									} else if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::AWAY ) {
+										state = 1;
+									}
 									output["characteristics"] += {
 										{ "aid", device_->getId() + 1 },
 										{ "iid", defenition.iid - 1 }, // should be left a gap in HAPMappings
-										{ "value", ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) ? 1 : 3 } // 1 = away arm, 3 = disarm
+										{ "value", state }
 									};
 								} else if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 									output["characteristics"] += {
@@ -656,6 +663,7 @@ namespace micasa {
 						avahi_free( this->m_name );
 						this->m_name = altname;
 						avahi_entry_group_reset( this->m_group );
+						this->_increaseConfig( false );
 						this->_createService( client_ );
 						break;
 					}
@@ -1406,14 +1414,20 @@ namespace micasa {
 							if ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) != 0 ) {
 								permissions += "pw";
 							}
+							unsigned int state = 3;
+							if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::HOME ) {
+								state = 0;
+							} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::AWAY ) {
+								state = 1;
+							}
 							characteristics += {
 								{ "type", "67" }, // target state is required besides current state
 								{ "iid", defenition.iid - 1 }, // should be left a gap in HAPMappings
 								{ "perms", permissions },
 								{ "format", "uint8" },
 								{ "ev", ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV },
-								{ "value", ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 3 }, // 1 = away arm, 3 = disarm
-								{ "valid-values", { 1, 3 } }
+								{ "value", state },
+								{ "valid-values", { 0, 1, 3 } }
 							};
 						} else if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 							characteristics += {
@@ -1513,7 +1527,13 @@ namespace micasa {
 												&& iid == (unsigned long)defenition.iid - 1
 											) {
 												auto value = jsonGet<unsigned int>( characteristic, "value" );
-												std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, value == 3 ? Switch::Option::OFF : Switch::Option::ON );
+												if ( value == 0 ) {
+													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::HOME );
+												} else if ( value == 1 ) {
+													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::AWAY );
+												} else {
+													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::OFF );
+												}
 											} else if (
 												subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 												&& iid == (unsigned long)defenition.iid - 1
@@ -1623,7 +1643,13 @@ namespace micasa {
 											subtype == Switch::resolveTextSubType( Switch::SubType::ALARM )
 											&& iid == (unsigned long)defenition.iid - 1
 										) {
-											characteristic["value"] = ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::ON ) ? 1 : 3; // 1 = away arm, 3 = disarm
+											unsigned int state = 3;
+											if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::HOME ) {
+												state = 0;
+											} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::AWAY ) {
+												state = 1;
+											}
+											characteristic["value"] = state;
 										} else if (
 											subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 											&& iid == (unsigned long)defenition.iid - 1
@@ -1679,7 +1705,13 @@ namespace micasa {
 		} else if ( "uint8" == format_ ) {
 			if ( device_->getType() == Device::Type::SWITCH ) {
 				if ( subtype == Switch::resolveTextSubType( Switch::SubType::ALARM ) ) {
-					object_["value"] = ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON ) ? 1 : 3; // 1 = away arm, 3 = disarm
+					unsigned int state = 3;
+					if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::HOME ) {
+						state = 0;
+					} else if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::AWAY ) {
+						state = 1;
+					}
+					object_["value"] = state;
 				} else {
 					object_["value"] = (
 						std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON

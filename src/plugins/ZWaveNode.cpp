@@ -363,8 +363,7 @@ namespace micasa {
 			case Notification::Type_ValueAdded:
 			case Notification::Type_ValueChanged: {
 				ValueID valueId = notification_->GetValueID();
-				Device::UpdateSource source = Device::UpdateSource::PLUGIN;
-				this->_processValue( valueId, source );
+				this->_processValue( valueId );
 				break;
 			}
 
@@ -440,8 +439,9 @@ namespace micasa {
 		}
 	};
 
-	void ZWaveNode::_processValue( const ValueID& valueId_, Device::UpdateSource source_ ) {
+	void ZWaveNode::_processValue( const ValueID& valueId_ ) {
 		std::string label = Manager::Get()->GetValueLabel( valueId_ );
+		Device::UpdateSource source = Device::UpdateSource::PLUGIN;
 		unsigned int index = valueId_.GetIndex();
 		std::string reference = std::to_string( valueId_.GetId() );
 
@@ -530,7 +530,7 @@ namespace micasa {
 				}
 
 				std::string data; // data stored alognside pending update
-				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source_, data );
+				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source, data );
 
 				bool boolValue = false;
 				if ( valueId_.GetType() == ValueID::ValueType_Bool ) {
@@ -570,8 +570,8 @@ namespace micasa {
 					&& data.size() > 0
 					&& targetValue != Switch::resolveTextOption( data )
 					&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
-					&& ( source_ & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
-					&& this->_queuePendingUpdate( reference, source_ | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+					&& ( source & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
+					&& this->_queuePendingUpdate( reference, source | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
 					Logger::logr( Logger::LogLevel::WARNING, this, "Possible wrong value notification. Received %s, expected %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->RefreshValue( valueId_ );
@@ -583,7 +583,7 @@ namespace micasa {
 					! wasPendingUpdate
 					&& this->_releasePendingUpdate( reference + "_race", data ) // sets data to the value to revert to
 					&& targetValue != Switch::resolveTextOption( data )
-					&& this->_queuePendingUpdate( reference, source_ & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+					&& this->_queuePendingUpdate( reference, source & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
 					Logger::logr( Logger::LogLevel::WARNING, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
@@ -597,13 +597,13 @@ namespace micasa {
 					if (
 						device->getValueOption() != targetValue
 						&& device->getSettings()->get<bool>( "prevent_race_conditions", false )
-						&& Device::resolveUpdateSource( source_ & Device::UpdateSource::EVENT ) > 0
+						&& Device::resolveUpdateSource( source & Device::UpdateSource::EVENT ) > 0
 					) {
 						data = Switch::resolveTextOption( targetValue );
-						this->_queuePendingUpdate( reference + "_race", source_, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
+						this->_queuePendingUpdate( reference + "_race", source, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
 					}
 
-					device->updateValue( source_ & ~Device::UpdateSource::INTERNAL, targetValue );
+					device->updateValue( source & ~Device::UpdateSource::INTERNAL, targetValue );
 				}
 				break;
 			}
@@ -622,7 +622,7 @@ namespace micasa {
 						subtype = Level::SubType::DIMMER;
 					}
 
-					this->_releasePendingUpdate( reference, source_ );
+					this->_releasePendingUpdate( reference, source );
 
 					unsigned char byteValue = 0;
 					if (
@@ -640,7 +640,7 @@ namespace micasa {
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}
-						device->updateValue( source_, (unsigned int)byteValue );
+						device->updateValue( source, (unsigned int)byteValue );
 					}
 				}
 			}
@@ -681,7 +681,7 @@ namespace micasa {
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}
-						device->updateValue( source_, floatValue * multiplier );
+						device->updateValue( source, floatValue * multiplier );
 					} else {
 						auto subtype = Level::SubType::GENERIC;
 						auto unit = Level::Unit::GENERIC;
@@ -717,7 +717,7 @@ namespace micasa {
 						if ( "Unknown" != label ) {
 							device->setLabel( label );
 						}
-						device->updateValue( source_, floatValue * multiplier );
+						device->updateValue( source, floatValue * multiplier );
 					}
 				}
 				break;
@@ -748,7 +748,7 @@ namespace micasa {
 						{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
 						{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::BATTERY_LEVEL ) },
 						{ DEVICE_SETTING_DEFAULT_UNIT,           Level::resolveTextUnit( Level::Unit::PERCENT ) }
-					} )->updateValue( source_, (unsigned int)byteValue );
+					} )->updateValue( source, (unsigned int)byteValue );
 				}
 				break;
 			}

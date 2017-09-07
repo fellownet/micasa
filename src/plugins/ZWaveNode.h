@@ -42,7 +42,7 @@ namespace micasa {
 		mutable std::mutex m_configurationMutex;
 
 		void _handleNotification( const OpenZWave::Notification* notification_ );
-		void _processValue( const OpenZWave::ValueID& valueId_, Device::UpdateSource source_ );
+		void _processValue( const OpenZWave::ValueID& valueId_ );
 		void _updateNames();
 
 	}; // class ZWaveNode

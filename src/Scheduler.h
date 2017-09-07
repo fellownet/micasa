@@ -204,7 +204,7 @@ namespace micasa {
 			bool m_continue;
 			std::multimap<std::chrono::system_clock::time_point, std::shared_ptr<BaseTask>> m_tasks;
 			std::vector<std::shared_ptr<BaseTask>> m_activeTasks;
-			mutable std::mutex m_tasksMutex;
+			mutable std::recursive_mutex m_tasksMutex;
 			std::vector<std::thread> m_threads;
 			std::condition_variable m_continueCondition;
 			mutable std::mutex m_conditionMutex;

@@ -728,6 +728,7 @@ form .table tr td {
 	font-size: 45px;
 	color: white;
 	color: rgba( 0, 0, 0, 0.3 );
+	margin-top: 5px;
 }
 .content .box-body.latest td.minimum {
 	width: 25%;
@@ -778,6 +779,32 @@ form .table tr td {
 	border-radius: 12px;
 	margin-left: -12px;
 	top:1px;
+}
+
+.content .box-body.latest div.btn-group {
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	border-top: 3px solid rgba(0, 0, 0, 0.2);
+	border-radius: 5px;
+	background-color: rgba(0, 0, 0, 0.1);
+	margin-top: -6px;
+}
+.content .box-body.latest div.btn-group button {
+	background: none;
+	color: #FFF;
+	border-right: 1px solid rgba(0, 0, 0, 0.15);
+}
+.content .box-body.latest div.btn-group button:last-child {
+	border-right: none;
+}
+.content .box-body.latest div.btn-group button:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+.content .box-body.latest div.btn-group button:active {
+	box-shadow: none;
+}
+.content .box-body.latest div.btn-group button.active {
+	background-color: rgba(0, 0, 0, 0.2);
+	box-shadow: none;
 }
 
 /* script editor */

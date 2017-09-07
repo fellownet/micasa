@@ -152,6 +152,7 @@ namespace micasa {
 			json setting = {
 				{ "name", "subtype" },
 				{ "label", "SubType" },
+				{ "mandatory", true },
 				{ "type", "list" },
 				{ "options", json::array() },
 				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
