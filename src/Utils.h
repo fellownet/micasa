@@ -102,6 +102,15 @@ namespace micasa {
 		}
 	};
 
+	template<typename T = std::string> inline T jsonGet( const nlohmann::json& input_, const std::string& key_, const T& default_ ) {
+		auto find = input_.find( key_ );
+		if ( find != input_.end() ) {
+			return jsonGetImpl( *find, static_cast<T*>( 0 ) );
+		} else {
+			return default_;
+		}
+	};
+
 	// =======
 	// Defines
 	// =======
