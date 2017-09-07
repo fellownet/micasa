@@ -463,7 +463,7 @@ namespace micasa {
 				break;
 		}
 
-		Logger::logr( Logger::LogLevel::WARNING, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
+		Logger::logr( Logger::LogLevel::NOTICE, this, "Unsupported packet type 0x%02X, subtype 0x%02X, length %d bytes.", type, subtype, length );
 		return true;
 	};
 

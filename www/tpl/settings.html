@@ -56,7 +56,7 @@
 
 <ng-container *ngSwitchCase="'boolean'">
 <div class="form-group" [hidden]="! showAdvancedSettings && setting.class == 'advanced'">
-	<label for="setting-{{setting.name}}" *ngIf="setting.description && setting.description.length>0">{{ setting.label }}</label>
+	<label for="setting-{{setting.name}}" *ngIf="setting.label && setting.label.length > 0">{{ setting.label }}</label>
 	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>
 	<div class="checkbox">
 		<label><input type="checkbox" [(ngModel)]="values[setting.name]" name="{{ setting.name }}" #field="ngModel" [registerForm]="form" [registerModel]="field">{{ setting.badge || setting.label }}</label>

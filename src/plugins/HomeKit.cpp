@@ -1507,13 +1507,13 @@ namespace micasa {
 								if ( __likely( iid == defenition.iid ) ) {
 									if ( device->getType() == Device::Type::SWITCH ) {
 										auto value = jsonGet<bool>( characteristic, "value" );
-										std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, value ? Switch::Option::ON : Switch::Option::OFF );
+										std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::SYSTEM, value ? Switch::Option::ON : Switch::Option::OFF );
 									} else if ( device->getType() == Device::Type::LEVEL ) {
 										auto value = jsonGet<double>( characteristic, "value" );
-										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::API, value );
+										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, value );
 									} else if ( device->getType() == Device::Type::COUNTER ) {
 										auto value = jsonGet<double>( characteristic, "value" );
-										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::API, value );
+										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, value );
 									}
 								} else {
 									switch( (HAPCharacteristic)iid ) {
@@ -1541,7 +1541,7 @@ namespace micasa {
 												// We're only handling the OFF request for dimmers. An ON request is
 												auto value = jsonGet<bool>( characteristic, "value" );
 												if ( ! value ) {
-													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::API, 0 );
+													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, 0 );
 												}
 											} else {
 												Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );

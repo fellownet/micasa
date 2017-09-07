@@ -303,7 +303,7 @@ namespace micasa {
 			if ( find != network.m_connections.end() ) {
 				connection = std::make_shared<Connection>( mg_conn_, find->second->m_flags & ~NETWORK_CONNECTION_FLAG_BIND, find->second->m_func );
 				network.m_connections.insert( { mg_conn_, connection } );
-				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accepted connection from %s.", connection->getIp().c_str() );
+				Logger::logr( Logger::LogLevel::VERBOSE, &network, "Accepted connection from %s on port %d.", connection->getIp().c_str(), find->second->getPort() );
 			}
 		} else {
 			auto find = network.m_connections.find( mg_conn_ );
