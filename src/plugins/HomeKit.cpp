@@ -15,6 +15,7 @@ extern "C" {
 }
 
 #include "../Controller.h"
+#include "../Database.h"
 #include "../Logger.h"
 #include "../Network.h"
 #include "../User.h"
@@ -89,6 +90,7 @@ namespace micasa {
 	const char* HomeKit::label = "HomeKit";
 
 	extern std::unique_ptr<Controller> g_controller;
+	extern std::unique_ptr<Database> g_database;
 
 	const unsigned char modulus[]              = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34, 0xC4, 0xC6, 0x62, 0x8B, 0x80, 0xDC, 0x1C, 0xD1, 0x29, 0x02, 0x4E, 0x08, 0x8A, 0x67, 0xCC, 0x74, 0x02, 0x0B, 0xBE, 0xA6, 0x3B, 0x13, 0x9B, 0x22, 0x51, 0x4A, 0x08, 0x79, 0x8E, 0x34, 0x04, 0xDD, 0xEF, 0x95, 0x19, 0xB3, 0xCD, 0x3A, 0x43, 0x1B, 0x30, 0x2B, 0x0A, 0x6D, 0xF2, 0x5F, 0x14, 0x37, 0x4F, 0xE1, 0x35, 0x6D, 0x6D, 0x51, 0xC2, 0x45, 0xE4, 0x85, 0xB5, 0x76, 0x62, 0x5E, 0x7E, 0xC6, 0xF4, 0x4C, 0x42, 0xE9, 0xA6, 0x37, 0xED, 0x6B, 0x0B, 0xFF, 0x5C, 0xB6, 0xF4, 0x06, 0xB7, 0xED, 0xEE, 0x38, 0x6B, 0xFB, 0x5A, 0x89, 0x9F, 0xA5, 0xAE, 0x9F, 0x24, 0x11, 0x7C, 0x4B, 0x1F, 0xE6, 0x49, 0x28, 0x66, 0x51, 0xEC, 0xE4, 0x5B, 0x3D, 0xC2, 0x00, 0x7C, 0xB8, 0xA1, 0x63, 0xBF, 0x05, 0x98, 0xDA, 0x48, 0x36, 0x1C, 0x55, 0xD3, 0x9A, 0x69, 0x16, 0x3F, 0xA8, 0xFD, 0x24, 0xCF, 0x5F, 0x83, 0x65, 0x5D, 0x23, 0xDC, 0xA3, 0xAD, 0x96, 0x1C, 0x62, 0xF3, 0x56, 0x20, 0x85, 0x52, 0xBB, 0x9E, 0xD5, 0x29, 0x07, 0x70, 0x96, 0x96, 0x6D, 0x67, 0x0C, 0x35, 0x4E, 0x4A, 0xBC, 0x98, 0x04, 0xF1, 0x74, 0x6C, 0x08, 0xCA, 0x18, 0x21, 0x7C, 0x32, 0x90, 0x5E, 0x46, 0x2E, 0x36, 0xCE, 0x3B, 0xE3, 0x9E, 0x77, 0x2C, 0x18, 0x0E, 0x86, 0x03, 0x9B, 0x27, 0x83, 0xA2, 0xEC, 0x07, 0xA2, 0x8F, 0xB5, 0xC5, 0x5D, 0xF0, 0x6F, 0x4C, 0x52, 0xC9, 0xDE, 0x2B, 0xCB, 0xF6, 0x95, 0x58, 0x17, 0x18, 0x39, 0x95, 0x49, 0x7C, 0xEA, 0x95, 0x6A, 0xE5, 0x15, 0xD2, 0x26, 0x18, 0x98, 0xFA, 0x05, 0x10, 0x15, 0x72, 0x8E, 0x5A, 0x8A, 0xAA, 0xC4, 0x2D, 0xAD, 0x33, 0x17, 0x0D, 0x04, 0x50, 0x7A, 0x33, 0xA8, 0x55, 0x21, 0xAB, 0xDF, 0x1C, 0xBA, 0x64, 0xEC, 0xFB, 0x85, 0x04, 0x58, 0xDB, 0xEF, 0x0A, 0x8A, 0xEA, 0x71, 0x57, 0x5D, 0x06, 0x0C, 0x7D, 0xB3, 0x97, 0x0F, 0x85, 0xA6, 0xE1, 0xE4, 0xC7, 0xAB, 0xF5, 0xAE, 0x8C, 0xDB, 0x09, 0x33, 0xD7, 0x1E, 0x8C, 0x94, 0xE0, 0x4A, 0x25, 0x61, 0x9D, 0xCE, 0xE3, 0xD2, 0x26, 0x1A, 0xD2, 0xEE, 0x6B, 0xF1, 0x2F, 0xFA, 0x06, 0xD9, 0x8A, 0x08, 0x64, 0xD8, 0x76, 0x02, 0x73, 0x3E, 0xC8, 0x6A, 0x64, 0x52, 0x1F, 0x2B, 0x18, 0x17, 0x7B, 0x20, 0x0C, 0xBB, 0xE1, 0x17, 0x57, 0x7A, 0x61, 0x5D, 0x6C, 0x77, 0x09, 0x88, 0xC0, 0xBA, 0xD9, 0x46, 0xE2, 0x08, 0xE2, 0x4F, 0xA0, 0x74, 0xE5, 0xAB, 0x31, 0x43, 0xDB, 0x5B, 0xFC, 0xE0, 0xFD, 0x10, 0x8E, 0x4B, 0x82, 0xD1, 0x20, 0xA9, 0x3A, 0xD2, 0xCA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 	const unsigned char generator[]            = { 0x05 };
@@ -137,6 +139,7 @@ namespace micasa {
 	const std::map<Device::Type, std::map<std::string, HAPDefenition>> HAPMappings {
 		{ Device::Type::SWITCH, {
 			{ Switch::resolveTextSubType( Switch::SubType::GENERIC ),         { "49", "25", "bool",  100,  HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
+			{ Switch::resolveTextSubType( Switch::SubType::TOGGLE ),          { "49", "25", "bool",  100,  HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::LIGHT ),           { "43", "25", "bool",  101, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::MOTION_DETECTOR ), { "85", "22", "bool",  102, HAP_PERM_PR | HAP_PERM_EV } },
 			{ Switch::resolveTextSubType( Switch::SubType::FAN ),             { "B7", "B0", "uint8", 103, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
@@ -146,13 +149,15 @@ namespace micasa {
 			{ Switch::resolveTextSubType( Switch::SubType::CO_DETECTOR ),     { "7F", "69", "uint8", 107, HAP_PERM_PR | HAP_PERM_EV } },
 			// NOTE The security system service requires additional code and a second characteristic_uuid, leave a gap.
 			{ Switch::resolveTextSubType( Switch::SubType::ALARM ),           { "7E", "66", "uint8", 109, HAP_PERM_PR | HAP_PERM_EV } },
+			// NOTE the blinds service requires two additional codes and two additional charateristics, leave gaps.
+			{ Switch::resolveTextSubType( Switch::SubType::BLINDS ),          { "8C", "6D", "uint8", 112, HAP_PERM_PR | HAP_PERM_EV } },
 		} },
 		{ Device::Type::LEVEL, {
-			{ Level::resolveTextSubType( Level::SubType::TEMPERATURE ),       { "8A", "11", "float", 110, HAP_PERM_PR | HAP_PERM_EV } },
-			{ Level::resolveTextSubType( Level::SubType::HUMIDITY ),          { "82", "10", "float", 111, HAP_PERM_PR | HAP_PERM_EV } },
-			{ Level::resolveTextSubType( Level::SubType::LUMINANCE ),         { "84", "6B", "float", 112, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::TEMPERATURE ),       { "8A", "11", "float", 200, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::HUMIDITY ),          { "82", "10", "float", 201, HAP_PERM_PR | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::LUMINANCE ),         { "84", "6B", "float", 202, HAP_PERM_PR | HAP_PERM_EV } },
 			// NOTE an additional on/off characteristic is added for the dimmer, leave a gap in iid for it.
-			{ Level::resolveTextSubType( Level::SubType::DIMMER ),            { "43", "8",  "int",   114, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
+			{ Level::resolveTextSubType( Level::SubType::DIMMER ),            { "43", "8",  "int",   204, HAP_PERM_PR | HAP_PERM_PW | HAP_PERM_EV } },
 		} },
 	};
 
@@ -233,7 +238,6 @@ namespace micasa {
 						) {
 							if ( mg_parse_http( decrypted, length, &connection_->m_http, true ) > 0 ) {
 								this->_processRequest( session );
-								this->setState( Plugin::State::READY );
 							} else {
 								Logger::log( Logger::LogLevel::ERROR, this, "Unable to parse session http message." );
 							}
@@ -390,7 +394,7 @@ namespace micasa {
 		if ( device_->getSettings()->get<bool>( "enable_homekit_" + this->getReference(), false ) ) {
 
 			// Events for this device are only sent to sessions that have specificially asked for this device to be
-			// monitored.
+			// monitored by a characteristic PUT request with an "ev" property.
 			std::unique_lock<std::mutex> sessionsLock( this->m_sessionsMutex );
 			for ( auto& sessionIt : this->m_sessions ) {
 				for ( auto& devicePtr : sessionIt.second.m_devices ) {
@@ -398,8 +402,9 @@ namespace micasa {
 						auto& session = sessionIt.second;
 
 						// Sending of events is done in a separate thread that locks on the session. This prevents an
-						// event being sent in the middle of some other request or response.
-						this->m_scheduler.schedule( 0, 1, this, [this,device_,&session]( std::shared_ptr<Scheduler::Task<>> ) {
+						// event being sent in the middle of some other request or response. Events are also sent twice
+						// because they sometimes get lost somewhere within the Apple ecosystem :)
+						this->m_scheduler.schedule( 10, 250, 2, this, [this,device_,&session]( std::shared_ptr<Scheduler::Task<>> ) {
 							std::lock_guard<std::mutex> lock( session.m_sessionMutex );
 
 							try {
@@ -431,6 +436,29 @@ namespace micasa {
 										{ "iid", defenition.iid - 1 }, // should be left a gap in HAPMappings
 										{ "value", state }
 									};
+								} else if ( subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS ) ) {
+									unsigned int state = 2; // stopped
+									if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::OPEN ) {
+										state = 1; // going to the maximum value
+									} else if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::CLOSE ) {
+										state = 0; // going to the minimum value
+									}
+									output["characteristics"] += {
+										{ "aid", device_->getId() + 1 },
+										{ "iid", defenition.iid - 2 }, // should be left a gap in HAPMappings
+										{ "value", state }
+									};
+									state = 50;
+									if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::OPEN ) {
+										state = 100;
+									} else if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::CLOSE ) {
+										state = 0;
+									}
+									output["characteristics"] += {
+										{ "aid", device_->getId() + 1 },
+										{ "iid", defenition.iid - 1 }, // should be left a gap in HAPMappings
+										{ "value", state }
+									};
 								} else if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 									output["characteristics"] += {
 										{ "aid", device_->getId() + 1 },
@@ -438,8 +466,8 @@ namespace micasa {
 										{ "value", ( std::static_pointer_cast<Level>( device_ )->getValue() > 0 ) }
 									};
 								}
-
 								session.send( "EVENT/1.0 200 OK", "Content-Type: application/hap+json", output.dump() );
+
 							} catch( std::out_of_range exception_ ) {
 								Logger::logr( Logger::LogLevel::ERROR, this, "Device %s is not supported.", device_->getName().c_str() );
 								device_->getSettings()->remove( "enable_homekit_" + this->getReference() );
@@ -498,8 +526,8 @@ namespace micasa {
 			};
 		};
 
-		// If the subtype of the device can be changed by the user, the homekit setting should be shown only when a
-		// supported subtype is selected. Otherwise it should be visible only when the fixed subtype is supported.
+		// If the subtype of the device can be changed by the user, the HomeKit setting should be shown only when a
+		// supported subtype is selected.
 		if ( __unlikely( device_->getSettings()->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) ) {
 			for ( auto& setting : json_ ) {
 				if ( setting["name"] == "subtype" ) {
@@ -512,6 +540,8 @@ namespace micasa {
 					}
 				}
 			}
+
+		// If the subtype is fixed, the HomeKit setting should only be shown when the subtype is supported.
 		} else {
 			std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 			try {
@@ -522,12 +552,19 @@ namespace micasa {
 	};
 
 	void HomeKit::putDeviceSettingsJson( std::shared_ptr<Device> device_, const nlohmann::json& json_, bool owned_ ) {
+
+		// If the HomeKit setting of a device is changed, the configuration number needs to be increasted for the
+		// HomeKit controller to pick up the changes.
 		bool increaseConfig = false;
 		std::string setting = "enable_homekit_" + this->getReference();
 		if ( json_.find( setting ) != json_.end() ) {
 			if (
 				! device_->getSettings()->contains( setting )
-				|| device_->getSettings()->get<bool>( setting ) != jsonGet<bool>( json_[setting] )
+				&& jsonGet<bool>( json_[setting] )
+			) {
+				increaseConfig = true;
+			} else if (
+				device_->getSettings()->get<bool>( setting, false ) != jsonGet<bool>( json_[setting] )
 				|| jsonGet<bool>( json_[setting] ) // also increase config on name changes
 			) {
 				increaseConfig = true;
@@ -544,10 +581,15 @@ namespace micasa {
 	};
 
 	void HomeKit::beforeRemoveDevice( const std::shared_ptr<Device> device_ ) {
+
+		// If a device is removed from the system and it had HomeKit enabled, the configuration number needs to be
+		// increased for the HomeKit controller to be aware if this removal.
 		std::string setting = "enable_homekit_" + this->getReference();
 		if ( device_->getSettings()->contains( setting ) ) {
+			if ( device_->getSettings()->get<bool>( setting ) ) {
+				this->_increaseConfig( true );
+			}
 			device_->getSettings()->remove( setting );
-			this->_increaseConfig( true );
 		}
 	};
 
@@ -557,14 +599,16 @@ namespace micasa {
 		this->m_settings->put( "_configuration_number", ++config );
 		this->m_settings->commit();
 
+		if ( createService_ ) {
 #ifdef _DARWIN
-		this->_createService();
+			this->_createService();
 #else
-		if ( this->m_group ) {
-			avahi_entry_group_reset( this->m_group );
-		}
-		if ( this->m_client ) {
-			this->_createService( this->m_client );
+			if ( this->m_group ) {
+				avahi_entry_group_reset( this->m_group );
+			}
+			if ( this->m_client ) {
+				this->_createService( this->m_client );
+			}
 		}
 #endif // _DARWIN
 	};
@@ -1163,6 +1207,7 @@ namespace micasa {
 				session_.m_connection->m_mg_conn->proto_handler = NULL;
 				session_.m_connection->m_flags &= ~NETWORK_CONNECTION_FLAG_HTTP;
 				session_.m_encrypted = true;
+				this->setState( Plugin::State::READY );
 			}
 
 			TLV8.TLVFree( &tlvmap_in );
@@ -1200,9 +1245,11 @@ namespace micasa {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Pairing removed." );
 				this->m_settings->put( "paired", false );
 				this->m_settings->commit();
+				this->setState( Plugin::State::DISCONNECTED );
+
 				std::lock_guard<std::mutex> sessionsLock( this->m_sessionsMutex );
 				for ( auto& sessionIt : this->m_sessions ) {
-					sessionIt.second.m_connection->terminate();
+					sessionIt.second.m_connection->close();
 				}
 			}
 
@@ -1429,6 +1476,39 @@ namespace micasa {
 								{ "value", state },
 								{ "valid-values", { 0, 1, 3 } }
 							};
+						} else if ( subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS ) ) {
+							// Blinds have a current- and target position aswell as a current state characteristic.
+							unsigned int state = 2; // stopped
+							if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::OPEN ) {
+								state = 1; // going to the maximum value
+							} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::CLOSE ) {
+								state = 0; // going to the minimum value
+							}
+							characteristics += {
+								{ "type", "72" }, // position state is required
+								{ "iid", defenition.iid - 2 }, // should be left a gap in HAPMappings
+								{ "perms", permissions },
+								{ "format", "uint8" },
+								{ "ev", ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV },
+								{ "value", state },
+							};
+							if ( Device::resolveUpdateSource( updateSources & Device::UpdateSource::USER ) != 0 ) {
+								permissions += "pw";
+							}
+							state = 50;
+							if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::OPEN ) {
+								state = 100;
+							} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::CLOSE ) {
+								state = 0;
+							}
+							characteristics += {
+								{ "type", "7C" }, // target position is required besides current position
+								{ "iid", defenition.iid - 1 }, // should be left a gap in HAPMappings
+								{ "perms", permissions },
+								{ "format", "uint8" },
+								{ "ev", ( permission_bits & HAP_PERM_EV ) == HAP_PERM_EV },
+								{ "value", state },
+							};
 						} else if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
 							characteristics += {
 								{ "type", "25" }, // on/off is required besides brightness
@@ -1507,13 +1587,20 @@ namespace micasa {
 								if ( __likely( iid == defenition.iid ) ) {
 									if ( device->getType() == Device::Type::SWITCH ) {
 										auto value = jsonGet<bool>( characteristic, "value" );
-										std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::SYSTEM, value ? Switch::Option::ON : Switch::Option::OFF );
+										std::static_pointer_cast<Switch>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), value ? Switch::Option::ON : Switch::Option::OFF );
 									} else if ( device->getType() == Device::Type::LEVEL ) {
 										auto value = jsonGet<double>( characteristic, "value" );
-										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, value );
+										std::static_pointer_cast<Level>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), value );
+
+										// HomeKit will send a brightness level *and* an on/off command for dimmers if
+										// the button is pressed (as opposed to the slider).
+										if ( subtype == Level::resolveTextSubType( Level::SubType::DIMMER ) ) {
+											this->_releasePendingUpdate( device->getReference() + "_dimmer" );
+											this->_queuePendingUpdate( device->getReference() + "_dimmer", 0, 1000 );
+										}
 									} else if ( device->getType() == Device::Type::COUNTER ) {
 										auto value = jsonGet<double>( characteristic, "value" );
-										std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, value );
+										std::static_pointer_cast<Level>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), value );
 									}
 								} else {
 									switch( (HAPCharacteristic)iid ) {
@@ -1528,20 +1615,72 @@ namespace micasa {
 											) {
 												auto value = jsonGet<unsigned int>( characteristic, "value" );
 												if ( value == 0 ) {
-													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::HOME );
+													std::static_pointer_cast<Switch>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), Switch::Option::HOME );
 												} else if ( value == 1 ) {
-													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::AWAY );
+													std::static_pointer_cast<Switch>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), Switch::Option::AWAY );
 												} else {
-													std::static_pointer_cast<Switch>( device )->updateValue( Device::UpdateSource::API, Switch::Option::OFF );
+													std::static_pointer_cast<Switch>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), Switch::Option::OFF );
+												}
+											} else if (
+												subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS )
+												&& iid == (unsigned long)defenition.iid - 1
+											) {
+												// HomeKit blinds can be set to a percentage whereas our switch blinds
+												// only support open,  close and stop states.
+												auto value = jsonGet<unsigned int>( characteristic, "value" );
+												auto state = std::static_pointer_cast<Switch>( device )->getValueOption();
+												bool busy = this->_releasePendingUpdate( device->getReference() + "_busy" );
+
+												if ( value == 0 ) {
+													// If the blinds are in our stopped state, or 50% for HomeKit, a
+													// button press on iOS will always result in close. If it happens
+													// shortly after a previous close, use open instead. This allows
+													// for more precise positioning of the blinds.
+													if ( busy ) {
+														state = Switch::Option::STOP;
+													} else {
+														bool close = this->_releasePendingUpdate( device->getReference() + "_close" );
+														if ( close ) {
+															state = Switch::Option::OPEN;
+														} else {
+															state = Switch::Option::CLOSE;
+															this->_queuePendingUpdate( device->getReference() + "_close", 0, 60000 );
+														}
+													}
+												} else if ( value < 33 ) {
+													state = Switch::Option::CLOSE;
+												} else if ( value == 100 ) {
+													if ( busy ) {
+														state = Switch::Option::STOP;
+													} else {
+														state = Switch::Option::OPEN;
+													}
+												} else if ( value > 66 ) {
+													state = Switch::Option::OPEN;
+												} else {
+													state = Switch::Option::STOP;
+												}
+												std::static_pointer_cast<Switch>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), state );
+												if (
+													state == Switch::Option::OPEN
+													|| state == Switch::Option::CLOSE
+												) {
+													this->_queuePendingUpdate( device->getReference() + "_busy", 0, 60000 );
 												}
 											} else if (
 												subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 												&& iid == (unsigned long)defenition.iid - 1
 											) {
-												// We're only handling the OFF request for dimmers. An ON request is
-												auto value = jsonGet<bool>( characteristic, "value" );
-												if ( ! value ) {
-													std::static_pointer_cast<Level>( device )->updateValue( Device::UpdateSource::SYSTEM, 0 );
+												// This characteristic is set when the user presses a dimmer button, so
+												// instead of setting the dimmer to a level, it is turned on or off.
+												bool busy = this->_releasePendingUpdate( device->getReference() + "_dimmer" );
+												if ( ! busy ) {
+													auto value = jsonGet<bool>( characteristic, "value" );
+													if ( value ) {
+														std::static_pointer_cast<Level>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), 100 );
+													} else {
+														std::static_pointer_cast<Level>( device )->updateValue( static_cast<Device::UpdateSource>( 0 ), 0 );
+													}
 												}
 											} else {
 												Logger::logr( Logger::LogLevel::WARNING, this, "Unhandled characteristic iid %d requested.", iid );
@@ -1651,6 +1790,31 @@ namespace micasa {
 											}
 											characteristic["value"] = state;
 										} else if (
+											subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS )
+											&& iid == (unsigned long)defenition.iid - 1
+										) {
+											// HomeKit blinds are controlled using percentages, whereas ours uses open,
+											// close and stop states. We're mimicing the HomeKit behaviour using 50%
+											// as stopped state and 0 vs 100 for close vs open state.
+											unsigned int state = 50;
+											if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::OPEN ) {
+												state = 100;
+											} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::CLOSE ) {
+												state = 0;
+											}
+											characteristic["value"] = state;
+										} else if (
+											subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS )
+											&& iid == (unsigned long)defenition.iid - 2
+										) {
+											unsigned int state = 2; // stopped
+											if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::OPEN ) {
+												state = 1; // going to the maximum value
+											} else if ( std::static_pointer_cast<Switch>( device )->getValueOption() == Switch::Option::CLOSE ) {
+												state = 0; // going to the minimum value
+											}
+											characteristic["value"] = state;
+										} else if (
 											subtype == Level::resolveTextSubType( Level::SubType::DIMMER )
 											&& iid == (unsigned long)defenition.iid - 1
 										) {
@@ -1698,6 +1862,8 @@ namespace micasa {
 					std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON
 					|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ACTIVATE
 					|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ENABLED
+					|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::OPEN
+					|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::TRIGGERED
 				);
 			} else {
 				throw std::runtime_error( "Device " + device_->getName() + " doesn't support bool values." );
@@ -1712,11 +1878,21 @@ namespace micasa {
 						state = 1;
 					}
 					object_["value"] = state;
+				} else if ( subtype == Switch::resolveTextSubType( Switch::SubType::BLINDS ) ) {
+					unsigned int state = 50;
+					if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::OPEN ) {
+						state = 100;
+					} else if ( std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::CLOSE ) {
+						state = 0;
+					}
+					object_["value"] = state;
 				} else {
 					object_["value"] = (
 						std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ON
 						|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ACTIVATE
 						|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::ENABLED
+						|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::OPEN
+						|| std::static_pointer_cast<Switch>( device_ )->getValueOption() == Switch::Option::TRIGGERED
 					) ? 1 : 0;
 				}
 			} else if ( device_->getType() == Device::Type::LEVEL ) {

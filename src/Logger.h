@@ -72,6 +72,11 @@ namespace micasa {
 		struct t_logReceiver {
 			std::weak_ptr<Receiver> receiver;
 			LogLevel level;
+			struct {
+				std::string message;
+				LogLevel level;
+				unsigned int count;
+			} last;
 		};
 		std::vector<t_logReceiver> m_receivers;
 		mutable std::mutex m_receiversMutex;

@@ -103,8 +103,8 @@ namespace micasa {
 		std::thread m_udevWorker;
 #endif // _WITH_LIBUDEV
 
-		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-		void _runScripts( const std::string& key_, const nlohmann::json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ );
+		template<class D> void _processTask( std::shared_ptr<D> device_, const typename D::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
+		void _runScripts( const std::string key_, const nlohmann::json data_, const std::vector<std::map<std::string, std::string>> scripts_ );
 		void _runTimers();
 		void _runLinks( std::shared_ptr<Device> device_ );
 		TaskOptions _parseTaskOptions( const std::string& options_ ) const;

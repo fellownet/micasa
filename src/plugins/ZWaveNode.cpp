@@ -270,7 +270,13 @@ namespace micasa {
 					&& device_->getType() == Device::Type::SWITCH
 				) {
 					std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
-					bool value = ( device->getValueOption() == Switch::Option::ON ) ? true : false;
+					bool value = (
+						device->getValueOption() == Switch::Option::ON
+						|| device->getValueOption() == Switch::Option::ENABLED
+						|| device->getValueOption() == Switch::Option::ACTIVATE
+						|| device->getValueOption() == Switch::Option::TRIGGERED
+						|| device->getValueOption() == Switch::Option::START
+					) ? true : false;
 					std::string valueStr = device->getValue();
 
 					// This method is most likely called from the scheduler and should therefore not block for too long, so
@@ -361,7 +367,8 @@ namespace micasa {
 			}
 
 			case Notification::Type_ValueAdded:
-			case Notification::Type_ValueChanged: {
+			case Notification::Type_ValueChanged:
+			case Notification::Type_ValueRefreshed: {
 				ValueID valueId = notification_->GetValueID();
 				this->_processValue( valueId );
 				break;
@@ -459,7 +466,7 @@ namespace micasa {
 		}
 		this->_queuePendingUpdate( reference + "_df", stringValue, 0, OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC );
 		if ( duplicate ) {
-			Logger::log( Logger::LogLevel::VERBOSE, this, "Ignoring duplicate value." );
+			Logger::log( Logger::LogLevel::DEBUG, this, "Ignoring duplicate value." );
 			return;
 		}
 

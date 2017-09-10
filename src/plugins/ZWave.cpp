@@ -78,7 +78,7 @@ namespace micasa {
 			Options::Get()->AddOptionInt( "PollInterval", 60000 ); // 60 seconds
 			Options::Get()->AddOptionInt( "DriverMaxAttempts", 3 );
 			Options::Get()->AddOptionBool( "IntervalBetweenPolls", true );
-			Options::Get()->AddOptionBool( "SuppressValueRefresh", true );
+			Options::Get()->AddOptionBool( "SuppressValueRefresh", false );
 			Options::Get()->AddOptionBool( "Associate", true );
 			Options::Get()->AddOptionBool( "SaveConfiguration", true );
 			Options::Get()->AddOptionBool( "AppendLogFile", false );

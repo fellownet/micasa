@@ -143,14 +143,14 @@ namespace micasa {
 		if (
 			(
 				this->m_settings->contains( "minimum" )
-				&& ( ( value_ + offset ) / divider ) < this->m_settings->get<double>( "minimum" )
+				&& ( ( value_ + offset ) / divider ) < this->m_settings->get<double>( "minimum" ) - ( 8 * std::numeric_limits<double>::epsilon() )
 			)
 			|| (
 				this->m_settings->contains( "maximum" )
-				&& ( ( value_ + offset ) / divider ) > this->m_settings->get<double>( "maximum" )
+				&& ( ( value_ + offset ) / divider ) > this->m_settings->get<double>( "maximum" ) + ( 8 * std::numeric_limits<double>::epsilon() )
 			)
 		) {
-			Logger::log( this->m_enabled ? Logger::LogLevel::ERROR : Logger::LogLevel::VERBOSE, this, "Invalid value." );
+			Logger::log( this->m_enabled ? Logger::LogLevel::NOTICE : Logger::LogLevel::VERBOSE, this, "Invalid value." );
 			return;
 		}
 

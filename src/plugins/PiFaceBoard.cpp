@@ -108,7 +108,12 @@ namespace micasa {
 				unsigned char portState = this->m_parent->_Read_MCP23S17_Register( this->m_devId, MCP23x17_OLATA );
 				int mask = 0x01;
 				mask <<= port.first;
-				if ( device->getValueOption() == Switch::Option::OFF ) {
+				if (
+					device->getValueOption() == Switch::Option::OFF
+					|| device->getValueOption() == Switch::Option::DISABLED
+					|| device->getValueOption() == Switch::Option::IDLE
+					|| device->getValueOption() == Switch::Option::CLOSE
+				) {
 					portState &= ~mask;
 				} else {
 					portState |= mask;

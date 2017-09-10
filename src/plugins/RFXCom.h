@@ -7,8 +7,8 @@ typedef unsigned char BYTE;
 
 #include "RFXtrx.h"
 
-#define RFXCOM_BUSY_WAIT_MSEC  30000 // how long to wait for result
-#define RFXCOM_BUSY_BLOCK_MSEC 3000  // how long to block plugin while waiting for result
+#define RFXCOM_BUSY_WAIT_MSEC         15000 // how long to wait for result
+#define RFXCOM_BUSY_WAIT_INTERVAL     100   // how long to wait between attempts
 
 #define RFXCOM_MAX_PACKET_SIZE 40
 

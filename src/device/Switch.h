@@ -48,7 +48,7 @@ namespace micasa {
 		}; // enum class Option
 		static const std::map<Switch::Option, std::string> OptionText;
 		ENUM_UTIL_W_TEXT( Option, OptionText );
-		static const std::map<Switch::SubType, std::vector<Switch::Option>> SubTypeOptions;
+		static const std::map<Switch::SubType, std::vector<std::vector<Switch::Option>>> SubTypeOptions;
 
 		typedef std::string t_value;
 		static const Device::Type type;
@@ -58,9 +58,7 @@ namespace micasa {
 		void updateValue( Device::UpdateSource source_, Option value_ );
 		void updateValue( Device::UpdateSource source_, t_value value_ );
 		Option getValueOption() const { return this->m_value; };
-		static Option getOppositeValueOption( const Option& value_ );
 		t_value getValue() const { return OptionText.at( this->m_value ); };
-		static t_value getOppositeValue( const t_value& value_ );
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 		void start() override;
