@@ -25,25 +25,30 @@ namespace micasa {
 			SMOKE_DETECTOR,
 			CO_DETECTOR,
 			ALARM,
+			TOGGLE,
 			ACTION = 99 // reserved for plugin actions such as network healing or adding devices
 		}; // enum class SubType
 		static const std::map<SubType, std::string> SubTypeText;
 		ENUM_UTIL_W_TEXT( SubType, SubTypeText );
 
 		enum class Option: unsigned int {
-			ON       = (1 << 0),
-			OFF      = (1 << 1),
-			OPEN     = (1 << 2),
-			CLOSE    = (1 << 3),
-			STOP     = (1 << 4),
-			START    = (1 << 5),
-			ENABLED  = (1 << 6),
-			DISABLED = (1 << 7),
-			IDLE     = (1 << 8),
-			ACTIVATE = (1 << 9)
+			ON        = (1 << 0),
+			OFF       = (1 << 1),
+			OPEN      = (1 << 2),
+			CLOSE     = (1 << 3),
+			STOP      = (1 << 4),
+			START     = (1 << 5),
+			ENABLED   = (1 << 6),
+			DISABLED  = (1 << 7),
+			IDLE      = (1 << 8),
+			ACTIVATE  = (1 << 9),
+			TRIGGERED = (1 << 10),
+			HOME      = (1 << 11),
+			AWAY      = (1 << 12),
 		}; // enum class Option
 		static const std::map<Switch::Option, std::string> OptionText;
 		ENUM_UTIL_W_TEXT( Option, OptionText );
+		static const std::map<Switch::SubType, std::vector<std::vector<Switch::Option>>> SubTypeOptions;
 
 		typedef std::string t_value;
 		static const Device::Type type;
@@ -53,9 +58,7 @@ namespace micasa {
 		void updateValue( Device::UpdateSource source_, Option value_ );
 		void updateValue( Device::UpdateSource source_, t_value value_ );
 		Option getValueOption() const { return this->m_value; };
-		static Option getOppositeValueOption( const Option& value_ );
 		t_value getValue() const { return OptionText.at( this->m_value ); };
-		static t_value getOppositeValue( const t_value& value_ );
 		nlohmann::json getData( unsigned int range_, const std::string& interval_ ) const;
 
 		void start() override;

@@ -16,7 +16,7 @@ namespace micasa {
 	void Logger::addReceiver( std::shared_ptr<Receiver> receiver_, LogLevel level_ ) {
 		Logger& logger = Logger::get();
 		std::lock_guard<std::mutex> lock( logger.m_receiversMutex );
-		logger.m_receivers.push_back( { receiver_, level_ } );
+		logger.m_receivers.push_back( { receiver_, level_, { "", Logger::LogLevel::NORMAL, 0 } } );
 	};
 
 	void Logger::removeReceiver( std::shared_ptr<Receiver> receiver_ ) {
@@ -40,8 +40,10 @@ namespace micasa {
 		}
 		std::string message( buffer );
 
-		std::lock_guard<std::mutex> lock( this->m_receiversMutex );
-		for ( const auto& receiverIt : this->m_receivers ) {
+		// First all log receivers eligible for this log message are gathered while the lock is held.
+		std::unique_lock<std::mutex> lock( this->m_receiversMutex );
+		std::vector<std::tuple<std::shared_ptr<Receiver>,LogLevel,std::string>> queue;
+		for ( auto& receiverIt : this->m_receivers ) {
 			std::shared_ptr<Receiver> receiver = receiverIt.receiver.lock();
 #ifdef _DEBUG
 			assert( receiver && "Log receivers should be removed from the logger before being destroyed." );
@@ -50,8 +52,29 @@ namespace micasa {
 				receiver
 				&& logLevel_ <= receiverIt.level
 			) {
-				receiver->log( logLevel_, message );
+				// Prevent logging the same message more than once per receiver. This can prevent endless-loops where
+				// the logging of a message itself causes another log message.
+				if (
+					receiverIt.last.message == message
+					&& receiverIt.last.level == logLevel_
+				) {
+					receiverIt.last.count++;
+				} else {
+					if ( receiverIt.last.count > 0 ) {
+						queue.push_back( std::make_tuple( receiver, receiverIt.last.level, "Last message was repeated " + std::to_string( receiverIt.last.count ) + " times." ) );
+					}
+					receiverIt.last.message = message;
+					receiverIt.last.level = logLevel_;
+					receiverIt.last.count = 0;
+					queue.push_back( std::make_tuple( receiver, logLevel_, message ) );
+				}
 			}
+		}
+		lock.unlock();
+
+		// The actual logging is done with the lock released to make sure that any subsequent logging won't deadlock.
+		for ( const auto& log : queue ) {
+			std::get<0>( log )->log( std::get<1>( log ), std::get<2>( log ) );
 		}
 	};
 

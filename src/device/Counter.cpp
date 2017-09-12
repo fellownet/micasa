@@ -42,6 +42,12 @@ namespace micasa {
 		{ Counter::Unit::M3, "%.3f" }
 	};
 
+	const std::map<Counter::SubType, std::vector<Counter::Unit>> Counter::SubTypeUnits = {
+		{ Counter::SubType::ENERGY, { Counter::Unit::KILOWATTHOUR } },
+		{ Counter::SubType::GAS, { Counter::Unit::M3 } },
+		{ Counter::SubType::WATER, { Counter::Unit::M3 } },
+	};
+
 	Counter::Counter( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( plugin_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
@@ -167,36 +173,63 @@ namespace micasa {
 	json Counter::getSettingsJson() const {
 		json result = Device::getSettingsJson();
 		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			std::string sclass = this->m_settings->contains( "subtype" ) ? "advanced" : "normal";
 			json setting = {
 				{ "name", "subtype" },
 				{ "label", "SubType" },
+				{ "mandatory", true },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
+				{ "class", sclass },
 				{ "sort", 10 }
 			};
 			for ( auto subTypeIt = Counter::SubTypeText.begin(); subTypeIt != Counter::SubTypeText.end(); subTypeIt++ ) {
-				setting["options"] += {
-					{ "value", subTypeIt->second },
-					{ "label", subTypeIt->second }
-				};
-			}
-			result += setting;
-		}
-		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
-			json setting = {
-				{ "name", "unit" },
-				{ "label", "Unit" },
-				{ "type", "list" },
-				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "unit" ) ? "advanced" : "normal" },
-				{ "sort", 11 }
-			};
-			for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
-				setting["options"] += {
-					{ "value", unitIt->second },
-					{ "label", unitIt->second }
-				};
+				json option = json::object();
+				option["value"] = subTypeIt->second;
+				option["label"] = subTypeIt->second;
+
+				// Add unit setting if the units for this device can be changed and more than one are defined. If no
+				// specific units have been defined, such as the generic subtype, all units can be selected.
+				auto find = Counter::SubTypeUnits.find( subTypeIt->first );
+				if (
+					this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
+					&& (
+						find == Counter::SubTypeUnits.end() // no units specified; add all units
+						|| find->second.size() > 1 // more than one unit specified
+					)
+				) {
+					option["settings"] = json::array();
+					json setting = {
+						{ "name", "unit" },
+						{ "label", "Unit" },
+						{ "type", "list" },
+						{ "mandatory", true },
+						{ "options", json::array() },
+						{ "class", sclass },
+						{ "sort", 11 }
+					};
+					if ( find != Counter::SubTypeUnits.end() ) {
+						// Show only those units that are relevant to the selected subtype.
+						if ( find->second.size() > 1 ) {
+							for ( auto unitIt = find->second.begin(); unitIt != find->second.end(); unitIt++ ) {
+								setting["options"] += {
+									{ "value", Counter::UnitText.at( *unitIt ) },
+									{ "label", Counter::UnitText.at( *unitIt ) }
+								};
+							}
+						}
+					} else {
+						// Add all available units.
+						for ( auto unitIt = Counter::UnitText.begin(); unitIt != Counter::UnitText.end(); unitIt++ ) {
+							setting["options"] += {
+								{ "value", unitIt->second },
+								{ "label", unitIt->second }
+							};
+						}
+					}
+					option["settings"] += setting;
+				}
+				setting["options"] += option;
 			}
 			result += setting;
 		}
@@ -246,6 +279,20 @@ namespace micasa {
 		}
 
 		return result;
+	};
+
+	void Counter::putSettingsJson( const nlohmann::json& settings_ ) {
+		// If there's only one unit suitable for the subtype, no unit will be posted because there's no
+		// corresponding field (see notes in getSettingsJson), so the correct unit needs to be set here.
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
+			Counter::SubType subtype = Counter::resolveTextSubType( jsonGet<>( settings_, "subtype", Counter::SubTypeText.at( Counter::SubType::GENERIC ) ) );
+			if (
+				Counter::SubTypeUnits.find( subtype ) != Counter::SubTypeUnits.end()
+				&& Counter::SubTypeUnits.at( subtype ).size() == 1
+			) {
+				this->m_settings->put( "unit", Counter::resolveTextUnit( Counter::SubTypeUnits.at( subtype ).front() ) );
+			}
+		}
 	};
 
 	json Counter::getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const {

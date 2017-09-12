@@ -33,6 +33,7 @@ namespace micasa {
 		{ Switch::SubType::CO_DETECTOR, "co_detector" },
 		{ Switch::SubType::ALARM, "alarm" },
 		{ Switch::SubType::ACTION, "action" },
+		{ Switch::SubType::TOGGLE, "toggle" },
 	};
 
 	const std::map<Switch::Option, std::string> Switch::OptionText = {
@@ -46,6 +47,76 @@ namespace micasa {
 		{ Switch::Option::DISABLED, "Disabled" },
 		{ Switch::Option::IDLE, "Idle" },
 		{ Switch::Option::ACTIVATE, "Activate" },
+		{ Switch::Option::TRIGGERED, "Triggered" },
+		{ Switch::Option::HOME, "Home" },
+		{ Switch::Option::AWAY, "Away" },
+	};
+
+	// The SubTypeOptions map maps subtypes with their allowed options. Note that each allowed option is actually a
+	// vector by itself with option alternatives, with the first entry being the desired option.
+	const std::map<Switch::SubType, std::vector<std::vector<Switch::Option>>> Switch::SubTypeOptions = {
+		{ Switch::SubType::GENERIC, {
+			{ Switch::Option::ON, Switch::Option::ENABLED, Switch::Option::ACTIVATE },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::TOGGLE, {
+			{ Switch::Option::ENABLED, Switch::Option::ON, Switch::Option::ACTIVATE },
+			{ Switch::Option::DISABLED, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::LIGHT, {
+			{ Switch::Option::ON, Switch::Option::ENABLED, Switch::Option::ACTIVATE },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::CONTACT, {
+			{ Switch::Option::OPEN, Switch::Option::ON },
+			{ Switch::Option::CLOSE, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::BLINDS, {
+			{ Switch::Option::OPEN, Switch::Option::ON },
+			{ Switch::Option::CLOSE, Switch::Option::OFF },
+			{ Switch::Option::STOP }
+		} },
+		{ Switch::SubType::MOTION_DETECTOR, {
+			{ Switch::Option::TRIGGERED, Switch::Option::ON, Switch::Option::ACTIVATE },
+			{ Switch::Option::IDLE, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::FAN, {
+			{ Switch::Option::ON, Switch::Option::ENABLED, Switch::Option::ACTIVATE },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::HEATER, {
+			{ Switch::Option::ON, Switch::Option::ENABLED, Switch::Option::ACTIVATE },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::BELL, {
+			{ Switch::Option::ON, Switch::Option::ENABLED, Switch::Option::ACTIVATE },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::SCENE, {
+			{ Switch::Option::IDLE },
+			{ Switch::Option::ACTIVATE, Switch::Option::ON, Switch::Option::START }
+		} },
+		{ Switch::SubType::OCCUPANCY, {
+			{ Switch::Option::TRIGGERED, Switch::Option::ON, Switch::Option::ACTIVATE },
+			{ Switch::Option::IDLE, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::SMOKE_DETECTOR, {
+			{ Switch::Option::TRIGGERED, Switch::Option::ON, Switch::Option::ACTIVATE },
+			{ Switch::Option::IDLE, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::CO_DETECTOR, {
+			{ Switch::Option::TRIGGERED, Switch::Option::ON, Switch::Option::ACTIVATE },
+			{ Switch::Option::IDLE, Switch::Option::OFF }
+		} },
+		{ Switch::SubType::ALARM, {
+			{ Switch::Option::HOME, Switch::Option::ACTIVATE },
+			{ Switch::Option::AWAY, Switch::Option::ON },
+			{ Switch::Option::OFF, Switch::Option::DISABLED }
+		} },
+		{ Switch::SubType::ACTION, {
+			{ Switch::Option::IDLE },
+			{ Switch::Option::ACTIVATE, Switch::Option::ON }
+		} },
 	};
 
 	Switch::Switch( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
@@ -89,10 +160,23 @@ namespace micasa {
 	};
 
 	void Switch::updateValue( Device::UpdateSource source_, Option value_ ) {
-		Switch::SubType subType = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
+		Switch::SubType subtype = Switch::resolveTextSubType( this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) ) );
+
+		// Pick the desired option, which is the first entry from the list of alternatives available for the configured
+		// subtype.
+		auto options = Switch::SubTypeOptions.at( subtype );
+		for ( const auto& alternatives : options ) {
+			if ( std::find( alternatives.begin(), alternatives.end(), value_ ) != alternatives.end() ) {
+				if ( value_ != alternatives[0] ) {
+					value_ = alternatives[0];
+				}
+				break;
+			}
+		}
+
 		if (
 			! this->m_enabled
-			&& subType != Switch::SubType::ACTION
+			&& subtype != Switch::SubType::ACTION
 			&& ( source_ & Device::UpdateSource::PLUGIN ) != Device::UpdateSource::PLUGIN
 		) {
 			return;
@@ -145,26 +229,6 @@ namespace micasa {
 		Logger::logr( Logger::LogLevel::ERROR, this, "Invalid value %s.", value_.c_str() );
 	};
 
-	Switch::Option Switch::getOppositeValueOption( const Switch::Option& value_ ) {
-		switch( value_ ) {
-			case Option::ON: return Option::OFF; break;
-			case Option::OFF: return Option::ON; break;
-			case Option::OPEN: return Option::CLOSE; break;
-			case Option::CLOSE: return Option::OPEN; break;
-			case Option::STOP: return Option::START; break;
-			case Option::START: return Option::STOP; break;
-			case Option::ENABLED: return Option::DISABLED; break;
-			case Option::DISABLED: return Option::ENABLED; break;
-			case Option::IDLE: return Option::ACTIVATE; break;
-			case Option::ACTIVATE: return Option::IDLE; break;
-			default: return value_; break;
-		}
-	};
-
-	Switch::t_value Switch::getOppositeValue( const Switch::t_value& value_ ) {
-		return Switch::resolveTextOption( Switch::getOppositeValueOption( Switch::resolveTextOption( value_ ) ) );
-	};
-
 	json Switch::getJson() const {
 		json result = Device::getJson();
 
@@ -174,12 +238,16 @@ namespace micasa {
 		result["type"] = "switch";
 		std::string subtype = this->m_settings->get( "subtype", this->m_settings->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 		result["subtype"] = subtype;
-		if ( subtype == resolveTextSubType( Switch::SubType::BLINDS ) ) {
-			result["inverted"] = this->m_settings->get( "inverted", false );
-		}
 		result["history_retention"] = this->m_settings->get<int>( "history_retention", DEVICE_SWITCH_DEFAULT_HISTORY_RETENTION );
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
+		}
+
+		result["options"] = json::array();
+		auto options = Switch::SubTypeOptions.at( Switch::resolveTextSubType( subtype ) );
+		for ( auto optionsIt = options.begin(); optionsIt != options.end(); optionsIt++ ) {
+			// Add the first option of the list of alternatives as acceptable option for the configured subtype.
+			result["options"] += Switch::OptionText.at( ( *optionsIt )[0] );
 		}
 
 		for ( auto const& plugin : g_controller->getAllPlugins() ) {
@@ -192,30 +260,21 @@ namespace micasa {
 	json Switch::getSettingsJson() const {
 		json result = Device::getSettingsJson();
 		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			std::string sclass = this->m_settings->contains( "subtype" ) ? "advanced" : "normal";
 			json setting = {
 				{ "name", "subtype" },
 				{ "label", "SubType" },
+				{ "mandatory", true },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
+				{ "class", sclass },
 				{ "sort", 10 }
 			};
 			for ( auto subTypeIt = Switch::SubTypeText.begin(); subTypeIt != Switch::SubTypeText.end(); subTypeIt++ ) {
-				json option = {
+				setting["options"] += {
 					{ "value", subTypeIt->second },
 					{ "label", subTypeIt->second }
 				};
-				if ( subTypeIt->first == Switch::SubType::BLINDS ) {
-					option["settings"] = {
-						{
-							{ "name", "inverted" },
-							{ "label", "Inverted" },
-							{ "type", "boolean" },
-							{ "sort", 11 }
-						}
-					};
-				}
-				setting["options"] += option;
 			}
 			result += setting;
 		}

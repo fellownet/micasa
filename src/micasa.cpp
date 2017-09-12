@@ -109,7 +109,9 @@ int main( int argc_, char* argv_[] ) {
 		}
 
 		g_webServer->stop();
+		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 		g_controller->stop();
+		std::this_thread::sleep_for( std::chrono::milliseconds( 1000 ) );
 
 		g_webServer = nullptr;
 		g_controller = nullptr;

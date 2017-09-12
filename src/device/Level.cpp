@@ -60,6 +60,19 @@ namespace micasa {
 		{ Level::Unit::SECONDS, "%.0f" },
 	};
 
+	const std::map<Level::SubType, std::vector<Level::Unit>> Level::SubTypeUnits = {
+		{ Level::SubType::TEMPERATURE, { Level::Unit::CELSIUS, Level::Unit::FAHRENHEIT } },
+		{ Level::SubType::HUMIDITY, { Level::Unit::PERCENT } },
+		{ Level::SubType::POWER, { Level::Unit::WATT } },
+		{ Level::SubType::ELECTRICITY, { Level::Unit::VOLT } },
+		{ Level::SubType::CURRENT, { Level::Unit::AMPERES } },
+		{ Level::SubType::PRESSURE, { Level::Unit::PASCAL } },
+		{ Level::SubType::LUMINANCE, { Level::Unit::LUX } },
+		{ Level::SubType::THERMOSTAT_SETPOINT, { Level::Unit::CELSIUS, Level::Unit::FAHRENHEIT } },
+		{ Level::SubType::BATTERY_LEVEL, { Level::Unit::PERCENT } },
+		{ Level::SubType::DIMMER, { Level::Unit::PERCENT } },
+	};
+
 	Level::Level( std::weak_ptr<Plugin> plugin_, const unsigned int id_, const std::string reference_, std::string label_, bool enabled_ ) :
 		Device( plugin_, id_, reference_, label_, enabled_ ),
 		m_value( 0 ),
@@ -130,14 +143,14 @@ namespace micasa {
 		if (
 			(
 				this->m_settings->contains( "minimum" )
-				&& ( ( value_ + offset ) / divider ) < this->m_settings->get<double>( "minimum" )
+				&& ( ( value_ + offset ) / divider ) < this->m_settings->get<double>( "minimum" ) - ( 8 * std::numeric_limits<double>::epsilon() )
 			)
 			|| (
 				this->m_settings->contains( "maximum" )
-				&& ( ( value_ + offset ) / divider ) > this->m_settings->get<double>( "maximum" )
+				&& ( ( value_ + offset ) / divider ) > this->m_settings->get<double>( "maximum" ) + ( 8 * std::numeric_limits<double>::epsilon() )
 			)
 		) {
-			Logger::log( this->m_enabled ? Logger::LogLevel::ERROR : Logger::LogLevel::VERBOSE, this, "Invalid value." );
+			Logger::log( this->m_enabled ? Logger::LogLevel::NOTICE : Logger::LogLevel::VERBOSE, this, "Invalid value." );
 			return;
 		}
 
@@ -212,37 +225,67 @@ namespace micasa {
 
 	json Level::getSettingsJson() const {
 		json result = Device::getSettingsJson();
+
+		// If the subtype of the level device can be changed (not enforced by the plugin), a setting is
+		// added to allow the user to change it.
 		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE, false ) ) {
+			std::string sclass = this->m_settings->contains( "subtype" ) ? "advanced" : "normal";
 			json setting = {
 				{ "name", "subtype" },
 				{ "label", "SubType" },
+				{ "mandatory", true },
 				{ "type", "list" },
 				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
+				{ "class", sclass },
 				{ "sort", 10 }
 			};
 			for ( auto subTypeIt = Level::SubTypeText.begin(); subTypeIt != Level::SubTypeText.end(); subTypeIt++ ) {
-				setting["options"] += {
-					{ "value", subTypeIt->second },
-					{ "label", subTypeIt->second }
-				};
-			}
-			result += setting;
-		}
-		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
-			json setting = {
-				{ "name", "unit" },
-				{ "label", "Unit" },
-				{ "type", "list" },
-				{ "options", json::array() },
-				{ "class", this->m_settings->contains( "unit" ) ? "advanced" : "normal" },
-				{ "sort", 11 }
-			};
-			for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
-				setting["options"] += {
-					{ "value", unitIt->second },
-					{ "label", unitIt->second }
-				};
+				json option = json::object();
+				option["value"] = subTypeIt->second;
+				option["label"] = subTypeIt->second;
+
+				// Add unit setting if the units for this device can be changed and more than one are defined. If no
+				// specific units have been defined, such as the generic subtype, all units can be selected.
+				auto find = Level::SubTypeUnits.find( subTypeIt->first );
+				if (
+					this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false )
+					&& (
+						find == Level::SubTypeUnits.end() // no units specified; add all units
+						|| find->second.size() > 1 // more than one unit specified
+					)
+				) {
+					option["settings"] = json::array();
+					json setting = {
+						{ "name", "unit" },
+						{ "label", "Unit" },
+						{ "type", "list" },
+						{ "mandatory", true },
+						{ "options", json::array() },
+						{ "class", sclass },
+						{ "sort", 11 }
+					};
+					if ( find != Level::SubTypeUnits.end() ) {
+						// Show only those units that are relevant to the selected subtype.
+						if ( find->second.size() > 1 ) {
+							for ( auto unitIt = find->second.begin(); unitIt != find->second.end(); unitIt++ ) {
+								setting["options"] += {
+									{ "value", Level::UnitText.at( *unitIt ) },
+									{ "label", Level::UnitText.at( *unitIt ) }
+								};
+							}
+						}
+					} else {
+						// Add all available units.
+						for ( auto unitIt = Level::UnitText.begin(); unitIt != Level::UnitText.end(); unitIt++ ) {
+							setting["options"] += {
+								{ "value", unitIt->second },
+								{ "label", unitIt->second }
+							};
+						}
+					}
+					option["settings"] += setting;
+				}
+				setting["options"] += option;
 			}
 			result += setting;
 		}
@@ -317,6 +360,20 @@ namespace micasa {
 		}
 
 		return result;
+	};
+
+	void Level::putSettingsJson( const nlohmann::json& settings_ ) {
+		// If there's only one unit suitable for the subtype, no unit will be posted because there's no
+		// corresponding field (see notes in getSettingsJson), so the correct unit needs to be set here.
+		if ( this->m_settings->get<bool>( DEVICE_SETTING_ALLOW_UNIT_CHANGE, false ) ) {
+			Level::SubType subtype = Level::resolveTextSubType( jsonGet<>( settings_, "subtype", Level::SubTypeText.at( Level::SubType::GENERIC ) ) );
+			if (
+				Level::SubTypeUnits.find( subtype ) != Level::SubTypeUnits.end()
+				&& Level::SubTypeUnits.at( subtype ).size() == 1
+			) {
+				this->m_settings->put( "unit", Level::resolveTextUnit( Level::SubTypeUnits.at( subtype ).front() ) );
+			}
+		}
 	};
 
 	json Level::getData( unsigned int range_, const std::string& interval_, const std::string& group_ ) const {

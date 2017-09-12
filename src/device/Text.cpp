@@ -28,8 +28,7 @@ namespace micasa {
 		Device( plugin_, id_, reference_, label_, enabled_ ),
 		m_value( "" ),
 		m_updated( system_clock::now() ),
-		m_rateLimiter( { "", Device::resolveUpdateSource( 0 ) } ),
-		m_logger( { "", 0 } )
+		m_rateLimiter( { "", Device::resolveUpdateSource( 0 ) } )
 	{
 		try {
 			json result = g_database->getQueryRow<json>(
@@ -54,20 +53,12 @@ namespace micasa {
 		this->m_scheduler.schedule( randomNumber( 0, SCHEDULER_INTERVAL_1HOUR ), SCHEDULER_INTERVAL_1HOUR, SCHEDULER_REPEAT_INFINITE, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
 			this->_purgeHistory();
 		} );
-
-		// Fake an update of the settings to make sure the device is added to the logger and have it receive log
-		// messages.
-		this->putSettingsJson( {
-			{ "send_log", this->m_settings->get<bool>( "send_log", false ) },
-			{ "send_log_level", this->m_settings->get<int>( "send_log_level", Logger::resolveLogLevel( Logger::LogLevel::ERROR ) ) }
-		} );
 	};
 
 	void Text::stop() {
 #ifdef _DEBUG
 		assert( this->m_enabled && "Device needs to be enabled while being stopped." );
 #endif // _DEBUG
-		Logger::removeReceiver( std::static_pointer_cast<Text>( Device::shared_from_this() ) );
 		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
 			return task_.data == this;
 		} );
@@ -131,13 +122,6 @@ namespace micasa {
 		if ( this->m_settings->contains( "rate_limit" ) ) {
 			result["rate_limit"] = this->m_settings->get<double>( "rate_limit" );
 		}
-		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & UpdateSource::SYSTEM ) == UpdateSource::SYSTEM ) {
-			bool sendLog = this->m_settings->get<bool>( "send_log", false );
-			result["send_log"] = sendLog;
-			if ( sendLog ) {
-				result["send_log_level"] = this->m_settings->get<int>( "send_log_level", Logger::resolveLogLevel( Logger::LogLevel::ERROR ) );
-			}
-		}
 
 		for ( auto const& plugin : g_controller->getAllPlugins() ) {
 			plugin->updateDeviceJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
@@ -152,6 +136,7 @@ namespace micasa {
 			json setting = {
 				{ "name", "subtype" },
 				{ "label", "SubType" },
+				{ "mandatory", true },
 				{ "type", "list" },
 				{ "options", json::array() },
 				{ "class", this->m_settings->contains( "subtype" ) ? "advanced" : "normal" },
@@ -186,55 +171,11 @@ namespace micasa {
 			{ "sort", 998 }
 		};
 
-		if ( ( this->m_settings->get<Device::UpdateSource>( DEVICE_SETTING_ALLOWED_UPDATE_SOURCES ) & UpdateSource::SYSTEM ) == UpdateSource::SYSTEM ) {
-			result += {
-				{ "name", "send_log" },
-				{ "label", "Send Log" },
-				{ "description", "If enabled, system warnings and errors will be send to this text device." },
-				{ "type", "boolean" },
-				{ "class", "advanced" },
-				{ "sort", 999 },
-				{ "settings", {
-					{
-						{ "name", "send_log_level" },
-						{ "label", "Log Level" },
-						{ "type", "list" },
-						{ "mandatory", true },
-						{ "default", Logger::resolveLogLevel( Logger::LogLevel::ERROR ) },
-						{ "options", {
-							{
-								{ "value", Logger::resolveLogLevel( Logger::LogLevel::ERROR ) },
-								{ "label", "Errors" },
-							},
-							{
-								{ "value", Logger::resolveLogLevel( Logger::LogLevel::WARNING ) },
-								{ "label", "Errors and warnings" },
-							},
-							{
-								{ "value", Logger::resolveLogLevel( Logger::LogLevel::NOTICE ) },
-								{ "label", "Errors, warnings and scripts" },
-							}
-						} }
-					}
-				} }
-			};
-		}
-
 		for ( auto const& plugin : g_controller->getAllPlugins() ) {
 			plugin->updateDeviceSettingsJson( Device::shared_from_this(), result, plugin == this->getPlugin() );
 		}
 
 		return result;
-	};
-
-	void Text::putSettingsJson( const nlohmann::json& settings_ ) {
-		Logger::removeReceiver( std::static_pointer_cast<Text>( Device::shared_from_this() ) );
-		if ( jsonGet<bool>( settings_, "send_log" ) ) {
-			Logger::addReceiver(
-				std::static_pointer_cast<Text>( Device::shared_from_this() ),
-				Logger::resolveLogLevel( jsonGet<int>( settings_, "send_log_level" ) )
-			);
-		}
 	};
 
 	json Text::getData( unsigned int range_, const std::string& interval_ ) const {
@@ -257,42 +198,6 @@ namespace micasa {
 			range_,
 			interval.c_str()
 		);
-	};
-
-	void Text::log( const Logger::LogLevel& logLevel_, const std::string& message_ ) {
-		auto task = this->m_logger.task.lock();
-		if ( ! task ) {
-			this->m_logger.task = this->m_scheduler.schedule( SCHEDULER_INTERVAL_1MIN, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
-				if ( this->m_logger.repeated > 0 ) {
-					this->m_scheduler.schedule( 0, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
-						this->updateValue( UpdateSource::SYSTEM, "Last message was repeated " + std::to_string( this->m_logger.repeated ) + " times." );
-					} );
-				}
-				this->m_logger.last = "";
-				this->m_logger.repeated = 0;
-			} );
-		}
-		if ( message_ == this->m_logger.last ) {
-			this->m_logger.repeated++;
-			return;
-		}
-		unsigned int delay = 0;
-		if ( task ) {
-			this->m_scheduler.proceed( 0, task );
-			task->complete();
-			delay = 100;
-		}
-		this->m_logger.last = message_;
-
-		this->m_scheduler.schedule( delay, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
-			if ( logLevel_ == Logger::LogLevel::ERROR ) {
-				this->updateValue( UpdateSource::SYSTEM, "Error: " + message_ );
-			} else if ( logLevel_ == Logger::LogLevel::WARNING ) {
-				this->updateValue( UpdateSource::SYSTEM, "Warning: " + message_ );
-			} else if ( logLevel_ == Logger::LogLevel::NOTICE ) {
-				this->updateValue( UpdateSource::SYSTEM, "Notice: " + message_ );
-			}
-		} );
 	};
 
 	void Text::_processValue( const Device::UpdateSource& source_, const t_value& value_ ) {

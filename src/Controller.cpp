@@ -636,7 +636,7 @@ namespace micasa {
 	};
 #endif // _WITH_LIBUDEV
 
-	template<class D> void Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ ) {
+	template<class D> void Controller::_processTask( const std::shared_ptr<D> device_, const typename D::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ ) {
 		if ( options_.clear ) {
 			this->m_scheduler.erase(
 				[device_]( const Scheduler::BaseTask& task_ ) -> bool {
@@ -687,12 +687,12 @@ namespace micasa {
 			}
 		} );
 	};
-	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template void Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
-	template void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value& value_, const Device::UpdateSource& source_, const TaskOptions& options_ );
+	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
+	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
+	template void Controller::_processTask( const std::shared_ptr<Text> device_, const typename Text::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
+	template void Controller::_processTask( const std::shared_ptr<Switch> device_, const typename Switch::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
 
-	void Controller::_runScripts( const std::string& key_, const json& data_, const std::vector<std::map<std::string, std::string>>& scripts_ ) {
+	void Controller::_runScripts( const std::string key_, const json data_, const std::vector<std::map<std::string, std::string>> scripts_ ) {
 		this->m_scheduler.schedule( 0, 1, this, [this,key_,data_,scripts_]( std::shared_ptr<Scheduler::Task<>> ) {
 			std::lock_guard<std::mutex> jsLock( this->m_jsMutex );
 

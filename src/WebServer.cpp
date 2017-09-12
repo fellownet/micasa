@@ -2130,6 +2130,9 @@ namespace micasa {
 				&& (
 					! (*find).is_string()
 					|| (*find).get<std::string>().size() > 0
+					// Empty list items are allowed, such as Level::Unit::GENERIC. Note however that additional checks
+					// are in place to make sure such an empty list item actually exists.
+					|| type == "list"
 				)
 			) {
 

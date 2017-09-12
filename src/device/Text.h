@@ -7,7 +7,7 @@
 
 namespace micasa {
 
-	class Text final : public Device, public Logger::Receiver {
+	class Text final : public Device {
 
 	public:
 		enum class SubType: unsigned short {
@@ -32,8 +32,6 @@ namespace micasa {
 		Device::Type getType() const override { return Text::type; };
 		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
-		void putSettingsJson( const nlohmann::json& settings_ ) override;
-		void log( const Logger::LogLevel& logLevel_, const std::string& message_ ) override;
 
 	private:
 		t_value m_value;
@@ -44,11 +42,6 @@ namespace micasa {
 			Device::UpdateSource source;
 			std::weak_ptr<Scheduler::Task<>> task;
 		} m_rateLimiter;
-		struct {
-			std::string last;
-			unsigned int repeated;
-			std::weak_ptr<Scheduler::Task<>> task;
-		} m_logger;
 
 		void _processValue( const Device::UpdateSource& source_, const t_value& value_ );
 		void _purgeHistory() const;

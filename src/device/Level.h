@@ -40,6 +40,7 @@ namespace micasa {
 		static const std::map<Unit, std::string> UnitText;
 		ENUM_UTIL_W_TEXT( Unit, UnitText );
 		static const std::map<Unit, std::string> UnitFormat;
+		static const std::map<Level::SubType, std::vector<Level::Unit>> SubTypeUnits;
 
 		typedef double t_value;
 		static const Device::Type type;
@@ -55,6 +56,7 @@ namespace micasa {
 		Device::Type getType() const override { return Level::type; };
 		nlohmann::json getJson() const override;
 		nlohmann::json getSettingsJson() const override;
+		void putSettingsJson( const nlohmann::json& settings_ ) override;
 
 	private:
 		t_value m_value;

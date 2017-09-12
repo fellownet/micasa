@@ -18,13 +18,13 @@
 <div class="form-group" [class.has-error]="! field.valid && ! field.pristine" [hidden]="! showAdvancedSettings && setting.class == 'advanced'">
 	<label for="setting-{{ setting.name }}">{{ setting.label }}<span *ngIf="setting.mandatory" class="mandatory"> *</span></label>
 	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>
-	<select class="form-control" id="setting-{{ setting.name }}" [required]="setting.mandatory" [(ngModel)]="values[setting.name]" name="{{ setting.name }}" #field="ngModel" [registerForm]="form" [registerModel]="field">
+	<select class="form-control" id="setting-{{ setting.name }}" [(ngModel)]="values[setting.name]" name="{{ setting.name }}" #field="ngModel" [registerForm]="form" [registerModel]="field">
 		<option *ngIf="! setting.mandatory" value=""></option>
 		<ng-container *ngIf="setting.options.length <= 15">
-		<option *ngFor="let option of setting.options" value="{{ option.value }}" [selected]="option.value == 'Open'">{{ option.label }}</option>
+		<option *ngFor="let option of setting.options" value="{{ option.value }}">{{ option.label }}</option>
 		</ng-container>
 		<ng-container *ngIf="setting.options.length > 15">
-		<option *ngFor="let option of setting.options | sort:'label'" value="{{ option.value }}" [selected]="option.value == 'Open'">{{ option.label }}</option>
+		<option *ngFor="let option of setting.options | sort:'label'" value="{{ option.value }}">{{ option.label }}</option>
 		</ng-container>
 	</select>
 </div>

@@ -93,9 +93,9 @@
 		<td><span class="label"
 			[class.label-success]="device.value == 'On' || device.value == 'Enabled'"
 			[class.label-danger]="device.value == 'Off' || device.value == 'Disabled'"
-			[class.label-primary]="device.value == 'Stop'"
+			[class.label-primary]="device.value == 'Stop' || device.value == 'Away'"
 			[class.label-warning]="device.value == 'Idle'"
-			[class.label-info]="device.value != 'On' && device.value != 'Enabled' && device.value != 'Off' && device.value != 'Disabled' && device.value != 'Stop' && device.value != 'Idle'"
+			[class.label-info]="device.value != 'On' && device.value != 'Enabled' && device.value != 'Off' && device.value != 'Disabled' && device.value != 'Stop' && device.value != 'Away' && device.value != 'Idle'"
 			>{{ device.value | truncate:15:'&hellip;' }} {{ device.unit }}</span>
 		</td>
 		<td>{{ device.plugin }}</td>

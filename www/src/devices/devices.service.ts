@@ -25,6 +25,7 @@ export class Device {
 	scheduled: boolean;
 	battery_level?: number;
 	signal_strength?: number;
+	options?: string[]; // switch devices
 }
 
 @Injectable()

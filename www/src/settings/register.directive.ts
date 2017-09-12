@@ -26,7 +26,6 @@ export class RegisterFormModelDirective implements OnInit, OnDestroy {
 			!! this._form
 			&& !! this._model
 		) {
-			//this._form.form.registerControl( this._model.name, this._model.control );
 			this._form.addControl( this._model );
 		}
 	};
@@ -36,7 +35,6 @@ export class RegisterFormModelDirective implements OnInit, OnDestroy {
 			!! this._form
 			&& !! this._model
 		) {
-			//this._form.form.registerControl( this._model.name, this._model.control );
 			this._form.removeControl( this._model );
 		}
 

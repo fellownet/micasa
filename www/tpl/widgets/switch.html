@@ -16,7 +16,7 @@
 			<h3 class="box-title click-target" (click)="open()">{{ title }}</h3>
 		</div>
 
-		<div class="box-body no-padding latest" [class.click-target]="! busy" (click)="toggle()">
+		<div class="box-body no-padding latest" [class.click-target]="! busy && data[0].device.options.length <= 2" (click)="toggle()">
 
 	<table class="table">
 	<tbody>
@@ -42,7 +42,12 @@
 					</ng-container>
 				</td>
 			</ng-container>
-			<td>{{ data[0].device.value }}</td>
+			<td *ngIf="data[0].device.options.length <= 2">{{ data[0].device.value }}</td>
+			<td *ngIf="data[0].device.options.length > 2">
+				<div class="btn-group">
+					<button type="button" class="btn btn-secondary" *ngFor="let option of data[0].device.options" [class.active]="option == data[0].device.value" (click)="toggle( option )">{{option}}</button>
+				</div>
+			</td>
 		</tr>
 	</tbody>
 	</table>

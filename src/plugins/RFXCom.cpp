@@ -90,6 +90,9 @@ namespace micasa {
 
 	void RFXCom::stop() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Stopping..." );
+		this->m_scheduler.erase( [this]( const Scheduler::BaseTask& task_ ) {
+			return task_.data == this;
+		} );
 		try {
 			this->m_serial->close();
 		} catch( Serial::SerialException exception_ ) {
@@ -310,67 +313,76 @@ namespace micasa {
 
 			// RFY devices are currently only supprted as manually added devices.
 			if ( "rfy" == rfxType ) {
-				if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
-					auto device = std::static_pointer_cast<Switch>( device_ );
+				auto device = std::static_pointer_cast<Switch>( device_ );
+				Switch::Option value = device->getValueOption();
+				this->m_scheduler.schedule( 0, RFXCOM_BUSY_WAIT_INTERVAL, RFXCOM_BUSY_WAIT_MSEC / RFXCOM_BUSY_WAIT_INTERVAL, this, [this,device,value,source_]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+					if ( this->_queuePendingUpdate( "rfxcom", source_, 0, RFXCOM_BUSY_WAIT_MSEC ) ) {
+						tRBUF packet;
+						packet.RFY.packetlength = sizeof( packet.RFY ) - 1;
+						packet.RFY.packettype = pTypeRFY;
+						packet.RFY.subtype = sTypeRFY;//sTypeRFYext;
+						packet.RFY.id1 = device->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+						packet.RFY.id2 = device->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+						packet.RFY.id3 = device->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+						packet.RFY.unitcode = device->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
 
-					tRBUF packet;
-					packet.RFY.packetlength = sizeof( packet.RFY ) - 1;
-					packet.RFY.packettype = pTypeRFY;
-					packet.RFY.subtype = sTypeRFY;//sTypeRFYext;
+						if ( value == Switch::Option::OPEN ) {
+							packet.RFY.cmnd = rfy_sUp;
+						} else if ( value == Switch::Option::CLOSE ) {
+							packet.RFY.cmnd = rfy_sDown;
+						} else if ( value == Switch::Option::STOP ) {
+							packet.RFY.cmnd = rfy_sStop;
+						} else {
+							Logger::log( Logger::LogLevel::ERROR, this, "Invalid command." );
+							return;
+						}
 
-					packet.RFY.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-					packet.RFY.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-					packet.RFY.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-					packet.RFY.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
-
-					if (
-						device->getValueOption() == Switch::Option::ON
-						|| device->getValueOption() == Switch::Option::OPEN
-					) {
-						packet.RFY.cmnd = rfy_sUp;
-					} else if (
-						device->getValueOption() == Switch::Option::OFF
-						|| device->getValueOption() == Switch::Option::CLOSE
-					) {
-						packet.RFY.cmnd = rfy_sDown;
-					} else if ( device->getValueOption() == Switch::Option::STOP ) {
-						packet.RFY.cmnd = rfy_sStop;
+						this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
+						device->updateValue( source_ | Device::UpdateSource::PLUGIN, value );
+						task_->repeat = 0; // done
+					} else if ( task_->repeat == 0 ) {
+						Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
 					}
-
-					this->m_serial->write( (unsigned char*)&packet, sizeof( packet.RFY ) );
-					return true;
-				} else {
-					Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
-					return false;
-				}
+				} );
+				apply_ = false; // value is applied only after a successfull command
+				return true;
 
 			// Manually added AC devices are actually lighting2 devices with subtype AC.
 			} else if (
 				"lighting2" == rfxType
 				|| "ac" == rfxType
 			) {
-				if ( this->_queuePendingUpdate( "rfxcom", source_, RFXCOM_BUSY_BLOCK_MSEC, RFXCOM_BUSY_WAIT_MSEC ) ) {
-					auto device = std::static_pointer_cast<Switch>( device_ );
+				auto device = std::static_pointer_cast<Switch>( device_ );
+				Switch::Option value = device->getValueOption();
+				this->m_scheduler.schedule( 0, RFXCOM_BUSY_WAIT_INTERVAL, RFXCOM_BUSY_WAIT_MSEC / RFXCOM_BUSY_WAIT_INTERVAL, this, [this,device,value,source_]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+					if ( this->_queuePendingUpdate( "rfxcom", source_, 0, RFXCOM_BUSY_WAIT_MSEC ) ) {
+						tRBUF packet;
+						packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
+						packet.LIGHTING2.packettype = pTypeLighting2;
+						packet.LIGHTING2.subtype = device->getSettings()->get<unsigned int>( "rfx_subtype", sTypeAC );
+						packet.LIGHTING2.id1 = device->getSettings()->get<unsigned int>( "rfx_id1", 0 );
+						packet.LIGHTING2.id2 = device->getSettings()->get<unsigned int>( "rfx_id2", 0 );
+						packet.LIGHTING2.id3 = device->getSettings()->get<unsigned int>( "rfx_id3", 0 );
+						packet.LIGHTING2.id4 = device->getSettings()->get<unsigned int>( "rfx_id4", 0 );
+						packet.LIGHTING2.unitcode = device->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
 
-					tRBUF packet;
-					packet.LIGHTING2.packetlength = sizeof( packet.LIGHTING2 ) - 1;
-					packet.LIGHTING2.packettype = pTypeLighting2;
-					packet.LIGHTING2.subtype = device_->getSettings()->get<unsigned int>( "rfx_subtype", sTypeAC );
+						packet.LIGHTING2.cmnd = (
+							value == Switch::Option::ON
+							|| value == Switch::Option::ENABLED
+							|| value == Switch::Option::ACTIVATE
+							|| value == Switch::Option::TRIGGERED
+							|| value == Switch::Option::START
+						) ? light2_sOn : light2_sOff;
 
-					packet.LIGHTING2.id1 = device_->getSettings()->get<unsigned int>( "rfx_id1", 0 );
-					packet.LIGHTING2.id2 = device_->getSettings()->get<unsigned int>( "rfx_id2", 0 );
-					packet.LIGHTING2.id3 = device_->getSettings()->get<unsigned int>( "rfx_id3", 0 );
-					packet.LIGHTING2.id4 = device_->getSettings()->get<unsigned int>( "rfx_id4", 0 );
-					packet.LIGHTING2.unitcode = device_->getSettings()->get<unsigned int>( "rfx_unitcode", 0 );
-
-					packet.LIGHTING2.cmnd = ( device->getValueOption() == Switch::Option::ON ? light2_sOn : light2_sOff );
-
-					this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
-					return true;
-				} else {
-					Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
-					return false;
-				}
+						this->m_serial->write( (unsigned char*)&packet, sizeof( packet.LIGHTING2 ) );
+						device->updateValue( source_ | Device::UpdateSource::PLUGIN, value );
+						task_->repeat = 0; // done
+					} else if ( task_->repeat == 0 ) {
+						Logger::log( Logger::LogLevel::ERROR, this, "Plugin busy." );
+					}
+				} );
+				apply_ = false; // value is applied only after a successfull command
+				return true;
 			}
 
 			return false;

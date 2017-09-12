@@ -53,7 +53,7 @@ namespace micasa {
 			thread.join();
 		}
 #ifdef _DEBUG
-		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+		std::unique_lock<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 		assert( this->m_tasks.size() == 0 && "All tasks should be purged when ThreadPool is destructed." );
 		assert( this->m_activeTasks.size() == 0 && "All active tasks should be completed when ThreadPool is destructed." );
 		tasksLock.unlock();
@@ -64,13 +64,13 @@ namespace micasa {
 #ifdef _DEBUG
 		assert( this->m_shutdown == false && "Tasks should only be scheduled when scheduler is running." );
 #endif // _DEBUG
-		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		std::lock_guard<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 		this->m_tasks.insert( { task_->time, task_ } );
 		this->_notify( false, [this]() -> void { this->m_continue = true; } );
 	};
 
 	void Scheduler::ThreadPool::erase( Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) {
-		std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+		std::unique_lock<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 
 		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
 			if (
@@ -102,7 +102,7 @@ namespace micasa {
 	};
 
 	auto Scheduler::ThreadPool::first( const Scheduler* scheduler_, BaseTask::t_compareFunc&& func_ ) const -> std::shared_ptr<BaseTask> {
-		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		std::lock_guard<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 		for ( auto& taskIt : this->m_tasks ) {
 			if (
 				taskIt.second->m_scheduler == scheduler_
@@ -115,7 +115,7 @@ namespace micasa {
 	};
 
 	void Scheduler::ThreadPool::proceed( const Scheduler* scheduler_, unsigned long wait_, std::shared_ptr<BaseTask> task_ ) {
-		std::lock_guard<std::mutex> tasksLock( this->m_tasksMutex );
+		std::lock_guard<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 		for ( auto taskIt = this->m_tasks.begin(); taskIt != this->m_tasks.end(); ) {
 			if (
 				taskIt->second->m_scheduler == scheduler_
@@ -133,7 +133,7 @@ namespace micasa {
 
 	void Scheduler::ThreadPool::_loop( unsigned int index_ ) {
 		while( ! this->m_shutdown ) {
-			std::unique_lock<std::mutex> tasksLock( this->m_tasksMutex );
+			std::unique_lock<std::recursive_mutex> tasksLock( this->m_tasksMutex );
 			if (
 				this->m_tasks.size() > 0
 				&& this->m_tasks.begin()->second->time <= system_clock::now()
