@@ -609,8 +609,8 @@ namespace micasa {
 			if ( this->m_client ) {
 				this->_createService( this->m_client );
 			}
-		}
 #endif // _DARWIN
+		}
 	};
 
 #ifdef _DARWIN
