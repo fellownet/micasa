@@ -366,9 +366,9 @@ namespace micasa {
 				break;
 			}
 
+			//case Notification::Type_ValueRefreshed:
 			case Notification::Type_ValueAdded:
-			case Notification::Type_ValueChanged:
-			case Notification::Type_ValueRefreshed: {
+			case Notification::Type_ValueChanged: {
 				ValueID valueId = notification_->GetValueID();
 				this->_processValue( valueId );
 				break;
@@ -451,24 +451,6 @@ namespace micasa {
 		Device::UpdateSource source = Device::UpdateSource::PLUGIN;
 		unsigned int index = valueId_.GetIndex();
 		std::string reference = std::to_string( valueId_.GetId() );
-
-		// OpenZWave has an option to filter out duplicate values, but still it seems that some duplicate values are
-		// received anyhow. This function detects duplicate values (value id's that report the exact same value more
-		// than once within a short period of time).
-		std::string stringValue;
-		Manager::Get()->GetValueAsString( valueId_, &stringValue );
-		bool duplicate;
-		std::string compareValue;
-		if ( this->_releasePendingUpdate( reference + "_df", compareValue ) ) {
-			duplicate = ( stringValue == compareValue );
-		} else {
-			duplicate = false;
-		}
-		this->_queuePendingUpdate( reference + "_df", stringValue, 0, OPEN_ZWAVE_NODE_DUPLICATE_VALUE_FILTER_MSEC );
-		if ( duplicate ) {
-			Logger::log( Logger::LogLevel::DEBUG, this, "Ignoring duplicate value." );
-			return;
-		}
 
 		// Some values are not going to be processed ever and can be filtered out beforehand. NOTE these labels cannot
 		// be changed by the end-user so they're safe to be checked against.

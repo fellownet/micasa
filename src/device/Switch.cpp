@@ -346,7 +346,10 @@ namespace micasa {
 			}
 		}
 		if ( success && apply ) {
-			if ( this->m_enabled ) {
+			if (
+				this->m_enabled
+				&& previous != value_
+			) {
 				g_database->putQuery(
 					"INSERT INTO `device_switch_history` ( `device_id`, `value` ) "
 					"VALUES ( %d, %Q )",
