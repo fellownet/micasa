@@ -1,71 +1,17 @@
-/*
- * Copyright (c) 1997-2007  The Stanford SRP Authentication Project
- * All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
- * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
- * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
- *
- * IN NO EVENT SHALL STANFORD BE LIABLE FOR ANY SPECIAL, INCIDENTAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND, OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER OR NOT ADVISED OF
- * THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF LIABILITY, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- * Redistributions in source or binary form must retain an intact copy
- * of this copyright notice.
- */
-
-#include "t_defines.h"
-
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif /* HAVE_UNISTD_H */
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/time.h>
 
-#ifdef WIN32
-#include <process.h>
-#include <io.h>
-#endif
-
 #include "t_sha.h"
 
-#ifndef NULL
-#define NULL 0
-#endif
-
-#ifdef OPENSSL
 #include <openssl/opensslv.h>
 #include <openssl/rand.h>
-#elif defined(TOMCRYPT)
-#include "tomcrypt.h"
-static prng_state g_rng;
-static unsigned char entropy[32];
-#elif defined(CRYPTOLIB)
-# include "libcrypt.h"
-static unsigned char crpool[64];
-#else
-static unsigned char randpool[SHA_DIGESTSIZE], randout[SHA_DIGESTSIZE];
-static unsigned long randcnt = 0;
-static unsigned int outpos = 0;
-SHACTX randctxt;
-#endif /* OPENSSL */
+
+#define _CDECL
+#define _TYPE(a) a _CDECL
 
 /*
  * t_envhash - Generate a 160-bit SHA hash of the environment
@@ -195,11 +141,7 @@ static void
 t_initrand()
 {
   SHACTX ctxt;
-#ifdef USE_FTIME
-  struct timeb t;
-#else
   struct timeval t;
-#endif
   int i, r=0;
 
   if(initialized)
@@ -207,79 +149,32 @@ t_initrand()
 
   initialized = 1;
 
-#if defined(OPENSSL)	/* OpenSSL has nifty win32 entropy-gathering code */
 #if OPENSSL_VERSION_NUMBER >= 0x00905100
   r = RAND_status();
-#if defined(WINDOWS) || defined(WIN32)
-  if(r)		/* Don't do the Unix-y stuff on Windows if possible */
-    return;
-#else
-#endif
 #endif
 
-#elif defined(TOMCRYPT)
-  yarrow_start(&g_rng);
-  r = rng_get_bytes(entropy, sizeof(entropy), NULL);
-  if(r > 0) {
-    yarrow_add_entropy(entropy, r, &g_rng);
-    memset(entropy, 0, sizeof(entropy));
-# if defined(WINDOWS) || defined(WIN32)
-    /* Don't do the Unix-y stuff on Windows if possible */
-    yarrow_ready(&g_rng);
-    return;
-# endif
-  }
-#endif
-
-#if !defined(WINDOWS) && !defined(WIN32)
   i = open("/dev/urandom", O_RDONLY);
   if(i > 0) {
     r += read(i, preseed.devrand, sizeof(preseed.devrand));
     close(i);
   }
-#endif /* !WINDOWS && !WIN32 */
 
   /* Resort to truerand only if desperate for some Real entropy */
   if(r == 0)
     preseed.trand1 = raw_truerand();
 
-#ifdef USE_FTIME
-  ftime(&t);
-  preseed.sec = t.time;
-  preseed.subsec = t.millitm;
-#else
   gettimeofday(&t, NULL);
   preseed.sec = t.tv_sec;
   preseed.subsec = t.tv_usec;
-#endif
   preseed.pid = getpid();
-#ifndef WIN32
   preseed.ppid = getppid();
-#endif
   t_envhash(preseed.envh);
   t_fshash(preseed.fsh);
 
   if(r == 0)
     preseed.trand2 = raw_truerand();
 
-#ifdef OPENSSL
   RAND_seed((unsigned char *)&preseed, sizeof(preseed));
-#elif defined(TOMCRYPT)
-  yarrow_add_entropy((unsigned char *)&preseed, sizeof(preseed), &g_rng);
-  yarrow_ready(&g_rng);
-#elif defined(CRYPTOLIB)
-  t_mgf1(crpool, sizeof(crpool), (unsigned char *) &preseed, sizeof(preseed));
-  seedDesRandom(crpool, sizeof(crpool));
-  memset(crpool, 0, sizeof(crpool));
-#elif defined(GCRYPT)
-  gcry_random_add_bytes((unsigned char *)&preseed, sizeof(preseed), -1);
-#else
-  SHAInit(&ctxt);
-  SHAUpdate(&ctxt, (unsigned char *) &preseed, sizeof(preseed));
-  SHAFinal(randpool, &ctxt);
-  memset((unsigned char *) &ctxt, 0, sizeof(ctxt));
-  outpos = 0;
-#endif /* OPENSSL */
   memset((unsigned char *) &preseed, 0, sizeof(preseed));
 }
 
@@ -328,39 +223,7 @@ t_random(data, size)
   if(size <= 0)		/* t_random(NULL, 0) forces seed initialization */
     return;
 
-#ifdef OPENSSL
   RAND_bytes(data, size);
-#elif defined(TOMCRYPT)
-  yarrow_read(data, size, &g_rng);
-#elif defined(GCRYPT)
-  gcry_randomize(data, size, GCRY_STRONG_RANDOM);
-#elif defined(CRYPTOLIB)
-  randomBytes(data, size, PSEUDO);
-#else
-  while(size > outpos) {
-    if(outpos > 0) {
-      memcpy(data, randout + (sizeof(randout) - outpos), outpos);
-      data += outpos;
-      size -= outpos;
-    }
-
-    /* Recycle */
-    SHAInit(&randctxt);
-    SHAUpdate(&randctxt, randpool, sizeof(randpool));
-    SHAFinal(randout, &randctxt);
-    SHAInit(&randctxt);
-    SHAUpdate(&randctxt, (unsigned char *) &randcnt, sizeof(randcnt));
-    SHAUpdate(&randctxt, randpool, sizeof(randpool));
-    SHAFinal(randpool, &randctxt);
-    ++randcnt;
-    outpos = sizeof(randout);
-  }
-
-  if(size > 0) {
-    memcpy(data, randout + (sizeof(randout) - outpos), size);
-    outpos -= size;
-  }
-#endif
 }
 
 /*

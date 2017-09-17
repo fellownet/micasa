@@ -1,11 +1,6 @@
-// A Particle library for TLV encoding, for use with Apple's HomeKit.
-// Copyright (c) 2017, mobile flow llc.
-// https://github.com/moflo/tlv8-particle
-
 #include "tlv8.h"
 
-#define MAX_ITEM_SIZE 0xff
-
+#define MAX_ITEM_SIZE 0xFF
 
 TLV8Class::TLV8Class()
 {

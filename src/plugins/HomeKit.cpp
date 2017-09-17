@@ -181,6 +181,7 @@ namespace micasa {
 		if ( this->m_srp ) {
 			SRP_free( this->m_srp );
 		}
+		SRP_finalize_library();
 	}
 
 	void HomeKit::start() {

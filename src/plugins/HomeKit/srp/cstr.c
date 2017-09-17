@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
 #include "cstr.h"
 
 #define EXPFACTOR	2		/* Minimum expansion factor */
@@ -21,7 +20,7 @@ static void * Cmalloc(int n, void * heap) { return malloc(n); }
 static void Cfree(void * p, void * heap) { free(p); }
 static cstr_allocator malloc_allocator = { Cmalloc, Cfree, NULL };
 #else
-static cstr_allocator malloc_allocator = { malloc, free, NULL };
+static cstr_allocator malloc_allocator = { (void*)malloc, (void*)free, NULL };
 #endif
 
 _TYPE( void )
