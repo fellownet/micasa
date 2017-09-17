@@ -1,9 +1,8 @@
 /*
  *	Physically random numbers (very nearly uniform)
- *	D. P. Mitchell 
+ *	D. P. Mitchell
  *	Modified by Matt Blaze 7/95
- */
-/*
+ *
  * The authors of this software are Don Mitchell and Matt Blaze.
  *              Copyright (c) 1995 by AT&T.
  * Permission to use, copy, and modify this software without fee
@@ -52,97 +51,13 @@
  *
  */
 
-#include "t_defines.h"
-
-#ifdef WIN32
-
-# ifdef CRYPTOLIB
-
-/* Cryptolib contains its own truerand() on both UNIX and Windows. */
-/* Only use cryptolib's truerand under Windows */
-
-#  include "libcrypt.h"
-
-unsigned long
-raw_truerand()
-{
-	return truerand();
-}
-
-# else /* !CRYPTOLIB && WIN32 */
-
-#include <wtypes.h>
-#include <winbase.h>
-#include <windef.h>
-#include <winnt.h>
-#include <winuser.h>
-#include <process.h>
-
-volatile unsigned long count, ocount, randbuf;
-volatile int dontstop;
-char outbuf[1024], *bufp;
-
-static void counter() {
-	while (dontstop)
-		count++;
-	_endthread();
-}
-
-
-static unsigned long roulette() {
-	unsigned long thread;
-
-	count = 0;
-	dontstop= 1;
-	while ((thread = _beginthread((void *)counter, 1024, NULL)) < 0)
-		;
-
-	Sleep(16);
-	dontstop = 0;
-	Sleep(1);
-
-	count ^= (count>>3) ^ (count>>6) ^ (ocount);
-	count &= 0x7;
-	ocount = count;
-	randbuf = (randbuf<<3) ^ count;
-	return randbuf;
-}
-
-
-unsigned long
-raw_truerand() {
-
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	roulette();
-	return roulette();
-}
-
-# endif /* CRYPTOLIB */
-
-#else /* !WIN32 */
-
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/time.h>
 #include <math.h>
 #include <stdio.h>
 
-#ifdef OLD_TRUERAND
-static jmp_buf env;
-#endif
-static unsigned volatile count
-#ifndef OLD_TRUERAND
-  , done = 0
-#endif
-;
+static unsigned volatile count, done = 0;
 
 static unsigned ocount;
 static unsigned buffer;
@@ -165,12 +80,8 @@ static void
 interrupt()
 {
 	if (count) {
-#ifdef OLD_TRUERAND
-		longjmp(env, 1);
-#else
 		++done;
 		return;
-#endif
 	}
 
 	(void) signal(SIGALRM, interrupt);
@@ -180,33 +91,17 @@ interrupt()
 static unsigned long
 roulette()
 {
-#ifdef OLD_TRUERAND
-	if (setjmp(env)) {
-		count ^= (count>>3) ^ (count>>6) ^ ocount;
-		count &= 0x7;
-		ocount=count;
-		buffer = (buffer<<3) ^ count;
-		return buffer;
-	}
-#else
 	done = 0;
-#endif
 	(void) signal(SIGALRM, interrupt);
 	count = 0;
 	tick();
-#ifdef OLD_TRUERAND
-	for (;;)
-#else
 	while(done == 0)
-#endif
 		count++;	/* about 1 MHz on VAX 11/780 */
-#ifndef OLD_TRUERAND
 	count ^= (count>>3) ^ (count>>6) ^ ocount;
 	count &= 0x7;
 	ocount=count;
 	buffer = (buffer<<3) ^ count;
 	return buffer;
-#endif
 }
 
 unsigned long
@@ -239,4 +134,3 @@ int n;
 	return v % n;
 }
 
-#endif /* !CRYPTOLIB || !WIN32 */

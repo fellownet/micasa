@@ -1,59 +1,8 @@
-/* Copyright 2008, Google Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * curve25519-donna: Curve25519 elliptic curve, public key function
- *
- * http://code.google.com/p/curve25519-donna/
- *
- * Adam Langley <agl@imperialviolet.org>
- *
- * Derived from public domain C code by Daniel J. Bernstein <djb@cr.yp.to>
- *
- * More information about curve25519 can be found here
- *   http://cr.yp.to/ecdh.html
- *
- * djb's sample implementation of curve25519 is written in a special assembly
- * language called qhasm and uses the floating point registers.
- *
- * This is, almost, a clean room reimplementation from the curve25519 paper. It
- * uses many of the tricks described therein. Only the crecip function is taken
- * from the sample implementation.
- */
-
 #include <string.h>
 #include <stdint.h>
 
-#ifdef _MSC_VER
-#define inline __inline
-#endif
+#include "curve25519-donna.h"
 
-typedef uint8_t u8;
 typedef int32_t s32;
 typedef int64_t limb;
 
@@ -278,14 +227,14 @@ div_s32_by_2_25(const s32 v)
  */
 static void freduce_coefficients(limb *output) {
 	unsigned i;
-	
+
 	output[10] = 0;
-	
+
 	for (i = 0; i < 10; i += 2) {
 		limb over = div_by_2_26(output[i]);
 		output[i] -= over << 26;
 		output[i+1] += over;
-		
+
 		over = div_by_2_25(output[i+1]);
 		output[i+1] -= over << 25;
 		output[i+2] += over;
@@ -294,9 +243,9 @@ static void freduce_coefficients(limb *output) {
 	output[0] += output[10] << 4;
 	output[0] += output[10] << 1;
 	output[0] += output[10];
-	
+
 	output[10] = 0;
-	
+
 	/* Now output[1..9] are reduced, and |output[0]| < 2^26 + 19 * 2^38
 	 * So |over| will be no more than 77825  */
 	{
@@ -304,7 +253,7 @@ static void freduce_coefficients(limb *output) {
 		output[0] -= over << 26;
 		output[1] += over;
 	}
-	
+
 	/* Now output[0,2..9] are reduced, and |output[1]| < 2^25 + 77825
 	 * So |over| will be no more than 1. */
 	{
@@ -313,7 +262,7 @@ static void freduce_coefficients(limb *output) {
 		output[1] -= over32 << 25;
 		output[2] += over32;
 	}
-	
+
 	/* Finally, output[0,1,3..9] are reduced, and output[2] is "nearly reduced":
 	 * we have |output[2]| <= 2^26.  This is good enough for all of our math,
 	 * but it will require an extra freduce_coefficients before fcontract. */
@@ -432,7 +381,7 @@ static void
 fcontract(u8 *output, limb *input) {
 	int i;
 	int j;
-	
+
 	for (j = 0; j < 2; ++j) {
 		for (i = 0; i < 9; ++i) {
 			if ((i & 1) == 1) {
@@ -457,10 +406,10 @@ fcontract(u8 *output, limb *input) {
 			input[0] = (s32)(input[0]) - (carry * 19);
 		}
 	}
-	
+
 	/* The first borrow-propagation pass above ended with every limb
      except (possibly) input[0] non-negative.
-	 
+
      Since each input limb except input[0] is decreased by at most 1
      by a borrow-propagation pass, the second borrow-propagation pass
      could only have wrapped around to decrease input[0] again if the
@@ -474,12 +423,12 @@ fcontract(u8 *output, limb *input) {
 		input[0] = (s32)(input[0]) + (carry << 26);
 		input[1] = (s32)(input[1]) - carry;
 	}
-	
+
 	/* Both passes through the above loop, plus the last 0-to-1 step, are
      necessary: if input[9] is -1 and input[0] through input[8] are 0,
      negative values will remain in the array until the end.
 	 */
-	
+
 	input[1] <<= 2;
 	input[2] <<= 3;
 	input[3] <<= 5;
@@ -524,11 +473,11 @@ static void fmonty(limb *x2, limb *z2,  /* output 2Q */
                    const limb *qmqp /* input Q - Q' */) {
 	limb origx[10], origxprime[10], zzz[19], xx[19], zz[19], xxprime[19],
 	zzprime[19], zzzprime[19], xxxprime[19];
-	
+
 	memcpy(origx, x, 10 * sizeof(limb));
 	fsum(x, z);
 	fdifference(z, origx);  // does x - z
-	
+
 	memcpy(origxprime, xprime, sizeof(limb) * 10);
 	fsum(xprime, zprime);
 	fdifference(zprime, origxprime);
@@ -548,7 +497,7 @@ static void fmonty(limb *x2, limb *z2,  /* output 2Q */
 	freduce_coefficients(zzprime);
 	memcpy(x3, xxxprime, sizeof(limb) * 10);
 	memcpy(z3, zzprime, sizeof(limb) * 10);
-	
+
 	fsquare(xx, x);
 	fsquare(zz, z);
 	fproduct(x2, xx, zz);
@@ -580,7 +529,7 @@ static void
 swap_conditional(limb a[19], limb b[19], limb iswap) {
 	unsigned i;
 	const s32 swap = (s32) -iswap;
-	
+
 	for (i = 0; i < 10; ++i) {
 		const s32 x = swap & ( ((s32)a[i]) ^ ((s32)b[i]) );
 		a[i] = ((s32)a[i]) ^ x;
@@ -600,16 +549,16 @@ cmult(limb *resultx, limb *resultz, const u8 *n, const limb *q) {
 	limb *nqpqx = a, *nqpqz = b, *nqx = c, *nqz = d, *t;
 	limb e[19] = {0}, f[19] = {1}, g[19] = {0}, h[19] = {1};
 	limb *nqpqx2 = e, *nqpqz2 = f, *nqx2 = g, *nqz2 = h;
-	
+
 	unsigned i, j;
-	
+
 	memcpy(nqpqx, q, sizeof(limb) * 10);
-	
+
 	for (i = 0; i < 32; ++i) {
 		u8 byte = n[31 - i];
 		for (j = 0; j < 8; ++j) {
 			const limb bit = byte >> 7;
-			
+
 			swap_conditional(nqx, nqpqx, bit);
 			swap_conditional(nqz, nqpqz, bit);
 			fmonty(nqx2, nqz2,
@@ -619,7 +568,7 @@ cmult(limb *resultx, limb *resultz, const u8 *n, const limb *q) {
 				   q);
 			swap_conditional(nqx2, nqpqx2, bit);
 			swap_conditional(nqz2, nqpqz2, bit);
-			
+
 			t = nqx;
 			nqx = nqx2;
 			nqx2 = t;
@@ -632,11 +581,11 @@ cmult(limb *resultx, limb *resultz, const u8 *n, const limb *q) {
 			t = nqpqz;
 			nqpqz = nqpqz2;
 			nqpqz2 = t;
-			
+
 			byte <<= 1;
 		}
 	}
-	
+
 	memcpy(resultx, nqx, sizeof(limb) * 10);
 	memcpy(resultz, nqz, sizeof(limb) * 10);
 }
@@ -657,7 +606,7 @@ crecip(limb *out, const limb *z) {
 	limb t0[10];
 	limb t1[10];
 	int i;
-	
+
 	/* 2 */ fsquare(z2,z);
 	/* 4 */ fsquare(t1,z2);
 	/* 8 */ fsquare(t0,t1);
@@ -665,44 +614,44 @@ crecip(limb *out, const limb *z) {
 	/* 11 */ fmul(z11,z9,z2);
 	/* 22 */ fsquare(t0,z11);
 	/* 2^5 - 2^0 = 31 */ fmul(z2_5_0,t0,z9);
-	
+
 	/* 2^6 - 2^1 */ fsquare(t0,z2_5_0);
 	/* 2^7 - 2^2 */ fsquare(t1,t0);
 	/* 2^8 - 2^3 */ fsquare(t0,t1);
 	/* 2^9 - 2^4 */ fsquare(t1,t0);
 	/* 2^10 - 2^5 */ fsquare(t0,t1);
 	/* 2^10 - 2^0 */ fmul(z2_10_0,t0,z2_5_0);
-	
+
 	/* 2^11 - 2^1 */ fsquare(t0,z2_10_0);
 	/* 2^12 - 2^2 */ fsquare(t1,t0);
 	/* 2^20 - 2^10 */ for (i = 2;i < 10;i += 2) { fsquare(t0,t1); fsquare(t1,t0); }
 	/* 2^20 - 2^0 */ fmul(z2_20_0,t1,z2_10_0);
-	
+
 	/* 2^21 - 2^1 */ fsquare(t0,z2_20_0);
 	/* 2^22 - 2^2 */ fsquare(t1,t0);
 	/* 2^40 - 2^20 */ for (i = 2;i < 20;i += 2) { fsquare(t0,t1); fsquare(t1,t0); }
 	/* 2^40 - 2^0 */ fmul(t0,t1,z2_20_0);
-	
+
 	/* 2^41 - 2^1 */ fsquare(t1,t0);
 	/* 2^42 - 2^2 */ fsquare(t0,t1);
 	/* 2^50 - 2^10 */ for (i = 2;i < 10;i += 2) { fsquare(t1,t0); fsquare(t0,t1); }
 	/* 2^50 - 2^0 */ fmul(z2_50_0,t0,z2_10_0);
-	
+
 	/* 2^51 - 2^1 */ fsquare(t0,z2_50_0);
 	/* 2^52 - 2^2 */ fsquare(t1,t0);
 	/* 2^100 - 2^50 */ for (i = 2;i < 50;i += 2) { fsquare(t0,t1); fsquare(t1,t0); }
 	/* 2^100 - 2^0 */ fmul(z2_100_0,t1,z2_50_0);
-	
+
 	/* 2^101 - 2^1 */ fsquare(t1,z2_100_0);
 	/* 2^102 - 2^2 */ fsquare(t0,t1);
 	/* 2^200 - 2^100 */ for (i = 2;i < 100;i += 2) { fsquare(t1,t0); fsquare(t0,t1); }
 	/* 2^200 - 2^0 */ fmul(t1,t0,z2_100_0);
-	
+
 	/* 2^201 - 2^1 */ fsquare(t0,t1);
 	/* 2^202 - 2^2 */ fsquare(t1,t0);
 	/* 2^250 - 2^50 */ for (i = 2;i < 50;i += 2) { fsquare(t0,t1); fsquare(t1,t0); }
 	/* 2^250 - 2^0 */ fmul(t0,t1,z2_50_0);
-	
+
 	/* 2^251 - 2^1 */ fsquare(t1,t0);
 	/* 2^252 - 2^2 */ fsquare(t0,t1);
 	/* 2^253 - 2^3 */ fsquare(t1,t0);
@@ -718,12 +667,12 @@ curve25519_donna(u8 *mypublic, const u8 *secret, const u8 *basepoint) {
 	limb bp[10], x[10], z[11], zmone[10];
 	uint8_t e[32];
 	int i;
-	
+
 	for (i = 0; i < 32; ++i) e[i] = secret[i];
 	e[0] &= 248;
 	e[31] &= 127;
 	e[31] |= 64;
-	
+
 	fexpand(bp, basepoint);
 	cmult(x, z, e, bp);
 	crecip(zmone, z);

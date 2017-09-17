@@ -195,16 +195,14 @@ if( WITH_HOMEKIT )
 		src/plugins/HomeKit/srp/cstr.c
 		src/plugins/HomeKit/srp/srp.c
 		src/plugins/HomeKit/srp/srp6_server.c
-		src/plugins/HomeKit/srp/t_conf.c
-		src/plugins/HomeKit/srp/t_conv.c
 		src/plugins/HomeKit/srp/t_math.c
 		src/plugins/HomeKit/srp/t_misc.c
-		src/plugins/HomeKit/srp/t_pw.c
 		src/plugins/HomeKit/srp/t_read.c
 		src/plugins/HomeKit/srp/t_truerand.c
 		src/plugins/HomeKit/hkdf/hkdf.c
 		src/plugins/HomeKit/chacha20/chacha20_simple.c
 		src/plugins/HomeKit/poly1305/poly1305.c
+		src/plugins/HomeKit/ed25519/ed25519-donna.c
 		src/plugins/HomeKit/ed25519/ed25519.c
 		src/plugins/HomeKit/curve25519/curve25519-donna.c
 
@@ -237,7 +235,7 @@ add_definitions( -DV7_ENABLE_FILE -DDISABLE_MD5 )
 #
 # Set compiler options.
 #
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -std=c++11" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -Wno-psabi -std=c++11" )
 if( NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin" )
 	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread" )
 else()

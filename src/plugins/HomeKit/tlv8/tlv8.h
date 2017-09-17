@@ -1,27 +1,13 @@
-// A Particle library for TLV encoding, for use with Apple's HomeKit.
-// Copyright (c) 2017, mobile flow llc.
-// https://github.com/moflo/tlv8-particle
-
-#ifndef _INCL_TLV8
-#define _INCL_TLV8
-
-#if defined(PARTICLE)
-#   include "application.h"
-#endif
+#pragma once
 
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+#define  TLV8_MAP_SIZE 8
 
-// using namespace std;
-
-
-#define  TLV8_MAP_SIZE       8
-
-typedef struct tlv
-{
+typedef struct tlv {
     int8_t type;    // type
     uint8_t * data; // pointer to data
     int16_t size;   // size of data
@@ -37,12 +23,9 @@ typedef struct tlv
         size = s;
         data = (uint8_t *)malloc(s); data = (uint8_t *)memcpy(data,d,s);
     };
-
-
 } tlv_t;
 
-typedef struct tlv_map
-{
+typedef struct tlv_map {
     struct tlv object[ TLV8_MAP_SIZE ];
     uint8_t count; // keep track of tlv elements used
 
@@ -55,15 +38,12 @@ typedef struct tlv_map
 } tlv_map_t;
 
 typedef enum tlv_result {
-
     TLV_SUCESS = 0,
     TLV_ERROR_NULL,
     TLV_ERROR_MAX_LIMIT
-
 } tlv_result_t;
 
-class TLV8Class
-{
+class TLV8Class {
 private:
     uint8_t*     _buffer;
 
@@ -80,8 +60,4 @@ public:
 	tlv_t        getTLVAtIndex(tlv_map_t map, uint8_t index);
 	tlv_t        getTLVByType(tlv_map_t map, uint8_t type);
     tlv_result_t TLVFree(tlv_map_t * map);
-
 };
-
-
-#endif

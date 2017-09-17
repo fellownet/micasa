@@ -1,9 +1,3 @@
-/**************************** hkdf.c ***************************/
-/***************** See RFC 6234 for details. *******************/
-/* Copyright (c) 2011 IETF Trust and the persons identified as */
-/* authors of the code.  All rights reserved.                  */
-/* See sha.h for terms of use and redistribution.              */
-
 /*
  *  Description:
  *      This file implements the HKDF algorithm (HMAC-based
@@ -271,6 +265,7 @@ int hkdfInput(HKDFContext *context, const unsigned char *ikm,
  * Returns:
  *   sha Error Code.
  */
+/*
 int hkdfFinalBits(HKDFContext *context, uint8_t ikm_bits,
                   unsigned int ikm_bit_count)
 {
@@ -279,6 +274,7 @@ int hkdfFinalBits(HKDFContext *context, uint8_t ikm_bits,
   if (context->Computed) return context->Corrupted = shaStateError;
   return hmacFinalBits(&context->hmacContext, ikm_bits, ikm_bit_count);
 }
+*/
 
 /*
  * hkdfResult
@@ -330,6 +326,7 @@ int hkdfResult(HKDFContext *context,
   context->Computed = 1;
   return context->Corrupted = ret;
 }
+
 
 /*
  *  hmac
@@ -504,16 +501,16 @@ int hmacInput(HMACContext *context, const unsigned char *text,
  * Returns:
  *   sha Error Code.
  */
-int hmacFinalBits(HMACContext *context,
-    uint8_t bits, unsigned int bit_count)
-{
-  if (!context) return shaNull;
-  if (context->Corrupted) return context->Corrupted;
-  if (context->Computed) return context->Corrupted = shaStateError;
-  /* then final bits of datagram */
-  return context->Corrupted =
-    SHA512FinalBits(&context->shaContext, bits, bit_count);
-}
+//int hmacFinalBits(HMACContext *context,
+//    uint8_t bits, unsigned int bit_count)
+//{
+//  if (!context) return shaNull;
+//  if (context->Corrupted) return context->Corrupted;
+//  if (context->Computed) return context->Corrupted = shaStateError;
+//  /* then final bits of datagram */
+//  return context->Corrupted =
+//    SHA512FinalBits(&context->shaContext, bits, bit_count);
+//}
 
 /*
  * hmacResult
