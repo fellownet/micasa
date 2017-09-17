@@ -125,6 +125,7 @@ namespace micasa {
 		result["id"] = this->m_id;
 		result["label"] = this->getLabel();
 		result["name"] = this->getName();
+		result["comments"] = this->getSettings()->get( "comments", "" );
 		result["enabled"] = this->isEnabled();
 		result["plugin"] = this->getPlugin()->getName();
 		result["plugin_id"] = this->getPlugin()->getId();
@@ -176,11 +177,18 @@ namespace micasa {
 			{ "sort", 1 }
 		};
 		result += {
+			{ "name", "comments" },
+			{ "label", "Comments" },
+			{ "type", "text" },
+			{ "mandatory", false },
+			{ "sort", 2 }
+		};
+		result += {
 			{ "name", "enabled" },
 			{ "label", "Enabled" },
 			{ "type", "boolean" },
 			{ "default", true },
-			{ "sort", 2 }
+			{ "sort", 3 }
 		};
 		result += {
 			{ "name", "ignore_duplicates" },
@@ -189,7 +197,7 @@ namespace micasa {
 			{ "type", "boolean" },
 			{ "class", "advanced" },
 			{ "default", this->getType() == Device::Type::SWITCH || this->getType() == Device::Type::TEXT },
-			{ "sort", 3 }
+			{ "sort", 4 }
 		};
 
 		json scriptOptions = json::array();

@@ -93,11 +93,8 @@ namespace micasa {
 	void WebServer::start() {
 		Logger::log( Logger::LogLevel::VERBOSE, this, "Starting..." );
 
-		// Micasa only runs over HTTPS which requires a keys and certificate file. These are read and/or stored in the
-		// userdata folder. Webtokens / authentication is also encrypted using the same keys.
-		// http://stackoverflow.com/questions/256405/programmatically-create-x509-certificate-using-openssl
-
 #ifdef _WITH_OPENSSL
+		// http://stackoverflow.com/questions/256405/programmatically-create-x509-certificate-using-openssl
 		if ( this->m_sslport > 0 ) {
 			if (
 				access( ( std::string( _DATADIR ) + "/key.pem" ).c_str(), F_OK ) != 0
@@ -106,12 +103,18 @@ namespace micasa {
 				Logger::log( Logger::LogLevel::NORMAL, this, "Generating SSL key and certificate." );
 
 				EVP_PKEY* key = EVP_PKEY_new();
-				RSA* rsa = RSA_generate_key(
-					2048,   // number of bits for the key
-					RSA_F4, // exponent
-					NULL,   // callback - can be NULL if we aren't displaying progress
-					NULL    // callback argument - not needed in this case
+
+				RSA* rsa = NULL;
+				BIGNUM* e = BN_new();
+				BN_set_word( e, RSA_F4 );
+				RSA_generate_key_ex(
+					rsa,
+					2048, // number of bits for the key
+					e,    // exponent
+					NULL
 				);
+				BN_free( e );
+
 				if ( ! rsa ) {
 					throw std::runtime_error( "unable to generate 2048-bit RSA key" );
 				}
@@ -2280,6 +2283,7 @@ namespace micasa {
 
 					} else if (
 						type == "string"
+						|| type == "text"
 						|| type == "password"
 					) {
 

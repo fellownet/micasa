@@ -368,7 +368,10 @@ namespace micasa {
 			}
 		}
 		if ( success && apply ) {
-			if ( this->m_enabled ) {
+			if (
+				this->m_enabled
+				&& previous != value_
+			) {
 				std::string date = "strftime( '%Y-%m-%d %H:', datetime( 'now' ) ) || CASE WHEN CAST( strftime( '%M',  datetime( 'now' ) ) AS INTEGER ) < 10 THEN '0' ELSE '' END || CAST( CAST( strftime( '%M', datetime( 'now' ) ) AS INTEGER ) / 5 * 5 AS TEXT ) || ':00'";
 
 				g_database->putQuery(

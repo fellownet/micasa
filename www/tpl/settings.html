@@ -8,6 +8,12 @@
 	<input type="text" class="form-control" id="setting-{{ setting.name }}" placeholder="{{ setting.placeholder || setting.label }}" autocomplete="off" autocorrect="off" autocapitalize="none" [required]="setting.mandatory" [(ngModel)]="values[setting.name]" name="{{setting.name}}" #field="ngModel" [registerForm]="form" [registerModel]="field">
 </div>
 
+<div class="form-group" *ngSwitchCase="'text'" [class.has-error]="! field.valid && ! field.pristine" [hidden]="! showAdvancedSettings && setting.class == 'advanced'">
+	<label for="setting-{{ setting.name }}">{{ setting.label }}<span *ngIf="setting.mandatory" class="mandatory"> *</span></label>
+	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>
+	<textarea class="form-control" id="setting-{{ setting.name }}" placeholder="{{ setting.placeholder || setting.label }}" autocomplete="off" autocorrect="off" autocapitalize="none" [required]="setting.mandatory" [(ngModel)]="values[setting.name]" name="{{setting.name}}" #field="ngModel" [registerForm]="form" [registerModel]="field"></textarea>
+</div>
+
 <div class="form-group" *ngSwitchCase="'password'" [class.has-error]="! field.valid && ! field.pristine" [hidden]="! showAdvancedSettings && setting.class == 'advanced'">
 	<label for="setting-{{ setting.name }}">{{ setting.label }}<span *ngIf="setting.mandatory" class="mandatory"> *</span></label>
 	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>

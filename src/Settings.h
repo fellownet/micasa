@@ -12,7 +12,7 @@
 namespace micasa {
 
 	class SettingValue: public std::string {
-		
+
 	public:
 		SettingValue( const unsigned long& value_ );
 		SettingValue( const long& value_ );
@@ -27,10 +27,10 @@ namespace micasa {
 	typedef std::pair<std::string, SettingValue> Setting;
 
 	template<class T> class SettingsHelper {
-		
+
 	public:
 		SettingsHelper( const T& target_ );
-		
+
 		void commit();
 
 	protected:
@@ -42,7 +42,7 @@ namespace micasa {
 		mutable std::mutex m_settingsMutex;
 
 		void _populateOnce() const;
-	
+
 	}; // class SettingsHelper
 
 	// For generic settings we're specializing the SettingsHelper class for type void.
@@ -67,7 +67,7 @@ namespace micasa {
 	// The actual Settings declaration follows below. These are the functions that do not require
 	// a specialization of any kind.
 	template<class T = void> class Settings: public SettingsHelper<T> {
-		
+
 	public:
 		using SettingsHelper<T>::SettingsHelper;
 		~Settings();
@@ -79,7 +79,7 @@ namespace micasa {
 		void remove( const std::string& key_ );
 		unsigned int count() const;
 		bool isDirty() const;
-		
+
 		std::string get( const std::string& key_ ) const;
 		template<typename V> V get( const std::string& key_ ) const {
 			// Unfortunately, to be able to use all types, the implementation needs to be in the header.
@@ -89,7 +89,7 @@ namespace micasa {
 			std::istringstream( this->m_settings.at( key_ ) ) >> std::boolalpha >> std::fixed >> std::setprecision( 3 ) >> value;
 			return value;
 		};
-		
+
 		std::string get( const std::string& key_, const std::string& default_ ) const;
 		template<typename V> V get( const std::string& key_, const V& default_ ) const {
 			// Unfortunately, to be able to use all types, the implementation needs to be in the header.
@@ -103,10 +103,10 @@ namespace micasa {
 				return default_;
 			}
 		};
-		
+
 		void put( const std::string& key_, const SettingValue& value_ );
 		void put( const nlohmann::json& data_ );
-		
+
 		std::map<std::string, std::string> getAll() const;
 		std::map<std::string, std::string> getAll( const std::string& prefix_ ) const;
 
