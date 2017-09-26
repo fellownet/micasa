@@ -42,7 +42,7 @@ namespace micasa {
 
 			std::stringstream url;
 			url << "http://api.wunderground.com/api/" << this->m_settings->get( "api_key" ) << "/conditions/astronomy/q/" << this->m_settings->get( "location" ) << ".json";
-			this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+			this->m_connection = Network::connect( url.str(), {}, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );

@@ -11,8 +11,6 @@
 #include "Utils.h"
 #include "Scheduler.h"
 
-#include "json.hpp"
-
 extern "C" {
 	#include "mongoose.h"
 
@@ -99,6 +97,11 @@ namespace micasa {
 			std::queue<std::function<void(void)>> m_tasks;
 			mutable std::mutex m_mutex;
 
+			// The calls to mg_broadcast should by synchronized; if not, one call might absorb the results from the
+			// internal call to mg_poll of another (mg_poll and mg_broadcast communicate with eachother using a socket
+			// pair where mg_poll acknowledges a call to mg_broadcast).
+			static std::mutex s_broadcastMutex;
+
 		}; // class Connection
 
 		~Network(); // public destructor
@@ -114,8 +117,8 @@ namespace micasa {
 #ifdef _WITH_OPENSSL
 		static std::shared_ptr<Connection> bind( const std::string& port_, const std::string& cert_, const std::string& key_, Connection::t_eventFunc&& func_ );
 #endif
-		static std::shared_ptr<Connection> connect( const std::string& uri_, const nlohmann::json& data_, Connection::t_eventFunc&& func_ );
-		static std::shared_ptr<Connection> connect( const std::string& uri_, Connection::t_eventFunc&& func_ );
+		static std::shared_ptr<Connection> connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, const std::string& data_, Connection::t_eventFunc&& func_ );
+		static std::shared_ptr<Connection> connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, Connection::t_eventFunc&& func_ );
 
 	private:
 		Scheduler m_scheduler;
@@ -133,7 +136,7 @@ namespace micasa {
 		}
 
 		static std::shared_ptr<Connection> _bind( const std::string& port_, const mg_bind_opts& options_, Connection::t_eventFunc&& func_ );
-		static std::shared_ptr<Connection> _connect( const std::string& uri_, const nlohmann::json& data_, Connection::t_eventFunc&& func_ );
+		static std::shared_ptr<Connection> _connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, const std::string& data_, Connection::t_eventFunc&& func_ );
 		static void _handler( mg_connection* mg_conn_, int event_, void* data_ );
 
 	}; // class Network
