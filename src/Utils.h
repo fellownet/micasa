@@ -19,6 +19,16 @@ namespace micasa {
 	std::string randomString( size_t length_, std::string charset_ = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" );
 	int randomNumber( int min_, int max_ );
 
+	template<typename T> inline std::string printf( T value_, const char* format_ ) {
+		char buffer[32];
+		int length = std::sprintf( buffer, format_, value_ );
+		if ( length > 0 ) {
+			return std::string( buffer, length );
+		} else {
+			return "";
+		}
+	};
+
 	const std::map<std::string, std::string> getSerialPorts();
 
 	template<typename T> inline T jsonGetImpl( const nlohmann::basic_json<>::value_type& input_, T* ) {
