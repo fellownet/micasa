@@ -81,6 +81,7 @@
 	<tr>
 		<th><label>Devices<span class="mandatory"> *</span></label></th>
 		<th class="right">&nbsp;</th>
+		<th class="right">&nbsp;</th>
 		<th class="minimum right">&nbsp;</th>
 	</tr>
 </thead>
@@ -88,7 +89,7 @@
 	<tr *ngFor="let source of widget.sources; let i = index">
 		<td>{{ data[i].device.name }}</td>
 		<td class="right">
-			<select class="form-control" required [(ngModel)]="source.properties.color" name="{{ source.device_id + '_name' }}">
+			<select class="form-control" required [(ngModel)]="source.properties.color" name="{{ source.device_id + '_color' }}">
 				<option value="aqua">Aqua</option>
 				<option value="blue">Blue</option>
 				<option value="green">Green</option>
@@ -101,10 +102,19 @@
 				<option value="gray">Gray</option>
 			</select>
 		</td>
+		<td class="right">
+			<select class="form-control" required [(ngModel)]="source.properties.type" name="{{ source.device_id + '_type' }}">
+				<option value="line" *ngIf="data[i].device.type == 'level' || data[i].device.type == 'text' || data[i].device.type == 'switch' || ( data[i].device.type == 'counter' && ( widget.interval == 'month' || widget.interval == 'year' ) )">Line</option>
+				<option value="dots" *ngIf="data[i].device.type == 'level' || data[i].device.type == 'text' || data[i].device.type == 'switch'">Dots</option>
+				<option value="dashes" *ngIf="data[i].device.type == 'level' || data[i].device.type == 'text' || data[i].device.type == 'switch'">Dashes</option>
+				<option value="area" *ngIf="data[i].device.type == 'level'">Area</option>
+				<option value="bars" *ngIf="data[i].device.type == 'counter' && ! ( widget.interval == 'month' || widget.interval == 'year' )">Bars</option>
+			</select>
+		</td>
 		<td class="minimum right tools"><button type="button" class="btn btn-xs" *ngIf="widget.sources.length > 1" (click)="removeSource( source )"><i class="fa fa-times"></i></button></td>
 	</tr>
 	<tr>
-		<td colspan="2">
+		<td colspan="3">
 			<select class="form-control" #deviceSelect>
 				<option selected disabled hidden>Select Device</option>
 				<ng-container *ngFor="let device of devices | async | sort:'name'">

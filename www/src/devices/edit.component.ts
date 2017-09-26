@@ -138,7 +138,8 @@ export class DeviceEditComponent implements OnInit {
 						sources: [ {
 							device_id: this.device.id,
 							properties: {
-								color: 'blue'
+								color: 'blue',
+								type: 'line'
 							}
 						} ],
 						interval: 'week',
@@ -155,6 +156,8 @@ export class DeviceEditComponent implements OnInit {
 						sources: [ {
 							device_id: this.device.id,
 							properties: {
+								color: 'blue',
+								type: 'line'
 							}
 						} ]
 					};
@@ -171,7 +174,8 @@ export class DeviceEditComponent implements OnInit {
 					sources: [ {
 						device_id: this.device.id,
 						properties: {
-							color: 'blue'
+							color: 'blue',
+							type: 'line'
 						}
 					} ],
 					interval: 'month',

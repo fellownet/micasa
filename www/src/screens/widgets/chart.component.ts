@@ -148,6 +148,30 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 									duration: animationDuration
 								},
 								lineWidth: 2,
+								fillOpacity: 0.5,
+								states: {
+									hover: {
+										lineWidth: 2,
+										halo: false
+									}
+								},
+								marker: {
+									enabled: false,
+									states: {
+										hover: {
+											enabled: true,
+											radius: 6,
+											lineWidth: 2
+										}
+									}
+								}
+							},
+							areaspline: {
+								animation: {
+									duration: animationDuration
+								},
+								lineWidth: 2,
+								fillOpacity: 0.4,
 								states: {
 									hover: {
 										lineWidth: 2,
@@ -168,13 +192,13 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 						}
 					};
 
-					let yAxis: number = -1;
-					let lastUnit:string = null;
+					let unitAxis: any = {};
 					let serie:number = -1;
 
-					this.widget.sources.forEach( ( source_, i_ ) => {
+					this.widget.sources.every( ( source_, i_ ) => {
 						let device: Device = this.data[i_].device;
 						let data: any[] = this.data[i_].data;
+						let yAxis: number;
 
 						// Skip sources with empty data.
 						if ( data.length == 0 ) {
@@ -196,13 +220,17 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							device.type == 'counter'
 							|| device.type == 'level'
 						) {
-							if ( device.unit != lastUnit ) {
-								if ( ++yAxis > 1 ) {
+							if ( device.unit in unitAxis ) {
+								yAxis = unitAxis[device.unit];
+							} else {
+								let count: number = Object.keys( unitAxis ).length;
+								if ( count >= 2 ) {
 									return false;
 								}
-								lastUnit = device.unit;
+								yAxis = count;
+								unitAxis[device.unit] = yAxis;
 								config.yAxis[yAxis].title = {
-									text: device.subtype + ( lastUnit.length > 0 ? ' / ' + lastUnit : '' )
+									text: device.subtype + ( device.unit.length > 0 ? ' / ' + device.unit : '' )
 								};
 							}
 
@@ -212,15 +240,32 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 								&& 'maximum' in data[0]
 							);
 
+							let type: string = 'column';
+							if ( device.type == 'level' || [ 'month', 'year' ].indexOf( this.data[i_].config.interval ) > -1 ) {
+								if ( source_.properties.type == 'area' ) {
+									type = 'areaspline';
+								} else {
+									type = 'spline'
+								}
+							}
+
+							let dashstyle: string = 'Solid';
+							if ( source_.properties.type == 'dots' ) {
+								dashstyle = 'ShortDot';
+							} else if ( source_.properties.type == 'dashes' ) {
+								dashstyle = 'Dash';
+							}
+
 							config.series[++serie] = {
 								data: [],
 								visible: ! source_.properties.hidden,
 								name: device.name,
 								color: this._colors[source_.properties.color || 'aqua'],
 								yAxis: yAxis,
-								type: device.type == 'level' || [ 'month', 'year' ].indexOf( this.data[i_].config.interval ) > -1 ? 'spline' : 'column',
+								type: type,
+								dashStyle: dashstyle,
 								dataLabels: {
-									enabled: data.length <= 12,
+									enabled: data.length <= 12 && this.widget.sources.length == 1,
 									crop: false,
 									overflow: 'none',
 									style: {
@@ -360,10 +405,18 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 							|| device.type == 'text'
 						) {
 							for ( let point of data ) {
+								let dashstyle: string = 'Solid';
+								if ( source_.properties.type == 'dots' ) {
+									dashstyle = 'ShortDot';
+								} else if ( source_.properties.type == 'dashes' ) {
+									dashstyle = 'Dash';
+								}
+
 								config.xAxis.plotLines.push( {
 									color: this._colors[source_.properties.color || 'aqua'],
 									value: point.timestamp * 1000,
 									width: 2,
+									dashStyle: dashstyle,
 									label: {
 										text: point.value,
 										style: {
@@ -443,7 +496,8 @@ export class WidgetChartComponent implements OnInit, AfterViewInit, OnChanges, O
 					this.widget.sources.push( {
 						device_id: +device_id_,
 						properties: {
-							color: 'blue'
+							color: 'blue',
+							type: device_.type == 'counter' ? 'bars' : 'line'
 						}
 					} );
 					this.data.push( {
