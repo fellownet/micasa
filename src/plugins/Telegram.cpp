@@ -56,7 +56,7 @@ namespace micasa {
 			if ( this->m_username.empty() ) {
 
 				url << "/getMe";
-				this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+				this->m_connection = Network::connect( url.str(), {}, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 					switch( event_ ) {
 						case Network::Connection::Event::CONNECT: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
@@ -98,7 +98,9 @@ namespace micasa {
 				if ( this->m_lastUpdateId > -1 ) {
 					params["offset"] = this->m_lastUpdateId + 1;
 				}
-				this->m_connection = Network::connect( url.str(), params, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+				this->m_connection = Network::connect( url.str(), {
+					{ "Content-Type", "application/json" }
+				}, params.dump(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 					switch( event_ ) {
 						case Network::Connection::Event::CONNECT: {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
@@ -225,7 +227,9 @@ namespace micasa {
 									{ "text", value },
 									{ "parse_mode", "Markdown" }
 								};
-								Network::connect( url.str(), params, [this,value,targetPtr,source,reference,task_]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) mutable {
+								Network::connect( url.str(), {
+									{ "Content-Type", "application/json" }
+								}, params.dump(), [this,value,targetPtr,source,reference,task_]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) mutable {
 									switch( event_ ) {
 										case Network::Connection::Event::CONNECT: {
 											this->_releasePendingUpdate( reference, source );

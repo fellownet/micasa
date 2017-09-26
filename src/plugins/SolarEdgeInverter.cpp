@@ -50,7 +50,7 @@ namespace micasa {
 
 			std::stringstream url;
 			url << "https://monitoringapi.solaredge.com/equipment/" << this->m_settings->get( "site_id" ) << "/" << this->m_settings->get( "serial" ) << "/data.json?startTime=" << dates["startdate"] << "%20" << dates["starttime"] << "&endTime=" << dates["enddate"] << "%20" << dates["endtime"] << "&api_key=" << this->m_settings->get( "api_key" );
-			this->m_connection = Network::connect( url.str(), [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+			this->m_connection = Network::connect( url.str(), {}, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );

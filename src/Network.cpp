@@ -1,5 +1,6 @@
 #include <regex>
 #include <sstream>
+#include <iostream>
 
 #include "Network.h"
 #include "Logger.h"
@@ -10,11 +11,11 @@ void micasa_mg_handler( mg_connection* mg_conn_, int event_, void* data_ ) {
 
 namespace micasa {
 
-	using namespace nlohmann;
-
 	// ==========
 	// Connection
 	// ==========
+
+	std::mutex Network::Connection::s_broadcastMutex;
 
 	Network::Connection::Connection( mg_connection* mg_conn_, unsigned int flags_, t_eventFunc&& func_ ) :
 		m_mg_conn( mg_conn_ ),
@@ -61,6 +62,7 @@ namespace micasa {
 			mg_serve_http( this->m_mg_conn, &this->m_http, options );
 		} );
 		lock.unlock();
+		std::lock_guard<std::mutex> broadcastLock( Network::Connection::s_broadcastMutex );
 		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
@@ -86,6 +88,7 @@ namespace micasa {
 			}
 		} );
 		lock.unlock();
+		std::lock_guard<std::mutex> broadcastLock( Network::Connection::s_broadcastMutex );
 		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
@@ -101,6 +104,7 @@ namespace micasa {
 			}
 		} );
 		lock.unlock();
+		std::lock_guard<std::mutex> broadcastLock( Network::Connection::s_broadcastMutex );
 		mg_broadcast( &Network::get().m_manager, micasa_mg_handler, (void*)"", 0 );
 	};
 
@@ -242,12 +246,12 @@ namespace micasa {
 	};
 #endif
 
-	std::shared_ptr<Network::Connection> Network::connect( const std::string& uri_, const json& data_, Network::Connection::t_eventFunc&& func_ ) {
-		return Network::_connect( uri_, data_, std::move( func_ ) );
+	std::shared_ptr<Network::Connection> Network::connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, Network::Connection::t_eventFunc&& func_ ) {
+		return Network::_connect( uri_, headers_, "", std::move( func_ ) );
 	};
 
-	std::shared_ptr<Network::Connection> Network::connect( const std::string& uri_, Network::Connection::t_eventFunc&& func_ ) {
-		return Network::_connect( uri_, nullptr, std::move( func_ ) );
+	std::shared_ptr<Network::Connection> Network::connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, const std::string& data_, Network::Connection::t_eventFunc&& func_ ) {
+		return Network::_connect( uri_, headers_, data_, std::move( func_ ) );
 	};
 
 	std::shared_ptr<Network::Connection> Network::_bind( const std::string& port_, const mg_bind_opts& options_, Network::Connection::t_eventFunc&& func_ ) {
@@ -266,16 +270,16 @@ namespace micasa {
 		}
 	};
 
-	std::shared_ptr<Network::Connection> Network::_connect( const std::string& uri_, const nlohmann::json& data_, Network::Connection::t_eventFunc&& func_ ) {
+	std::shared_ptr<Network::Connection> Network::_connect( const std::string& uri_, const std::map<std::string, std::string>& headers_, const std::string& data_, Network::Connection::t_eventFunc&& func_ ) {
 		Network& network = Network::get();
 		mg_connection* mg_conn;
 		unsigned int flags = 0;
 		if ( __likely( uri_.substr( 0, 4 ) == "http" ) ) {
-			if ( data_.is_null() ) {
-				mg_conn = mg_connect_http( &network.m_manager, micasa_mg_handler, uri_.c_str(), NULL, NULL );
-			} else {
-				mg_conn = mg_connect_http( &network.m_manager, micasa_mg_handler, uri_.c_str(), "Content-Type: application/json\r\n", data_.dump().c_str() );
+			std::stringstream headers;
+			for ( const auto& header : headers_ ) {
+				headers << header.first << ": " << header.second << "\r\n";
 			}
+			mg_conn = mg_connect_http( &network.m_manager, micasa_mg_handler, uri_.c_str(), headers.str().c_str(), data_.c_str() );
 			if ( mg_conn ) {
 				mg_set_protocol_http_websocket( mg_conn );
 				flags |= NETWORK_CONNECTION_FLAG_HTTP;

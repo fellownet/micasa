@@ -44,7 +44,7 @@ namespace micasa {
 
 			std::string uri = this->m_settings->get( "address" ) + ':' + this->m_settings->get( "port" );
 			this->m_connectionState = ConnectionState::IDLE;
-			this->m_connection = Network::connect( uri, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
+			this->m_connection = Network::connect( uri, {}, [this]( std::shared_ptr<Network::Connection> connection_, Network::Connection::Event event_ ) {
 				switch( event_ ) {
 					case Network::Connection::Event::CONNECT: {
 						Logger::log( Logger::LogLevel::VERBOSE, this, "Connected." );
