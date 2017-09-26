@@ -350,7 +350,8 @@ export class ScreensService {
 						sources: [ {
 							device_id: device_.id,
 							properties: {
-								color: 'blue'
+								color: 'blue',
+								type: device_.type == 'counter' ? 'bars' : 'line'
 							}
 						} ],
 						interval: 'day',
@@ -363,7 +364,8 @@ export class ScreensService {
 						sources: [ {
 							device_id: device_.id,
 							properties: {
-								color: 'blue'
+								color: 'blue',
+								type: device_.type == 'counter' ? 'bars' : 'line'
 							}
 						} ],
 						interval: 'week',
@@ -377,6 +379,7 @@ export class ScreensService {
 							device_id: device_.id,
 							properties: {
 								color: 'blue',
+								type: 'line',
 								range: [ 'temperature', 'humidity' ].indexOf( device_.subtype ) > -1,
 								trendline: [ 'temperature', 'power', 'energy', 'gas', 'water' ].indexOf( device_.subtype ) > -1,
 								trendline_color: 'red'
@@ -393,6 +396,7 @@ export class ScreensService {
 							device_id: device_.id,
 							properties: {
 								color: 'blue',
+								type: 'line',
 								range: [ 'temperature', 'humidity' ].indexOf( device_.subtype ) > -1,
 								trendline: [ 'temperature', 'power', 'energy', 'gas', 'water' ].indexOf( device_.subtype ) > -1,
 								trendline_color: 'red'
