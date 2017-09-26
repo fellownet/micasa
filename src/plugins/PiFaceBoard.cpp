@@ -238,14 +238,14 @@ namespace micasa {
 								this->m_scheduler.schedule( 0, 1, this, [=]( std::shared_ptr<Scheduler::Task<>> ) {
 									this->declareDevice<Counter>( reference + "_counter", "Pulses " + std::to_string( i ), {
 										{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
-										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+										{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Counter::resolveTextSubType( Counter::SubType::GENERIC ) },
 										{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 										{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
 									} )->incrementValue( Device::UpdateSource::PLUGIN );
 									if ( iteration_ > 2 ) {
 										this->declareDevice<Level>( reference + "_level", "Pulses/sec " + std::to_string( i ), {
 											{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::PLUGIN ) },
-											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::GENERIC ) },
+											{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Level::resolveTextSubType( Level::SubType::GENERIC ) },
 											{ DEVICE_SETTING_ALLOW_SUBTYPE_CHANGE,   true },
 											{ DEVICE_SETTING_ALLOW_UNIT_CHANGE,      true }
 										} )->updateValue( Device::UpdateSource::PLUGIN, 1000.0f / interval );
