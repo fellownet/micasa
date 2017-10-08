@@ -82,6 +82,11 @@ export class DevicesListComponent implements OnInit, OnDestroy {
 			.subscribe( () => {
 				for ( let i: number = 0; i < this.devices.length; i++ ) {
 					this.devices[i].age += 1;
+					if ( this.devices[i].next_schedule > 0 ) {
+						this.devices[i].next_schedule -= 1;
+					} else {
+						this.devices[i].scheduled = false;
+					}
 				}
 			} )
 		;

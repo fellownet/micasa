@@ -130,6 +130,7 @@ namespace micasa {
 		result["plugin"] = this->getPlugin()->getName();
 		result["plugin_id"] = this->getPlugin()->getId();
 		result["scheduled"] = g_controller->isScheduled( this->shared_from_this() );
+		result["next_schedule"] = g_controller->nextSchedule( this->shared_from_this() ).count();
 		result["ignore_duplicates"] = this->getSettings()->get<bool>( "ignore_duplicates", false );
 		if ( this->getSettings()->contains( DEVICE_SETTING_BATTERY_LEVEL ) ) {
 			result["battery_level"] = this->getSettings()->get<unsigned int>( DEVICE_SETTING_BATTERY_LEVEL );

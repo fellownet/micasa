@@ -68,6 +68,11 @@ namespace micasa {
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::IDLE );
+		this->declareDevice<Switch>( "destroy", "Remove Failed Node", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::ACTION ) },
+			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS,    User::resolveRights( User::Rights::INSTALLER ) }
+		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::IDLE );
 	};
 
 	void ZWaveNode::stop() {
@@ -200,6 +205,7 @@ namespace micasa {
 					device_->getReference() == "heal"
 					|| device_->getReference() == "identify"
 					|| device_->getReference() == "config"
+					|| device_->getReference() == "destroy"
 				)
 			) {
 				std::shared_ptr<Switch> device = std::static_pointer_cast<Switch>( device_ );
@@ -230,6 +236,10 @@ namespace micasa {
 								Manager::Get()->RequestAllConfigParams( this->m_homeId, this->m_nodeId );
 								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
 								Logger::log( Logger::LogLevel::NORMAL, this, "Requesting all node configuration parameters." );
+							} else if ( device->getReference() == "destroy" ) {
+								Manager::Get()->RemoveFailedNode( this->m_homeId, this->m_nodeId );
+								device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+								Logger::log( Logger::LogLevel::NORMAL, this, "Attempt to remove failed node." );
 							}
 
 							task_->repeat = 0; // done

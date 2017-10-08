@@ -81,11 +81,12 @@
 </ng-container>
 		</td>
 		<td>{{ device.name }}</td>
-		<td class="icon">
+		<td class="icon right">
 			<i class="fa fa-code" *ngIf="device.total_scripts > 0"></i>
 			<i class="fa fa-calendar" *ngIf="device.total_timers > 0"></i>
 			<i class="fa fa-link" *ngIf="device.total_links > 0"></i>
 			<i class="fa fa-clock-o" *ngIf="device.scheduled"></i>
+			<span *ngIf="device.scheduled"> ({{ device.next_schedule }}s)</span>
 			<i class="fa fa-battery-half" *ngIf="device.battery_level >= 45 && device.battery_level < 75"></i>
 			<i class="fa fa-battery-quarter" *ngIf="device.battery_level >= 20 && device.battery_level < 45"></i>
 			<i class="fa fa-battery-empty" *ngIf="device.battery_level < 20"></i>

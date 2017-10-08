@@ -422,6 +422,13 @@ label .mandatory {
 	width: 30px;
 	text-align: center;
 }
+.content .box-body .table td.icon.right {
+	text-align: right;
+}
+.content .box-body .table td.icon span {
+	color:#AAA;
+}
+
 .content .box-body .table td.icon .fa {
 	position: relative;
 	top: 1px;

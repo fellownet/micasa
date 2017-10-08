@@ -79,6 +79,7 @@ namespace micasa {
 		std::shared_ptr<Device> getDeviceByLabel( const std::string& label_ ) const;
 		std::vector<std::shared_ptr<Device>> getAllDevices() const;
 		bool isScheduled( std::shared_ptr<const Device> device_ ) const;
+		std::chrono::seconds nextSchedule( std::shared_ptr<const Device> device_ ) const;
 
 		template<class D> void newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ );
 
