@@ -23,6 +23,7 @@ export class Device {
 	total_timers: number;
 	total_links: number;
 	scheduled: boolean;
+	next_schedule: number;
 	battery_level?: number;
 	signal_strength?: number;
 	options?: string[]; // switch devices

@@ -572,6 +572,19 @@ namespace micasa {
 		) != nullptr;
 	};
 
+	std::chrono::seconds Controller::nextSchedule( std::shared_ptr<const Device> device_ ) const {
+		auto task = this->m_scheduler.first(
+			[device_]( const Scheduler::BaseTask& task_ ) -> bool {
+				return task_.data == device_.get();
+			}
+		);
+		if ( task != nullptr ) {
+			return duration_cast<seconds>( task->time - system_clock::now() );
+		} else {
+			return seconds::zero();
+		}
+	};
+
 	template<class D> void Controller::newEvent( std::shared_ptr<D> device_, const Device::UpdateSource& source_ ) {
 		if ( this->m_running ) {
 
