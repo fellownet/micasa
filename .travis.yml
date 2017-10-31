@@ -36,7 +36,7 @@ matrix:
 
   # OSX
   - os: osx
-    osx_image: xcode8
+    osx_image: xcode8.3
 
     env:
     - TARGET_ARCHITECTURE=x86_64
@@ -46,6 +46,7 @@ matrix:
     - gcc
 
     install:
+      - brew update
       - brew install libusb
       - brew install libusb-compat
       - brew install openssl
