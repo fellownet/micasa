@@ -81,7 +81,7 @@
 		</tr>
 	</thead>
 	<tbody>
-		<ng-container *ngFor="let option of setting.options">
+		<ng-container *ngFor="let option of setting.options | sort:'label'">
 		<tr *ngIf="values[setting.name].indexOf( option.value ) >= 0">
 			<td>{{ option.label }}</td>
 			<td class="minimum right tools"><button type="button" class="btn btn-xs" (click)="removeFromMultiSelect( option.value, values[setting.name] )"><i class="fa fa-times"></i></button></td>
@@ -91,7 +91,7 @@
 			<td>
 				<select class="form-control" #fieldSelect>
 					<option selected disabled hidden></option>
-					<ng-container *ngFor="let option of setting.options">
+					<ng-container *ngFor="let option of setting.options | sort:'label'">
 						<option value="{{ option.value }}" *ngIf="values[setting.name].indexOf( option.value ) == -1">{{ option.label }}</option>
 					</ng-container>
 				</select>
@@ -107,7 +107,7 @@
 	<label>{{ setting.label }}</label>
 	<div class="callout callout-info" *ngIf="setting.description && setting.description.length > 0">{{ setting.description }}</div>
 	<span class="form-control" disabled="disabled" *ngIf="setting.value">{{ setting.value }}</span>
-	<span class="form-control" disabled="disabled" *ngIf="! setting.value">{{ values[setting.name ]}}</span>
+	<span class="form-control" disabled="disabled" *ngIf="! setting.value">{{ values[setting.name]}}</span>
 </div>
 
 <ng-container *ngSwitchCase="'hidden'">

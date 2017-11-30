@@ -676,7 +676,7 @@ namespace micasa {
 		// device is captured as a weak pointer to prevent the scheduler from blocking the destruction of devices. This
 		// also prevents a shared_ptr cycle (!).
 		std::weak_ptr<D> devicePtr = device_;
-		this->m_scheduler.schedule( 1000 * options.afterSec, 1, device_.get(), [this,devicePtr,source,value_,options]( std::shared_ptr<Scheduler::Task<>> ) mutable {
+		auto fTask = [this,devicePtr,source,value_,options]( std::shared_ptr<Scheduler::Task<>> ) mutable {
 			auto device = devicePtr.lock();
 			if ( device ) {
 				typename D::t_value current = device->getValue();
@@ -698,7 +698,15 @@ namespace micasa {
 					this->_processTask( device, value_, source, options );
 				}
 			}
-		} );
+		};
+
+		// If there's no delay set for the task, run it immediately and synchronously, which makes sure that multiple
+		// immediate tasks happen sequentially.
+		if ( options.afterSec < 8 * std::numeric_limits<double>::epsilon() ) {
+			fTask( nullptr );
+		} else {
+			this->m_scheduler.schedule( 1000 * options.afterSec, 1, device_.get(), fTask );
+		}
 	};
 	template void Controller::_processTask( const std::shared_ptr<Level> device_, const typename Level::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
 	template void Controller::_processTask( const std::shared_ptr<Counter> device_, const typename Counter::t_value value_, const Device::UpdateSource source_, const TaskOptions options_ );
@@ -954,13 +962,10 @@ namespace micasa {
 				"SELECT `target_device_id`, `target_value`, `after`, `for`, `clear` "
 				"FROM `links` "
 				"WHERE `device_id`=%d "
-				"AND `target_device_id`!=%d "
 				"AND `target_device_id` IS NOT NULL "
-				"AND `value`=%Q "
-				"AND `target_value` IS NOT NULL "
+				"AND ( `value`=%Q OR `value` IS NULL ) "
 				"AND `enabled`=1 "
 				"ORDER BY `id`",
-				device->getId(),
 				device->getId(),
 				device->getValue().c_str()
 			);
@@ -978,7 +983,11 @@ namespace micasa {
 					if ( (*linksIt)["clear"].size() > 0 ) {
 						options.clear = std::stoi( (*linksIt)["clear"] ) > 0;
 					}
-					this->_processTask<Switch>( targetDevice, (*linksIt)["target_value"], Device::UpdateSource::LINK, options );
+					std::string targetValue = (*linksIt)["target_value"];
+					if ( targetValue.size() == 0 ) {
+						targetValue = device->getValue();
+					}
+					this->_processTask<Switch>( targetDevice, targetValue, Device::UpdateSource::LINK, options );
 				}
 			}
 		}

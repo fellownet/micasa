@@ -130,7 +130,7 @@ namespace micasa {
 		} t_pendingUpdate;
 
 		std::unordered_map<std::string, std::shared_ptr<Device>> m_devices;
-		mutable std::mutex m_devicesMutex;
+		mutable std::recursive_mutex m_devicesMutex;
 		State m_state = State::DISABLED;
 		std::map<std::string, std::shared_ptr<Scheduler::Task<t_pendingUpdate>>> m_pendingUpdates;
 		mutable std::mutex m_pendingUpdatesMutex;
