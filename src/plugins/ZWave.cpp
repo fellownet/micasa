@@ -153,6 +153,14 @@ namespace micasa {
 			{ DEVICE_SETTING_DEFAULT_SUBTYPE, Switch::resolveTextSubType( Switch::SubType::ACTION ) },
 			{ DEVICE_SETTING_MINIMUM_USER_RIGHTS, User::resolveRights( User::Rights::INSTALLER ) }
 		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::DISABLED );
+		this->declareDevice<Switch>( "switch_all_on", "Switch All On", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::SCENE ) },
+		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::IDLE );
+		this->declareDevice<Switch>( "switch_all_off", "Switch All Off", {
+			{ DEVICE_SETTING_ALLOWED_UPDATE_SOURCES, Device::resolveUpdateSource( Device::UpdateSource::ANY ) },
+			{ DEVICE_SETTING_DEFAULT_SUBTYPE,        Switch::resolveTextSubType( Switch::SubType::SCENE ) },
+		} )->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::IDLE );
 	};
 
 	void ZWave::stop() {
@@ -265,6 +273,36 @@ namespace micasa {
 
 					apply_ = false; // value is applied only after a successfull command
 					return true;
+				}
+
+				if (
+					device->getReference() == "switch_all_on"
+					&& device->getValueOption() == Switch::Option::ACTIVATE
+				) {
+					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+						Manager::Get()->SwitchAllOn( this->m_homeId );
+						device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+						apply_ = true;
+					} else {
+						apply_ = false;
+					}
+					return apply_;
+				}
+
+				if (
+					device->getReference() == "switch_all_off"
+					&& device->getValueOption() == Switch::Option::ACTIVATE
+				) {
+					if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+						std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+						Manager::Get()->SwitchAllOff( this->m_homeId );
+						device->updateValue( source_ | Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+						apply_ = true;
+					} else {
+						apply_ = false;
+					}
+					return apply_;
 				}
 
 				if ( device->getValueOption() == Switch::Option::ENABLED ) {

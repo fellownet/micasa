@@ -249,6 +249,9 @@ namespace micasa {
 				this->put( dataIt.key(), (*dataIt).get<bool>() );
 			} else if ( (*dataIt).is_null() ) {
 				this->remove( dataIt.key() );
+			} else if ( (*dataIt).is_array() ) {
+				// skip
+				// TODO maybe add it as a comma separated list?
 			} else {
 				throw std::runtime_error( "invalid type for key " + dataIt.key() );
 			}

@@ -89,6 +89,22 @@ namespace micasa {
 		for ( auto const& setting: this->m_configuration ) {
 			result[setting["name"].get<std::string>()] = setting.find( "value" ).value();
 		}
+
+		// Add group associations if the device has been fully initialized.
+		if ( this->getState() >= Plugin::State::READY ) {
+			for ( int group = 1; group <= Manager::Get()->GetNumGroups( this->m_homeId, this->m_nodeId ); group++ ) {
+				json values = json::array();
+				uint8* associations;
+				for ( uint32 index = 0; index < Manager::Get()->GetAssociations( this->m_homeId, this->m_nodeId, group, &associations ); index++ ) {
+					std::stringstream reference;
+					reference << this->m_homeId << "/" << (int)associations[index];
+					values += reference.str();
+				}
+				delete[] associations;
+				result["group_associations_" + std::to_string( group )] = values;
+			}
+		}
+
 		return result;
 	}
 
@@ -99,6 +115,39 @@ namespace micasa {
 			setting.erase( "value" );
 			result += setting;
 		}
+
+		// Add group associations if the device has been fully initialized.
+		if ( this->getState() >= Plugin::State::READY ) {
+			for ( int group = 1; group <= Manager::Get()->GetNumGroups( this->m_homeId, this->m_nodeId ); group++ ) {
+				json options = json::array();
+				std::stringstream reference;
+				reference << this->m_homeId << "/1"; // the controller itself
+				options += {
+					{ "value", reference.str() },
+					{ "label", this->getParent()->getName() }
+				};
+				for ( auto& child : this->getParent()->getChildren() ) {
+					options += {
+						{ "value", child->getReference() },
+						{ "label", child->getName() }
+					};
+				}
+				if ( options.size() > 0 ) {
+					json setting = {
+						{ "name", "group_associations_" + std::to_string( group ) },
+						{ "label", "Group " + std::to_string( group ) + ". " + Manager::Get()->GetGroupLabel( this->m_homeId, this->m_nodeId, group ) },
+						{ "type", "multiselect" },
+						{ "class", "advanced" },
+						{ "mandatory", false },
+						{ "options", options },
+						{ "maximum", Manager::Get()->GetMaxAssociations( this->m_homeId, this->m_nodeId, group ) },
+						{ "sort", 999 + group }
+					};
+					result += setting;
+				}
+			}
+		}
+
 		return result;
 	};
 
@@ -157,6 +206,35 @@ namespace micasa {
 					if ( Manager::Get()->SetValue( valueId, value ) ) {
 						config["value"] = value;
 					}
+				}
+			} else if (
+				settingIt.key().substr( 0, 19 ) == "group_associations_"
+				&& settingIt.value().is_array()
+			) {
+				int group = std::stoi( settingIt.key().substr( 19 ) );
+
+				// First all requested associations are gathered.
+				std::vector<int> requestedAssociations;
+				for ( auto associationIt = settingIt.value().begin(); associationIt != settingIt.value().end(); associationIt++ ) {
+					std::string value = jsonGet<std::string>( *associationIt );
+					auto parts = stringSplit( value, '/' );
+					requestedAssociations.push_back( std::stoi( parts[1] ) );
+				}
+
+				// Then all existing associations which are NOT present in the requested associations vector are removed.
+				uint8* associations;
+				for ( uint32 index = 0; index < Manager::Get()->GetAssociations( this->m_homeId, this->m_nodeId, group, &associations ); index++ ) {
+					auto find = std::find( requestedAssociations.begin(), requestedAssociations.end(), (int)associations[index] );
+					if ( find == requestedAssociations.end() ) {
+						Manager::Get()->RemoveAssociation( this->m_homeId, this->m_nodeId, group, associations[index] );
+					} else {
+						requestedAssociations.erase( find );
+					}
+				}
+
+				// Remaining associations that are added.
+				for ( auto associationIt = requestedAssociations.begin(); associationIt != requestedAssociations.end(); associationIt++ ) {
+					Manager::Get()->AddAssociation( this->m_homeId, this->m_nodeId, group, *associationIt );
 				}
 			}
 		}
@@ -295,11 +373,13 @@ namespace micasa {
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
-							if ( this->_queuePendingUpdate( device->getReference(), source_, valueStr, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								Manager::Get()->SetValue( valueId, value );
-							} else {
+							// Commands should be pushed to nodes as often as possible, so the command is send to the
+							// node wether we've processed the previous one already or not.
+							if ( ! this->_queuePendingUpdate( device->getReference(), source_, valueStr, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+								this->_releasePendingUpdate( device->getReference() );
 								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
 							}
+							Manager::Get()->SetValue( valueId, value );
 
 							task_->repeat = 0; // done
 
@@ -323,11 +403,13 @@ namespace micasa {
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
 
-							if ( this->_queuePendingUpdate( device->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								Manager::Get()->SetValue( valueId, value );
-							} else {
+							// Commands should be pushed to nodes as often as possible, so the command is send to the
+							// node wether we've processed the previous one already or not.
+							if ( ! this->_queuePendingUpdate( device->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
+								this->_releasePendingUpdate( device->getReference() );
 								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
 							}
+							Manager::Get()->SetValue( valueId, value );
 
 							task_->repeat = 0; // done
 
@@ -427,11 +509,14 @@ namespace micasa {
 						if (
 							this->getState() >= Plugin::State::READY
 							&& this->m_parent->getState() >= Plugin::State::READY
-							&& this->_queuePendingUpdate( "timeout_heal", 0, 1000 * 60 * 30 ) // max once per 30 mins
+							&& this->_queuePendingUpdate( "timeout_heal", 0, 1000 * 60 * 60 ) // max once per 60 mins
 						) {
-							auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
-							device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
-							Logger::log( Logger::LogLevel::VERBOSE, this, "Node timeout, heal initiated." );
+							// Do not try to heal immediately while the device is still trying to process the command.
+							this->m_scheduler.schedule( 30000, 1, this, [this]( std::shared_ptr<Scheduler::Task<>> ) {
+								auto device = std::static_pointer_cast<Switch>( this->getDevice( "heal" ) );
+								device->updateValue( Device::UpdateSource::PLUGIN, Switch::Option::ACTIVATE );
+								Logger::log( Logger::LogLevel::NOTICE, this, "Node timeout, heal initiated." );
+							} );
 						} else {
 							Logger::log( Logger::LogLevel::VERBOSE, this, "Node timeout." ); // timeouts during startup are to be expected
 						}

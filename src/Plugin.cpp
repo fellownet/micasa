@@ -89,7 +89,7 @@ namespace micasa {
 		assert( g_database && "Global Database instance should be destroyed after Plugin instances." );
 		assert( this->m_state == Plugin::State::DISABLED && "Plugin should be stopped before being destructed." );
 #endif // _DEBUG
-		std::lock_guard<std::mutex> devicesLock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> devicesLock( this->m_devicesMutex );
 		this->m_devices.clear();
 	};
 
@@ -142,7 +142,7 @@ namespace micasa {
 	}
 
 	void Plugin::init() {
-		std::lock_guard<std::mutex> devicesLock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> devicesLock( this->m_devicesMutex );
 		std::vector<std::map<std::string, std::string>> devicesData = g_database->getQuery(
 			"SELECT `id`, `reference`, `label`, `type`, `enabled` "
 			"FROM `devices` "
@@ -163,7 +163,7 @@ namespace micasa {
 	};
 
 	void Plugin::start() {
-		std::unique_lock<std::mutex> devicesLock( this->m_devicesMutex );
+		std::unique_lock<std::recursive_mutex> devicesLock( this->m_devicesMutex );
 		for ( auto const &deviceIt : this->m_devices ) {
 			if ( deviceIt.second->isEnabled() ) {
 				deviceIt.second->start();
@@ -180,7 +180,7 @@ namespace micasa {
 	};
 
 	void Plugin::stop() {
-		std::unique_lock<std::mutex> devicesLock( this->m_devicesMutex );
+		std::unique_lock<std::recursive_mutex> devicesLock( this->m_devicesMutex );
 		for ( auto const &deviceIt : this->m_devices ) {
 			if ( deviceIt.second->isEnabled() ) {
 				deviceIt.second->stop();
@@ -268,7 +268,7 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Plugin::getDevice( const std::string& reference_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		try {
 			return this->m_devices.at( reference_ );
 		} catch( std::out_of_range ex_ ) {
@@ -277,7 +277,7 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Plugin::getDeviceById( const unsigned int& id_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		for ( auto const &devicesIt : this->m_devices ) {
 			if ( devicesIt.second->getId() == id_ ) {
 				return devicesIt.second;
@@ -287,7 +287,7 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Plugin::getDeviceByName( const std::string& name_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		for ( auto const &devicesIt : this->m_devices ) {
 			if ( devicesIt.second->getName() == name_ ) {
 				return devicesIt.second;
@@ -297,7 +297,7 @@ namespace micasa {
 	};
 
 	std::shared_ptr<Device> Plugin::getDeviceByLabel( const std::string& label_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		for ( auto const &devicesIt : this->m_devices ) {
 			if ( devicesIt.second->getLabel() == label_ ) {
 				return devicesIt.second;
@@ -307,7 +307,7 @@ namespace micasa {
 	};
 
 	std::vector<std::shared_ptr<Device>> Plugin::getAllDevices() const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		std::vector<std::shared_ptr<Device>> all;
 		for ( auto const &devicesIt : this->m_devices ) {
 			all.push_back( devicesIt.second );
@@ -316,7 +316,7 @@ namespace micasa {
 	};
 
 	std::vector<std::shared_ptr<Device>> Plugin::getAllDevices( const std::string& prefix_ ) const {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		std::vector<std::shared_ptr<Device>> result;
 		for ( auto const &devicesIt : this->m_devices ) {
 			if ( devicesIt.second->getReference().substr( 0, prefix_.size() ) == prefix_ ) {
@@ -330,7 +330,7 @@ namespace micasa {
 		for ( auto const& plugin : g_controller->getAllPlugins() ) {
 			plugin->beforeRemoveDevice( device_ );
 		}
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		for ( auto devicesIt = this->m_devices.begin(); devicesIt != this->m_devices.end(); devicesIt++ ) {
 			if ( devicesIt->second == device_ ) {
 				if ( device_->isEnabled() ) {
@@ -356,22 +356,28 @@ namespace micasa {
 	};
 
 	template<class T> std::shared_ptr<T> Plugin::declareDevice( const std::string reference_, const std::string label_, const std::vector<Setting>& settings_ ) {
-		std::lock_guard<std::mutex> lock( this->m_devicesMutex );
+		std::lock_guard<std::recursive_mutex> lock( this->m_devicesMutex );
 		try {
-			std::shared_ptr<T> device = std::static_pointer_cast<T>( this->m_devices.at( reference_ ) );
+			auto genericDevice = this->m_devices.at( reference_ );
+			if ( genericDevice->getType() != T::type ) {
+				Logger::logr( Logger::LogLevel::ERROR, this, "Device \"%s\" was previously declared with a different type.", genericDevice->getName().c_str() );
+				this->removeDevice( genericDevice );
+			} else {
+				std::shared_ptr<T> device = std::static_pointer_cast<T>( genericDevice );
 
-			// System settings (settings that start with an underscore and are usually defined by #define)
-			// should always overwrite existing system settings.
-			for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
-				if ( (*settingsIt).first.at( 0 ) == '_' ) {
-					device->getSettings()->put( settingsIt->first, settingsIt->second );
+				// System settings (settings that start with an underscore and are usually defined by #define)
+				// should always overwrite existing system settings.
+				for ( auto settingsIt = settings_.begin(); settingsIt != settings_.end(); settingsIt++ ) {
+					if ( (*settingsIt).first.at( 0 ) == '_' ) {
+						device->getSettings()->put( settingsIt->first, settingsIt->second );
+					}
 				}
-			}
-			if ( device->getSettings()->isDirty() ) {
-				device->getSettings()->commit();
-			}
+				if ( device->getSettings()->isDirty() ) {
+					device->getSettings()->commit();
+				}
 
-			return device;
+				return device;
+			}
 		} catch( std::out_of_range ex_ ) { /* does not exists */ }
 
 		long id = g_database->putQuery(

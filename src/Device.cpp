@@ -173,7 +173,7 @@ namespace micasa {
 			{ "label", "Name" },
 			{ "type", "string" },
 			{ "maxlength", 64 },
-			{ "minlength", 3 },
+			{ "minlength", 2 },
 			{ "mandatory", true },
 			{ "sort", 1 }
 		};
@@ -204,10 +204,7 @@ namespace micasa {
 		json scriptOptions = json::array();
 		auto scripts = g_database->getQuery(
 			"SELECT s.`id`, s.`name` "
-			"FROM `scripts` s LEFT JOIN `x_timer_scripts` x "
-			"ON s.`id`=x.`script_id` "
-			"WHERE s.`enabled`=1 "
-			"OR x.`timer_id` IS NOT NULL "
+			"FROM `scripts` s "
 			"ORDER BY s.`name`"
 		);
 		for ( auto &script : scripts ) {

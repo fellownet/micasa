@@ -51,8 +51,9 @@
 			[class.label-danger]="link.value == 'Off'"
 			[class.label-primary]="link.value == 'Stop'"
 			[class.label-warning]="link.value == 'Idle'"
-			[class.label-info]="link.value != 'On' && link.value != 'Off' && link.value != 'Stop' && link.value != 'Idle'"
-			>{{ link.value }}</span>
+			[class.label-default]="!link.value"
+			[class.label-info]="link.value != 'On' && link.value != 'Off' && link.value != 'Stop' && link.value != 'Idle' && !!link.value"
+			>{{ link.value || "Any" }}</span>
 		</td>
 		<td>{{ link.target_device }}</td>
 		<td><span class="label"
@@ -60,8 +61,9 @@
 			[class.label-danger]="link.target_value == 'Off'"
 			[class.label-primary]="link.target_value == 'Stop'"
 			[class.label-warning]="link.target_value == 'Idle'"
-			[class.label-info]="link.target_value != 'On' && link.target_value != 'Off' && link.target_value != 'Stop' && link.target_value != 'Idle'"
-			>{{ link.target_value }}</span>
+			[class.label-default]="!link.target_value"
+			[class.label-info]="link.target_value != 'On' && link.target_value != 'Off' && link.target_value != 'Stop' && link.target_value != 'Idle' && !!link.target_value"
+			>{{ link.target_value || "Match" }}</span>
 		</td>
 	</tr>
 </tbody>

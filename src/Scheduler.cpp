@@ -40,7 +40,7 @@ namespace micasa {
 	Scheduler::ThreadPool::ThreadPool() :
 		m_shutdown( false ),
 		m_continue( false ),
-		m_threads( std::vector<std::thread>( std::max( 2U, 2 * std::thread::hardware_concurrency() ) ) )
+		m_threads( std::vector<std::thread>( std::max( 4U, 16 * std::thread::hardware_concurrency() ) ) )
 	{
 		for ( unsigned int i = 0; i < this->m_threads.size(); i++ ) {
 			this->m_threads[i] = std::thread( [this,i]() { this->_loop( i ); } );

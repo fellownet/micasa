@@ -1112,7 +1112,7 @@ namespace micasa {
 						{ "label", "Name" },
 						{ "type", "string" },
 						{ "maxlength", 64 },
-						{ "minlength", 3 },
+						{ "minlength", 2 },
 						{ "mandatory", true },
 						{ "sort", 1 }
 					};
@@ -1144,8 +1144,7 @@ namespace micasa {
 						{ "name", "value" },
 						{ "label", "Value" },
 						{ "description", "The value that triggers this link." },
-						{ "default", "On" },
-						{ "mandatory", true },
+						{ "mandatory", false },
 						{ "type", "list" },
 						{ "options", switchOptions },
 						{ "sort", 12 }
@@ -1154,8 +1153,7 @@ namespace micasa {
 						{ "name", "target_value" },
 						{ "label", "Target Value" },
 						{ "description", "The value to set the target device to when the link is triggered." },
-						{ "default", "On" },
-						{ "mandatory", true },
+						{ "mandatory", false },
 						{ "type", "list" },
 						{ "options", switchOptions },
 						{ "sort", 13 }
@@ -1349,7 +1347,7 @@ namespace micasa {
 						{ "label", "Name" },
 						{ "type", "string" },
 						{ "maxlength", 64 },
-						{ "minlength", 3 },
+						{ "minlength", 2 },
 						{ "mandatory", true },
 						{ "default", "New Script" },
 						{ "sort", 1 }
@@ -1521,7 +1519,7 @@ namespace micasa {
 						{ "label", "Name" },
 						{ "type", "string" },
 						{ "maxlength", 64 },
-						{ "minlength", 3 },
+						{ "minlength", 2 },
 						{ "mandatory", true },
 						{ "default", "New Timer" },
 						{ "sort", 1 }
@@ -1859,7 +1857,7 @@ namespace micasa {
 						{ "label", "Name" },
 						{ "type", "string" },
 						{ "maxlength", 64 },
-						{ "minlength", 3 },
+						{ "minlength", 2 },
 						{ "mandatory", true },
 						{ "default", "New User" },
 						{ "sort", 1 }
