@@ -9,7 +9,6 @@
 #include "Notification.h"
 
 #define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC              8000 // how long to wait for result
-#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC             1000 // how long to block node while waiting for result
 #define OPEN_ZWAVE_NODE_RACE_WAIT_MSEC              1500
 
 namespace micasa {
@@ -37,6 +36,7 @@ namespace micasa {
 	private:
 		unsigned int m_homeId;
 		unsigned int m_nodeId;
+		unsigned long long m_commandIdx;
 		nlohmann::json m_configuration;
 		mutable std::mutex m_configurationMutex;
 

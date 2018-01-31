@@ -39,6 +39,7 @@ namespace micasa {
 		Plugin( id_, type_, reference_, parent_ ),
 		m_homeId( 0 ),
 		m_nodeId( 0 ),
+		m_commandIdx( 0 ),
 		m_configuration( json::object() )
 	{
 	};
@@ -367,27 +368,32 @@ namespace micasa {
 					) ? true : false;
 					std::string valueStr = device->getValue();
 
-					// This method is most likely called from the scheduler and should therefore not block for too long, so
-					// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
-					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
-						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
-							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+					// Detect race condition, in which case the command is ignored and not sent to the controller. Note
+					// that there's an additional race condition check when an updated is originating from the hardware.
+					std::string raceData; // data stored alognside race pending update
+					if (
+						this->_releasePendingUpdate( device_->getReference() + std::to_string( this->m_commandIdx ) + "_race", raceData ) // sets raceData to the value to keep
+						&& valueStr != raceData
+					) {
+						Logger::logr( Logger::LogLevel::NOTICE, this, "Preventing race condition. Received %s, should remain %s.", valueStr.c_str(), data.c_str() );
+					} else {
+						// This method is most likely called from the scheduler and should therefore not block for too long, so
+						// we're making several short attempts to obtain the manager lock instead of blocking for a long time.
+						this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
+							if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
+								std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
+								Manager::Get()->SetValue( valueId, value );
+								task_->repeat = 0; // done
 
-							// Commands should be pushed to nodes as often as possible, so the command is send to the
-							// node wether we've processed the previous one already or not.
-							if ( ! this->_queuePendingUpdate( device->getReference(), source_, valueStr, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								this->_releasePendingUpdate( device->getReference() );
-								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
+							// After several tries the manager instance still isn't ready, so we're bailing out with an error.
+							} else if ( task_->repeat == 0 ) {
+								Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
 							}
-							Manager::Get()->SetValue( valueId, value );
+						} );
 
-							task_->repeat = 0; // done
-
-						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
-						} else if ( task_->repeat == 0 ) {
-							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
-						}
-					} );
+						// Que
+						this->_queuePendingUpdate( device->getReference() + std::to_string( ++this->m_commandIdx ), source_, valueStr, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC );
+					}
 
 				} else if (
 					valueId.GetCommandClassId() == COMMAND_CLASS_SWITCH_MULTILEVEL
@@ -402,15 +408,7 @@ namespace micasa {
 					this->m_scheduler.schedule( 0, ( OPEN_ZWAVE_MANAGER_TRY_LOCK_DURATION_MSEC / OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS ) - OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC, OPEN_ZWAVE_MANAGER_TRY_LOCK_ATTEMPTS, this, [=]( std::shared_ptr<Scheduler::Task<>> task_ ) {
 						if ( ZWave::g_managerMutex.try_lock_for( std::chrono::milliseconds( OPEN_ZWAVE_MANAGER_TRY_LOCK_MSEC ) ) ) {
 							std::lock_guard<std::timed_mutex> lock( ZWave::g_managerMutex, std::adopt_lock );
-
-							// Commands should be pushed to nodes as often as possible, so the command is send to the
-							// node wether we've processed the previous one already or not.
-							if ( ! this->_queuePendingUpdate( device->getReference(), source_, OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC ) ) {
-								this->_releasePendingUpdate( device->getReference() );
-								Logger::log( Logger::LogLevel::WARNING, this, "Node busy." );
-							}
 							Manager::Get()->SetValue( valueId, value );
-
 							task_->repeat = 0; // done
 
 						// After several tries the manager instance still isn't ready, so we're bailing out with an error.
@@ -418,6 +416,8 @@ namespace micasa {
 							Logger::log( Logger::LogLevel::ERROR, this, "Controller busy, command failed." );
 						}
 					} );
+
+					this->_queuePendingUpdate( device->getReference() + std::to_string( ++this->m_commandIdx ), source_, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC );
 
 				} else {
 					Logger::log( Logger::LogLevel::ERROR, this, "Invalid command." );
@@ -614,7 +614,7 @@ namespace micasa {
 				}
 
 				std::string data; // data stored alognside pending update
-				bool wasPendingUpdate = this->_releasePendingUpdate( reference, source, data );
+				bool wasPendingUpdate = this->_releasePendingUpdate( reference + std::to_string( this->m_commandIdx ), source, data );
 
 				bool boolValue = false;
 				if ( valueId_.GetType() == ValueID::ValueType_Bool ) {
@@ -655,7 +655,7 @@ namespace micasa {
 					&& targetValue != Switch::resolveTextOption( data )
 					&& Manager::Get()->IsNodeListeningDevice( this->m_homeId, this->m_nodeId ) // useless to query battery powered devices
 					&& ( source & Device::UpdateSource::INTERNAL ) != Device::UpdateSource::INTERNAL
-					&& this->_queuePendingUpdate( reference, source | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+					&& this->_queuePendingUpdate( reference + std::to_string( this->m_commandIdx ), source | Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
 					Logger::logr( Logger::LogLevel::NOTICE, this, "Possible wrong value notification. Received %s, expected %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->RefreshValue( valueId_ );
@@ -663,13 +663,14 @@ namespace micasa {
 				// If the prevent_race_conditions setting is active and the race condition pending update is present,
 				// the update need to be reverted. NOTE the data stored in the pending race-condition update is readded
 				// to the queue, which should make the bug-check above also work when fixing race conditions.
+				// NOTE the updateDevice method also checks for race conditions and will not send the command if a race
+				// condition is detected.
 				} else if (
-					! wasPendingUpdate
-					&& this->_releasePendingUpdate( reference + "_race", data ) // sets data to the value to revert to
+					this->_releasePendingUpdate( reference + std::to_string( this->m_commandIdx ) + "_race", data ) // sets data to the value to revert to
 					&& targetValue != Switch::resolveTextOption( data )
-					&& this->_queuePendingUpdate( reference, source & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
+					&& this->_queuePendingUpdate( reference + std::to_string( this->m_commandIdx ), source & ~Device::UpdateSource::INTERNAL, data, 0, OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC )
 				) {
-					Logger::logr( Logger::LogLevel::NOTICE, this, "Preventing race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
+					Logger::logr( Logger::LogLevel::NOTICE, this, "Reverting race condition. Received %s, should remain %s.", Switch::resolveTextOption( targetValue ).c_str(), data.c_str() );
 					Manager::Get()->SetValue( valueId_, ( Switch::resolveTextOption( data ) == Switch::Option::ON ) ? true : false );
 
 				// The value appears to be valid and should be used to set the device.
@@ -681,10 +682,9 @@ namespace micasa {
 					if (
 						device->getValueOption() != targetValue
 						&& device->getSettings()->get<bool>( "prevent_race_conditions", false )
-						&& Device::resolveUpdateSource( source & Device::UpdateSource::EVENT ) > 0
 					) {
 						data = Switch::resolveTextOption( targetValue );
-						this->_queuePendingUpdate( reference + "_race", source, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
+						this->_queuePendingUpdate( reference + std::to_string( this->m_commandIdx ) + "_race", source, data, 0, OPEN_ZWAVE_NODE_RACE_WAIT_MSEC );
 					}
 
 					device->updateValue( source & ~Device::UpdateSource::INTERNAL, targetValue );
@@ -706,7 +706,7 @@ namespace micasa {
 						subtype = Level::SubType::DIMMER;
 					}
 
-					this->_releasePendingUpdate( reference, source );
+					this->_releasePendingUpdate( reference + std::to_string( this->m_commandIdx ), source );
 
 					unsigned char byteValue = 0;
 					if (
