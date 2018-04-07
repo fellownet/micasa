@@ -29,6 +29,7 @@
 #include "plugins/RFXCom.h"
 #include "plugins/SolarEdge.h"
 #include "plugins/SolarEdgeInverter.h"
+#include "plugins/System.h"
 #include "plugins/Telegram.h"
 #include "plugins/WeatherUnderground.h"
 #ifdef _WITH_OPENZWAVE
@@ -60,6 +61,7 @@ namespace micasa {
 		{ Plugin::Type::RFXCOM, "rfxcom" },
 		{ Plugin::Type::SOLAREDGE, "solaredge" },
 		{ Plugin::Type::SOLAREDGE_INVERTER, "solaredge_inverter" },
+		{ Plugin::Type::SYSTEM, "system" },
 		{ Plugin::Type::TELEGRAM, "telegram" },
 		{ Plugin::Type::WEATHER_UNDERGROUND, "weather_underground" },
 #ifdef _WITH_OPENZWAVE
@@ -122,6 +124,9 @@ namespace micasa {
 				break;
 			case Type::SOLAREDGE_INVERTER:
 				return std::make_shared<SolarEdgeInverter>( id_, type_, reference_, parent_ );
+				break;
+			case Type::SYSTEM:
+				return std::make_shared<System>( id_, type_, reference_, parent_ );
 				break;
 			case Type::TELEGRAM:
 				return std::make_shared<Telegram>( id_, type_, reference_, parent_ );
