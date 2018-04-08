@@ -36,6 +36,8 @@ namespace micasa {
 
 	class Network final {
 
+		friend class System;
+
 		friend void (::micasa_mg_handler)( mg_connection* connection_, int event_, void* data_ );
 
 	public:
@@ -46,8 +48,8 @@ namespace micasa {
 
 		class Connection {
 
-			friend class micasa::Network;
-			friend class micasa::HomeKit;
+			friend class Network;
+			friend class HomeKit;
 
 		public:
 			enum class Event: unsigned short {

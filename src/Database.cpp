@@ -18,6 +18,7 @@ namespace micasa {
 		} else {
 			Logger::log( Logger::LogLevel::ERROR, this, "Unable to open database." );
 		}
+		this->m_queries = 0;
 	};
 
 	Database::~Database() {
@@ -379,6 +380,7 @@ namespace micasa {
 				throw; // re-throw exception
 			}
 			sqlite3_finalize( statement );
+			this->m_queries++;
 		} else {
 			const char* error = sqlite3_errmsg( this->m_connection );
 			Logger::logr( Logger::LogLevel::ERROR, this, "Query rejected (%s).", error );

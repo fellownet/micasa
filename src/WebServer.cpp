@@ -42,6 +42,7 @@
 #endif // _WITH_LINUX_SPI
 #include "plugins/RFXCom.h"
 #include "plugins/SolarEdge.h"
+#include "plugins/System.h"
 #include "plugins/Telegram.h"
 #include "plugins/WeatherUnderground.h"
 #ifdef _WITH_OPENZWAVE
@@ -525,6 +526,10 @@ namespace micasa {
 									{ "value", "solaredge" },
 									{ "label", SolarEdge::label },
 									{ "settings", SolarEdge::getEmptySettingsJson() }
+								},
+								{
+									{ "value", "system" },
+									{ "label", System::label }
 								},
 								{
 									{ "value", "telegram" },

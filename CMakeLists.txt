@@ -39,6 +39,7 @@ set( SRC
 	src/plugins/HarmonyHub.cpp
 	src/plugins/Dummy.cpp
 	src/plugins/Telegram.cpp
+	src/plugins/System.cpp
 
 	# devices
 	src/device/Switch.cpp

@@ -12,6 +12,8 @@ namespace micasa {
 
 	class Database final {
 
+		friend class System;
+
 	public:
 		class NoResultsException: public std::runtime_error {
 		public:
@@ -45,6 +47,7 @@ namespace micasa {
 
 	private:
 		sqlite3 *m_connection;
+		mutable unsigned long long m_queries;
 
 		void _init() const;
 		void _wrapQuery( const std::string& query_, va_list arguments_, const std::function<void(sqlite3_stmt*)>&& process_ ) const;

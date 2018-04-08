@@ -29,6 +29,8 @@ namespace micasa {
 
 		class ThreadPool; // forward declaration for friend clause of BaseTask
 
+		friend class System;
+
 	public:
 
 		// ========
@@ -179,6 +181,8 @@ namespace micasa {
 		// ==========
 
 		class ThreadPool final {
+
+			friend class System;
 
 		public:
 			~ThreadPool(); // public destructor

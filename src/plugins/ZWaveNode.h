@@ -9,7 +9,7 @@
 #include "Notification.h"
 
 #define OPEN_ZWAVE_NODE_BUSY_WAIT_MSEC              8000 // how long to wait for result
-#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC             1000 // how long to block node while waiting for result
+#define OPEN_ZWAVE_NODE_BUSY_BLOCK_MSEC             250  // how long to block node while waiting for result
 #define OPEN_ZWAVE_NODE_RACE_WAIT_MSEC              1500
 
 namespace micasa {

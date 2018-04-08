@@ -33,7 +33,8 @@ namespace micasa {
 			TELEGRAM            = 11,
 #ifdef _WITH_HOMEKIT
 			HOMEKIT             = 12,
-#endif // _WITH_LINUX_SPI
+#endif // _WITH_HOMEKIT
+			SYSTEM              = 13
 		}; // enum Type
 		static const std::map<Type, std::string> TypeText;
 		ENUM_UTIL_W_TEXT( Type, TypeText );
