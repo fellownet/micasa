@@ -39,4 +39,3 @@ If you'd like to contribute code to this project, please read the
 
 If you like this project, perhaps you can support us by making a donation?
 - Paypal: [Donate](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=VQNGE3N5L6MKS)
-- Bitcoin: 1EqM3YqTMi1PfZDYtQoqTVytgDdUdsAtUw
