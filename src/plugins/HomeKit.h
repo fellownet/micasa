@@ -86,7 +86,7 @@ namespace micasa {
 		void _handleAccessories( Session& session_ );
 		void _handleCharacteristics( Session& session_ );
 
-		void _addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) throw( std::runtime_error );
+		void _addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ );
 
 		std::string _getSetupCode() const;
 		std::string _getAccessoryId() const;

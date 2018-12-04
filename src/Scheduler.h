@@ -7,6 +7,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <climits>
+#include <functional>
 
 #define SCHEDULER_REPEAT_INFINITE ULONG_MAX
 
