@@ -80,7 +80,7 @@ namespace micasa {
 			void send( const std::string& data_ );
 
 			std::string getData() const;
-			std::string popData( unsigned int length_ = ULONG_MAX );
+			std::string popData( unsigned int length_ = UINT_MAX );
 			std::string getBody() const;
 			std::string getUri() const;
 			unsigned int getPort() const;

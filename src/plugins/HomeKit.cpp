@@ -1855,7 +1855,7 @@ namespace micasa {
 		}
 	};
 
-	void HomeKit::_addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) throw( std::runtime_error ) {
+	void HomeKit::_addHAPValue( std::shared_ptr<Device> device_, const std::string& format_, nlohmann::json& object_ ) {
 		std::string subtype = device_->getSettings()->get( "subtype", device_->getSettings()->get( DEVICE_SETTING_DEFAULT_SUBTYPE, "generic" ) );
 		if ( "bool" == format_ ) {
 			if ( device_->getType() == Device::Type::SWITCH ) {
