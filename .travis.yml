@@ -46,6 +46,7 @@ matrix:
     - gcc
 
     install:
+      - brew uninstall python
       - brew update
       #- brew install libusb
       #- brew install libusb-compat
