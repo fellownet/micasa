@@ -1,7 +1,6 @@
 language: cpp
 
 matrix:
-  # Linux x86_64
   include:
   - os: linux
 
@@ -13,30 +12,22 @@ matrix:
     - gcc
 
     install:
-    #- if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
     - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
     addons:
         apt:
-            #sources:
-            #- ubuntu-toolchain-r-test
             packages:
-            #- gcc-4.9
-            #- g++-4.9
             - cmake
             - libsqlite3-dev
             - curl
             - libcurl4-openssl-dev
             - libssl-dev
-            #- git
             - libavahi-client-dev
 
     script:
     - cmake -DDEBUG=OFF . && make && cd www && npm install && npm run build_prod && cd ..
 
-  # OSX
   - os: osx
-    #osx_image: xcode9.4
 
     env:
     - TARGET_ARCHITECTURE=x86_64
@@ -49,9 +40,7 @@ matrix:
     - brew update
     - brew install libusb
     - brew install libusb-compat
-    #- brew upgrade python
     - brew install openssl
-    #- brew upgrade sqlite
     - export OPENSSL_ROOT_DIR=/usr/local/opt/openssl
     - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $TRAVIS_NODE_VERSION
 
