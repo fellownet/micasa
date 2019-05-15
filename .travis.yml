@@ -47,8 +47,8 @@ matrix:
 
     install:
       - brew update
-      #- brew install libusb
-      #- brew install libusb-compat
+      - brew install libusb
+      - brew install libusb-compat
       #- brew upgrade python
       - brew install openssl
       #- brew upgrade sqlite
