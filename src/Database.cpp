@@ -175,7 +175,7 @@ namespace micasa {
 
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 					if ( sqlite3_column_count( statement_ ) != 1 ) {
@@ -210,7 +210,7 @@ namespace micasa {
 
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
 			while ( true ) {
 				if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 					if ( sqlite3_column_count( statement_ ) != 1 ) {
@@ -235,7 +235,7 @@ namespace micasa {
 
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
 			int columns = sqlite3_column_count( statement_ );
 			if ( 2 != columns ) {
 				throw InvalidResultException( "resultset doesn't contain exactly two columns" );
@@ -265,7 +265,7 @@ namespace micasa {
 
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 				if ( sqlite3_column_count( statement_ ) != 1 ) {
 					throw InvalidResultException( "resultset doesn't contain exactly one column" );
@@ -298,7 +298,7 @@ namespace micasa {
 
 		va_list arguments;
 		va_start( arguments, query_ );
-		this->_wrapQuery( query_, arguments, [this, &result]( sqlite3_stmt *statement_ ) {
+		this->_wrapQuery( query_, arguments, [&result]( sqlite3_stmt *statement_ ) {
 			if ( SQLITE_ROW == sqlite3_step( statement_ ) ) {
 				if ( sqlite3_column_count( statement_ ) != 1 ) {
 					throw InvalidResultException( "resultset doesn't contain exactly one column" );

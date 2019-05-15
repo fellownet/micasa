@@ -1079,7 +1079,7 @@ namespace micasa {
 					deviceId = jsonGet<int>( input_, "$2" );
 				}
 
-				auto fGetSettings = [deviceId]() -> json {
+				auto fGetSettings = []() -> json {
 					auto devices  = g_controller->getAllDevices();
 					json sourceDevices = json::array();
 					json targetDevices = json::array();
